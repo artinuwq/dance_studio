@@ -8,15 +8,17 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
 <style>
+/* ====== ЦВЕТА (ФИКСИРОВАННАЯ БЕЛАЯ ТЕМА) ====== */
 :root {
-  --bg: var(--tg-theme-bg-color, #ffffff);
-  --text: var(--tg-theme-text-color, #000000);
-  --hint: var(--tg-theme-hint-color, #888);
-  --button: var(--tg-theme-button-color, #2ea6ff);
-  --button-text: var(--tg-theme-button-text-color, #ffffff);
-  --card: var(--tg-theme-secondary-bg-color, #f2f2f2);
+  --bg: #ffffff;
+  --text: #111111;
+  --hint: #777777;
+  --accent: #e91e63;
+  --card: #f5f5f5;
+  --border: #eeeeee;
 }
 
+/* ====== БАЗА ====== */
 * {
   box-sizing: border-box;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -28,12 +30,16 @@ body {
   color: var(--text);
 }
 
+/* ====== HEADER ====== */
 header {
-  padding: 14px;
+  padding: 14px 16px;
   font-size: 20px;
   font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
 }
 
+/* ====== СТРАНИЦЫ ====== */
 .page {
   display: none;
   padding: 16px;
@@ -44,6 +50,7 @@ header {
   display: block;
 }
 
+/* ====== КАРТОЧКИ ====== */
 .card {
   background: var(--card);
   padding: 14px;
@@ -52,9 +59,9 @@ header {
 }
 
 .menu-item {
+  background: var(--card);
   padding: 14px;
   border-radius: 12px;
-  background: var(--card);
   margin-bottom: 10px;
   cursor: pointer;
 }
@@ -63,6 +70,7 @@ header {
   opacity: 0.7;
 }
 
+/* ====== НИЖНЕЕ МЕНЮ ====== */
 .bottom-nav {
   position: fixed;
   bottom: 0;
@@ -71,7 +79,7 @@ header {
   height: 64px;
   display: flex;
   background: var(--bg);
-  border-top: 1px solid #ddd;
+  border-top: 1px solid var(--border);
 }
 
 .nav-btn {
@@ -84,17 +92,11 @@ header {
 }
 
 .nav-btn.active {
-  color: var(--button);
+  color: var(--accent);
   font-weight: 600;
 }
 
-.back {
-  color: var(--button);
-  cursor: pointer;
-  margin-bottom: 12px;
-  display: inline-block;
-}
-
+/* ====== ПРОФИЛЬ ====== */
 .profile {
   text-align: center;
 }
@@ -114,9 +116,18 @@ header {
   object-fit: cover;
 }
 
+/* ====== ТЕКСТ ====== */
 .small {
   color: var(--hint);
   font-size: 14px;
+}
+
+/* ====== НАЗАД ====== */
+.back {
+  color: var(--accent);
+  cursor: pointer;
+  margin-bottom: 12px;
+  display: inline-block;
 }
 </style>
 </head>
@@ -125,7 +136,7 @@ header {
 
 <header id="header">Студия танцев</header>
 
-<!-- ГЛАВНАЯ -->
+<!-- ====== ГЛАВНАЯ ====== -->
 <div id="home" class="page active">
   <div class="card">
     <h3>Добро пожаловать!</h3>
@@ -144,14 +155,14 @@ header {
   <div class="menu-item" onclick="openInfo('Контакты')">Контакты</div>
 </div>
 
-<!-- РАСПИСАНИЕ -->
+<!-- ====== РАСПИСАНИЕ ====== -->
 <div id="schedule" class="page">
   <h3>Расписание занятий</h3>
   <p class="small">Занятий пока нет</p>
   <p class="small">Следите за обновлениями</p>
 </div>
 
-<!-- ПРОФИЛЬ -->
+<!-- ====== ПРОФИЛЬ ====== -->
 <div id="profile" class="page">
   <div class="profile">
     <div class="avatar" id="avatar"></div>
@@ -161,14 +172,14 @@ header {
   </div>
 </div>
 
-<!-- ИНФО-СТРАНИЦЫ -->
+<!-- ====== ИНФО ====== -->
 <div id="info" class="page">
   <div class="back" onclick="goHome()">← Назад</div>
   <h3 id="info-title"></h3>
   <p class="small">Раздел находится в разработке</p>
 </div>
 
-<!-- НИЖНЕЕ МЕНЮ -->
+<!-- ====== НИЖНЕЕ МЕНЮ ====== -->
 <div class="bottom-nav">
   <div class="nav-btn active" onclick="showPage('home')">🏠<br>Главная</div>
   <div class="nav-btn" onclick="showPage('schedule')">🗓<br>Расписание</div>
@@ -176,17 +187,21 @@ header {
 </div>
 
 <script>
+/* ====== TELEGRAM ====== */
 const tg = window.Telegram.WebApp;
 tg.ready();
 tg.expand();
 
+/* ====== НАВИГАЦИЯ ====== */
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
   if (id !== 'info') {
-    document.querySelectorAll('.nav-btn')[['home','schedule','profile'].indexOf(id)].classList.add('active');
+    const index = ['home','schedule','profile'].indexOf(id);
+    if (index >= 0) document.querySelectorAll('.nav-btn')[index].classList.add('active');
     document.getElementById('header').innerText = 'Студия танцев';
   }
 }
@@ -201,6 +216,7 @@ function goHome() {
   showPage('home');
 }
 
+/* ====== ПРОФИЛЬ ИЗ TELEGRAM ====== */
 const user = tg.initDataUnsafe?.user;
 if (user) {
   document.getElementById('name').innerText = user.first_name || '—';
@@ -208,10 +224,12 @@ if (user) {
   document.getElementById('userid').innerText = user.id || '—';
 
   if (user.photo_url) {
-    document.getElementById('avatar').innerHTML =
-      `<img src="${user.photo_url}">`;
+    document.getElementById('avatar').innerHTML = `<img src="${user.photo_url}">`;
   }
 }
+
+/* DEBUG VERSION */
+console.log("Mini App version:", new URLSearchParams(location.search).get("v"));
 </script>
 
 </body>
