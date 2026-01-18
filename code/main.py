@@ -8,7 +8,7 @@ from config import BOT_TOKEN
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 
-APP_VERSION = 3.1
+APP_VERSION = 3.2
 @dp.message(CommandStart())
 async def start(message):
     await bot.set_chat_menu_button(
