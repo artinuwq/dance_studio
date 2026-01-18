@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Telegram Cloud</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+body { margin:0; font-family: system-ui; background:#f4f4f4; display:flex; flex-direction:column; align-items:center; padding:20px;}
+button, input { margin:5px; padding:10px; font-size:16px;}
+#fileList { margin-top:20px; width:100%; max-width:600px;}
+</style>
+</head>
+<body>
+
+<h1>Telegram Cloud Storage</h1>
+<input type="file" id="fileInput"/>
+<button id="openChatBtn">Открыть чат с ботом</button>
+
+<h2>Список файлов</h2>
+<div id="fileList">Загрузка...</div>
+
+<script>
+const tg = window.Telegram.WebApp;
+
+// Кнопка открытия чата с ботом
+document.getElementById('openChatBtn').addEventListener('click', ()=>{
+    // Замените @YourBotUsername на юзернейм вашего бота
+    window.open("https://t.me/@arvica_bot", "_blank");
+});
+
+// Передача данных файла боту через WebApp.sendData
+document.getElementById('fileInput').addEventListener('change', ()=>{
+    const fileInput = document.getElementById('fileInput');
+    if(!fileInput.files.length) return;
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e){
+        const base64 = e.target.result.split(",")[1];
+        // Отправляем данные боту, обработка на Python стороне
+        tg.sendData(JSON.stringify({file_name:file.name, data: base64}));
+        alert("Данные отправлены боту. Откройте чат с ботом, чтобы отправить файл в канал.");
+    };
+    reader.readAsDataURL(file);
+});
+
+async function loadFiles(){
+    try {
+        document.getElementById('fileList').innerHTML = "Загрузка...";
+        
+        // Запрашиваем список файлов у бота через WebApp
+        tg.sendData(JSON.stringify({action: "get_files"}));
+        
+        // Для демонстрации - показываем заглушку
+        setTimeout(() => {
+            const fileListDiv = document.getElementById('fileList');
+            if(fileListDiv.innerHTML === "Загрузка...") {
+                fileListDiv.innerHTML = "<p>Нет доступных файлов. Загрузите файл через кнопку сверху.</p>";
+            }
+        }, 1000);
+    } catch(error) {
+        document.getElementById('fileList').innerHTML = "Ошибка загрузки списка файлов";
+        console.error(error);
+    }
+}
+loadFiles();
+</script>
+
+</body>
+</html>
