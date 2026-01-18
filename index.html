@@ -2,68 +2,216 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Telegram Cloud</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dance Studio</title>
+
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
 <style>
-body { margin:0; font-family: system-ui; background:#f4f4f4; display:flex; flex-direction:column; align-items:center; padding:20px;}
-button, input { margin:5px; padding:10px; font-size:16px;}
-#fileList { margin-top:20px; width:100%; max-width:600px;}
+:root {
+  --bg: var(--tg-theme-bg-color, #ffffff);
+  --text: var(--tg-theme-text-color, #000000);
+  --hint: var(--tg-theme-hint-color, #888);
+  --button: var(--tg-theme-button-color, #2ea6ff);
+  --button-text: var(--tg-theme-button-text-color, #ffffff);
+  --card: var(--tg-theme-secondary-bg-color, #f2f2f2);
+}
+
+* {
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+header {
+  padding: 14px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.page {
+  display: none;
+  padding: 16px;
+  padding-bottom: 80px;
+}
+
+.page.active {
+  display: block;
+}
+
+.card {
+  background: var(--card);
+  padding: 14px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+
+.menu-item {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--card);
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.menu-item:active {
+  opacity: 0.7;
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  display: flex;
+  background: var(--bg);
+  border-top: 1px solid #ddd;
+}
+
+.nav-btn {
+  flex: 1;
+  text-align: center;
+  padding-top: 6px;
+  font-size: 12px;
+  color: var(--hint);
+  cursor: pointer;
+}
+
+.nav-btn.active {
+  color: var(--button);
+  font-weight: 600;
+}
+
+.back {
+  color: var(--button);
+  cursor: pointer;
+  margin-bottom: 12px;
+  display: inline-block;
+}
+
+.profile {
+  text-align: center;
+}
+
+.avatar {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: var(--card);
+  margin: 0 auto 12px;
+  overflow: hidden;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.small {
+  color: var(--hint);
+  font-size: 14px;
+}
 </style>
 </head>
+
 <body>
 
-<h1>Telegram Cloud Storage</h1>
-<input type="file" id="fileInput"/>
-<button id="openChatBtn">Открыть чат с ботом</button>
+<header id="header">Студия танцев</header>
 
-<h2>Список файлов</h2>
-<div id="fileList">Загрузка...</div>
+<!-- ГЛАВНАЯ -->
+<div id="home" class="page active">
+  <div class="card">
+    <h3>Добро пожаловать!</h3>
+    <p class="small">Мы рады видеть вас в нашей студии</p>
+  </div>
+
+  <div class="card">
+    <h4>Новости</h4>
+    <p>Открытие нового направления</p>
+    <p>Обновление расписания</p>
+  </div>
+
+  <div class="menu-item" onclick="openInfo('О студии')">О студии</div>
+  <div class="menu-item" onclick="openInfo('Направления')">Направления</div>
+  <div class="menu-item" onclick="openInfo('Преподаватели')">Преподаватели</div>
+  <div class="menu-item" onclick="openInfo('Контакты')">Контакты</div>
+</div>
+
+<!-- РАСПИСАНИЕ -->
+<div id="schedule" class="page">
+  <h3>Расписание занятий</h3>
+  <p class="small">Занятий пока нет</p>
+  <p class="small">Следите за обновлениями</p>
+</div>
+
+<!-- ПРОФИЛЬ -->
+<div id="profile" class="page">
+  <div class="profile">
+    <div class="avatar" id="avatar"></div>
+    <h3 id="name">—</h3>
+    <p class="small" id="username">—</p>
+    <p class="small">ID: <span id="userid">—</span></p>
+  </div>
+</div>
+
+<!-- ИНФО-СТРАНИЦЫ -->
+<div id="info" class="page">
+  <div class="back" onclick="goHome()">← Назад</div>
+  <h3 id="info-title"></h3>
+  <p class="small">Раздел находится в разработке</p>
+</div>
+
+<!-- НИЖНЕЕ МЕНЮ -->
+<div class="bottom-nav">
+  <div class="nav-btn active" onclick="showPage('home')">🏠<br>Главная</div>
+  <div class="nav-btn" onclick="showPage('schedule')">🗓<br>Расписание</div>
+  <div class="nav-btn" onclick="showPage('profile')">👤<br>Профиль</div>
+</div>
 
 <script>
 const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
 
-// Кнопка открытия чата с ботом
-document.getElementById('openChatBtn').addEventListener('click', ()=>{
-    // Замените @YourBotUsername на юзернейм вашего бота
-    window.open("https://t.me/@arvica_bot", "_blank");
-});
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
 
-// Передача данных файла боту через WebApp.sendData
-document.getElementById('fileInput').addEventListener('change', ()=>{
-    const fileInput = document.getElementById('fileInput');
-    if(!fileInput.files.length) return;
-
-    const file = fileInput.files[0];
-    const reader = new FileReader();
-    reader.onload = function(e){
-        const base64 = e.target.result.split(",")[1];
-        // Отправляем данные боту, обработка на Python стороне
-        tg.sendData(JSON.stringify({file_name:file.name, data: base64}));
-        alert("Данные отправлены боту. Откройте чат с ботом, чтобы отправить файл в канал.");
-    };
-    reader.readAsDataURL(file);
-});
-
-async function loadFiles(){
-    try {
-        document.getElementById('fileList').innerHTML = "Загрузка...";
-        
-        // Запрашиваем список файлов у бота через WebApp
-        tg.sendData(JSON.stringify({action: "get_files"}));
-        
-        // Для демонстрации - показываем заглушку
-        setTimeout(() => {
-            const fileListDiv = document.getElementById('fileList');
-            if(fileListDiv.innerHTML === "Загрузка...") {
-                fileListDiv.innerHTML = "<p>Нет доступных файлов. Загрузите файл через кнопку сверху.</p>";
-            }
-        }, 1000);
-    } catch(error) {
-        document.getElementById('fileList').innerHTML = "Ошибка загрузки списка файлов";
-        console.error(error);
-    }
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  if (id !== 'info') {
+    document.querySelectorAll('.nav-btn')[['home','schedule','profile'].indexOf(id)].classList.add('active');
+    document.getElementById('header').innerText = 'Студия танцев';
+  }
 }
-loadFiles();
+
+function openInfo(title) {
+  showPage('info');
+  document.getElementById('info-title').innerText = title;
+  document.getElementById('header').innerText = title;
+}
+
+function goHome() {
+  showPage('home');
+}
+
+const user = tg.initDataUnsafe?.user;
+if (user) {
+  document.getElementById('name').innerText = user.first_name || '—';
+  document.getElementById('username').innerText = user.username ? '@' + user.username : '—';
+  document.getElementById('userid').innerText = user.id || '—';
+
+  if (user.photo_url) {
+    document.getElementById('avatar').innerHTML =
+      `<img src="${user.photo_url}">`;
+  }
+}
 </script>
 
 </body>
