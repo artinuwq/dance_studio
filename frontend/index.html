@@ -1,0 +1,4333 @@
+<!DOCTYPE html>
+
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Dance Studio</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+/* ====== ЦВЕТА (ФИКСИРОВАННАЯ БЕЛАЯ ТЕМА) ====== */
+:root {
+  --bg: #ffffff;
+  --text: #111111;
+  --hint: #777777;
+  --accent: #e91e63;
+  --card: #f5f5f5;
+  --border: #eeeeee;
+}
+
+/* ====== БАЗА ====== */
+* {
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ====== HEADER ====== */
+header {
+  padding: 12px 16px;
+  font-size: 20px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-back {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 22px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.header-back:active {
+  opacity: 0.6;
+}
+
+.header-title {
+  flex: 1;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ====== СТРАНИЦЫ ====== */
+.page {
+  display: none;
+  padding: 16px;
+  padding-bottom: 56px;
+}
+
+.page.active {
+  display: block;
+}
+
+/* Минимальная высота для страниц */
+#staff {
+  min-height: calc(100vh - 100px);
+}
+
+/* ====== КАРТОЧКИ ====== */
+.card {
+  background: var(--card);
+  padding: 14px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+
+.menu-item {
+  background: var(--card);
+  padding: 14px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.menu-item:active {
+  opacity: 0.7;
+}
+
+/* ====== НИЖНЕЕ МЕНЮ ====== */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45px; 
+  display: flex;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+
+.nav-btn {
+  flex: 1;
+  text-align: center;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--hint);
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.nav-btn.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-btn.hidden {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+  flex: 0;
+}
+
+/* ====== ВКЛАДКИ С АНИМАЦИЕЙ ====== */
+.nav-tab {
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.tabs-container {
+  position: relative !important;
+}
+
+.tab-indicator {
+  position: absolute;
+  bottom: -2px;
+  height: 3px;
+  background: #2196F3;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ====== ПРОФИЛЬ ====== */
+.profile {
+  text-align: center;
+}
+
+.avatar {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  background: var(--card);
+  margin: 0 auto 12px;
+  overflow: hidden;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ====== ПАНЕЛЬ ПЕРСОНАЛА ====== */
+.staff-info-panel {
+  background: var(--card);
+  padding: 14px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.staff-avatar-small {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.staff-avatar-small img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.staff-info-text {
+  flex: 1;
+  text-align: left;
+}
+
+.staff-name {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+  margin: 0;
+}
+
+.staff-position {
+  font-size: 13px;
+  color: var(--hint);
+  margin: 4px 0 0 0;
+}
+
+
+
+/* ====== ТЕКСТ ====== */
+.small {
+  color: var(--hint);
+  font-size: 14px;
+}
+
+/* ====== НАЗАД ====== */
+.back {
+  color: var(--accent);
+  cursor: pointer;
+  margin-bottom: 12px;
+  display: inline-block;
+}
+
+/* ====== РАЗДЕЛ О СТУДИИ ====== */
+.section-item {
+  background: var(--card);
+  padding: 14px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s;
+}
+
+.section-item:active {
+  opacity: 0.7;
+  background: var(--border);
+}
+
+.section-item-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.section-item-icon {
+  font-size: 24px;
+}
+
+.section-item-text {
+  text-align: left;
+}
+
+.section-item-title {
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0;
+}
+
+.section-item-desc {
+  font-size: 12px;
+  color: var(--hint);
+  margin: 4px 0 0 0;
+}
+
+.section-item-arrow {
+  color: var(--hint);
+  font-size: 20px;
+  font-weight: 300;
+}
+
+/* ====== КОНТАКТНАЯ ИНФОРМАЦИЯ ====== */
+.contact-btn {
+  background: var(--card);
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all 0.2s;
+}
+
+.contact-btn:active {
+  opacity: 0.7;
+  background: var(--border);
+}
+
+.contact-btn-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.contact-icon {
+  font-size: 24px;
+}
+
+.contact-label {
+  font-size: 12px;
+  color: var(--hint);
+  margin-bottom: 2px;
+}
+
+.contact-value {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.contact-action {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+/* ====== ФОРМЫ ====== */
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  color: var(--hint);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--card);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+textarea.form-input {
+  resize: vertical;
+}
+
+.save-btn {
+  width: 100%;
+  padding: 12px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.save-btn:active {
+  opacity: 0.8;
+  transform: scale(0.98);
+}
+
+.save-btn {
+  text-align: center;
+  white-space: normal;
+  word-wrap: break-word;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ====== РЃС‚СЂР°РЅРёС†Р° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ ====== */
+.direction-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lock-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lock-btn:active {
+  opacity: 0.7;
+}
+
+.direction-lockable {
+  position: relative;
+}
+
+.direction-lockable .lock-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  background: rgba(245, 245, 245, 0.7);
+  border-radius: 12px;
+  z-index: 2;
+  pointer-events: all;
+}
+
+#direction-edit-form.direction-locked .direction-lockable .lock-overlay {
+  display: block;
+}
+
+/* ====== СПИСОК КЛИЕНТОВ (ПЕРСОНАЛ) ====== */
+.clients-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.client-card {
+  background: var(--card);
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  border-left: 4px solid var(--accent);
+  transition: all 0.2s;
+}
+
+.client-card:active {
+  background: var(--border);
+  transform: translateX(4px);
+}
+
+.client-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.client-card-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.client-card-status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: white;
+}
+
+.client-card-info {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.client-info-item {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.client-info-label {
+  color: var(--hint);
+  font-size: 11px;
+}
+
+.client-info-value {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.client-card-notes {
+  background: var(--bg);
+  padding: 8px;
+  border-radius: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--hint);
+}
+
+/* ====== ФОТО ПРОФИЛЯ ====== */
+.photo-preview {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 12px;
+  border: 2px dashed var(--border);
+}
+
+#profile-photo-img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+}
+
+/* ====== НОВОСТИ ====== */
+.news-grid {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  padding-bottom: 8px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.news-item {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  min-width: 100px;
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent), #ff69b4);
+}
+
+.news-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, var(--accent), #ff69b4);
+  z-index: -1;
+}
+
+.news-item img {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+.news-item-title {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 6px 4px;
+  text-align: center;
+  z-index: 1;
+  max-height: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.news-item:active {
+  transform: scale(0.95);
+  opacity: 0.8;
+}
+
+.news-empty {
+  text-align: center;
+  color: var(--hint);
+  padding: 20px;
+  font-size: 14px;
+}
+
+/* ====== ПРОСМОТР НОВОСТИ ====== */
+#news-detail {
+  padding: 0 !important;
+  padding-bottom: 56px !important;
+}
+
+#news-detail .news-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--border);
+}
+
+#news-detail .news-detail-back {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+  flex-shrink: 0;
+  padding: 4px 8px;
+}
+
+#news-detail .news-detail-back:active {
+  opacity: 0.6;
+}
+
+#news-detail .news-detail-title-header {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  flex: 1;
+}
+
+#news-detail-photo-container {
+  width: 100%;
+  height: 300px;
+  background: var(--card);
+  overflow: hidden;
+  margin-bottom: -30px;
+  position: relative;
+  z-index: 1;
+}
+
+#news-detail-photo-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#news-detail .news-detail-content-wrapper {
+  background: var(--bg);
+  border-radius: 30px 30px 0 0;
+  padding: 30px 16px 16px 16px;
+  margin-top: 0;
+  position: relative;
+  z-index: 2;
+}
+
+#news-detail-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--text);
+}
+
+#news-detail-date {
+  color: var(--hint);
+  font-size: 13px;
+  margin-bottom: 16px !important;
+}
+
+#news-detail-content {
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 15px;
+  margin: 0;
+}
+</style>
+</head>
+<body>
+<header id="header">
+<button aria-label="Назад" class="header-back" id="header-back" onclick="goBack()">←</button>
+<span class="header-title" id="header-title">LISSA DANCE</span>
+</header>
+<!-- ====== ГЛАВНАЯ ====== -->
+<div class="page active" id="home">
+<div class="card">
+<h3>Добро пожаловать!</h3>
+<p class="small">Мы рады видеть вас в нашей студии</p>
+</div>
+<div class="card">
+<h4>Новости</h4>
+<div class="news-grid" id="news-container">
+<p class="news-empty">Новостей пока нет v-v</p>
+</div>
+</div>
+<div class="card">
+<h4>О студии</h4>
+<div class="section-item" onclick="showSection('info-about')">
+<div class="section-item-left">
+<div class="section-item-icon">ℹ️</div>
+<div class="section-item-text">
+<h4 class="section-item-title">Информация</h4>
+<p class="section-item-desc">Инфо о нас, время работы</p>
+</div>
+</div>
+<div class="section-item-arrow">›</div>
+</div>
+<div class="section-item" onclick="showSection('info-teachers')">
+<div class="section-item-left">
+<div class="section-item-icon">👩‍🏫</div>
+<div class="section-item-text">
+<h4 class="section-item-title">Преподаватели</h4>
+<p class="section-item-desc">Список всех преподавателей</p>
+</div>
+</div>
+<div class="section-item-arrow">›</div>
+</div>
+<div class="section-item" onclick="showSection('info-directions')">
+<div class="section-item-left">
+<div class="section-item-icon">💃</div>
+<div class="section-item-text">
+<h4 class="section-item-title">Направления</h4>
+<p class="section-item-desc">Виды танцев</p>
+</div>
+</div>
+<div class="section-item-arrow">›</div>
+</div>
+<div class="section-item" onclick="showSection('info-contacts')">
+<div class="section-item-left">
+<div class="section-item-icon">📍</div>
+<div class="section-item-text">
+<h4 class="section-item-title">Контакты</h4>
+<p class="section-item-desc">Как нас найти</p>
+</div>
+</div>
+<div class="section-item-arrow">›</div>
+</div>
+</div>
+</div>
+<!-- ====== ИНФОРМАЦИЯ О СТУДИИ ====== -->
+<div class="page" id="info-about">
+<h3>Информация о студии</h3>
+<div class="card">
+<h4>⏰ Время работы</h4>
+<p>Пн-Пт: 10:00 - 18:00</p>
+<p>Сб: 10:00 - 16:00</p>
+<p>Вс: Выходной</p>
+</div>
+<div class="card">
+<h4>📍 Как добраться</h4>
+<script async="" charset="utf-8" src="https://api-maps.yandex.ru/services/constructor/1.0/js/?um=constructor%3Aa1063a1f3fac777c9cdef5b98494aee9e4ffee329067594a69657b435039fe33&amp;width=334&amp;height=265&amp;lang=ru_RU&amp;scroll=true" type="text/javascript"></script>
+</div>
+<div class="card">
+<h4>📞 Контактная информация</h4>
+<div class="contact-btn" onclick="copyPhone('+7 800 555 35 35')">
+<div class="contact-btn-content">
+<span class="contact-icon">📱</span>
+<div>
+<div class="contact-label">Номер телефона</div>
+<div class="contact-value">+7 800 555 35 35</div>
+</div>
+</div>
+<span class="contact-action">Скопировать</span>
+</div>
+<div class="contact-btn" onclick="openTelegram('@artinuwq')">
+<div class="contact-btn-content">
+<span class="contact-icon">💬</span>
+<div>
+<div class="contact-label">Telegram</div>
+<div class="contact-value">@artinuwq</div>
+</div>
+</div>
+<span class="contact-action">Написать</span>
+</div>
+</div>
+</div>
+<!-- ====== РАСПИСАНИЕ ====== -->
+<div class="page" id="schedule">
+<h3>Расписание занятий</h3>
+<div id="schedule-container">
+<p class="small">Загрузка...</p>
+</div>
+</div>
+<!-- ====== РАБОТЫ (ПЕРСОНАЛ) ====== -->
+<div class="page" id="staff">
+<!-- Панель с информацией о персонале -->
+<div class="staff-info-panel">
+<div class="staff-avatar-small" id="staff-panel-avatar">
+<img alt="Фото" id="staff-panel-avatar-img" src="" style="display: none;"/>
+<p style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--hint);">👤</p>
+</div>
+<div class="staff-info-text">
+<div class="staff-name" id="staff-panel-name">—</div>
+<div class="staff-position" id="staff-panel-position">—</div>
+</div>
+<button class="lock-btn" onclick="openStaffProfileEdit()" title="Редактировать рабочий профиль">✏️</button>
+</div>
+<!-- Меню функционала -->
+<div class="card">
+<button class="save-btn" onclick="showPage('personal-schedule')" style="width: 100%; margin-bottom: 8px;">📅 Личное расписание</button>
+<button class="save-btn" onclick="showPage('schedule-control')" style="width: 100%; margin-bottom: 8px;">🗓️ Расписание</button>
+<button class="save-btn" onclick="showPage('directions-groups')" style="width: 100%; margin-bottom: 8px;">📚 Направления и группы</button>
+<button class="save-btn" onclick="showPage('mailings')" style="width: 100%; margin-bottom: 8px;">📧 Рассылки</button>
+<button class="save-btn" onclick="showPage('news-manage')" style="width: 100%; margin-bottom: 8px;">📰 Новости</button>
+<button class="save-btn" id="staff-manage-btn-work" onclick="showPage('staff-manage')" style="width: 100%; margin-bottom: 8px; display: none; text-align: center;">👥 Персонал</button>
+<button class="save-btn" onclick="showPage('clients-list')" style="width: 100%; margin-bottom: 8px;">👨‍👩‍👧‍👦 Клиенты</button>
+</div>
+</div>
+<!-- ====== ЛИЧНОЕ РАСПИСАНИЕ ====== -->
+<div class="page" data-title="Личное расписание" id="personal-schedule">
+
+<div id="personal-schedule-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== УПРАВЛЕНИЕ РАСПИСАНИЕМ ====== -->
+<div class="page" data-title="Управление расписанием" id="schedule-control">
+
+<div id="schedule-control-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== НАПРАВЛЕНИЯ И ГРУППЫ ====== -->
+<div class="page" data-title="Направления и группы" id="directions-groups">
+
+<div class="card" style="margin-bottom: 12px;">
+<button class="save-btn" onclick="showPage('direction-create-form')" style="width: 100%;">➕ Создать направление</button>
+</div>
+<!-- ВКЛАДКИ -->
+<div class="tabs-container" style="display: flex; gap: 8px; margin-bottom: 12px; border-bottom: 2px solid var(--border); position: relative;">
+<button class="nav-tab" id="active-tab" onclick="switchDirectionTab('active')" style="flex: 1; padding: 12px; background: none; border: none; color: #2196F3; font-weight: bold; cursor: pointer;">✅ Активные</button>
+<button class="nav-tab" id="archived-tab" onclick="switchDirectionTab('archived')" style="flex: 1; padding: 12px; background: none; border: none; color: var(--hint); font-weight: bold; cursor: pointer;">📦 Архив</button>
+<div class="tab-indicator"></div>
+</div>
+<div id="directions-groups-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== РАССЫЛКИ ====== -->
+<div class="page" data-title="Рассылки" id="mailings">
+
+<button class="save-btn" onclick="showPage('mailing-create-form')" style="width: 100%; margin-bottom: 16px;">✉️ Создать новую рассылку</button>
+<div id="mailings-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== ФОРМА СОЗДАНИЯ РАССЫЛКИ ====== -->
+<div class="page" data-title="Создать рассылку" id="mailing-create-form">
+
+<!-- БЛОК 1: ОСНОВНЫЕ ДАННЫЕ -->
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--accent);">
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
+<span style="font-size: 20px;">📝</span>
+<h4 style="margin: 0;">Основные данные</h4>
+</div>
+<!-- Название рассылки -->
+<label class="label" style="font-weight: 600;">Название рассылки</label>
+<input class="form-input" id="mailing-name" placeholder="Например: Расписание смены" style="margin-bottom: 14px;" type="text"/>
+<!-- Описание рассылки -->
+<label class="label" style="font-weight: 600;">Описание</label>
+<textarea class="form-input" id="mailing-description" placeholder="Описание рассылки..." style="margin-bottom: 14px; min-height: 80px; resize: vertical;"></textarea>
+<!-- Назначение -->
+<label class="label" style="font-weight: 600;">Назначение</label>
+<input class="form-input" id="mailing-purpose" placeholder="Например: Информирование, Приглашение, Напоминание..." type="text"/>
+</div>
+<!-- БЛОК 2: КОМ ОТПРАВИТЬ -->
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #2196F3;">
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
+<span style="font-size: 20px;">👥</span>
+<h4 style="margin: 0;">Кому отправить</h4>
+</div>
+<!-- Тип кому отправлять -->
+<label class="label" style="font-weight: 600;">Тип рассылки</label>
+<select class="form-input" id="mailing-target-type" onchange="onMailingTargetTypeChange()" style="margin-bottom: 14px; font-size: 14px;">
+<option value="">-- Выберите тип --</option>
+<option value="all">🌍 Все пользователи</option>
+<option value="user">👤 Выбранные пользователи</option>
+<option value="group">👫 Группе НГ (от бота участникам группы)</option>
+<option value="direction">💃 Направление</option>
+<option value="tg_chat">📱 Telegram-группа/канал</option>
+</select>
+<!-- Контейнер для выбора пользователей -->
+<div id="mailing-users-container" style="display: none;">
+<label class="label" style="font-weight: 600;">🔍 Выбор пользователей</label>
+<!-- Поиск пользователей -->
+<input class="form-input" id="mailing-users-search" oninput="searchMailingUsers()" placeholder="Поиск по имени, ID или @юзернейм..." style="margin-bottom: 10px;" type="text"/>
+<!-- Результаты поиска -->
+<div id="mailing-users-search-results" style="max-height: 300px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; padding: 8px;">
+<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">Загрузка пользователей...</p>
+</div>
+<!-- Выбранные пользователи -->
+<div style="background: #f5f5f5; padding: 12px; border-radius: 8px;">
+<label class="label" style="font-weight: 600; margin-bottom: 8px;">✓ Выбранные пользователи</label>
+<div id="mailing-selected-users" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 32px; align-content: flex-start;">
+<p class="small" style="color: var(--hint); width: 100%;">Выбрано: <span id="mailing-users-count" style="font-weight: 600;">0</span></p>
+</div>
+</div>
+</div>
+<!-- ID цели (для направлений и Telegram) -->
+<div id="mailing-target-id-container" style="display: none;">
+<label class="label" style="font-weight: 600;">ID направления/группы Telegram</label>
+<input class="form-input" id="mailing-target-id" placeholder="Введите ID" type="number"/>
+</div>
+</div>
+<!-- БЛОК 3: ВРЕМЯ ОТПРАВКИ -->
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #4CAF50;">
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
+<span style="font-size: 20px;">⏰</span>
+<h4 style="margin: 0;">Время отправки</h4>
+</div>
+<!-- Выбор времени отправки -->
+<label class="label" style="font-weight: 600; margin-bottom: 10px;">Когда отправить</label>
+<div style="display: flex; gap: 10px; margin-bottom: 14px;">
+<button class="save-btn" id="send-now-btn" onclick="setMailingSendNow(true)" style="flex: 1; background: var(--accent); font-weight: 600; padding: 12px;">▶️ Сейчас</button>
+<button class="save-btn" onclick="setMailingSendNow(false)" style="flex: 1; background: var(--hint); font-weight: 600; padding: 12px;">⏲️ Позже</button>
+</div>
+<!-- Дата и время для отложенной отправки -->
+<div id="mailing-schedule-container" style="display: none;">
+<label class="label" style="font-weight: 600;">Дата и время отправки</label>
+<input class="form-input" id="mailing-scheduled-at" type="datetime-local"/>
+</div>
+</div>
+<!-- КНОПКА СОЗДАНИЯ -->
+<div class="card" style="background: linear-gradient(135deg, var(--accent) 0%, #c2185b 100%); padding: 0; border: none;">
+<button class="save-btn" onclick="createMailing()" style="width: 100%; background: transparent; color: white; font-size: 16px; font-weight: 600; padding: 16px; border: none; cursor: pointer;">✉️ Создать рассылку</button>
+</div>
+</div>
+<!-- ====== ОБЪЯВЛЕНИЯ (СТАРОЕ) ====== -->
+<div class="page" data-title="Объявления" id="announcements" style="display: none;">
+
+<button class="save-btn" style="width: 100%; margin-bottom: 16px;">📝 Создать объявление</button>
+<div id="announcements-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== УПРАВЛЕНИЕ НОВОСТЯМИ ====== -->
+<div class="page" data-title="Новости" id="news-manage">
+
+<button class="save-btn" onclick="showPage('news-add-form')" style="width: 100%; margin-bottom: 16px;">✍️ Создать новость</button>
+<div id="news-manage-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== ФОРМА ДОБАВЛЕНИЯ НОВОСТИ ====== -->
+<div class="page" data-title="Создать новость" id="news-add-form">
+
+<button class="save-btn" onclick="openBotForCreateNews()" style="width: 100%; padding: 20px; font-size: 16px;">📝 Создать новость через бота</button>
+</div>
+<!-- ====== УПРАВЛЕНИЕ ПЕРСОНАЛОМ (ИЗ РАБОТЫ) ====== -->
+<div class="page" data-title="Управление персоналом" id="staff-manage">
+
+<button class="save-btn" onclick="showAddStaffForm()" style="width: 100%; margin-bottom: 16px;">➕ Добавить персонал</button>
+<div class="card" style="margin-bottom: 16px;">
+<h4>🔍 Поиск персонала</h4>
+<input class="form-input" id="staff-manage-search" oninput="searchStaffManage()" placeholder="Имя, ID или @юзернейм" style="margin-top: 8px;" type="text"/>
+</div>
+<div id="staff-manage-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== КЛИЕНТЫ ====== -->
+<div class="page" data-title="Клиенты" id="clients-list">
+
+<div class="card">
+<h4>🔍 Поиск клиента</h4>
+<input class="form-input" placeholder="Введите имя или Telegram ID..." style="margin-bottom: 12px;" type="text"/>
+</div>
+<div id="clients-list-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== ПРОФИЛЬ ====== -->
+<div class="page" id="profile">
+<div class="profile">
+<div class="avatar" id="avatar"></div>
+<h3 id="profile-name">—</h3>
+<p class="small" id="profile-username">—</p>
+</div>
+<div class="card">
+<h4>📋 Личная информация</h4>
+<div class="form-group">
+<label>Имя</label>
+<input class="form-input" id="profile-input-name" placeholder="Ваше имя" type="text"/>
+</div>
+<div class="form-group">
+<label>Телефон</label>
+<input class="form-input" id="profile-input-phone" placeholder="+7 800 555 35 35" type="tel"/>
+</div>
+<div class="form-group">
+<label>Email</label>
+<input class="form-input" id="profile-input-email" placeholder="example@mail.com" type="email"/>
+</div>
+<div class="form-group">
+<label>Дата рождения</label>
+<input class="form-input" id="profile-input-birth-date" type="date"/>
+</div>
+<div class="form-group">
+<label>Ваши пожелания</label>
+<textarea class="form-input" id="profile-input-user-notes" placeholder="Напишите ваши пожелания и предпочтения..." rows="3"></textarea>
+</div>
+<button class="save-btn" onclick="saveProfileChanges()">💾 Сохранить изменения</button>
+</div>
+<div class="card">
+<h4>ℹ️ Информация об аккаунте</h4>
+<p class="small"><strong>Статус:</strong> <span id="profile-status">—</span></p>
+<p class="small"><strong>Дата регистрации:</strong> <span id="profile-registered">—</span></p>
+</div>
+</div>
+<!-- ====== РАСПИСАНИЕ ПЕРСОНАЛА ====== -->
+<div class="page" data-title="Расписание сотрудника" id="staff-schedule">
+
+<div id="staff-schedule-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+<!-- Кнопка создания занятия для учителя -->
+<div id="teacher-create-btn-container" style="display: none; padding: 16px; padding-top: 0;">
+<button class="save-btn" onclick="openCreateSchedule()" style="width: 100%;">➕ Создать занятие</button>
+</div>
+</div>
+<!-- ====== СОЗДАНИЕ/РЕДАКТИРОВАНИЕ ЗАНЯТИЯ ====== -->
+<div class="page" data-title="Занятие" id="schedule-form">
+
+<div class="card">
+<div class="form-group">
+<label>Название занятия</label>
+<input class="form-input" id="schedule-input-title" placeholder="Балет, Хип-хоп и т.д." type="text"/>
+</div>
+<div class="form-group">
+<label>Преподаватель</label>
+<select class="form-input" id="schedule-input-teacher">
+<option value="">Выберите преподавателя</option>
+</select>
+</div>
+<div class="form-group">
+<label>Дата</label>
+<input class="form-input" id="schedule-input-date" type="date"/>
+</div>
+<div class="form-group">
+<label>Время начала</label>
+<input class="form-input" id="schedule-input-start" type="time"/>
+</div>
+<div class="form-group">
+<label>Время окончания</label>
+<input class="form-input" id="schedule-input-end" type="time"/>
+</div>
+<div style="display: flex; gap: 8px;">
+<button class="save-btn" onclick="saveSchedule()" style="flex: 1;">💾 Сохранить</button>
+<button class="save-btn" id="schedule-delete-btn" onclick="deleteSchedule()" style="flex: 1; background: #ff6b6b; display: none;">🗑️ Удалить</button>
+</div>
+</div>
+</div>
+<!-- ====== УПРАВЛЕНИЕ ПЕРСОНАЛОМ ====== -->
+<div class="page" data-title="Управление персоналом" id="staff-management">
+
+<button class="save-btn" onclick="showAddStaffForm()" style="width: 100%; margin-bottom: 12px;">➕ Добавить персонал</button>
+<div id="staff-list-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== ФОРМА ДОБАВЛЕНИЯ ПЕРСОНАЛА ====== -->
+<div class="page" data-title="Добавить персонал" id="staff-add-form">
+
+<div class="card">
+<div class="form-group">
+<label>🔍 Поиск пользователя</label>
+<input class="form-input" id="staff-user-search" oninput="searchForStaffUser()" placeholder="Имя, ID или @юзер" type="text"/>
+</div>
+<div id="staff-user-search-results" style="max-height: 280px; overflow-y: auto; margin-bottom: 16px; border-radius: 8px; background: var(--card); padding: 8px; border: 1px solid var(--border);">
+<p class="small" style="text-align: center; color: var(--hint); padding: 16px 0;">Начните вводить для поиска...</p>
+</div>
+</div>
+<!-- Общие поля для обоих способов -->
+<div class="card">
+<div class="form-group">
+<label>Должность *</label>
+<select class="form-input" id="staff-add-position">
+<option value="">Выберите должность</option>
+<option value="учитель">👩‍🏫 Учитель</option>
+<option value="администратор">📋 Администратор</option>
+</select>
+</div>
+<div class="form-group">
+<label>Специализация (опционально)</label>
+<input class="form-input" id="staff-add-specialization" placeholder="Балет, Хип-хоп и т.д." type="text"/>
+</div>
+<div class="form-group">
+<label>Биография (опционально)</label>
+<textarea class="form-input" id="staff-add-bio" placeholder="Описание сотрудника" style="height: 80px; resize: none;"></textarea>
+</div>
+<button class="save-btn" onclick="saveNewStaff()" style="width: 100%; margin-top: 12px;">💾 Добавить персонал</button>
+</div>
+</div>
+<!-- ====== СТРАНИЦА ПЕРСОНАЛА ====== -->
+<div class="page" id="staff-detail">
+<div class="profile">
+<div class="avatar" id="staff-detail-avatar">
+<img alt="Фото" id="staff-detail-avatar-img" src="" style="display: none;"/>
+<p style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--hint); margin: 0;">👤</p>
+</div>
+<h3 id="staff-detail-name">—</h3>
+<p class="small" id="staff-detail-position">—</p>
+</div>
+<div class="card">
+<h4>📋 Информация</h4>
+<div style="margin-bottom: 12px;">
+<label style="font-size: 12px; color: var(--hint);">Должность</label>
+<div id="staff-detail-position-full" style="font-size: 15px; margin-top: 4px;">—</div>
+</div>
+<div id="staff-detail-phone-block" style="margin-bottom: 12px; display: none;">
+<label style="font-size: 12px; color: var(--hint);">Телефон</label>
+<div id="staff-detail-phone" style="font-size: 15px; margin-top: 4px;">—</div>
+</div>
+<div style="margin-bottom: 12px;">
+<label style="font-size: 12px; color: var(--hint);">Email</label>
+<div id="staff-detail-email" style="font-size: 15px; margin-top: 4px;">—</div>
+</div>
+<div style="margin-bottom: 12px;">
+<label style="font-size: 12px; color: var(--hint);">Специализация</label>
+<div id="staff-detail-specialization" style="font-size: 15px; margin-top: 4px;">—</div>
+</div>
+<div style="margin-bottom: 12px;">
+<label style="font-size: 12px; color: var(--hint);">Статус</label>
+<div id="staff-detail-status" style="font-size: 15px; margin-top: 4px;">—</div>
+</div>
+</div>
+<div class="card">
+<h4>📝 Биография</h4>
+<p id="staff-detail-bio" style="white-space: pre-wrap; line-height: 1.5;">—</p>
+</div>
+<button class="save-btn" onclick="deleteCurrentStaff()" style="width: 100%; background: #ff6b6b;">🗑️ Удалить персонал</button>
+</div>
+<!-- ====== ФОРМА СОЗДАНИЯ НАПРАВЛЕНИЯ ====== -->
+<div class="page" data-title="Создать направление" id="direction-create-form">
+
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--accent);">
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
+<span style="font-size: 20px;">📝</span>
+<h4 style="margin: 0;">Основная информация</h4>
+</div>
+<!-- Название -->
+<label class="label" style="font-weight: 600;">Название направления *</label>
+<input class="form-input" id="direction-title" placeholder="Например: Балет, Хип-хоп, Современный танец" style="margin-bottom: 14px;" type="text"/>
+<!-- Описание -->
+<label class="label" style="font-weight: 600;">Описание *</label>
+<textarea class="form-input" id="direction-description" placeholder="Опишите направление..." style="margin-bottom: 14px; min-height: 100px; resize: vertical;"></textarea>
+<!-- Цена -->
+<label class="label" style="font-weight: 600;">Базовая цена (₽) *</label>
+<input class="form-input" id="direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
+</div>
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #4CAF50;">
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
+<span style="font-size: 20px;">📸</span>
+<h4 style="margin: 0;">Фотография</h4>
+</div>
+<!-- Статус загрузки -->
+<div id="direction-photo-status" style="padding: 12px; background: #f0f0f0; border-radius: 8px; margin-bottom: 12px; text-align: center;">
+<p style="margin: 0; color: var(--hint); font-size: 14px;">❌ Фотография не загружена</p>
+</div>
+<!-- Кнопка для получения токена -->
+<button class="save-btn" id="direction-upload-btn" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: #2196F3;">
+      📱 Загрузить фото через бот
+    </button>
+<p style="font-size: 12px; color: var(--hint); margin: 0; line-height: 1.5;">
+      💡 Нажмите кнопку, скопируйте токен, отправьте его боту и загрузите фотографию. После этого кнопка активируется.
+    </p>
+</div>
+<button class="save-btn" id="direction-create-btn" onclick="createDirection()" style="width: 100%; margin-bottom: 8px; background: #4CAF50;">
+    ✅ Создать направление
+  </button>
+<button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
+    ❌ Отменить
+  </button>
+<!-- Сообщение об ошибке -->
+<div id="direction-error-msg" style="margin-top: 12px; padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828; display: none;">
+<p id="direction-error-text" style="margin: 0;"></p>
+</div>
+<!-- Сообщение об успехе -->
+<div id="direction-success-msg" style="margin-top: 12px; padding: 12px; background: #e8f5e9; border-radius: 8px; color: #2e7d32; display: none;">
+<p id="direction-success-text" style="margin: 0;"></p>
+</div>
+</div>
+<!-- ====== РЕДАКТИРОВАНИЕ НАПРАВЛЕНИЯ ====== -->
+<div class="page" data-title="Редактировать направление" id="direction-edit-form">
+<div class="direction-edit-header">
+
+<button class="lock-btn" id="direction-edit-lock-btn" onclick="toggleDirectionEditLock()" title="Разблокировать редактирование">🔓</button>
+</div>
+<p class="small" id="direction-edit-lock-hint" style="margin: 6px 0 12px 0;">Поля заблокированы, чтобы избежать случайных изменений.</p>
+<!-- ГРУППЫ -->
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #FF9800;">
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
+<span style="font-size: 20px;">👥</span>
+<h4 style="margin: 0; flex: 1;">Группы</h4>
+<button class="lock-btn" onclick="openCreateGroupPage()" title="Создать группу">➕</button>
+</div>
+<div id="edit-direction-groups-list" style="display: flex; flex-direction: column; gap: 8px;">
+<p style="text-align: center; color: var(--hint); padding: 12px; margin: 0;">⏳ Загрузка групп...</p>
+</div>
+</div>
+<!-- ОСНОВНАЯ ИНФОРМАЦИЯ -->
+<div class="card direction-lockable" style="margin-bottom: 16px; border-left: 4px solid var(--accent);">
+<div aria-hidden="true" class="lock-overlay"></div>
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
+<span style="font-size: 20px;">📝</span>
+<h4 style="margin: 0;">Основная информация</h4>
+</div>
+<!-- Название -->
+<label class="label" style="font-weight: 600;">Название направления *</label>
+<input class="form-input direction-editable" id="edit-direction-title" placeholder="Например: Балет, Хип-хоп, Современный танец" style="margin-bottom: 14px;" type="text"/>
+<!-- Описание -->
+<label class="label" style="font-weight: 600;">Описание *</label>
+<textarea class="form-input direction-editable" id="edit-direction-description" placeholder="Опишите направление..." style="margin-bottom: 14px; min-height: 100px; resize: vertical;"></textarea>
+<!-- Цена -->
+<label class="label" style="font-weight: 600;">Базовая цена (₽) *</label>
+<input class="form-input direction-editable" id="edit-direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
+<!-- Статус -->
+<label class="label" style="font-weight: 600;">Статус</label>
+<select class="form-input direction-editable" id="edit-direction-status" style="margin-bottom: 14px;">
+<option value="active">✅ Активное</option>
+<option value="inactive">⏸️ Неактивное</option>
+</select>
+</div>
+<!-- ФОТОГРАФИЯ -->
+<div class="card direction-lockable" style="margin-bottom: 16px; border-left: 4px solid #4CAF50;">
+<div aria-hidden="true" class="lock-overlay"></div>
+<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
+<span style="font-size: 20px;">📸</span>
+<h4 style="margin: 0;">Фотография</h4>
+</div>
+<div id="edit-direction-photo-preview" style="width: 100%; height: 150px; background: #f0f0f0; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: var(--hint); overflow: hidden;">
+      📸 Фото не загружено
+    </div>
+<button class="save-btn direction-editable" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: #2196F3;">
+      📱 Загрузить новое фото через бот
+    </button>
+</div>
+<!-- КНОПКИ ДЕЙСТВИЯ -->
+<div class="direction-lockable" style="margin-bottom: 12px;">
+<div aria-hidden="true" class="lock-overlay"></div>
+<button class="save-btn direction-editable" id="direction-save-btn" onclick="saveDirectionChanges()" style="width: 100%; margin-bottom: 8px; background: #4CAF50;">
+      ✅ Сохранить изменения
+    </button>
+<button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
+      ❌ Отменить
+    </button>
+</div>
+<!-- Сообщение об ошибке -->
+<div id="edit-direction-error-msg" style="margin-top: 12px; padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828; display: none;">
+<p id="edit-direction-error-text" style="margin: 0;"></p>
+</div>
+<!-- Сообщение об успехе -->
+<div id="edit-direction-success-msg" style="margin-top: 12px; padding: 12px; background: #e8f5e9; border-radius: 8px; color: #2e7d32; display: none;">
+<p id="edit-direction-success-text" style="margin: 0;"></p>
+</div>
+</div>
+<!-- ====== РЕДАКТИРОВАНИЕ РАБОЧЕГО ПРОФИЛЯ ====== -->
+<div class="page" data-title="Профиль персонала" id="staff-profile-edit">
+
+<div class="card">
+<div class="form-group">
+<label>Имя</label>
+<input class="form-input" id="staff-profile-name" placeholder="Имя" type="text"/>
+</div>
+<div class="form-group">
+<label>Специализация</label>
+<input class="form-input" id="staff-profile-specialization" placeholder="Например: Балет, Хип‑хоп" type="text"/>
+</div>
+<div class="form-group">
+<label>Биография</label>
+<textarea class="form-input" id="staff-profile-bio" placeholder="Коротко о себе..." style="min-height: 80px;"></textarea>
+</div>
+<div class="form-group">
+<label>Телефон</label>
+<input class="form-input" id="staff-profile-phone" placeholder="+7 900 000 00 00" type="text"/>
+</div>
+<div class="form-group">
+<label>Email</label>
+<input class="form-input" id="staff-profile-email" placeholder="name@example.com" type="email"/>
+</div>
+<button class="save-btn" onclick="saveStaffProfile()" style="width: 100%; margin-top: 8px;">
+      💾 Сохранить
+    </button>
+</div>
+</div>
+<!-- ====== СОЗДАНИЕ ГРУППЫ ====== -->
+<div class="page" data-title="Создать группу" id="direction-group-create">
+
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #FF9800;">
+<div class="form-group">
+<label>Название группы *</label>
+<input class="form-input" id="edit-direction-group-name" placeholder="Например: Дети 10-12, Хип‑хоп Beginners" type="text"/>
+</div>
+<div class="form-group">
+<label>Преподаватель *</label>
+<input class="form-input" id="group-teacher-search" oninput="searchGroupTeacher()" placeholder="Имя, ID или @юзер" type="text"/>
+</div>
+<div id="group-teacher-search-results" style="max-height: 240px; overflow-y: auto; margin-bottom: 12px; border-radius: 8px; background: var(--card); padding: 8px; border: 1px solid var(--border);">
+<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска...</p>
+</div>
+<div class="form-group">
+<label>Возрастная группа *</label>
+<input class="form-input" id="edit-direction-group-age" placeholder="Например: 12-16" type="text"/>
+</div>
+<div class="form-group">
+<label>Макс. учеников *</label>
+<input class="form-input" id="edit-direction-group-max" placeholder="Например: 12" type="number"/>
+</div>
+<div class="form-group">
+<label>Длительность (мин) *</label>
+<input class="form-input" id="edit-direction-group-duration" placeholder="Например: 60" type="number"/>
+</div>
+<div class="form-group">
+<label>Описание</label>
+<textarea class="form-input" id="edit-direction-group-desc" placeholder="Коротко о группе..." style="min-height: 80px;"></textarea>
+</div>
+<button class="save-btn" onclick="createDirectionGroup()" style="width: 100%; margin-bottom: 8px; background: #FF9800;">
+      ➕ Создать группу
+    </button>
+<button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
+      ❌ Отменить
+    </button>
+<div id="edit-direction-group-msg" style="margin: 12px 0 0 0; padding: 10px; border-radius: 8px; display: none;"></div>
+</div>
+</div>
+<!-- ====== РЕДАКТИРОВАНИЕ ГРУППЫ ====== -->
+<div class="page" data-title="Редактировать группу" id="direction-group-edit">
+
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #4CAF50;">
+<div class="form-group">
+<label>Название группы *</label>
+<input class="form-input" id="edit-group-name" placeholder="Название группы" type="text"/>
+</div>
+<div class="form-group">
+<label>Преподаватель *</label>
+<input class="form-input" id="edit-group-teacher-search" oninput="searchEditGroupTeacher()" placeholder="Имя, ID или @юзер" type="text"/>
+</div>
+<div id="edit-group-teacher-search-results" style="max-height: 240px; overflow-y: auto; margin-bottom: 12px; border-radius: 8px; background: var(--card); padding: 8px; border: 1px solid var(--border);">
+<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Загрузка преподавателей...</p>
+</div>
+<div class="form-group">
+<label>Возрастная группа *</label>
+<input class="form-input" id="edit-group-age" placeholder="Например: 12-16" type="text"/>
+</div>
+<div class="form-group">
+<label>Макс. учеников *</label>
+<input class="form-input" id="edit-group-max" placeholder="Например: 12" type="number"/>
+</div>
+<div class="form-group">
+<label>Длительность (мин) *</label>
+<input class="form-input" id="edit-group-duration" placeholder="Например: 60" type="number"/>
+</div>
+<div class="form-group">
+<label>Описание</label>
+<textarea class="form-input" id="edit-group-desc" placeholder="Коротко о группе..." style="min-height: 80px;"></textarea>
+</div>
+<button class="save-btn" onclick="saveGroupChanges()" style="width: 100%; margin-bottom: 8px; background: #4CAF50;">
+      ✅ Сохранить изменения
+    </button>
+<button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
+      ❌ Отменить
+    </button>
+<div id="edit-group-msg" style="margin: 12px 0 0 0; padding: 10px; border-radius: 8px; display: none;"></div>
+</div>
+</div>
+<div class="page" data-title="Информация" id="info">
+
+<p class="small">Раздел находится в разработке</p>
+</div>
+<!-- ====== ПРОСМОТР НОВОСТИ ====== -->
+<div class="page" id="news-detail">
+<div class="news-detail-header">
+<div class="news-detail-back" onclick="goBack()">←</div>
+<h3 class="news-detail-title-header">Новости</h3>
+</div>
+<div id="news-detail-photo-container"></div>
+<div class="news-detail-content-wrapper">
+<h3 id="news-detail-title"></h3>
+<p class="small" id="news-detail-date"></p>
+<p id="news-detail-content" style="white-space: pre-wrap;"></p>
+</div>
+</div>
+<!-- ====== НИЖНЕЕ МЕНЮ ====== -->
+<div class="bottom-nav">
+<div class="nav-btn active" onclick="showPage('home')">🏠<br/>Главная</div>
+<div class="nav-btn" onclick="showPage('schedule')">🗓<br/>Расписание</div>
+<div class="nav-btn hidden" id="staff-nav-btn" onclick="showPage('staff')">👨‍💼<br/>Работа</div>
+<div class="nav-btn" onclick="showPage('profile')">👤<br/>Профиль</div>
+</div>
+<script>
+/* ====== TELEGRAM ====== */
+const tg = window.Telegram.WebApp;
+tg.ready();
+tg.expand();
+
+/* ====== НАВИГАЦИЯ ====== */
+const ROOT_PAGES = ['home', 'schedule', 'staff', 'profile'];
+let currentPageId = 'home';
+
+const header = document.getElementById('header');
+const headerTitle = document.getElementById('header-title');
+const headerBack = document.getElementById('header-back');
+const pageTitleCache = {
+  home: 'LISSA DANCE',
+  schedule: 'LISSA DANCE',
+  staff: 'Работа',
+  profile: 'LISSA DANCE'
+};
+
+function setHeaderTitle(title) {
+  if (!headerTitle) return;
+  headerTitle.textContent = title;
+  pageTitleCache[currentPageId] = title;
+}
+
+function setHeaderBackVisible(isVisible) {
+  if (!headerBack) return;
+  headerBack.style.visibility = isVisible ? 'visible' : 'hidden';
+  headerBack.style.pointerEvents = isVisible ? 'auto' : 'none';
+}
+
+function applyHeaderForPage(pageId) {
+  currentPageId = pageId;
+  if (!header) return;
+  if (pageId === 'news-detail') {
+    header.style.display = 'none';
+    return;
+  }
+
+  header.style.display = 'flex';
+  const isRoot = ROOT_PAGES.includes(pageId);
+  setHeaderBackVisible(!isRoot);
+
+  const page = document.getElementById(pageId);
+  const dataTitle = page ? page.getAttribute('data-title') : null;
+  if (dataTitle) {
+    setHeaderTitle(dataTitle);
+    return;
+  }
+
+  if (pageTitleCache[pageId]) {
+    setHeaderTitle(pageTitleCache[pageId]);
+  }
+}
+
+// Стек для навигации (история переходов)
+let navigationStack = ['home'];
+applyHeaderForPage('home');
+
+function showPage(id) {
+  // Получаем текущую страницу
+  const currentPage = Array.from(document.querySelectorAll('.page')).find(p => p.classList.contains('active'));
+  
+  // Если переходим на другую страницу, добавляем текущую в стек
+  if (currentPage && currentPage.id !== id) {
+    navigationStack.push(id);
+  }
+  
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const index = ROOT_PAGES.indexOf(id);
+  if (index >= 0) {
+    document.querySelectorAll('.nav-btn')[index].classList.add('active');
+  }
+
+  applyHeaderForPage(id);
+  
+  // Загружаем данные для вкладки "Работы"
+  if (id === 'staff') {
+    loadAllClients();
+  }
+  
+  // Загружаем расписание для вкладки "Расписание"
+  if (id === 'schedule') {
+    loadPublicSchedule();
+  }
+  
+  // Загружаем список персонала для управления
+  if (id === 'staff-manage') {
+    setHeaderTitle('👥 Управление персоналом');
+    loadStaffList();
+  }
+  
+  // Загружаем список персонала для управления (старая версия)
+  if (id === 'staff-management') {
+    setHeaderTitle('👥 Управление персоналом');
+    loadStaffList();
+  }
+  
+  // Загружаем список новостей для управления
+  if (id === 'news-manage') {
+    setHeaderTitle('📰 Новости');
+    loadNewsManage();
+  }
+  
+  // Инициализируем preview фотографии для новостей
+  if (id === 'news-add-form') {
+    initNewsPhotoPreview();
+  }
+  
+  // Загружаем список направлений для управления
+  if (id === 'directions-groups') {
+    setHeaderTitle('🎭 Направления и группы');
+    loadDirections();
+    
+    // Инициализируем индикатор вкладок
+    setTimeout(() => {
+      const activeTab = document.getElementById('active-tab');
+      const indicator = document.querySelector('.tab-indicator');
+      if (indicator && activeTab) {
+        indicator.style.width = activeTab.offsetWidth + 'px';
+        indicator.style.transform = `translateX(${activeTab.offsetLeft}px)`;
+      }
+    }, 0);
+  }
+}
+
+function openInfo(title) {
+  showPage('info');
+  document.getElementById('info-title').innerText = title;
+  setHeaderTitle(title);
+}
+
+function showSection(section) {
+  // Переход на страницы разделов
+  switch(section) {
+    case 'info-about':
+      showPage('info-about');
+      setHeaderTitle('Информация');
+      break;
+    case 'info-teachers':
+      showPage('info');
+      document.getElementById('info-title').innerText = 'Преподаватели';
+      setHeaderTitle('Преподаватели');
+      break;
+    case 'info-directions':
+      showPage('info');
+      document.getElementById('info-title').innerText = 'Направления';
+      setHeaderTitle('Направления');
+      break;
+    case 'info-contacts':
+      showPage('info');
+      document.getElementById('info-title').innerText = 'Контакты';
+      setHeaderTitle('Контакты');
+      break;
+  }
+}
+
+function goHome() {
+  showPage('home');
+}
+
+function goBack() {
+  // Если в стеке есть хотя бы одна страница, берем последнюю
+  if (navigationStack.length > 1) {
+    navigationStack.pop(); // Удаляем текущую страницу из стека
+    const previousPageId = navigationStack[navigationStack.length - 1];
+    
+    // Переходим на предыдущую страницу без добавления в стек
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(previousPageId).classList.add('active');
+    
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    const index = ROOT_PAGES.indexOf(previousPageId);
+    if (index >= 0) document.querySelectorAll('.nav-btn')[index].classList.add('active');
+    
+    applyHeaderForPage(previousPageId);
+  } else {
+    // Если стек пуст, идем домой
+    showPage('home');
+  }
+}
+
+/* ====== УПРАВЛЕНИЕ РАСПИСАНИЕМ ПЕРСОНАЛА ====== */
+let currentStaffPosition = '';
+let currentScheduleId = null;
+
+
+
+async function loadStaffList() {
+  try {
+    // Определяем контейнер в зависимости от текущей страницы
+    const currentPage = Array.from(document.querySelectorAll('.page')).find(p => p.classList.contains('active'));
+    const containerId = (currentPage && currentPage.id === 'staff-manage') 
+      ? 'staff-manage-container' 
+      : 'staff-list-container';
+    
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+    
+    const response = await fetch('/staff/list/all');
+    
+    if (!response.ok) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке</p>';
+      return;
+    }
+    
+    const staffList = await response.json();
+    window.allStaffList = staffList; // Сохраняем для поиска
+    
+    if (staffList.length === 0) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 Персонал не найден</p>';
+      return;
+    }
+    
+    displayStaffList(staffList);
+  } catch (error) {
+    console.error('Ошибка при загрузке персонала:', error);
+    const currentPage = Array.from(document.querySelectorAll('.page')).find(p => p.classList.contains('active'));
+    const containerId = (currentPage && currentPage.id === 'staff-manage') 
+      ? 'staff-manage-container' 
+      : 'staff-list-container';
+    const container = document.getElementById(containerId);
+    if (container) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка сети</p>';
+    }
+  }
+}
+
+function displayStaffList(staffList) {
+  // Определяем правильный контейнер в зависимости от текущей страницы
+  const currentPage = Array.from(document.querySelectorAll('.page')).find(p => p.classList.contains('active'));
+  const containerId = (currentPage && currentPage.id === 'staff-manage') 
+    ? 'staff-manage-container' 
+    : 'staff-list-container';
+  
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  container.innerHTML = staffList.map(s => `
+    <div class="card" onclick="openStaffDetail(${s.id}, '${s.name}', '${s.position}', '${s.phone ? s.phone : ''}', '${s.email}', '${s.specialization || ''}', '${s.bio || ''}', '${s.status}')" style="cursor: pointer;">
+      <div style="font-weight: 600; font-size: 16px;">${s.name}</div>
+      ${s.username ? `<div style="font-size: 13px; color: var(--accent); margin-top: 2px;">@${s.username}</div>` : ''}
+      <div style="font-size: 14px; color: var(--hint); margin-top: 4px;">📍 ${s.position}</div>
+      ${s.phone ? `<div style="font-size: 13px; color: var(--hint); margin-top: 2px;">📱 ${s.phone}</div>` : ''}
+      <div style="font-size: 12px; color: ${s.status === 'active' ? '#4caf50' : '#ff6b6b'}; margin-top: 6px;">● ${s.status === 'active' ? 'Активен' : 'Неактивен'}</div>
+    </div>
+  `).join('');
+}
+
+function searchStaffManage() {
+  const searchInput = document.getElementById('staff-manage-search');
+  const search = searchInput.value.trim().toLowerCase();
+  
+  if (!window.allStaffList) {
+    return;
+  }
+  
+  if (search.length === 0) {
+    displayStaffList(window.allStaffList);
+    return;
+  }
+  
+  let filtered = [];
+  
+  // Проверяем, ищет ли пользователь по юзернейму (с @)
+  if (search.startsWith('@')) {
+    // Поиск по юзернейму
+    const usernameQuery = search.substring(1).toLowerCase();
+    filtered = window.allStaffList.filter(s => 
+      s.username && s.username.toLowerCase().includes(usernameQuery)
+    );
+  } else {
+    // Поиск по ID или имени
+    filtered = window.allStaffList.filter(s => 
+      s.name.toLowerCase().includes(search) ||
+      s.id.toString().includes(search) ||
+      (s.telegram_id && s.telegram_id.toString().includes(search))
+    );
+  }
+  
+  if (filtered.length === 0) {
+    document.getElementById('staff-manage-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Персонал не найден</p>';
+  } else {
+    displayStaffList(filtered);
+  }
+}
+
+// Хранилище для выбранного пользователя и текущего персонала
+window.selectedStaffUserData = null;
+window.currentStaffTelegramIds = []; // Список telegram_id текущего персонала
+
+function showAddStaffForm() {
+  // Очищаем поле поиска и форму
+  document.getElementById('staff-user-search').value = '';
+  document.getElementById('staff-add-position').value = '';
+  document.getElementById('staff-add-specialization').value = '';
+  document.getElementById('staff-add-bio').value = '';
+  
+  // Загружаем текущий персонал и всех пользователей при открытии формы
+  loadCurrentStaffAndUsers();
+  
+  showPage('staff-add-form');
+  setHeaderTitle('➕ Добавить персонал');
+}
+
+async function loadCurrentStaffAndUsers() {
+  try {
+    // Получаем текущий персонал
+    const staffResponse = await fetch('/staff/list/all');
+    if (staffResponse.ok) {
+      const staffList = await staffResponse.json();
+      window.currentStaffTelegramIds = staffList.map(s => s.telegram_id);
+    }
+    
+    // Загружаем всех пользователей
+    const response = await fetch('/staff/search');
+    if (!response.ok) return;
+    
+    const users = await response.json();
+    // Фильтруем - исключаем уже добавленный персонал
+    const filteredUsers = users.filter(u => !window.currentStaffTelegramIds.includes(u.telegram_id));
+    displaySearchResults(filteredUsers);
+  } catch (error) {
+    console.error('Ошибка при загрузке пользователей:', error);
+  }
+}
+
+async function loadAllStaffUsers() {
+  try {
+    const response = await fetch('/staff/search');
+    if (!response.ok) return;
+    
+    const users = await response.json();
+    // Фильтруем - исключаем уже добавленный персонал
+    const filteredUsers = users.filter(u => !window.currentStaffTelegramIds.includes(u.telegram_id));
+    displaySearchResults(filteredUsers);
+  } catch (error) {
+    console.error('Ошибка при загрузке пользователей:', error);
+  }
+}
+
+async function searchForStaffUser() {
+  let search = document.getElementById('staff-user-search').value.trim().toLowerCase();
+  
+  try {
+    // Определяем тип поиска
+    const searchByUsername = search.startsWith('@');
+    
+    // Удаляем @ для отправки на сервер
+    const cleanSearch = search.replace(/^@/, '');
+    
+    console.log('Поиск:', {search, searchByUsername, cleanSearch});
+    
+    // Формируем параметры запроса
+    const params = new URLSearchParams();
+    if (cleanSearch) {
+      params.append('q', cleanSearch);
+      if (searchByUsername) {
+        params.append('by_username', 'true');
+      }
+    }
+    
+    console.log('Запрос к:', `/staff/search?${params.toString()}`);
+    
+    const response = await fetch(`/staff/search?${params.toString()}`);
+    
+    if (!response.ok) {
+      document.getElementById('staff-user-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 16px 0;">❌ Ошибка при загрузке</p>';
+      return;
+    }
+    
+    const users = await response.json();
+    // Фильтруем - исключаем уже добавленный персонал
+    const filteredUsers = users.filter(u => !window.currentStaffTelegramIds.includes(u.telegram_id));
+    
+    // Если поле поиска пусто, показываем всех пользователей
+    if (!cleanSearch) {
+      if (filteredUsers.length === 0) {
+        document.getElementById('staff-user-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 16px 0;">📭 Нет пользователей</p>';
+        return;
+      }
+    } else {
+      if (filteredUsers.length === 0) {
+        document.getElementById('staff-user-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 16px 0;">❌ Персонал не найден</p>';
+        return;
+      }
+    }
+    
+    displaySearchResults(filteredUsers);
+  } catch (error) {
+    console.error('Ошибка при поиске персонала:', error);
+    document.getElementById('staff-user-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 16px 0;">❌ Ошибка сети</p>';
+  }
+}
+
+function displaySearchResults(users) {
+  const resultsHtml = users.map(u => {
+    const safeName = u.name.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const safePhone = (u.phone || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const safeEmail = (u.email || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const isSelected = window.selectedStaffUserData && window.selectedStaffUserData.id === u.id;
+    const borderColor = isSelected ? '#1976d2' : 'var(--accent)';
+    const bgColor = isSelected ? '#e3f2fd' : 'var(--bg)';
+    
+    return `
+      <div class="card" id="user-card-${u.id}" style="margin-bottom: 8px; cursor: pointer; background: ${bgColor}; border-left: 4px solid ${borderColor}; transition: all 0.2s;" onclick="selectStaffUser(${u.id}, '${safeName}', ${u.telegram_id}, '${safePhone}', '${safeEmail}')">
+        <div style="font-weight: 600; font-size: 14px;">
+          ${u.name}
+          ${window.selectedStaffUserData && window.selectedStaffUserData.id === u.id ? ' ✓' : ''}
+        </div>
+        <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">ID: ${u.telegram_id}${u.username ? ` • @${u.username}` : ''}</div>
+        ${u.phone ? `<div style="font-size: 12px; color: var(--hint);">📱 ${u.phone}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+  
+  document.getElementById('staff-user-search-results').innerHTML = resultsHtml;
+}
+
+function selectStaffUser(id, name, telegramId, phone, email) {
+  window.selectedStaffUserData = {
+    id,
+    name,
+    telegram_id: telegramId,
+    phone,
+    email
+  };
+  
+  // Обновляем стили всех карточек
+  const allCards = document.querySelectorAll('[id^="user-card-"]');
+  allCards.forEach(card => {
+    if (card.id === `user-card-${id}`) {
+      // Выбранная карточка - синяя
+      card.style.background = '#e3f2fd';
+      card.style.borderLeftColor = '#1976d2';
+      // Добавляем галочку
+      const titleDiv = card.querySelector('div');
+      if (!titleDiv.textContent.includes('✓')) {
+        titleDiv.textContent += ' ✓';
+      }
+    } else {
+      // Остальные карточки - стандартный вид
+      card.style.background = 'var(--bg)';
+      card.style.borderLeftColor = 'var(--accent)';
+      // Убираем галочку
+      const titleDiv = card.querySelector('div');
+      titleDiv.textContent = titleDiv.textContent.replace(' ✓', '');
+    }
+  });
+}
+
+async function saveNewStaff() {
+  // Проверяем, выбран ли пользователь
+  if (!window.selectedStaffUserData) {
+    showNotification('⚠️ Выберите пользователя из списка');
+    return;
+  }
+  
+  const position = document.getElementById('staff-add-position').value;
+  const specialization = document.getElementById('staff-add-specialization').value.trim();
+  const bio = document.getElementById('staff-add-bio').value.trim();
+  
+  // Проверяем обязательные поля
+  if (!position) {
+    showNotification('⚠️ Выберите должность');
+    return;
+  }
+  
+  try {
+    const payload = {
+      name: window.selectedStaffUserData.name,
+      telegram_id: window.selectedStaffUserData.telegram_id,
+      position,
+      specialization: specialization || undefined,
+      bio: bio || undefined
+    };
+    
+    const response = await fetch('/staff', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (response.ok) {
+      showNotification('✅ Персонал добавлен');
+      setTimeout(() => {
+        // Очищаем выбор
+        window.selectedStaffUserData = null;
+        goBack();
+        loadStaffList();
+      }, 500);
+    } else {
+      const error = await response.json();
+      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Ошибка при добавлении персонала:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+async function deleteStaffMember(staffId, name) {
+  if (!confirm(`Удалить ${name}?`)) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/staff/${staffId}`, {
+      method: 'DELETE'
+    });
+    
+    if (response.ok) {
+      showNotification('✅ Персонал удален');
+      loadStaffList();
+    } else {
+      showNotification('❌ Ошибка при удалении');
+    }
+  } catch (error) {
+    console.error('Ошибка при удалении:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+let currentDetailStaffId = null;
+
+function openStaffDetail(id, name, position, phone, email, specialization, bio, status) {
+  currentDetailStaffId = id;
+  
+  const phoneValue = (phone === 'null' || phone === 'undefined') ? '' : phone;
+
+  document.getElementById('staff-detail-name').innerText = name;
+  document.getElementById('staff-detail-position').innerText = position;
+  document.getElementById('staff-detail-position-full').innerText = position;
+  const phoneBlock = document.getElementById('staff-detail-phone-block');
+  if (phoneValue) {
+    document.getElementById('staff-detail-phone').innerText = phoneValue;
+    phoneBlock.style.display = 'block';
+  } else {
+    document.getElementById('staff-detail-phone').innerText = '—';
+    phoneBlock.style.display = 'none';
+  }
+  document.getElementById('staff-detail-email').innerText = email || '—';
+  document.getElementById('staff-detail-specialization').innerText = specialization || '—';
+  document.getElementById('staff-detail-bio').innerText = bio || '—';
+  document.getElementById('staff-detail-status').innerText = status === 'active' ? '✅ Активен' : '❌ Неактивен';
+  
+  showPage('staff-detail');
+  setHeaderTitle(name);
+
+  // Обновляем аватар (staff -> user -> telegram)
+  updateStaffDetailAvatar(null, null);
+  fetch(`/staff/${id}`)
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Не удалось загрузить профиль');
+      return data;
+    })
+    .then(staff => {
+      updateStaffDetailAvatar(staff.photo_path, staff.telegram_id);
+    })
+    .catch(() => {
+      // если не получилось - оставляем плейсхолдер
+    });
+}
+
+function updateStaffDetailAvatar(photoPath, telegramId) {
+  const img = document.getElementById('staff-detail-avatar-img');
+  const placeholder = document.querySelector('#staff-detail-avatar p');
+  if (!img || !placeholder) return;
+
+  if (photoPath) {
+    img.src = `/media/${photoPath}`;
+    img.style.display = 'block';
+    placeholder.style.display = 'none';
+    return;
+  }
+
+  const tgUser = tg?.initDataUnsafe?.user;
+  if (tgUser && telegramId && tgUser.id === telegramId && tgUser.photo_url) {
+    img.src = tgUser.photo_url;
+    img.style.display = 'block';
+    placeholder.style.display = 'none';
+    return;
+  }
+
+  img.style.display = 'none';
+  img.src = '';
+  placeholder.style.display = 'flex';
+}
+
+async function deleteCurrentStaff() {
+  if (!confirm('Удалить этого персонала?')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/staff/${currentDetailStaffId}`, {
+      method: 'DELETE'
+    });
+    
+    if (response.ok) {
+      showNotification('✅ Персонал удален');
+      goBack();
+      setTimeout(() => loadStaffList(), 500);
+    } else {
+      showNotification('❌ Ошибка при удалении');
+    }
+  } catch (error) {
+    console.error('Ошибка при удалении:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+async function loadStaffSchedule() {
+  try {
+    const container = document.getElementById('staff-schedule-container');
+    container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+    
+    const response = await fetch('/schedule');
+    
+    if (!response.ok) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке расписания</p>';
+      return;
+    }
+    
+    let schedules = await response.json();
+    
+    // Фильтруем расписание в зависимости от должности
+    if (currentStaffPosition === 'учитель') {
+      // Учитель видит только свои занятия
+      schedules = schedules.filter(s => s.teacher === currentUserData.name);
+    }
+    // Модератор и выше видят все занятия
+    
+    if (schedules.length === 0) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 Занятий нет</p>';
+      return;
+    }
+    
+    displayStaffSchedules(schedules);
+  } catch (error) {
+    console.error('Ошибка при загрузке расписания:', error);
+    document.getElementById('staff-schedule-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка сети</p>';
+  }
+}
+
+function displayStaffSchedules(schedules) {
+  const container = document.getElementById('staff-schedule-container');
+  
+  container.innerHTML = schedules.map(s => `
+    <div class="card" onclick="editSchedule(${s.id}, '${s.title}', ${s.teacher_id}, '${s.teacher.name}', '${s.date}', '${s.start}', '${s.end}')">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-weight: 600; font-size: 15px;">${s.title}</div>
+          <div style="font-size: 13px; color: var(--hint); margin-top: 4px;">📅 ${new Date(s.date).toLocaleDateString('ru-RU')}</div>
+          <div style="font-size: 13px; color: var(--hint);">🕐 ${s.start} - ${s.end}</div>
+          <div style="font-size: 13px; color: var(--hint);">👨‍🏫 ${s.teacher.name}</div>
+        </div>
+        <div style="font-size: 24px;">→</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function loadPublicSchedule() {
+  try {
+    const container = document.getElementById('schedule-container');
+    container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+    
+    const response = await fetch('/schedule');
+    
+    if (!response.ok) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке расписания</p>';
+      return;
+    }
+    
+    const schedules = await response.json();
+    
+    if (schedules.length === 0) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 Занятий нет</p>';
+      return;
+    }
+    
+    container.innerHTML = schedules.map(s => {
+      const teacherName = s.teacher && s.teacher.name ? s.teacher.name : '—';
+      return `
+      <div class="card">
+        <div>
+          <div style="font-weight: 600; font-size: 15px;">${s.title}</div>
+          <div style="font-size: 13px; color: var(--hint); margin-top: 4px;">📅 ${new Date(s.date).toLocaleDateString('ru-RU')}</div>
+          <div style="font-size: 13px; color: var(--hint);">🕐 ${s.start} - ${s.end}</div>
+          <div style="font-size: 13px; color: var(--hint);">👨‍🏫 ${teacherName}</div>
+        </div>
+      </div>
+    `;
+    }).join('');
+  } catch (error) {
+    console.error('Ошибка при загрузке расписания:', error);
+    document.getElementById('schedule-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка сети</p>';
+  }
+}
+
+async function loadTeachers() {
+  try {
+    const response = await fetch('/staff/list/teachers');
+    if (!response.ok) return [];
+    return await response.json();
+  } catch (error) {
+    console.error('Ошибка при загрузке учителей:', error);
+    return [];
+  }
+}
+
+function populateTeacherSelect(teachers, selectedTeacherId = null) {
+  const select = document.getElementById('schedule-input-teacher');
+  const currentValue = select.value;
+  
+  select.innerHTML = '<option value="">Выберите преподавателя</option>';
+  
+  teachers.forEach(t => {
+    const option = document.createElement('option');
+    option.value = t.id;
+    option.textContent = t.name;
+    if (t.id == (selectedTeacherId || currentValue)) {
+      option.selected = true;
+    }
+    select.appendChild(option);
+  });
+}
+
+async function openCreateSchedule() {
+  currentScheduleId = null;
+  
+  document.getElementById('schedule-form-title').innerText = 'Создать занятие';
+  document.getElementById('schedule-input-title').value = '';
+  document.getElementById('schedule-input-date').value = '';
+  document.getElementById('schedule-input-start').value = '';
+  document.getElementById('schedule-input-end').value = '';
+  document.getElementById('schedule-delete-btn').style.display = 'none';
+  
+  const teachers = await loadTeachers();
+  populateTeacherSelect(teachers, currentUserData.id);
+  
+  showPage('schedule-form');
+  setHeaderTitle('Создать занятие');
+}
+
+function editSchedule(scheduleId, title, teacherId, teacherName, date, start, end) {
+  currentScheduleId = scheduleId;
+  
+  document.getElementById('schedule-form-title').innerText = 'Редактировать занятие';
+  document.getElementById('schedule-input-title').value = title;
+  document.getElementById('schedule-input-date').value = date;
+  document.getElementById('schedule-input-start').value = start;
+  document.getElementById('schedule-input-end').value = end;
+  document.getElementById('schedule-delete-btn').style.display = 'block';
+  
+  // Загружаем учителей и выбираем текущего
+  loadTeachers().then(teachers => {
+    populateTeacherSelect(teachers, teacherId);
+  });
+  
+  showPage('schedule-form');
+  setHeaderTitle('Редактировать занятие');
+}
+
+async function saveSchedule() {
+  const title = document.getElementById('schedule-input-title').value.trim();
+  const teacher_id = document.getElementById('schedule-input-teacher').value;
+  const date = document.getElementById('schedule-input-date').value;
+  const start = document.getElementById('schedule-input-start').value;
+  const end = document.getElementById('schedule-input-end').value;
+  
+  if (!title || !teacher_id || !date || !start || !end) {
+    showNotification('⚠️ Заполните все поля');
+    return;
+  }
+  
+  try {
+    if (currentScheduleId) {
+      // Редактируем существующее занятие
+      const response = await fetch(`/schedule/${currentScheduleId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, teacher_id: parseInt(teacher_id), date, start_time: start, end_time: end })
+      });
+      
+      if (response.ok) {
+        showNotification('✅ Занятие обновлено');
+        goBack();
+      } else {
+        const error = await response.json();
+        showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+      }
+    } else {
+      // Создаем новое занятие
+      const response = await fetch('/schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, teacher_id: parseInt(teacher_id), date, start_time: start, end_time: end })
+      });
+      
+      if (response.ok) {
+        showNotification('✅ Занятие создано');
+        goBack();
+      } else {
+        const error = await response.json();
+        showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+      }
+    }
+  } catch (error) {
+    console.error('Ошибка при сохранении занятия:', error);
+    showNotification('❌ Ошибка при сохранении занятия');
+  }
+}
+
+async function deleteSchedule() {
+  if (!currentScheduleId) {
+    showNotification('❌ ID занятия не найден');
+    return;
+  }
+  
+  if (!confirm('Вы уверены, что хотите удалить это занятие?')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/schedule/${currentScheduleId}`, {
+      method: 'DELETE'
+    });
+    
+    if (response.ok) {
+      showNotification('✅ Занятие удалено');
+      goBack();
+    } else {
+      const error = await response.json();
+      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Ошибка при удалении занятия:', error);
+    showNotification('❌ Ошибка при удалении занятия');
+  }
+}
+
+/* ====== ПРОВЕРКА СТАТУСА ПЕРСОНАЛА ====== */
+async function checkStaffStatus(telegramId) {
+  try {
+    const response = await fetch(`/staff/check/${telegramId}`);
+    
+    if (!response.ok) {
+      isStaff = false;
+      currentStaffPosition = '';
+      updateStaffNavigation();
+      return;
+    }
+    
+    const data = await response.json();
+    isStaff = data.is_staff;
+    if (data.staff) {
+      currentStaffPosition = data.staff.position.toLowerCase();
+      
+      // Обновляем имя из Telegram если это владелец или администратор
+      const user = tg.initDataUnsafe?.user;
+      if (user && (currentStaffPosition === 'владелец' || currentStaffPosition === 'администратор')) {
+        try {
+          await fetch(`/staff/update-from-telegram/${telegramId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              first_name: user.first_name,
+              last_name: user.last_name
+            })
+          });
+        } catch (error) {
+          console.log('Не удалось обновить имя из Telegram:', error);
+        }
+      }
+    }
+    updateStaffNavigation();
+    
+    console.log(`Статус персонала: ${isStaff}, должность: ${currentStaffPosition}`);
+  } catch (error) {
+    console.error('Ошибка при проверке статуса персонала:', error);
+    isStaff = false;
+    currentStaffPosition = '';
+    updateStaffNavigation();
+  }
+}
+
+function updateStaffNavigation() {
+  const staffNavBtn = document.getElementById('staff-nav-btn');
+  const staffManageBtn = document.getElementById('staff-manage-btn-work');
+  
+  if (isStaff) {
+    staffNavBtn.classList.remove('hidden');
+    
+    // Показываем кнопку управления персоналом только для администраторов и владельцев
+    if (currentStaffPosition && (
+      currentStaffPosition.toLowerCase() === 'администратор' || 
+      currentStaffPosition.toLowerCase() === 'владелец' || 
+      currentStaffPosition.toLowerCase() === 'тех. админ'
+    )) {
+      staffManageBtn.style.display = 'flex';
+    } else {
+      staffManageBtn.style.display = 'none';
+    }
+  } else {
+    staffNavBtn.classList.add('hidden');
+    staffManageBtn.style.display = 'none';
+    // Если персонал пытается перейти на скрытую страницу, показываем главную
+    if (document.getElementById('staff').classList.contains('active')) {
+      showPage('home');
+    }
+  }
+}
+
+/* ====== ПРОФИЛЬ ИЗ TELEGRAM ====== */
+const user = tg.initDataUnsafe?.user;
+let currentUserData = null;
+let isStaff = false;
+
+if (user) {
+  document.getElementById('profile-name').innerText = user.first_name || '—';
+  document.getElementById('profile-username').innerText = user.username ? '@' + user.username : '—';
+
+  if (user.photo_url) {
+    document.getElementById('avatar').innerHTML = `<img src="${user.photo_url}">`;
+  }
+  
+  // Автоматическая регистрация пользователя
+  registerUserIfNeeded(user);
+  
+  // Загружаем данные профиля из БД
+  loadProfileData(user.id);
+  
+  // Проверяем, является ли пользователь сотрудником
+  checkStaffStatus(user.id);
+}
+
+/* ====== ЗАГРУЗКА ДАННЫХ ПРОФИЛЯ ====== */
+async function loadProfileData(telegramId) {
+  try {
+    // Небольшая задержка, чтобы дать время на регистрацию
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    const response = await fetch(`/users/${telegramId}`);
+    
+    if (!response.ok) {
+      console.error('Ошибка при загрузке профиля:', response.status);
+      showNotification('⚠️ Не удалось загрузить профиль. Попробуйте позже.');
+      return;
+    }
+    
+    const data = await response.json();
+    currentUserData = data;
+    
+    console.log('✅ Профиль загружен:', data);
+    
+    // Заполняем форму данными
+    document.getElementById('profile-input-name').value = data.name || '';
+    document.getElementById('profile-input-phone').value = data.phone || '';
+    document.getElementById('profile-input-email').value = data.email || '';
+    document.getElementById('profile-input-birth-date').value = data.birth_date || '';
+    document.getElementById('profile-input-user-notes').value = data.user_notes || '';
+    document.getElementById('profile-status').innerText = getStatusText(data.status);
+    document.getElementById('profile-registered').innerText = formatDate(data.registered_at);
+    
+    // Загружаем фото если существует
+    if (data.photo_path) {
+      displayProfilePhoto(data.photo_path);
+    }
+    
+    // Обновляем информацию на панели персонала
+    if (isStaff) {
+      displayStaffInfo(data);
+    }
+    
+  } catch (error) {
+    console.error('Ошибка при загрузке профиля:', error);
+    showNotification('❌ Ошибка при загрузке профиля');
+  }
+}
+
+/* ====== СОХРАНЕНИЕ ИЗМЕНЕНИЙ ПРОФИЛЯ ====== */
+async function saveProfileChanges() {
+  if (!currentUserData) {
+    showNotification('❌ Данные профиля не загружены');
+    return;
+  }
+  
+  const telegramId = currentUserData.telegram_id;
+  
+  const updatedData = {
+    name: document.getElementById('profile-input-name').value.trim(),
+    phone: document.getElementById('profile-input-phone').value.trim(),
+    email: document.getElementById('profile-input-email').value.trim() || null,
+    birth_date: document.getElementById('profile-input-birth-date').value || null,
+    user_notes: document.getElementById('profile-input-user-notes').value.trim() || null
+  };
+  
+  // Проверяем, что имя и телефон не пустые
+  if (!updatedData.name) {
+    showNotification('⚠️ Введите имя');
+    return;
+  }
+  if (!updatedData.phone) {
+    showNotification('⚠️ Введите номер телефона');
+    return;
+  }
+  
+  try {
+    console.log('Отправляем данные:', updatedData);
+    
+    const response = await fetch(`/users/${telegramId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(updatedData)
+    });
+    
+    if (response.ok) {
+      const newData = await response.json();
+      currentUserData = newData;
+      
+      console.log('✅ Профиль сохранен:', newData);
+      
+      // Обновляем отображение имени
+      document.getElementById('profile-name').innerText = newData.name;
+      
+      showNotification('✅ Профиль успешно обновлен!');
+    } else {
+      const error = await response.json();
+      console.error('Ошибка сервера:', error);
+      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Ошибка при сохранении профиля:', error);
+    showNotification('❌ Ошибка при сохранении профиля');
+  }
+}
+
+/* ====== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====== */
+function getStatusText(status) {
+  const statusMap = {
+    'active': '✅ Активен',
+    'inactive': '⏸️ Неактивен',
+    'frozen': '❄️ Заморозка'
+  };
+  return statusMap[status] || status;
+}
+
+function formatDate(dateString) {
+  const date = new Date(dateString);
+  return date.toLocaleDateString('ru-RU', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+/* ====== УПРАВЛЕНИЕ КЛИЕНТАМИ (ПЕРСОНАЛ) ====== */
+let allClients = [];
+
+async function loadAllClients() {
+  try {
+    const container = document.getElementById('staff-clients-container');
+    container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+    
+    // Загружаем информацию о текущем пользователе (персонале)
+    if (currentUserData) {
+      displayStaffInfo(currentUserData);
+    }
+    
+    const response = await fetch('/users/list/all');
+    
+    if (!response.ok) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке клиентов</p>';
+      return;
+    }
+    
+    allClients = await response.json();
+    
+    if (allClients.length === 0) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 Клиентов еще нет</p>';
+      return;
+    }
+    
+    displayClients(allClients);
+    console.log(`✅ Загружено ${allClients.length} клиентов`);
+  } catch (error) {
+    console.error('Ошибка при загрузке клиентов:', error);
+    document.getElementById('staff-clients-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка сети</p>';
+  }
+}
+
+function searchClients() {
+  const searchTerm = document.getElementById('staff-search-input').value.toLowerCase();
+  
+  if (!searchTerm) {
+    loadAllClients();
+    return;
+  }
+  
+  // Фильтруем по имени или ID
+  const filtered = allClients.filter(client => 
+    client.name.toLowerCase().includes(searchTerm) ||
+    client.telegram_id.toString().includes(searchTerm)
+  );
+  
+  displayClients(filtered);
+}
+
+/* ====== ОТОБРАЖЕНИЕ ИНФОРМАЦИИ О ПЕРСОНАЛЕ ====== */
+async function displayStaffInfo(userData) {
+  try {
+    // Получаем информацию о персонале
+    const response = await fetch(`/staff/check/${userData.telegram_id}`);
+    
+    if (!response.ok) {
+      console.error('Не удалось загрузить информацию о персонале');
+      return;
+    }
+    
+    const data = await response.json();
+    
+    if (data.is_staff && data.staff) {
+      const staff = data.staff;
+      
+      // Обновляем ФИО
+      document.getElementById('staff-panel-name').textContent = staff.name;
+      
+      // Обновляем должность
+      const positionText = staff.position.charAt(0).toUpperCase() + staff.position.slice(1);
+      document.getElementById('staff-panel-position').textContent = positionText;
+      
+      // Обновляем фото
+      if (staff.photo_path) {
+        const img = document.getElementById('staff-panel-avatar-img');
+        img.src = `/media/${staff.photo_path}`;
+        img.style.display = 'block';
+        document.querySelector('.staff-avatar-small p').style.display = 'none';
+      }
+
+      window.currentStaffProfileId = staff.id;
+    }
+  } catch (error) {
+    console.error('Ошибка при загрузке информации о персонале:', error);
+  }
+}
+
+async function openStaffProfileEdit() {
+  if (!currentUserData) {
+    showNotification('⚠️ Профиль не загружен');
+    return;
+  }
+
+  try {
+    const response = await fetch(`/staff/check/${currentUserData.telegram_id}`);
+    if (!response.ok) {
+      showNotification('❌ Не удалось загрузить профиль');
+      return;
+    }
+    const data = await response.json();
+    if (!data.is_staff || !data.staff) {
+      showNotification('❌ Профиль персонала не найден');
+      return;
+    }
+
+    const staff = data.staff;
+    window.currentStaffProfileId = staff.id;
+    document.getElementById('staff-profile-name').value = staff.name || '';
+    document.getElementById('staff-profile-specialization').value = staff.specialization || '';
+    document.getElementById('staff-profile-bio').value = staff.bio || '';
+    document.getElementById('staff-profile-phone').value = staff.phone || '';
+    document.getElementById('staff-profile-email').value = staff.email || '';
+
+    showPage('staff-profile-edit');
+  } catch (error) {
+    console.error('Ошибка при открытии профиля персонала:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+async function saveStaffProfile() {
+  const staffId = window.currentStaffProfileId;
+  if (!staffId) {
+    showNotification('❌ ID персонала не найден');
+    return;
+  }
+
+  const name = document.getElementById('staff-profile-name').value.trim();
+  const specialization = document.getElementById('staff-profile-specialization').value.trim();
+  const bio = document.getElementById('staff-profile-bio').value.trim();
+  const phone = document.getElementById('staff-profile-phone').value.trim();
+  const email = document.getElementById('staff-profile-email').value.trim();
+
+  try {
+    const response = await fetch(`/staff/${staffId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name || null,
+        specialization: specialization || null,
+        bio: bio || null,
+        phone: phone || null,
+        email: email || null
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      showNotification('❌ ' + (data.error || 'Не удалось сохранить'));
+      return;
+    }
+
+    showNotification('✅ Профиль обновлен');
+    if (currentUserData) {
+      displayStaffInfo(currentUserData);
+    }
+    goBack();
+  } catch (error) {
+    console.error('Ошибка при сохранении профиля персонала:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+function displayClients(clients) {
+  const container = document.getElementById('staff-clients-container');
+  
+  if (clients.length === 0) {
+    container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Клиентов не найдено</p>';
+    return;
+  }
+  
+  container.innerHTML = clients.map(client => `
+    <div class="client-card" onclick="viewClientDetails(${client.telegram_id})">
+      <div class="client-card-header">
+        <div class="client-card-name">${client.name}</div>
+        <div class="client-card-status">${getStatusText(client.status)}</div>
+      </div>
+      
+      <div class="client-card-info">
+        ${client.phone ? `
+          <div class="client-info-item">
+            <div class="client-info-label">📱 Телефон</div>
+            <div class="client-info-value">${client.phone}</div>
+          </div>
+        ` : ''}
+        ${client.email ? `
+          <div class="client-info-item">
+            <div class="client-info-label">📧 Email</div>
+            <div class="client-info-value">${client.email}</div>
+          </div>
+        ` : ''}
+      </div>
+      
+      ${client.user_notes ? `<div class="client-card-notes"><strong>🎯 Пожелания:</strong> ${client.user_notes}</div>` : ''}
+      ${client.staff_notes ? `<div class="client-card-notes"><strong>📌 Заметки персонала:</strong> ${client.staff_notes}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function viewClientDetails(telegramId) {
+  // TODO: Открыть модальное окно или отдельную страницу с полной информацией клиента
+  console.log('Просмотр клиента:', telegramId);
+  showNotification('Функция в разработке');
+}
+
+/* ====== РАБОТА С ФОТО ПРОФИЛЯ ====== */
+function displayProfilePhoto(photoPath) {
+  const img = document.getElementById('profile-photo-img');
+  const placeholder = document.getElementById('profile-photo-placeholder');
+  
+  img.src = `/media/${photoPath}`;
+  img.style.display = 'block';
+  placeholder.style.display = 'none';
+}
+
+async function uploadProfilePhoto() {
+  if (!isStaff) {
+    showNotification('❌ Загрузка фото доступна только для персонала');
+    return;
+  }
+  
+  if (!currentUserData) {
+    showNotification('❌ Данные профиля не загружены');
+    return;
+  }
+  
+  const fileInput = document.getElementById('profile-photo-input');
+  if (!fileInput.files || fileInput.files.length === 0) {
+    showNotification('⚠️ Выберите файл');
+    return;
+  }
+  
+  const file = fileInput.files[0];
+  const telegramId = currentUserData.telegram_id;
+  
+  // Проверяем размер
+  if (file.size > 5 * 1024 * 1024) {
+    showNotification('❌ Размер файла не должен превышать 5 МБ');
+    return;
+  }
+  
+  try {
+    const formData = new FormData();
+    formData.append('photo', file);
+    
+    console.log('Загружаем фото...');
+    
+    const response = await fetch(`/users/${telegramId}/photo`, {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      currentUserData.photo_path = data.photo_path;
+      displayProfilePhoto(data.photo_path);
+      showNotification('✅ Фото успешно загружено!');
+      fileInput.value = '';
+    } else {
+      const error = await response.json();
+      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Ошибка при загрузке фото:', error);
+    showNotification('❌ Ошибка при загрузке фото');
+  }
+}
+
+async function deleteProfilePhoto() {
+  if (!isStaff) {
+    showNotification('❌ Удаление фото доступно только для персонала');
+    return;
+  }
+  
+  if (!currentUserData) {
+    showNotification('❌ Данные профиля не загружены');
+    return;
+  }
+  
+  if (!currentUserData.photo_path) {
+    showNotification('⚠️ Фото не найдено');
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/users/${currentUserData.telegram_id}/photo`, {
+      method: 'DELETE'
+    });
+    
+    if (response.ok) {
+      currentUserData.photo_path = null;
+      
+      const img = document.getElementById('profile-photo-img');
+      const placeholder = document.getElementById('profile-photo-placeholder');
+      img.style.display = 'none';
+      placeholder.style.display = 'block';
+      
+      showNotification('✅ Фото удалено!');
+    } else {
+      const error = await response.json();
+      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+    }
+  } catch (error) {
+    console.error('Ошибка при удалении фото:', error);
+    showNotification('❌ Ошибка при удалении фото');
+  }
+}
+
+/* ====== АВТОМАТИЧЕСКАЯ РЕГИСТРАЦИЯ ====== */
+async function registerUserIfNeeded(user) {
+  try {
+    // Проверяем, зарегистрирован ли уже пользователь
+    const checkResponse = await fetch(`/users/${user.id}`);
+    
+    if (checkResponse.ok) {
+      // Пользователь уже зарегистрирован
+      console.log('Пользователь уже в системе');
+      return;
+    }
+    
+    // Если пользователя нет, регистрируем его
+    console.log('Регистрируем нового пользователя...');
+    
+    const registerResponse = await fetch('/users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        telegram_id: user.id,
+        username: user.username,
+        phone: '',  // Пусто, заполнит в профиле
+        name: user.first_name || 'Пользователь',
+        email: null,
+        birth_date: null,
+        notes: null
+      })
+    });
+    
+    if (registerResponse.ok) {
+      console.log('✅ Пользователь успешно зарегистрирован');
+      showNotification('Добро пожаловать! Пожалуйста, заполните ваши данные.');
+      
+      // Даем время на регистрацию и загружаем профиль
+      setTimeout(() => loadProfileData(user.id), 1000);
+    } else {
+      const error = await registerResponse.json();
+      console.error('Ошибка регистрации:', error);
+    }
+  } catch (error) {
+    console.error('Ошибка при проверке регистрации:', error);
+  }
+}
+
+/* DEBUG VERSION */
+console.log("Mini App version:", new URLSearchParams(location.search).get("v"));
+
+/* ====== ???????? ???????? ====== */
+const NEWS_CACHE_KEY = 'news_cache_v1';
+const NEWS_ETAG_KEY = 'news_etag_v1';
+let cachedNews = null;
+
+function getCachedNews() {
+  if (cachedNews) return cachedNews;
+  try {
+    const raw = localStorage.getItem(NEWS_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return null;
+    cachedNews = parsed;
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
+
+function setCachedNews(news, etag) {
+  cachedNews = news;
+  try {
+    localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(news));
+    if (etag) {
+      localStorage.setItem(NEWS_ETAG_KEY, etag);
+    }
+  } catch (err) {
+    // ignore cache write errors
+  }
+}
+
+function renderNewsList(news) {
+  const container = document.getElementById('news-container');
+  if (!container) return;
+
+  if (!news || news.length === 0) {
+    container.innerHTML = '<p class="news-empty">Новостей пока нет v-v</p>';
+    return;
+  }
+
+  container.innerHTML = news.map(n => `
+    <div class="news-item" onclick="showNewsDetail(${n.id})">
+      ${n.photo_path ? `<img src="${n.photo_path}" alt="Новость">` : ''}
+      <div class="news-item-title">${n.title}</div>
+    </div>
+  `).join('');
+}
+
+async function loadNews() {
+  try {
+    const cached = getCachedNews();
+    if (cached) {
+      renderNewsList(cached);
+    }
+
+    const headers = {};
+    const etag = localStorage.getItem(NEWS_ETAG_KEY);
+    if (etag) {
+      headers['If-None-Match'] = etag;
+    }
+
+    const response = await fetch('/news', { headers });
+    if (response.status === 304) {
+      return;
+    }
+    if (!response.ok) {
+      throw new Error('Не удалось загрузить новости');
+    }
+
+    const news = await response.json();
+    setCachedNews(news, response.headers.get('ETag'));
+    renderNewsList(news);
+  } catch (error) {
+    console.error('Ошибка загрузки новостей:', error);
+  }
+}
+
+async function loadNewsManage() {
+  try {
+    const response = await fetch('/news/manage');
+    const news = await response.json();
+    const container = document.getElementById('news-manage-container');
+    
+    if (news.length === 0) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 Новостей пока нет</p>';
+      return;
+    }
+    
+    container.innerHTML = news.map(n => `
+      <div class="card" style="cursor: pointer; margin-bottom: 12px;">
+        ${n.photo_path ? `<div style="width: 100%; height: 150px; background: var(--hint); border-radius: 8px 8px 0 0; overflow: hidden; margin: -12px -12px 8px -12px;"><img src="${n.photo_path}" style="width: 100%; height: 100%; object-fit: cover;"></div>` : ''}
+        <div style="font-weight: 600; font-size: 16px;">${n.title}</div>
+        <div style="font-size: 12px; color: var(--hint); margin-top: 4px;">${new Date(n.created_at).toLocaleDateString('ru-RU')} ${n.status === 'archived' ? '📦 В архиве' : ''}</div>
+        <div style="font-size: 13px; margin-top: 8px; color: var(--text);">${n.content.substring(0, 100)}...</div>
+        <div style="display: flex; gap: 8px; margin-top: 8px;">
+          ${n.status === 'active' ? `<button class="save-btn" onclick="archiveNews(${n.id})" style="flex: 1; background: #ffa940; margin: 0;">� Архив</button>` : `<button class="save-btn" onclick="restoreNews(${n.id})" style="flex: 1; background: #52c41a; margin: 0;">↩️ Вернуть</button>`}
+          <button class="save-btn" onclick="deleteNews(${n.id})" style="flex: 1; background: #ff6b6b; margin: 0;">🗑️ Удалить</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Ошибка загрузки новостей:', error);
+    document.getElementById('news-manage-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке</p>';
+  }
+}
+
+async function openBotForCreateNews() {
+  // Открываем бота для создания новости
+  try {
+    // Получаем имя бота с сервера
+    const response = await fetch('/bot-username');
+    const data = await response.json();
+    const botUsername = data.bot_username || 'dance_studio_admin_bot';
+    
+    // Открываем бота с параметром start
+    window.open(`https://t.me/${botUsername}?start=create_news`, '_blank');
+  } catch (error) {
+    console.error('Ошибка при получении имени бота:', error);
+    window.open('https://t.me/dance_studio_admin_bot?start=create_news', '_blank');
+  }
+}
+
+
+
+async function deleteNews(newsId) {
+  if (!confirm('Удалить эту новость?')) {
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/news/${newsId}`, {
+      method: 'DELETE'
+    });
+    
+    if (response.ok) {
+      showNotification('✅ Новость удалена');
+      loadNewsManage();
+    } else {
+      showNotification('❌ Ошибка при удалении');
+    }
+  } catch (error) {
+    console.error('Ошибка при удалении новости:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+async function archiveNews(newsId) {
+  try {
+    const response = await fetch(`/news/${newsId}/archive`, {
+      method: 'PUT'
+    });
+    
+    if (response.ok) {
+      showNotification('✅ Новость отправлена в архив');
+      loadNewsManage();
+    } else {
+      showNotification('❌ Ошибка при архивировании');
+    }
+  } catch (error) {
+    console.error('Ошибка при архивировании новости:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+async function restoreNews(newsId) {
+  try {
+    const response = await fetch(`/news/${newsId}/restore`, {
+      method: 'PUT'
+    });
+    
+    if (response.ok) {
+      showNotification('✅ Новость восстановлена');
+      loadNewsManage();
+    } else {
+      showNotification('❌ Ошибка при восстановлении');
+    }
+  } catch (error) {
+    console.error('Ошибка при восстановлении новости:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+function renderNewsDetail(newsItem) {
+  document.getElementById('news-detail-title').innerText = newsItem.title;
+  document.getElementById('news-detail-date').innerText = new Date(newsItem.created_at).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const photoContainer = document.getElementById('news-detail-photo-container');
+  if (newsItem.photo_path) {
+    photoContainer.innerHTML = `<img src="${newsItem.photo_path}" alt="Фото новости">`;
+    photoContainer.style.height = '';
+    photoContainer.style.marginBottom = '';
+  } else {
+    photoContainer.innerHTML = '';
+    photoContainer.style.height = '0';
+    photoContainer.style.marginBottom = '0';
+  }
+
+  document.getElementById('news-detail-content').innerText = newsItem.content;
+  showPage('news-detail');
+}
+
+async function showNewsDetail(id) {
+  try {
+    const cached = getCachedNews();
+    if (cached) {
+      const newsItem = cached.find(n => n.id === id);
+      if (newsItem) {
+        renderNewsDetail(newsItem);
+        return;
+      }
+    }
+
+    const response = await fetch('/news');
+    if (!response.ok) {
+      throw new Error('Не удалось загрузить новость');
+    }
+    const news = await response.json();
+    setCachedNews(news, response.headers.get('ETag'));
+    const newsItem = news.find(n => n.id === id);
+    if (newsItem) {
+      renderNewsDetail(newsItem);
+    }
+  } catch (error) {
+    console.error('Ошибка при загрузке новости:', error);
+    showNotification('Ошибка при загрузке новости');
+  }
+}
+
+function copyPhone(phone) {
+  navigator.clipboard.writeText(phone).then(() => {
+    // Показываем уведомление
+    showNotification('Номер скопирован в буфер обмена!');
+  }).catch(() => {
+    alert('Не удалось скопировать номер');
+  });
+}
+
+function openTelegram(username) {
+  // Открываем Telegram в новой вкладке
+  const telegramUrl = `https://t.me/${username.replace('@', '')}`;
+  window.open(telegramUrl, '_blank');
+}
+
+function showNotification(message) {
+  // Создаем простое уведомление
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 1000;
+    animation: slideDown 0.3s ease-out;
+  `;
+  notification.innerText = message;
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.remove();
+  }, 2000);
+}
+
+// Добавляем стили анимации
+const style = document.createElement('style');
+style.innerText = `
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+`;
+document.head.appendChild(style);
+
+// Загружаем новости при загрузке страницы
+window.addEventListener('load', loadNews);
+
+// ======================== СИСТЕМА РАССЫЛОК ========================
+
+// Хранилище для выбранных пользователей в рассылках
+let selectedMailingUsers = new Map(); // { userId: userName }
+let mailingAllUsers = []; // Все загруженные пользователи
+let mailingsSendNow = true; // По умолчанию отправляем сейчас
+
+function setMailingSendNow(value) {
+  mailingsSendNow = value;
+  
+  // Обновляем стиль кнопок
+  const nowBtn = document.getElementById('send-now-btn');
+  const laterBtn = document.querySelectorAll('[onclick="setMailingSendNow(false)"]')[0];
+  
+  if (value) {
+    nowBtn.style.background = 'var(--accent)';
+    if (laterBtn) laterBtn.style.background = 'var(--hint)';
+    document.getElementById('mailing-schedule-container').style.display = 'none';
+  } else {
+    nowBtn.style.background = 'var(--hint)';
+    if (laterBtn) laterBtn.style.background = 'var(--accent)';
+    document.getElementById('mailing-schedule-container').style.display = 'block';
+  }
+}
+
+function onMailingTargetTypeChange() {
+  const targetType = document.getElementById('mailing-target-type').value;
+  const idContainer = document.getElementById('mailing-target-id-container');
+  const usersContainer = document.getElementById('mailing-users-container');
+  
+  // Скрываем оба контейнера по умолчанию
+  idContainer.style.display = 'none';
+  usersContainer.style.display = 'none';
+  
+  // Показываем нужный контейнер
+  if (targetType === 'user') {
+    usersContainer.style.display = 'block';
+    clearMailingUserSelection(); // Очищаем предыдущий выбор
+    // Всегда загружаем пользователей
+    loadMailingUsers();
+  } else if (targetType === 'group' || targetType === 'direction' || targetType === 'tg_chat') {
+    idContainer.style.display = 'block';
+  }
+}
+
+async function loadMailingUsers() {
+  try {
+    console.log('Загрузка пользователей для рассылок...');
+    
+    // Загружаем всех пользователей
+    const response = await fetch('/staff/search');
+    if (!response.ok) {
+      console.error('Ошибка при загрузке пользователей:', response.status);
+      document.getElementById('mailing-users-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">❌ Ошибка при загрузке</p>';
+      return;
+    }
+    
+    const users = await response.json();
+    console.log('Загружено пользователей:', users.length);
+    
+    mailingAllUsers = users;
+    displayMailingSearchResults(mailingAllUsers);
+  } catch (error) {
+    console.error('Ошибка при загрузке пользователей:', error);
+    document.getElementById('mailing-users-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">❌ Ошибка сети</p>';
+  }
+}
+
+function searchMailingUsers() {
+  const searchInput = document.getElementById('mailing-users-search');
+  const search = searchInput.value.trim().toLowerCase();
+  
+  if (mailingAllUsers.length === 0) {
+    console.log('Нет загруженных пользователей');
+    return;
+  }
+  
+  if (search.length === 0) {
+    displayMailingSearchResults(mailingAllUsers);
+    return;
+  }
+  
+  let filtered = [];
+  
+  // Проверяем, ищет ли пользователь по юзернейму (с @)
+  if (search.startsWith('@')) {
+    // Поиск по юзернейму
+    const usernameQuery = search.substring(1).toLowerCase();
+    filtered = mailingAllUsers.filter(u => 
+      u.username && u.username.toLowerCase().includes(usernameQuery)
+    );
+  } else {
+    // Поиск по ID или имени
+    filtered = mailingAllUsers.filter(u => 
+      u.name.toLowerCase().includes(search) ||
+      u.id.toString().includes(search) ||
+      (u.telegram_id && u.telegram_id.toString().includes(search))
+    );
+  }
+  
+  if (filtered.length === 0) {
+    document.getElementById('mailing-users-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">Пользователи не найдены</p>';
+  } else {
+    displayMailingSearchResults(filtered);
+  }
+}
+
+function displayMailingSearchResults(users) {
+  const resultsHtml = users.map(u => {
+    const isSelected = selectedMailingUsers.has(u.id);
+    const bgColor = isSelected ? 'var(--accent)' : 'var(--card)';
+    const textColor = isSelected ? '#fff' : 'var(--text)';
+    const borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
+    const safeName = u.name.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    
+    return `
+      <div style="padding: 10px 12px; cursor: pointer; background: ${bgColor}; color: ${textColor}; border-left: 4px solid ${borderColor}; margin-bottom: 8px; border-radius: 6px; transition: all 0.2s; hover-background: opacity(0.9);" onclick="toggleMailingUserSelection(${u.id}, '${safeName}')">
+        <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: space-between;">
+          <span>${u.name}</span>
+          ${isSelected ? '<span style="font-size: 16px;">✓</span>' : ''}
+        </div>
+        <div class="small" style="opacity: 0.8; margin-top: 3px; font-size: 12px;">ID: ${u.telegram_id}${u.username ? ` • @${u.username}` : ''}</div>
+      </div>
+    `;
+  }).join('');
+  
+  document.getElementById('mailing-users-search-results').innerHTML = resultsHtml || '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">Нет пользователей</p>';
+}
+
+function clearMailingUserSelection() {
+  selectedMailingUsers.clear();
+  document.getElementById('mailing-selected-users').innerHTML = '<p class="small" style="color: var(--hint); width: 100%;">Выбрано: <span id="mailing-users-count">0</span></p>';
+  document.getElementById('mailing-users-count').textContent = '0';
+}
+
+function toggleMailingUserSelection(userId, userName) {
+  if (selectedMailingUsers.has(userId)) {
+    selectedMailingUsers.delete(userId);
+  } else {
+    selectedMailingUsers.set(userId, userName);
+  }
+  
+  updateMailingSelectedUsersDisplay();
+  searchMailingUsers(); // Обновляем результаты поиска
+}
+
+function updateMailingSelectedUsersDisplay() {
+  const container = document.getElementById('mailing-selected-users');
+  const count = selectedMailingUsers.size;
+  
+  if (count === 0) {
+    container.innerHTML = '<p class="small" style="color: var(--hint); width: 100%; text-align: center; padding: 8px 0;">Выбранных пользователей: <span id="mailing-users-count" style="font-weight: 600; color: var(--accent);">0</span></p>';
+    return;
+  }
+  
+  let html = '<p class="small" style="color: var(--hint); width: 100%; text-align: center; padding: 8px 0; margin-bottom: 8px;">Выбрано: <span id="mailing-users-count" style="font-weight: 600; color: var(--accent);">' + count + '</span></p>';
+  
+  for (const [userId, userName] of selectedMailingUsers) {
+    const safeName = userName.replace(/'/g, "\\'").replace(/"/g, '\\"');
+    html += `
+      <div style="background: var(--accent); color: white; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 2px 4px rgba(233, 30, 99, 0.2);">
+        <span>👤 ${userName}</span>
+        <span onclick="toggleMailingUserSelection(${userId}, '${safeName}')" style="cursor: pointer; font-weight: bold; opacity: 0.8; hover: opacity(1);">✕</span>
+      </div>
+    `;
+  }
+  
+  container.innerHTML = html;
+}
+
+
+async function createMailing() {
+  try {
+    const name = document.getElementById('mailing-name').value.trim();
+    const description = document.getElementById('mailing-description').value.trim();
+    const purpose = document.getElementById('mailing-purpose').value.trim();
+    const targetType = document.getElementById('mailing-target-type').value;
+    
+    if (!name) {
+      showNotification('❌ Введите название рассылки');
+      return;
+    }
+    
+    if (!purpose) {
+      showNotification('❌ Введите назначение рассылки');
+      return;
+    }
+    
+    if (!targetType) {
+      showNotification('❌ Выберите кому отправить');
+      return;
+    }
+    
+    // Если не "все пользователи", требуется ID
+    let targetId = null;
+    
+    // Специальная обработка для пользователей
+    if (targetType === 'user') {
+      if (selectedMailingUsers.size === 0) {
+        showNotification('❌ Выберите хотя бы одного пользователя');
+        return;
+      }
+      // Для пользователей используем специальный формат (могут быть несколько)
+      targetId = Array.from(selectedMailingUsers.keys()).join(',');
+    } else if (targetType !== 'all') {
+      // Для остальных типов требуется ID
+      const targetIdInput = document.getElementById('mailing-target-id').value.trim();
+      if (!targetIdInput) {
+        showNotification('❌ Введите ID цели');
+        return;
+      }
+      targetId = parseInt(targetIdInput);
+    }
+    
+    // Если отправка позже, требуется дата
+    let scheduledAt = null;
+    if (!mailingsSendNow) {
+      const scheduledAtInput = document.getElementById('mailing-scheduled-at').value;
+      if (!scheduledAtInput) {
+        showNotification('❌ Выберите дату и время отправки');
+        return;
+      }
+      // datetime-local возвращает строку в формате "2026-01-23T19:11"
+      // Преобразуем в ISO формат, сохраняя локальное время пользователя
+      const [datePart, timePart] = scheduledAtInput.split('T');
+      scheduledAt = `${datePart}T${timePart}:00`;  // Добавляем секунды если их нет
+    }
+    
+    // Получаем ID создателя из localStorage или используем пример
+    const staffId = localStorage.getItem('staff_id') || 1;
+    
+    const payload = {
+      creator_id: parseInt(staffId),
+      name: name,
+      description: description || null,
+      purpose: purpose,
+      target_type: targetType,
+      target_id: targetId,
+      send_now: mailingsSendNow,
+      scheduled_at: scheduledAt
+    };
+    
+    const response = await fetch('/mailings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      showNotification('❌ ' + (error.error || 'Ошибка при создании рассылки'));
+      return;
+    }
+    
+    showNotification('✅ Рассылка создана успешно!');
+    
+    // Очищаем форму
+    document.getElementById('mailing-name').value = '';
+    clearMailingUserSelection();
+    document.getElementById('mailing-description').value = '';
+    document.getElementById('mailing-purpose').value = '';
+    document.getElementById('mailing-target-type').value = '';
+    document.getElementById('mailing-target-id').value = '';
+    document.getElementById('mailing-scheduled-at').value = '';
+    document.getElementById('mailing-users-search').value = '';
+    document.getElementById('mailing-users-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">Выберите тип рассылки "Выбранные пользователи" для поиска</p>';
+    
+    // Возвращаемся к списку рассылок
+    setTimeout(() => {
+      goBack();
+      loadMailings();
+    }, 1000);
+    
+  } catch (error) {
+    console.error('Ошибка при создании рассылки:', error);
+    showNotification('❌ Ошибка при создании рассылки');
+  }
+}
+
+async function loadMailings() {
+  try {
+    const response = await fetch('/mailings');
+    if (!response.ok) throw new Error('Ошибка сервера');
+    
+    const mailings = await response.json();
+    const container = document.getElementById('mailings-container');
+    
+    if (mailings.length === 0) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Рассылок не найдено</p>';
+      return;
+    }
+    
+    const statusLabels = {
+      'pending': '⏳ На ожидании',
+      'scheduled': '📅 Запланирована',
+      'sending': '📤 В процессе',
+      'sent': '✅ Отправлено',
+      'failed': '❌ Ошибка',
+      'cancelled': '🚫 Отменено'
+    };
+    
+    const mailingTypeLabels = {
+      'manual': '👤 Ручная рассылка',
+      'automatic': '🤖 Автоматическая рассылка'
+    };
+    
+    let html = '';
+    for (const m of mailings) {
+      const statusLabel = statusLabels[m.status] || m.status;
+      const mailingTypeLabel = mailingTypeLabels[m.mailing_type] || m.mailing_type;
+      const sentTime = m.sent_at ? new Date(m.sent_at).toLocaleString('ru-RU') : '—';
+      const scheduledTime = m.scheduled_at ? new Date(m.scheduled_at).toLocaleString('ru-RU') : '—';
+      
+      // Показываем кнопку отправки только для рассылок со статусом "pending"
+      const sendButtonHtml = m.status === 'pending' ? `
+        <button class="button small" style="width: 100%; margin-top: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);" onclick="sendMailingNow(${m.mailing_id})">
+          📤 Отправить сейчас
+        </button>
+      ` : '';
+      
+      html += `
+        <div class="card">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <h4 style="margin: 0;">${m.name}</h4>
+            <span class="small" style="background: ${m.mailing_type === 'automatic' ? '#4CAF50' : '#2196F3'}; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 500;">${mailingTypeLabel}</span>
+          </div>
+          <p class="small" style="color: var(--hint); margin: 8px 0;">
+            <strong>Назначение:</strong> ${m.purpose}
+          </p>
+          <p class="small" style="color: var(--hint); margin: 8px 0;">
+            <strong>Статус:</strong> ${statusLabel}
+          </p>
+          <p class="small" style="color: var(--hint); margin: 8px 0;">
+            <strong>Кому:</strong> ${m.target_type} ${m.target_id ? '(ID: ' + m.target_id + ')' : ''}
+          </p>
+          ${m.description ? '<p class="small" style="color: var(--hint); margin: 8px 0; font-style: italic;">' + m.description + '</p>' : ''}
+          <p class="small" style="color: var(--hint); margin: 8px 0; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px;">
+            Создана: ${new Date(m.created_at).toLocaleString('ru-RU')}<br>
+            ${m.sent_at ? 'Отправлена: ' + sentTime + '<br>' : ''}
+            ${m.scheduled_at && !m.sent_at ? 'Запланирована: ' + scheduledTime : ''}
+          </p>
+          ${sendButtonHtml}
+        </div>
+      `;
+    }
+    
+    container.innerHTML = html;
+  } catch (error) {
+    console.error('Ошибка при загрузке рассылок:', error);
+    document.getElementById('mailings-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке</p>';
+  }
+}
+
+async function sendMailingNow(mailingId) {
+  try {
+    const response = await fetch(`/mailings/${mailingId}/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok || response.status === 206) {
+      showNotification('✅ Рассылка отправлена!');
+      setTimeout(() => {
+        loadMailings();
+      }, 1000);
+    } else {
+      showNotification('❌ ' + (data.error || 'Ошибка при отправке'));
+    }
+  } catch (error) {
+    console.error('Ошибка при отправке рассылки:', error);
+    showNotification('❌ Ошибка при отправке рассылки');
+  }
+}
+
+// Загружаем рассылки при отображении страницы
+const originalShowPage = window.showPage;
+window.showPage = function(pageId) {
+  if (pageId === 'mailings') {
+    loadMailings();
+  }
+  if (pageId === 'direction-create-form') {
+    resetDirectionForm();
+  }
+  return originalShowPage(pageId);
+};
+
+/* ====== УПРАВЛЕНИЕ НАПРАВЛЕНИЯМИ ====== */
+
+async function generateDirectionUploadToken() {
+  // Получаем данные из формы
+  const title = document.getElementById('direction-title').value.trim();
+  const description = document.getElementById('direction-description').value.trim();
+  const price = document.getElementById('direction-price').value.trim();
+  
+  // Проверяем обязательные поля
+  if (!title) {
+    showDirectionError('Введите название направления');
+    return;
+  }
+  if (!description) {
+    showDirectionError('Введите описание направления');
+    return;
+  }
+  if (!price || isNaN(price) || parseInt(price) <= 0) {
+    showDirectionError('Введите корректную цену');
+    return;
+  }
+  
+  // Получаем Telegram ID админа
+  const telegramUserId = tg.initDataUnsafe?.user?.id;
+  if (!telegramUserId) {
+    showDirectionError('Ошибка: не удалось получить ID из Telegram');
+    return;
+  }
+  
+  try {
+    // Создаем сессию на сервере
+    const response = await fetch('/api/directions/create-session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        telegram_user_id: telegramUserId,
+        title: title,
+        description: description,
+        base_price: parseInt(price)
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      showDirectionError(data.error || 'Ошибка при создании сессии');
+      return;
+    }
+    
+    // Сохраняем токен в localStorage
+    localStorage.setItem('direction_session_token', data.session_token);
+    localStorage.setItem('direction_session_id', data.session_id);
+    
+    const token = data.session_token;
+    
+    // Сохраняем токен в буфер обмена для удобства
+    navigator.clipboard.writeText(token).catch(() => {
+      // Если копирование не сработало - ничего страшного
+    });
+    
+    // Открываем бота с параметром session_token
+    // Используем обычную https ссылку, которую tg.openLink откроет в Telegram приложении
+    const botUsername = 'dance_studio_tester_bot';
+    const botLink = `https://t.me/${botUsername}?start=upload_${token}`;
+    
+    console.log('Открываем бота с ссылкой:', botLink);
+    
+    // Открываем через Telegram Web App API
+    // tg.openLink() автоматически откроет приложение Telegram если оно установлено
+    try {
+      tg.openLink(botLink);
+      
+      // Показываем уведомление
+      showDirectionSuccess('✅ Бот открыт! Загрузите фотографию.');
+      
+      // Обновляем статус загрузки
+      checkDirectionPhotoStatus(token);
+    } catch (err) {
+      console.error('Ошибка при открытии бота:', err);
+      showDirectionError('Не удалось открыть бота. Попробуйте еще раз.');
+    }
+    
+  } catch (error) {
+    console.error('Ошибка:', error);
+    showDirectionError('Ошибка сети: ' + error.message);
+  }
+}
+
+async function checkDirectionPhotoStatus(token) {
+  try {
+    // Проверяем статус каждую секунду
+    const checkInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/directions/upload-complete/${token}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.status === 'photo_received') {
+            clearInterval(checkInterval);
+            
+            // Обновляем UI
+            document.getElementById('direction-photo-status').innerHTML = 
+              '<p style="margin: 0; color: #4CAF50; font-size: 14px;">✅ Фотография загружена</p>';
+            
+            // Активируем кнопку создания
+            document.getElementById('direction-create-btn').style.opacity = '1';
+            document.getElementById('direction-create-btn').disabled = false;
+            
+            // Сохраняем токен для создания
+            localStorage.setItem('direction_upload_token', token);
+            
+            showDirectionSuccess('Фотография успешно загружена! Теперь нажмите "Создать направление"');
+          }
+        }
+      } catch (error) {
+        // Ошибка при проверке - продолжаем проверять
+      }
+    }, 1000);
+    
+    // Останавливаем проверку через 5 минут
+    setTimeout(() => clearInterval(checkInterval), 300000);
+    
+  } catch (error) {
+    console.error('Ошибка при проверке статуса:', error);
+  }
+}
+
+async function createDirection() {
+  const token = localStorage.getItem('direction_upload_token');
+  
+  if (!token) {
+    showDirectionError('Фотография не загружена. Пожалуйста, загрузите фотографию через бота.');
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/directions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        session_token: token,
+        is_popular: 0
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      showDirectionError(data.error || 'Ошибка при создании направления');
+      return;
+    }
+    
+    // Очищаем форму и localStorage
+    resetDirectionForm();
+    localStorage.removeItem('direction_upload_token');
+    localStorage.removeItem('direction_session_token');
+    localStorage.removeItem('direction_session_id');
+    
+    showDirectionSuccess(`✅ Направление "${data.title}" успешно создано!`);
+    
+    // Возвращаемся в меню
+    setTimeout(() => {
+      goBack();
+    }, 2000);
+    
+  } catch (error) {
+    console.error('Ошибка:', error);
+    showDirectionError('Ошибка сети: ' + error.message);
+  }
+}
+
+function resetDirectionForm() {
+  document.getElementById('direction-title').value = '';
+  document.getElementById('direction-description').value = '';
+  document.getElementById('direction-price').value = '';
+  document.getElementById('direction-photo-status').innerHTML = 
+    '<p style="margin: 0; color: var(--hint); font-size: 14px;">❌ Фотография не загружена</p>';
+  document.getElementById('direction-create-btn').disabled = true;
+  document.getElementById('direction-create-btn').style.opacity = '0.5';
+  document.getElementById('direction-error-msg').style.display = 'none';
+  document.getElementById('direction-success-msg').style.display = 'none';
+  localStorage.removeItem('direction_upload_token');
+}
+
+function showDirectionError(message) {
+  const errorDiv = document.getElementById('direction-error-msg');
+  document.getElementById('direction-error-text').textContent = message;
+  errorDiv.style.display = 'block';
+  
+  // Автоматически скрываем через 5 сек
+  setTimeout(() => {
+    errorDiv.style.display = 'none';
+  }, 5000);
+}
+
+function showDirectionSuccess(message) {
+  const successDiv = document.getElementById('direction-success-msg');
+  document.getElementById('direction-success-text').textContent = message;
+  successDiv.style.display = 'block';
+  
+  // Автоматически скрываем через 5 сек
+  setTimeout(() => {
+    successDiv.style.display = 'none';
+  }, 5000);
+}
+
+/* ====== ЗАГРУЗКА И ОТОБРАЖЕНИЕ НАПРАВЛЕНИЙ ====== */
+
+let currentDirectionTab = 'active'; // Текущая активная вкладка
+
+async function loadDirections() {
+  try {
+    const response = await fetch('/api/directions/manage');
+    const directions = await response.json();
+    
+    // Разделяем активные и архивные направления
+    const activeDirections = directions.filter(d => d.status === 'active');
+    const archivedDirections = directions.filter(d => d.status !== 'active');
+    
+    // Отображаем текущую вкладку
+    renderDirections(currentDirectionTab === 'active' ? activeDirections : archivedDirections);
+    
+  } catch (error) {
+    console.error('Ошибка при загрузке направлений:', error);
+    const container = document.getElementById('directions-groups-container');
+    container.innerHTML = '<p class="small" style="text-align: center; color: #c62828; padding: 20px;">❌ Ошибка при загрузке</p>';
+  }
+}
+
+function renderDirections(directions) {
+  const container = document.getElementById('directions-groups-container');
+  
+  if (!directions || directions.length === 0) {
+    const emptyText = currentDirectionTab === 'active' ? 'Активных направлений нет' : 'Архив пуст';
+    container.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 ${emptyText}</p>`;
+    return;
+  }
+  
+  let html = '';
+  
+  directions.forEach(direction => {
+    const statusColor = direction.status === 'active' ? '#4CAF50' : '#ff9800';
+    const statusText = direction.status === 'active' ? '✅ Активное' : '⏸️ Неактивное';
+    const popularBadge = direction.is_popular ? '⭐ Популярное' : '';
+    
+    const imageHtml = direction.image_path 
+      ? `<img src="${direction.image_path}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 12px;">`
+      : `<div style="width: 100%; height: 120px; background: #f0f0f0; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: var(--hint);">📸 Нет фото</div>`;
+    
+    html += `
+      <div class="card" style="margin-bottom: 12px; border-left: 4px solid ${statusColor}; position: relative;">
+        ${imageHtml}
+        <h4 style="margin: 0 0 8px 0;">${direction.title}</h4>
+        <p style="font-size: 13px; color: var(--hint); margin: 0 0 8px 0; line-height: 1.4;">${direction.description || 'Нет описания'}</p>
+        
+        <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+          <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">💰 ${direction.base_price} ₽</span>
+          <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: ${statusColor};">${statusText}</span>
+          ${popularBadge ? `<span style="background: #fff3cd; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${popularBadge}</span>` : ''}
+        </div>
+        
+        <div style="font-size: 11px; color: var(--hint); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
+          Создано: ${new Date(direction.created_at).toLocaleDateString('ru-RU')}
+        </div>
+        
+        <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center; justify-content: space-between;">
+          <button class="save-btn" style="flex: 0 0 calc(100% - 48px); height: 40px; padding: 8px; font-size: 12px; background: #2196F3; border-radius: 8px;" onclick="editDirection(${direction.direction_id})">✏️ Редактировать</button>
+          <button class="save-btn" style="width: 40px; height: 40px; padding: 0; font-size: 18px; background: #ff9800; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" onclick="archiveDirection(${direction.direction_id})">📦</button>
+        </div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+}
+
+function switchDirectionTab(tab) {
+  currentDirectionTab = tab;
+  
+  const activeTabBtn = document.getElementById('active-tab');
+  const archivedTabBtn = document.getElementById('archived-tab');
+  const indicator = document.querySelector('.tab-indicator');
+  
+  // Обновляем цвета текста вкладок
+  activeTabBtn.style.color = tab === 'active' ? '#2196F3' : 'var(--hint)';
+  archivedTabBtn.style.color = tab === 'archived' ? '#2196F3' : 'var(--hint)';
+  
+  // Анимируем индикатор
+  const activeTab = tab === 'active' ? activeTabBtn : archivedTabBtn;
+  const tabWidth = activeTab.offsetWidth;
+  const tabLeft = activeTab.offsetLeft;
+  
+  indicator.style.width = tabWidth + 'px';
+  indicator.style.transform = `translateX(${tabLeft}px)`;
+  
+  // Перезагружаем направления
+  loadDirections();
+}
+
+function setDirectionEditLocked(locked) {
+  window.directionEditLocked = locked;
+  const editableFields = document.querySelectorAll('.direction-editable');
+  const editPage = document.getElementById('direction-edit-form');
+
+  editableFields.forEach(el => {
+    if (el.tagName === 'BUTTON') {
+      el.disabled = locked;
+      el.style.opacity = locked ? '0.5' : '1';
+      el.style.pointerEvents = locked ? 'none' : 'auto';
+    } else {
+      el.disabled = locked;
+    }
+  });
+
+  const lockBtn = document.getElementById('direction-edit-lock-btn');
+  const lockHint = document.getElementById('direction-edit-lock-hint');
+  if (editPage) {
+    if (locked) editPage.classList.add('direction-locked');
+    else editPage.classList.remove('direction-locked');
+  }
+  if (lockBtn && lockHint) {
+    if (locked) {
+      lockBtn.textContent = '🔓';
+      lockBtn.title = 'Разблокировать редактирование';
+      lockHint.textContent = 'Поля заблокированы, чтобы избежать случайных изменений.';
+    } else {
+      lockBtn.textContent = '🔒';
+      lockBtn.title = 'Заблокировать редактирование';
+      lockHint.textContent = 'Редактирование разблокировано. Не забудьте сохранить изменения.';
+    }
+  }
+}
+
+function toggleDirectionEditLock() {
+  setDirectionEditLocked(!window.directionEditLocked);
+}
+
+function editDirection(directionId) {
+  // Сохраняем ID направления для использования в других функциях
+  window.currentEditDirectionId = directionId;
+  
+  // Загружаем данные направления
+  fetch(`/api/directions/${directionId}`)
+    .then(r => r.json())
+    .then(direction => {
+      // Заполняем форму данными
+      document.getElementById('edit-direction-title').value = direction.title || '';
+      document.getElementById('edit-direction-description').value = direction.description || '';
+      document.getElementById('edit-direction-price').value = direction.base_price || '';
+      document.getElementById('edit-direction-status').value = direction.status || 'active';
+      
+      // Показываем фотографию если она есть
+      if (direction.image_path) {
+        const photoDiv = document.getElementById('edit-direction-photo-preview');
+        photoDiv.innerHTML = `<img src="${direction.image_path}" style="width: 100%; height: 100%; object-fit: cover;">`;
+      }
+      
+      // Загружаем группы
+      loadDirectionGroups();
+      
+      // Переходим на страницу редактирования
+      showPage('direction-edit-form');
+      setDirectionEditLocked(true);
+    })
+    .catch(err => {
+      alert('❌ Ошибка при загрузке данных: ' + err.message);
+    });
+}
+
+function loadDirectionGroups() {
+  const directionId = window.currentEditDirectionId;
+  const groupsList = document.getElementById('edit-direction-groups-list');
+  if (!directionId || !groupsList) return;
+
+  groupsList.innerHTML = `<p style="text-align: center; color: var(--hint); padding: 12px; margin: 0;">⏳ Загрузка групп...</p>`;
+
+  fetch(`/api/directions/${directionId}/groups`)
+    .then(async groupsRes => {
+      if (!groupsRes.ok) {
+        const err = await groupsRes.json();
+        throw new Error(err.error || 'Не удалось загрузить группы');
+      }
+      const groups = await groupsRes.json();
+
+      // Рендерим группы
+      if (!groups.length) {
+        groupsList.innerHTML = `<p style="text-align: center; color: var(--hint); padding: 12px; margin: 0;">📭 Групп пока нет</p>`;
+        return;
+      }
+
+      let html = '';
+      groups.forEach(g => {
+        html += `
+          <div class="card" style="margin-bottom: 8px; border-left: 4px solid #4CAF50;">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+              <div style="font-weight: 600; flex: 1;">${g.name}</div>
+              <button class="lock-btn" title="Редактировать группу" onclick="openEditGroupPage(${g.id});">✏️</button>
+            </div>
+            <div class="small" style="margin-bottom: 6px;">Преподаватель: <b>${g.teacher_name || '—'}</b></div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
+              <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👶 ${g.age_group}</span>
+              <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👥 ${g.max_students} учеников</span>
+              <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">⏱️ ${g.duration_minutes} мин</span>
+            </div>
+            <div class="small">${g.description || 'Описание не указано'}</div>
+          </div>
+        `;
+      });
+      groupsList.innerHTML = html;
+    })
+    .catch(err => {
+      groupsList.innerHTML = `<p style="text-align: center; color: #c62828; padding: 12px; margin: 0;">❌ ${err.message}</p>`;
+    });
+}
+
+function loadGroupTeachers() {
+  const results = document.getElementById('group-teacher-search-results');
+  if (!results) return;
+
+  results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Загрузка преподавателей...</p>`;
+
+  fetch('/staff/list/teachers')
+    .then(async res => {
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Не удалось загрузить преподавателей');
+      }
+      return res.json();
+    })
+    .then(teachers => {
+      window.groupTeachers = teachers || [];
+      displayGroupTeacherResults(window.groupTeachers);
+    })
+    .catch(err => {
+      results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">❌ ${err.message}</p>`;
+    });
+}
+
+function searchGroupTeacher() {
+  const input = document.getElementById('group-teacher-search');
+  const query = (input?.value || '').trim().toLowerCase();
+  const results = document.getElementById('group-teacher-search-results');
+  if (!results) return;
+
+  if (!window.groupTeachers) {
+    results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Загрузка преподавателей...</p>`;
+    return;
+  }
+
+  if (!query) {
+    displayGroupTeacherResults(window.groupTeachers);
+    return;
+  }
+
+  const filtered = window.groupTeachers.filter(t => {
+    const name = (t.name || '').toLowerCase();
+    const username = (t.username || '').toLowerCase();
+    const idStr = String(t.id || '');
+    return name.includes(query) || username.includes(query) || idStr.includes(query);
+  });
+
+  if (!filtered.length) {
+    results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Преподаватели не найдены</p>`;
+    return;
+  }
+
+  displayGroupTeacherResults(filtered);
+}
+
+function displayGroupTeacherResults(teachers) {
+  const results = document.getElementById('group-teacher-search-results');
+  if (!results) return;
+
+  const html = teachers.map(t => {
+    const safeName = (t.name || '—').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const safeUsername = (t.username || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const isSelected = window.selectedGroupTeacher && window.selectedGroupTeacher.id === t.id;
+    const borderColor = isSelected ? '#1976d2' : 'var(--accent)';
+    const bgColor = isSelected ? '#e3f2fd' : 'var(--bg)';
+    return `
+      <div class="card" id="group-teacher-card-${t.id}" style="margin-bottom: 8px; cursor: pointer; background: ${bgColor}; border-left: 4px solid ${borderColor}; transition: all 0.2s;" onclick="selectGroupTeacher(${t.id}, '${safeName}', '${safeUsername}')">
+        <div style="font-weight: 600; font-size: 14px;">
+          ${t.name || '—'}
+          ${isSelected ? ' ✅' : ''}
+        </div>
+        <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">ID: ${t.id}${t.username ? ` • @${t.username}` : ''}</div>
+      </div>
+    `;
+  }).join('');
+
+  results.innerHTML = html || '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Нет преподавателей</p>';
+}
+
+function selectGroupTeacher(id, name, username) {
+  window.selectedGroupTeacher = { id, name, username };
+  displayGroupTeacherResults(window.groupTeachers || []);
+}
+
+function openCreateGroupPage() {
+  if (!window.currentEditDirectionId) {
+    alert('❌ Сначала откройте направление для редактирования');
+    return;
+  }
+  showPage('direction-group-create');
+  window.selectedGroupTeacher = null;
+  document.getElementById('group-teacher-search').value = '';
+  loadGroupTeachers();
+}
+
+function setDirectionGroupMessage(text, isError) {
+  const msg = document.getElementById('edit-direction-group-msg');
+  if (!msg) return;
+  msg.style.display = 'block';
+  msg.style.background = isError ? '#ffebee' : '#e8f5e9';
+  msg.style.color = isError ? '#c62828' : '#2e7d32';
+  msg.textContent = text;
+  setTimeout(() => {
+    msg.style.display = 'none';
+  }, 4000);
+}
+
+function createDirectionGroup() {
+  const directionId = window.currentEditDirectionId;
+  if (!directionId) {
+    setDirectionGroupMessage('❌ ID направления не найден', true);
+    return;
+  }
+
+  const name = document.getElementById('edit-direction-group-name').value.trim();
+  const teacherId = window.selectedGroupTeacher ? window.selectedGroupTeacher.id : null;
+  const ageGroup = document.getElementById('edit-direction-group-age').value.trim();
+  const maxStudents = document.getElementById('edit-direction-group-max').value;
+  const durationMinutes = document.getElementById('edit-direction-group-duration').value;
+  const description = document.getElementById('edit-direction-group-desc').value.trim();
+
+  if (!name || !teacherId || !ageGroup || !maxStudents || !durationMinutes) {
+    setDirectionGroupMessage('❌ Заполните обязательные поля', true);
+    return;
+  }
+
+  fetch(`/api/directions/${directionId}/groups`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      teacher_id: parseInt(teacherId, 10),
+      age_group: ageGroup,
+      max_students: parseInt(maxStudents, 10),
+      duration_minutes: parseInt(durationMinutes, 10),
+      description
+    })
+  })
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Не удалось создать группу');
+      return data;
+    })
+    .then(() => {
+      document.getElementById('edit-direction-group-name').value = '';
+      document.getElementById('edit-direction-group-age').value = '';
+      document.getElementById('edit-direction-group-max').value = '';
+      document.getElementById('edit-direction-group-duration').value = '';
+      document.getElementById('edit-direction-group-desc').value = '';
+      document.getElementById('group-teacher-search').value = '';
+      window.selectedGroupTeacher = null;
+      setDirectionGroupMessage('✅ Группа создана', false);
+      loadDirectionGroups();
+      setTimeout(() => {
+        goBack();
+      }, 600);
+    })
+    .catch(err => {
+      setDirectionGroupMessage('❌ ' + err.message, true);
+    });
+}
+
+function setEditGroupMessage(text, isError) {
+  const msg = document.getElementById('edit-group-msg');
+  if (!msg) return;
+  msg.style.display = 'block';
+  msg.style.background = isError ? '#ffebee' : '#e8f5e9';
+  msg.style.color = isError ? '#c62828' : '#2e7d32';
+  msg.textContent = text;
+  setTimeout(() => {
+    msg.style.display = 'none';
+  }, 4000);
+}
+
+function loadEditGroupTeachers() {
+  const results = document.getElementById('edit-group-teacher-search-results');
+  if (!results) return;
+
+  results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Загрузка преподавателей...</p>`;
+
+  fetch('/staff/list/teachers')
+    .then(async res => {
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Не удалось загрузить преподавателей');
+      }
+      return res.json();
+    })
+    .then(teachers => {
+      window.editGroupTeachers = teachers || [];
+      // Предвыбор по teacher_id
+      if (window.editGroupPreselectTeacherId) {
+        const selected = window.editGroupTeachers.find(t => t.id === window.editGroupPreselectTeacherId);
+        if (selected) {
+          window.selectedEditGroupTeacher = { id: selected.id, name: selected.name, username: selected.username };
+        }
+      }
+      displayEditGroupTeacherResults(window.editGroupTeachers);
+    })
+    .catch(err => {
+      results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">❌ ${err.message}</p>`;
+    });
+}
+
+function searchEditGroupTeacher() {
+  const input = document.getElementById('edit-group-teacher-search');
+  const query = (input?.value || '').trim().toLowerCase();
+  const results = document.getElementById('edit-group-teacher-search-results');
+  if (!results) return;
+
+  if (!window.editGroupTeachers) {
+    results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Загрузка преподавателей...</p>`;
+    return;
+  }
+
+  if (!query) {
+    displayEditGroupTeacherResults(window.editGroupTeachers);
+    return;
+  }
+
+  const filtered = window.editGroupTeachers.filter(t => {
+    const name = (t.name || '').toLowerCase();
+    const username = (t.username || '').toLowerCase();
+    const idStr = String(t.id || '');
+    return name.includes(query) || username.includes(query) || idStr.includes(query);
+  });
+
+  if (!filtered.length) {
+    results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Преподаватели не найдены</p>`;
+    return;
+  }
+
+  displayEditGroupTeacherResults(filtered);
+}
+
+function displayEditGroupTeacherResults(teachers) {
+  const results = document.getElementById('edit-group-teacher-search-results');
+  if (!results) return;
+
+  const html = teachers.map(t => {
+    const safeName = (t.name || '—').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const safeUsername = (t.username || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+    const isSelected = window.selectedEditGroupTeacher && window.selectedEditGroupTeacher.id === t.id;
+    const borderColor = isSelected ? '#1976d2' : 'var(--accent)';
+    const bgColor = isSelected ? '#e3f2fd' : 'var(--bg)';
+    return `
+      <div class="card" id="edit-group-teacher-card-${t.id}" style="margin-bottom: 8px; cursor: pointer; background: ${bgColor}; border-left: 4px solid ${borderColor}; transition: all 0.2s;" onclick="selectEditGroupTeacher(${t.id}, '${safeName}', '${safeUsername}')">
+        <div style="font-weight: 600; font-size: 14px;">
+          ${t.name || '—'}
+          ${isSelected ? ' ✅' : ''}
+        </div>
+        <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">ID: ${t.id}${t.username ? ` • @${t.username}` : ''}</div>
+      </div>
+    `;
+  }).join('');
+
+  results.innerHTML = html || '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Нет преподавателей</p>';
+}
+
+function selectEditGroupTeacher(id, name, username) {
+  window.selectedEditGroupTeacher = { id, name, username };
+  displayEditGroupTeacherResults(window.editGroupTeachers || []);
+}
+
+function openEditGroupPage(groupId) {
+  window.currentEditGroupId = groupId;
+  window.selectedEditGroupTeacher = null;
+  window.editGroupPreselectTeacherId = null;
+
+  try {
+    showPage('direction-group-edit');
+  } catch (err) {
+    showNotification('❌ Не удалось открыть форму редактирования группы');
+    return;
+  }
+  const teacherSearch = document.getElementById('edit-group-teacher-search');
+  if (teacherSearch) teacherSearch.value = '';
+
+  fetch(`/api/groups/${groupId}`)
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Не удалось загрузить группу');
+      return data;
+    })
+    .then(group => {
+      document.getElementById('edit-group-name').value = group.name || '';
+      document.getElementById('edit-group-age').value = group.age_group || '';
+      document.getElementById('edit-group-max').value = group.max_students || '';
+      document.getElementById('edit-group-duration').value = group.duration_minutes || '';
+      document.getElementById('edit-group-desc').value = group.description || '';
+      window.editGroupPreselectTeacherId = group.teacher_id;
+      loadEditGroupTeachers();
+    })
+    .catch(err => {
+      setEditGroupMessage('❌ ' + err.message, true);
+      showNotification('❌ ' + err.message);
+    });
+}
+
+function saveGroupChanges() {
+  const groupId = window.currentEditGroupId;
+  if (!groupId) {
+    setEditGroupMessage('❌ ID группы не найден', true);
+    return;
+  }
+
+  const name = document.getElementById('edit-group-name').value.trim();
+  const teacherId = window.selectedEditGroupTeacher ? window.selectedEditGroupTeacher.id : null;
+  const ageGroup = document.getElementById('edit-group-age').value.trim();
+  const maxStudents = document.getElementById('edit-group-max').value;
+  const durationMinutes = document.getElementById('edit-group-duration').value;
+  const description = document.getElementById('edit-group-desc').value.trim();
+
+  if (!name || !teacherId || !ageGroup || !maxStudents || !durationMinutes) {
+    setEditGroupMessage('❌ Заполните обязательные поля', true);
+    return;
+  }
+
+  fetch(`/api/groups/${groupId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      teacher_id: parseInt(teacherId, 10),
+      age_group: ageGroup,
+      max_students: parseInt(maxStudents, 10),
+      duration_minutes: parseInt(durationMinutes, 10),
+      description
+    })
+  })
+    .then(async r => {
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Не удалось сохранить группу');
+      return data;
+    })
+    .then(() => {
+      setEditGroupMessage('✅ Группа обновлена', false);
+      loadDirectionGroups();
+      setTimeout(() => {
+        goBack();
+      }, 600);
+    })
+    .catch(err => {
+      setEditGroupMessage('❌ ' + err.message, true);
+    });
+}
+
+function saveDirectionChanges() {
+  if (window.directionEditLocked) {
+    alert('🔒 Сначала разблокируйте редактирование.');
+    return;
+  }
+
+  const directionId = window.currentEditDirectionId;
+  if (!directionId) {
+    alert('❌ ID направления не найден');
+    return;
+  }
+  
+  const title = document.getElementById('edit-direction-title').value.trim();
+  const description = document.getElementById('edit-direction-description').value.trim();
+  const price = document.getElementById('edit-direction-price').value;
+  const status = document.getElementById('edit-direction-status').value;
+  
+  if (!title || !description || !price) {
+    alert('❌ Пожалуйста, заполните все поля');
+    return;
+  }
+  
+  fetch(`/api/directions/${directionId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      description,
+      base_price: parseFloat(price),
+      status
+    })
+  })
+    .then(r => r.json())
+    .then(data => {
+      alert('✅ Направление обновлено');
+      goBack();
+      loadDirections();
+    })
+    .catch(err => alert('❌ Ошибка: ' + err.message));
+}
+
+function archiveDirection(directionId) {
+  if (confirm('Архивировать это направление?')) {
+    fetch(`/api/directions/${directionId}`, { method: 'DELETE' })
+      .then(r => r.json())
+      .then(data => {
+        alert('✅ Направление архивировано');
+        loadDirections();
+      })
+      .catch(err => alert('❌ Ошибка: ' + err.message));
+  }
+}
+
+</script>
+</body>
+</html>

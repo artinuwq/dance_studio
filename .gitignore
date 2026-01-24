@@ -6,14 +6,16 @@ __pycache__/
 *.env
 
 # База данных
-database/*.db
-database/*.sqlite3
+database/
 
 # Логи
 logs/*.log
 
 # Загружаемые файлы
 downloads/*
+
+# Локальные утилиты
+dev_tools/
 
 # Конфиги с токенами
 config.py
