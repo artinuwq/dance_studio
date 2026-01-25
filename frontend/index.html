@@ -86,6 +86,18 @@ header {
   margin-bottom: 12px;
 }
 
+/* Компактные секции на вкладке "Работа" */
+.work-section {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin-bottom: 10px;
+}
+.work-section h4 {
+  margin: 0 0 8px 0;
+}
+
 .menu-item {
   background: var(--card);
   padding: 14px;
@@ -812,12 +824,23 @@ textarea.form-input {
 <button class="lock-btn" onclick="openStaffProfileEdit()" title="Редактировать рабочий профиль">✏️</button>
 </div>
 <!-- Меню функционала -->
-<div class="card">
+<div class="card work-section" style="margin-bottom: 12px;">
+<h4 style="margin-bottom: 10px;">Персональное</h4>
 <button class="save-btn" onclick="showPage('personal-schedule')" style="width: 100%; margin-bottom: 8px;">📅 Личное расписание</button>
+<button class="save-btn" type="button" style="width: 100%; margin-bottom: 8px;">👥 Личные группы</button>
+</div>
+<div class="card work-section" style="margin-bottom: 12px;">
+<h4 style="margin-bottom: 10px;">Структура</h4>
 <button class="save-btn" onclick="showPage('schedule-control')" style="width: 100%; margin-bottom: 8px;">🗓️ Расписание</button>
 <button class="save-btn" onclick="showPage('directions-groups')" style="width: 100%; margin-bottom: 8px;">📚 Направления и группы</button>
+</div>
+<div class="card work-section" style="margin-bottom: 12px;">
+<h4 style="margin-bottom: 10px;">Коммуникации</h4>
 <button class="save-btn" onclick="showPage('mailings')" style="width: 100%; margin-bottom: 8px;">📧 Рассылки</button>
 <button class="save-btn" onclick="showPage('news-manage')" style="width: 100%; margin-bottom: 8px;">📰 Новости</button>
+</div>
+<div class="card work-section">
+<h4 style="margin-bottom: 10px;">Работа с людьми</h4>
 <button class="save-btn" id="staff-manage-btn-work" onclick="showPage('staff-manage')" style="width: 100%; margin-bottom: 8px; display: none; text-align: center;">👥 Персонал</button>
 <button class="save-btn" onclick="showPage('clients-list')" style="width: 100%; margin-bottom: 8px;">👨‍👩‍👧‍👦 Клиенты</button>
 </div>
