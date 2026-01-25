@@ -246,15 +246,23 @@ header {
 }
 
 /* ====== РАЗДЕЛ О СТУДИИ ====== */
+.studio-section {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
 .section-item {
-  background: var(--card);
-  padding: 14px;
-  border-radius: 12px;
-  margin-bottom: 10px;
+  background: #ffffff;
+  padding: 16px;
+  border-radius: 16px;
+  margin-bottom: 12px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
   transition: all 0.2s;
 }
 
@@ -266,12 +274,36 @@ header {
 .section-item-left {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex: 1;
 }
 
 .section-item-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
   font-size: 24px;
+  flex-shrink: 0;
+}
+
+.section-icon--orange {
+  background: #ff9800;
+}
+
+.section-icon--purple {
+  background: #5a55d6;
+}
+
+.section-icon--blue {
+  background: #49b6e7;
+}
+
+.section-icon--pink {
+  background: #ff3b6b;
 }
 
 .section-item-text {
@@ -279,21 +311,21 @@ header {
 }
 
 .section-item-title {
-  font-weight: 600;
-  font-size: 14px;
+  font-weight: 700;
+  font-size: 16px;
   margin: 0;
 }
 
 .section-item-desc {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--hint);
-  margin: 4px 0 0 0;
+  margin: 6px 0 0 0;
 }
 
 .section-item-arrow {
-  color: var(--hint);
-  font-size: 20px;
-  font-weight: 300;
+  color: #1a1a1a;
+  font-size: 28px;
+  font-weight: 700;
 }
 
 /* ====== КОНТАКТНАЯ ИНФОРМАЦИЯ ====== */
@@ -721,11 +753,11 @@ textarea.form-input {
 <p class="news-empty">Новостей пока нет v-v</p>
 </div>
 </div>
-<div class="card">
+<div class="card studio-section">
 <h4>О студии</h4>
 <div class="section-item" onclick="showSection('info-about')">
 <div class="section-item-left">
-<div class="section-item-icon">ℹ️</div>
+<div class="section-item-icon section-icon--orange">☆</div>
 <div class="section-item-text">
 <h4 class="section-item-title">Информация</h4>
 <p class="section-item-desc">Инфо о нас, время работы</p>
@@ -735,7 +767,7 @@ textarea.form-input {
 </div>
 <div class="section-item" onclick="showSection('info-teachers')">
 <div class="section-item-left">
-<div class="section-item-icon">👩‍🏫</div>
+<div class="section-item-icon section-icon--purple">🎓</div>
 <div class="section-item-text">
 <h4 class="section-item-title">Преподаватели</h4>
 <p class="section-item-desc">Список всех преподавателей</p>
@@ -745,7 +777,7 @@ textarea.form-input {
 </div>
 <div class="section-item" onclick="showSection('info-directions')">
 <div class="section-item-left">
-<div class="section-item-icon">💃</div>
+<div class="section-item-icon section-icon--blue">⏱</div>
 <div class="section-item-text">
 <h4 class="section-item-title">Направления</h4>
 <p class="section-item-desc">Виды танцев</p>
@@ -755,7 +787,7 @@ textarea.form-input {
 </div>
 <div class="section-item" onclick="showSection('info-contacts')">
 <div class="section-item-left">
-<div class="section-item-icon">📍</div>
+<div class="section-item-icon section-icon--pink">📍</div>
 <div class="section-item-text">
 <h4 class="section-item-title">Контакты</h4>
 <p class="section-item-desc">Как нас найти</p>
@@ -1429,6 +1461,15 @@ textarea.form-input {
 /* ====== TELEGRAM ====== */
 const tg = window.Telegram.WebApp;
 tg.ready();
+
+function getAuthHeaders(extraHeaders = {}) {
+  const telegramId = tg.initDataUnsafe?.user?.id;
+  const headers = { ...extraHeaders };
+  if (telegramId) {
+    headers['X-Telegram-Id'] = telegramId;
+  }
+  return headers;
+}
 tg.expand();
 
 /* ====== НАВИГАЦИЯ ====== */
@@ -1613,6 +1654,33 @@ function goBack() {
 
 /* ====== УПРАВЛЕНИЕ РАСПИСАНИЕМ ПЕРСОНАЛА ====== */
 let currentStaffPosition = '';
+const STAFF_CACHE_KEY = 'staff_status_cache_v1';
+
+function getCachedStaffStatus() {
+  try {
+    const raw = localStorage.getItem(STAFF_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return null;
+    if (typeof parsed.isStaff !== 'boolean') return null;
+    return parsed;
+  } catch (err) {
+    return null;
+  }
+}
+
+function setCachedStaffStatus(isStaffValue, positionValue) {
+  try {
+    const payload = {
+      isStaff: Boolean(isStaffValue),
+      position: positionValue || '',
+      updatedAt: Date.now()
+    };
+    localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(payload));
+  } catch (err) {
+    // ignore cache write errors
+  }
+}
 let currentScheduleId = null;
 
 
@@ -1910,7 +1978,7 @@ async function saveNewStaff() {
     
     const response = await fetch('/staff', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload)
     });
     
@@ -1939,7 +2007,8 @@ async function deleteStaffMember(staffId, name) {
   
   try {
     const response = await fetch(`/staff/${staffId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     });
     
     if (response.ok) {
@@ -2028,7 +2097,8 @@ async function deleteCurrentStaff() {
   
   try {
     const response = await fetch(`/staff/${currentDetailStaffId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     });
     
     if (response.ok) {
@@ -2283,6 +2353,7 @@ async function checkStaffStatus(telegramId) {
     if (!response.ok) {
       isStaff = false;
       currentStaffPosition = '';
+      setCachedStaffStatus(false, '');
       updateStaffNavigation();
       return;
     }
@@ -2309,6 +2380,7 @@ async function checkStaffStatus(telegramId) {
         }
       }
     }
+    setCachedStaffStatus(isStaff, currentStaffPosition);
     updateStaffNavigation();
     
     console.log(`Статус персонала: ${isStaff}, должность: ${currentStaffPosition}`);
@@ -2316,6 +2388,7 @@ async function checkStaffStatus(telegramId) {
     console.error('Ошибка при проверке статуса персонала:', error);
     isStaff = false;
     currentStaffPosition = '';
+    setCachedStaffStatus(false, '');
     updateStaffNavigation();
   }
 }
@@ -2367,6 +2440,13 @@ if (user) {
   loadProfileData(user.id);
   
   // Проверяем, является ли пользователь сотрудником
+  const cachedStaff = getCachedStaffStatus();
+  if (cachedStaff) {
+    isStaff = cachedStaff.isStaff;
+    currentStaffPosition = cachedStaff.position || '';
+    updateStaffNavigation();
+  }
+
   checkStaffStatus(user.id);
 }
 
@@ -2633,7 +2713,7 @@ async function saveStaffProfile() {
   try {
     const response = await fetch(`/staff/${staffId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         name: name || null,
         specialization: specialization || null,
@@ -2902,6 +2982,12 @@ function renderNewsList(news) {
   `).join('');
 }
 
+// Показать кэш сразу, если есть
+const initialCachedNews = getCachedNews();
+if (initialCachedNews) {
+  renderNewsList(initialCachedNews);
+}
+
 async function loadNews() {
   try {
     const cached = getCachedNews();
@@ -2933,7 +3019,9 @@ async function loadNews() {
 
 async function loadNewsManage() {
   try {
-    const response = await fetch('/news/manage');
+    const response = await fetch('/news/manage', {
+      headers: getAuthHeaders()
+    });
     const news = await response.json();
     const container = document.getElementById('news-manage-container');
     
@@ -2985,7 +3073,8 @@ async function deleteNews(newsId) {
   
   try {
     const response = await fetch(`/news/${newsId}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: getAuthHeaders()
     });
     
     if (response.ok) {
@@ -3003,7 +3092,8 @@ async function deleteNews(newsId) {
 async function archiveNews(newsId) {
   try {
     const response = await fetch(`/news/${newsId}/archive`, {
-      method: 'PUT'
+      method: 'PUT',
+      headers: getAuthHeaders()
     });
     
     if (response.ok) {
@@ -3021,7 +3111,8 @@ async function archiveNews(newsId) {
 async function restoreNews(newsId) {
   try {
     const response = await fetch(`/news/${newsId}/restore`, {
-      method: 'PUT'
+      method: 'PUT',
+      headers: getAuthHeaders()
     });
     
     if (response.ok) {
@@ -3141,8 +3232,8 @@ style.innerText = `
 `;
 document.head.appendChild(style);
 
-// Загружаем новости при загрузке страницы
-window.addEventListener('load', loadNews);
+// Загружаем новости как можно раньше
+document.addEventListener('DOMContentLoaded', loadNews);
 
 // ======================== СИСТЕМА РАССЫЛОК ========================
 
@@ -3388,7 +3479,7 @@ async function createMailing() {
     
     const response = await fetch('/mailings', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload)
     });
     
@@ -3425,7 +3516,9 @@ async function createMailing() {
 
 async function loadMailings() {
   try {
-    const response = await fetch('/mailings');
+    const response = await fetch('/mailings', {
+      headers: getAuthHeaders()
+    });
     if (!response.ok) throw new Error('Ошибка сервера');
     
     const mailings = await response.json();
@@ -3501,7 +3594,7 @@ async function sendMailingNow(mailingId) {
   try {
     const response = await fetch(`/mailings/${mailingId}/send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' })
     });
     
     const data = await response.json();

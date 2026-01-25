@@ -12,6 +12,7 @@ from sqlalchemy import or_
 from backend.db import init_db, get_session, BASE_DIR, Session, engine
 from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group
 from backend.media_manager import save_user_photo, delete_user_photo
+from backend.permissions import has_permission
 
 # Flask-Admin
 from flask_admin import Admin, AdminIndexView
@@ -28,6 +29,42 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(PROJECT_ROOT, "database", "dance.db")}'
 app.secret_key = 'dance-studio-secret-key-2026'  # Генерируется для сессий и flash сообщений
 init_db()
+
+# ====== Проверка прав по telegram_id ======
+def check_permission(telegram_id, permission):
+    db = g.db
+    staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
+    if not staff or not staff.position:
+        return False
+    staff_position = staff.position.strip().lower()
+    return has_permission(staff_position, permission)
+
+
+def require_permission(permission, allow_self_staff_id=None):
+    telegram_id = None
+    data = request.get_json(silent=True) if request.is_json else None
+    if data:
+        telegram_id = data.get("actor_telegram_id") or data.get("telegram_id")
+    if not telegram_id:
+        telegram_id = request.headers.get("X-Telegram-Id") or request.args.get("telegram_id")
+
+    if not telegram_id:
+        return {"error": "telegram_id обязателен"}, 401
+
+    try:
+        telegram_id = int(telegram_id)
+    except (TypeError, ValueError):
+        return {"error": "Неверный telegram_id"}, 400
+
+    if allow_self_staff_id is not None:
+        staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
+        if staff and staff.id == allow_self_staff_id:
+            return None
+
+    if not check_permission(telegram_id, permission):
+        return {"error": "Нет прав доступа"}, 403
+
+    return None
 
 # Настройка Flask-Admin
 class AdminView(AdminIndexView):
@@ -247,6 +284,10 @@ def seed():
 @app.route("/news/manage")
 def get_all_news():
     """Получает все новости для управления (включая активные и архивированные)"""
+    perm_error = require_permission("create_news")
+    if perm_error:
+        return perm_error
+
     db = g.db
     data = db.query(News).filter(News.status.in_(["active", "archived"])).order_by(News.created_at.desc()).all()
 
@@ -270,6 +311,10 @@ def get_all_news():
 
 @app.route("/news", methods=["POST"])
 def create_news():
+    perm_error = require_permission("create_news")
+    if perm_error:
+        return perm_error
+
     db = g.db
     data = request.json
     
@@ -334,6 +379,10 @@ def upload_news_photo(news_id):
     """
     Загружает фото нля новости
     """
+    perm_error = require_permission("create_news")
+    if perm_error:
+        return perm_error
+
     db = g.db
     news = db.query(News).filter_by(id=news_id).first()
     
@@ -404,6 +453,10 @@ def delete_news(news_id):
 @app.route("/news/<int:news_id>/archive", methods=["PUT"])
 def archive_news(news_id):
     """Архивирует новость (переводит в статус 'archived')"""
+    perm_error = require_permission("create_news")
+    if perm_error:
+        return perm_error
+
     db = g.db
     news = db.query(News).filter_by(id=news_id).first()
     
@@ -419,6 +472,10 @@ def archive_news(news_id):
 @app.route("/news/<int:news_id>/restore", methods=["PUT"])
 def restore_news(news_id):
     """Восстанавливает новость из архива (переводит статус обратно в 'active')"""
+    perm_error = require_permission("create_news")
+    if perm_error:
+        return perm_error
+
     db = g.db
     news = db.query(News).filter_by(id=news_id).first()
     
@@ -782,6 +839,10 @@ def create_staff():
     Обязательные поля: position, name (или telegram_id с профилем)
     Остальные опциональные.
     """
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+
     db = g.db
     data = request.json
     
@@ -794,6 +855,15 @@ def create_staff():
     
     if not staff_name or not data.get("position"):
         return {"error": "name (или telegram_id с профилем) и position обязательны"}, 400
+
+    # Защита от дублей по telegram_id
+    if data.get("telegram_id"):
+        existing_staff = db.query(Staff).filter_by(telegram_id=data.get("telegram_id")).first()
+        if existing_staff:
+            return {
+                "error": "Пользователь с таким telegram_id уже существует",
+                "existing_id": existing_staff.id
+            }, 409
     
     # Проверяем допустимые должности
     valid_positions = ["учитель", "администратор", "владелец", "тех. админ"]
@@ -947,6 +1017,10 @@ def update_staff(staff_id):
     """
     Обновить информацию о сотруднике
     """
+    perm_error = require_permission("manage_staff", allow_self_staff_id=staff_id)
+    if perm_error:
+        return perm_error
+
     db = g.db
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
@@ -1000,6 +1074,10 @@ def delete_staff(staff_id):
     """
     Удалить сотрудника
     """
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+
     db = g.db
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
@@ -1300,6 +1378,10 @@ def search_users():
 @app.route("/mailings", methods=["GET"])
 def get_mailings():
     """Получает все рассылки (для управления)"""
+    perm_error = require_permission("manage_mailings")
+    if perm_error:
+        return perm_error
+
     db = g.db
     try:
         mailings = db.query(Mailing).order_by(Mailing.created_at.desc()).all()
@@ -1330,6 +1412,10 @@ def get_mailings():
 @app.route("/mailings", methods=["POST"])
 def create_mailing():
     """Создает новую рассылку"""
+    perm_error = require_permission("manage_mailings")
+    if perm_error:
+        return perm_error
+
     db = g.db
     data = request.json
     
@@ -1411,6 +1497,10 @@ def create_mailing():
 @app.route("/mailings/<int:mailing_id>", methods=["GET"])
 def get_mailing(mailing_id):
     """Получает информацию о конкретной рассылке"""
+    perm_error = require_permission("manage_mailings")
+    if perm_error:
+        return perm_error
+
     db = g.db
     try:
         mailing = db.query(Mailing).filter_by(mailing_id=mailing_id).first()
@@ -1441,6 +1531,10 @@ def get_mailing(mailing_id):
 @app.route("/mailings/<int:mailing_id>", methods=["PUT"])
 def update_mailing(mailing_id):
     """Обновляет рассылку"""
+    perm_error = require_permission("manage_mailings")
+    if perm_error:
+        return perm_error
+
     db = g.db
     data = request.json
     
@@ -1496,6 +1590,10 @@ def update_mailing(mailing_id):
 @app.route("/mailings/<int:mailing_id>", methods=["DELETE"])
 def delete_mailing(mailing_id):
     """Удаляет рассылку (или отменяет её)"""
+    perm_error = require_permission("manage_mailings")
+    if perm_error:
+        return perm_error
+
     db = g.db
     
     try:
@@ -1519,6 +1617,10 @@ def delete_mailing(mailing_id):
 @app.route("/mailings/<int:mailing_id>/send", methods=["POST"])
 def send_mailing_endpoint(mailing_id):
     """Инициирует отправку рассылки"""
+    perm_error = require_permission("manage_mailings")
+    if perm_error:
+        return perm_error
+
     try:
         # Импортируем функцию добавления рассылки в очередь
         from bot.bot import queue_mailing_for_sending

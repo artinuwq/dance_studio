@@ -20,6 +20,7 @@ ROLES = {
             "view_all_users",
             "manage_staff",
             "manage_permissions",
+            "manage_mailings",
             "system_settings",
             "full_system_access",  # Полный доступ к системе
         ]
@@ -42,6 +43,7 @@ ROLES = {
             "assign_lesson",           # Назначение стабильных занятий
             "verify_certificate",      # Проверка справки/продление абонемента
             "view_all_users",          # Просмотр всех пользователей
+            "manage_mailings",         # Управление рассылками
         ]
     },
     "владелец": {
@@ -59,6 +61,7 @@ ROLES = {
             "manage_staff",            # Управление должностями/персоналом
             "manage_permissions",      # Управление разрешениями
             "system_settings",         # Системные настройки
+            "manage_mailings",         # Управление рассылками
         ]
     }
 }
