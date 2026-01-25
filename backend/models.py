@@ -43,22 +43,33 @@ class Staff(Base):
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     
     # Отношение к расписанию
-    schedules = relationship("Schedule", back_populates="teacher_staff")
+    schedules = relationship("Schedule", back_populates="teacher_staff", foreign_keys="Schedule.teacher_id")
 
 
 class Schedule(Base):
     __tablename__ = "schedule"
 
     id = Column(Integer, primary_key=True)
-    title = Column(String, nullable=False)
-    teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=False)
-    date = Column(Date, nullable=False)
-    start_time = Column(Time, nullable=False)
-    end_time = Column(Time, nullable=False)
-    status = Column(String, default="active")
+    # Новая архитектура расписания
+    object_id = Column(Integer, nullable=True)
+    object_type = Column(String, nullable=True)  # group | individual | rental
+    date = Column(Date, nullable=True)
+    time_from = Column(Time, nullable=True)
+    time_to = Column(Time, nullable=True)
+    status = Column(String, default="scheduled")  # scheduled | cancelled | moved | completed | pending
+    status_comment = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=True)
+    updated_by = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=True)
+
+    # legacy поля (используются текущей логикой)
+    title = Column(String, nullable=True)
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
     
     # Отношение к персоналу
-    teacher_staff = relationship("Staff", back_populates="schedules")
+    teacher_staff = relationship("Staff", back_populates="schedules", foreign_keys=[teacher_id])
 
 
 class News(Base):
@@ -102,6 +113,7 @@ class Group(Base):
     age_group = Column(String, nullable=False)  # Возрастная группа (например: "12-16")
     max_students = Column(Integer, nullable=False)  # Максимальное кол-во учеников
     duration_minutes = Column(Integer, nullable=False)  # Обычная длительность в минутах
+    lessons_per_week = Column(Integer, nullable=True)  # Кол-во занятий в неделю
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
     # Отношения
@@ -114,38 +126,50 @@ class IndividualLesson(Base):
     __tablename__ = "individual_lessons"
 
     id = Column(Integer, primary_key=True)
-    teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=False)  # ID учителя
-    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # ID ученика
-    duration_minutes = Column(Integer, nullable=False)  # Длительность занятия в минутах
-    comment = Column(Text, nullable=True)  # Комментарий к занятию
-    person_comment = Column(Text, nullable=True)  # Комментарий человека
+    teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=False)  # ID ???????
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # ID ???????
+    date = Column(Date, nullable=True)
+    time_from = Column(Time, nullable=True)
+    time_to = Column(Time, nullable=True)
+    teacher_comment = Column(Text, nullable=True)
+    student_comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
-    # Отношения
+    # legacy ????
+    duration_minutes = Column(Integer, nullable=True)
+    comment = Column(Text, nullable=True)
+    person_comment = Column(Text, nullable=True)
+
+    # ?????????
     teacher = relationship("Staff", foreign_keys=[teacher_id])
     student = relationship("User", foreign_keys=[student_id])
 
 
-# ======================== СИСТЕМА АРЕНДЫ ЗАЛА ========================
 class HallRental(Base):
     __tablename__ = "hall_rentals"
 
     id = Column(Integer, primary_key=True)
-    creator_id = Column(Integer, nullable=False)  # ID создателя аренды
-    start_time = Column(DateTime, nullable=False)  # Время начала аренды
-    end_time = Column(DateTime, nullable=False)  # Время конца аренды
-    purpose = Column(String, nullable=False)  # Назначение (выбор + возможность указать свое)
-    payment_status = Column(String, default="pending", nullable=False)  # Статус оплаты (pending, paid, rejected)
-    creator_type = Column(String, nullable=False)  # Тип создателя (teacher, user)
-    status = Column(String, default="pending", nullable=False)  # Статус (pending, approved, rejected)
-    duration_minutes = Column(Integer, nullable=False)  # Длительность аренды в минутах
-    comment = Column(Text, nullable=True)  # Комментарий к аренде
+    creator_id = Column(Integer, nullable=False)  # ID ????????? ??????
+    creator_type = Column(String, nullable=False)  # teacher | user
+    date = Column(Date, nullable=True)
+    time_from = Column(Time, nullable=True)
+    time_to = Column(Time, nullable=True)
+    purpose = Column(String, nullable=True)
+    review_status = Column(String, default="pending", nullable=True)  # pending | approved | rejected
+    payment_status = Column(String, default="pending", nullable=True)  # pending | paid | rejected
+    activity_status = Column(String, default="pending", nullable=True)  # pending | active | cancelled | completed
+    comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
+    # legacy ????
+    start_time = Column(DateTime, nullable=True)
+    end_time = Column(DateTime, nullable=True)
+    status = Column(String, nullable=True)
+    duration_minutes = Column(Integer, nullable=True)
 
-# ======================== СИСТЕМА РАССЫЛОК ========================
+
 class Mailing(Base):
     __tablename__ = "mailings"
 

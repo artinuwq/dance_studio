@@ -1,7 +1,6 @@
 import os
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 from backend.models import Base, Staff, User
 from backend.media_manager import create_required_directories
 
@@ -15,7 +14,6 @@ print("DB PATH:", DB_PATH)
 engine = create_engine(
     f"sqlite:///{DB_PATH}",
     connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
     echo=False
 )
 

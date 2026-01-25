@@ -15,6 +15,8 @@
   --accent: #e91e63;
   --card: #f5f5f5;
   --border: #eeeeee;
+  --safe-top: 0px;
+  --safe-bottom: 0px;
 }
 
 /* ====== БАЗА ====== */
@@ -31,14 +33,7 @@ body {
 
 /* ====== HEADER ====== */
 header {
-  padding: 12px 16px;
-  font-size: 20px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg);
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: none;
 }
 
 .header-back {
@@ -51,22 +46,38 @@ header {
   cursor: pointer;
 }
 
+/* На мобильных используем системную кнопку Telegram */
+body.tg-mobile .header-back {
+  display: none;
+}
+
 .header-back:active {
   opacity: 0.6;
 }
 
-.header-title {
+.header-center {
   flex: 1;
+  text-align: center;
+  pointer-events: none;
+}
+
+.header-center-title {
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text);
+}
+
+.header-spacer {
+  width: 32px;
+  height: 32px;
 }
 
 /* ====== СТРАНИЦЫ ====== */
 .page {
   display: none;
   padding: 16px;
-  padding-bottom: 56px;
+  padding-bottom: calc(56px + var(--safe-bottom));
+  padding-top: calc(16px + var(--safe-top));
 }
 
 .page.active {
@@ -116,10 +127,14 @@ header {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 45px; 
+  min-height: 45px;
+  height: auto;
   display: flex;
+  align-items: center;
   background: var(--bg);
   border-top: 1px solid var(--border);
+  padding: 6px 8px calc(env(safe-area-inset-bottom) + 10px);
+  box-sizing: border-box;
 }
 
 .nav-btn {
@@ -734,12 +749,493 @@ textarea.form-input {
   font-size: 15px;
   margin: 0;
 }
+
+.brand-header {
+  text-align: center;
+  margin: -6px 0 14px 0;
+}
+
+.brand-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.brand-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.brand-avatar:empty {
+  display: none;
+}
+
+.brand-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 10px 0 12px 0;
+  text-align: center;
+}
+
+/* ====== АДМИН-РАСПИСАНИЕ ====== */
+.schedule-toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.schedule-toolbar .button {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.schedule-toolbar .button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.schedule-nav {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.schedule-nav .nav-btn-mini {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+}
+
+.schedule-nav .date-label {
+  flex: 1;
+  text-align: center;
+  font-weight: 600;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: 64px repeat(7, 1fr);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.schedule-grid.day {
+  grid-template-columns: 64px 1fr;
+}
+
+.schedule-cell {
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  padding: 2px 4px;
+}
+
+.schedule-cell.time {
+  background: var(--card);
+  color: var(--hint);
+  font-weight: 600;
+}
+
+.schedule-cell.time.half {
+  opacity: 0.45;
+}
+
+.schedule-cell.head {
+  background: var(--card);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.schedule-slot {
+  background: #fff;
+  cursor: pointer;
+}
+
+.schedule-slot.busy {
+  cursor: not-allowed;
+}
+
+.schedule-slot.busy.group {
+}
+
+.schedule-slot.busy.individual {
+}
+
+.schedule-slot.busy.rental {
+}
+
+.schedule-event {
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.schedule-form {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--card);
+  border-radius: 12px;
+  display: none;
+}
+
+.schedule-form.show {
+  display: block;
+}
+
+.schedule-detail-modal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  display: none;
+  z-index: 1002;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.schedule-detail-modal.show {
+  display: block;
+}
+
+.schedule-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  display: none;
+  z-index: 1001;
+}
+
+.schedule-detail-overlay.show {
+  display: block;
+}
+
+.group-schedule-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  display: none;
+  z-index: 1001;
+}
+
+.group-schedule-overlay.show {
+  display: block;
+}
+
+.group-schedule-modal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  display: none;
+  z-index: 1002;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.group-schedule-modal.show {
+  display: block;
+}
+
+.schedule-detail-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--card);
+  font-size: 12px;
+}
+
+.schedule-detail-card {
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 8px;
+}
+
+.schedule-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.repeat-panel {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--border);
+}
+
+.repeat-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.repeat-row .chip {
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.repeat-row .chip.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.repeat-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.repeat-inline input[type="number"] {
+  width: 60px;
+}
+
+.repeat-summary {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.work-page .staff-info-panel {
+  margin-top: 6px;
+  margin-bottom: 18px;
+}
+
+.work-page .card {
+  margin-bottom: 18px;
+}
+
+/* ====== РАСПИСАНИЕ (ПОЛЬЗОВАТЕЛИ) ====== */
+.public-schedule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.public-schedule-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.public-schedule-action {
+  font-size: 14px;
+  color: var(--hint);
+  font-weight: 600;
+}
+
+.public-schedule-month {
+  font-size: 12px;
+  color: var(--hint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 6px 0 10px 2px;
+}
+
+.public-schedule-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.public-date-card {
+  min-width: 64px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 8px 10px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.public-date-card.active {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+.public-date-dow {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: inherit;
+}
+
+.public-date-day {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 4px 0 2px 0;
+}
+
+.public-date-label {
+  font-size: 11px;
+  color: var(--hint);
+}
+
+.public-date-card.active .public-date-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.public-schedule-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.public-schedule-item {
+  display: grid;
+  grid-template-columns: 54px 1fr 18px;
+  gap: 10px;
+  align-items: start;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.public-schedule-time {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+
+.public-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.public-time {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.public-duration {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.public-info-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+
+.public-info-sub {
+  font-size: 13px;
+  color: var(--hint);
+  margin-bottom: 2px;
+}
+
+.public-info-teacher {
+  font-size: 13px;
+  color: var(--hint);
+}
+
+.public-chevron {
+  font-size: 18px;
+  color: var(--hint);
+  align-self: center;
+}
+
+.public-schedule-modal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.15);
+  padding: 16px;
+  display: none;
+  z-index: 1002;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.public-schedule-modal.show {
+  display: block;
+}
+
+.public-schedule-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  display: none;
+  z-index: 1001;
+}
+
+.public-schedule-overlay.show {
+  display: block;
+}
 </style>
 </head>
 <body>
 <header id="header">
 <button aria-label="Назад" class="header-back" id="header-back" onclick="goBack()">←</button>
-<span class="header-title" id="header-title">LISSA DANCE</span>
+<div class="header-center">
+<div class="header-center-title" id="header-title">LISSA DANCE</div>
+</div>
+<div class="header-spacer" aria-hidden="true"></div>
 </header>
 <!-- ====== ГЛАВНАЯ ====== -->
 <div class="page active" id="home">
@@ -785,12 +1281,22 @@ textarea.form-input {
 </div>
 <div class="section-item-arrow">›</div>
 </div>
-<div class="section-item" onclick="showSection('info-contacts')">
+<div class="section-item" onclick="showSection('info-individual')">
 <div class="section-item-left">
-<div class="section-item-icon section-icon--pink">📍</div>
+<div class="section-item-icon section-icon--blue">⏱️</div>
 <div class="section-item-text">
-<h4 class="section-item-title">Контакты</h4>
-<p class="section-item-desc">Как нас найти</p>
+<h4 class="section-item-title">Индивидуальные занятия</h4>
+<p class="section-item-desc">Запишитесь на персональную тренировку</p>
+</div>
+</div>
+<div class="section-item-arrow">›</div>
+</div>
+<div class="section-item" onclick="showSection('info-rent')">
+<div class="section-item-left">
+<div class="section-item-icon section-icon--pink">🔑</div>
+<div class="section-item-text">
+<h4 class="section-item-title">Аренда зала</h4>
+<p class="section-item-desc">Условия аренды и бронирование</p>
 </div>
 </div>
 <div class="section-item-arrow">›</div>
@@ -802,11 +1308,9 @@ textarea.form-input {
 <h3>Информация о студии</h3>
 <div class="card">
 <h4>⏰ Время работы</h4>
-<p>Пн-Пт: 10:00 - 18:00</p>
-<p>Сб: 10:00 - 16:00</p>
-<p>Вс: Выходной</p>
+<p>Ежедневно: 09:00 - 22:00</p>
 </div>
-<div class="card">
+<div class="card" style="display: none;">
 <h4>📍 Как добраться</h4>
 <script async="" charset="utf-8" src="https://api-maps.yandex.ru/services/constructor/1.0/js/?um=constructor%3Aa1063a1f3fac777c9cdef5b98494aee9e4ffee329067594a69657b435039fe33&amp;width=334&amp;height=265&amp;lang=ru_RU&amp;scroll=true" type="text/javascript"></script>
 </div>
@@ -822,27 +1326,36 @@ textarea.form-input {
 </div>
 <span class="contact-action">Скопировать</span>
 </div>
-<div class="contact-btn" onclick="openTelegram('@artinuwq')">
+<div class="contact-btn">
 <div class="contact-btn-content">
 <span class="contact-icon">💬</span>
 <div>
 <div class="contact-label">Telegram</div>
-<div class="contact-value">@artinuwq</div>
+<div class="contact-value">Скоро</div>
 </div>
 </div>
-<span class="contact-action">Написать</span>
+<span class="contact-action">Скоро</span>
 </div>
 </div>
 </div>
 <!-- ====== РАСПИСАНИЕ ====== -->
-<div class="page" id="schedule">
-<h3>Расписание занятий</h3>
-<div id="schedule-container">
-<p class="small">Загрузка...</p>
+<div class="page" data-title="🗓 Расписание" id="schedule">
+<div class="public-schedule-header">
+  <div class="public-schedule-title"><span>☆</span>Расписание</div>
+  <div class="public-schedule-action">Фильтр</div>
+</div>
+<div class="public-schedule-month" id="public-schedule-month">—</div>
+<div class="public-schedule-strip" id="public-schedule-strip"></div>
+<div class="public-schedule-list" id="schedule-container">
+  <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>
+</div>
+<div class="public-schedule-overlay" id="public-schedule-overlay" onclick="closePublicScheduleModal()"></div>
+<div class="public-schedule-modal" id="public-schedule-modal">
+  <div id="public-schedule-modal-content"></div>
 </div>
 </div>
 <!-- ====== РАБОТЫ (ПЕРСОНАЛ) ====== -->
-<div class="page" id="staff">
+<div class="page work-page" data-title="👨‍💼 Работа" id="staff">
 <!-- Панель с информацией о персонале -->
 <div class="staff-info-panel">
 <div class="staff-avatar-small" id="staff-panel-avatar">
@@ -878,21 +1391,128 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== ЛИЧНОЕ РАСПИСАНИЕ ====== -->
-<div class="page" data-title="Личное расписание" id="personal-schedule">
+<div class="page" data-title="📅 Личное расписание" id="personal-schedule">
 
 <div id="personal-schedule-container">
 <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
 </div>
 </div>
 <!-- ====== УПРАВЛЕНИЕ РАСПИСАНИЕМ ====== -->
-<div class="page" data-title="Управление расписанием" id="schedule-control">
+<div class="page" data-title="🗓 Расписание" id="schedule-control">
 
 <div id="schedule-control-container">
-<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+<div class="schedule-toolbar">
+  <button class="button active" id="schedule-view-week" onclick="setScheduleView('week')">Неделя</button>
+  <button class="button" id="schedule-view-day" onclick="setScheduleView('day')">День</button>
+</div>
+<div class="schedule-nav">
+  <button class="nav-btn-mini" onclick="shiftScheduleDate(-1)">‹</button>
+  <div class="date-label" id="schedule-date-label">—</div>
+  <button class="nav-btn-mini" onclick="shiftScheduleDate(1)">›</button>
+</div>
+<div id="schedule-grid-container"></div>
+<div class="schedule-detail-overlay" id="schedule-detail-overlay" onclick="closeScheduleDetail()"></div>
+<div class="schedule-detail-modal" id="schedule-detail-modal">
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+    <h4 style="margin: 0;">Детали занятия</h4>
+    <button class="save-btn" style="padding: 6px 10px; background: #777;" onclick="closeScheduleDetail()">Закрыть</button>
+  </div>
+  <div id="schedule-detail-content" style="margin-top: 8px;"></div>
+</div>
+
+<div class="schedule-form" id="schedule-admin-form">
+  <h4 style="margin: 0 0 8px 0;">Создать занятие</h4>
+  <label class="label">Тип</label>
+  <select class="form-input" id="schedule-object-type">
+    <option value="group">Групповое</option>
+    <option value="individual">Индивидуальное</option>
+    <option value="rental">Аренда</option>
+  </select>
+  <label class="label">ID объекта</label>
+  <input class="form-input" id="schedule-object-id" type="number" placeholder="ID объекта"/>
+  <label class="label">Дата</label>
+  <input class="form-input" id="schedule-date" type="date"/>
+  <label class="label">Время от</label>
+  <input class="form-input" id="schedule-time-from" type="time" step="1800"/>
+  <label class="label">Время до</label>
+  <input class="form-input" id="schedule-time-to" type="time" step="1800"/>
+  <label class="label">Повторять до (по неделям)</label>
+  <input class="form-input" id="schedule-repeat-until" type="date"/>
+  <div style="display: flex; gap: 8px; margin-top: 10px;">
+    <button class="save-btn" style="flex: 1;" onclick="createScheduleV2()">Создать</button>
+    <button class="save-btn" style="flex: 1; background: #777;" onclick="closeScheduleForm()">Отмена</button>
+  </div>
+</div>
+
+<button class="save-btn" style="width: 100%; margin-top: 12px; background: #2196F3;" onclick="toggleGroupScheduleForm()">➕ Добавить групповое занятие</button>
+<div class="group-schedule-overlay" id="group-schedule-overlay" onclick="toggleGroupScheduleForm(false)"></div>
+<div class="group-schedule-modal" id="group-schedule-modal">
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+    <h4 style="margin: 0;">Групповое занятие</h4>
+    <button class="save-btn" style="padding: 6px 10px; background: #777;" onclick="toggleGroupScheduleForm(false)">Закрыть</button>
+  </div>
+  <label class="label">Группа</label>
+  <select class="form-input" id="group-schedule-group">
+    <option value="">Выберите группу</option>
+  </select>
+  <div class="schedule-detail-card" id="group-schedule-preview" style="display: none;"></div>
+  <label class="label">Дата</label>
+  <input class="form-input" id="group-schedule-date" type="date"/>
+  <div style="display: flex; gap: 8px;">
+    <div style="flex: 1;">
+      <label class="label">Время от</label>
+      <input class="form-input" id="group-schedule-time-from" type="time" step="1800"/>
+    </div>
+    <div style="flex: 1;">
+      <label class="label">Время до</label>
+      <input class="form-input" id="group-schedule-time-to" type="time" step="1800"/>
+    </div>
+  </div>
+
+  <div class="repeat-panel">
+    <div class="repeat-row">
+      <span style="font-size: 12px; font-weight: 600;">Повторять</span>
+      <select class="form-input" id="repeat-mode" style="flex: 1;">
+        <option value="none">Не повторять</option>
+        <option value="weekly" selected>По неделям</option>
+        <option value="daily">По дням</option>
+        <option value="monthly">По месяцам</option>
+      </select>
+    </div>
+
+    <div class="repeat-row repeat-inline" id="repeat-interval-row">
+      <span>Каждую(ые)</span>
+      <input class="form-input" id="repeat-interval" type="number" min="1" value="1"/>
+      <span id="repeat-interval-label">неделю</span>
+    </div>
+
+    <div class="repeat-row" id="repeat-weekdays-row">
+      <span class="chip" data-day="1">Пн</span>
+      <span class="chip" data-day="2">Вт</span>
+      <span class="chip" data-day="3">Ср</span>
+      <span class="chip" data-day="4">Чт</span>
+      <span class="chip" data-day="5">Пт</span>
+      <span class="chip" data-day="6">Сб</span>
+      <span class="chip" data-day="0">Вс</span>
+    </div>
+
+  <div class="repeat-row repeat-inline">
+      <label class="label" style="margin: 0;">До</label>
+      <input class="form-input" id="repeat-until" type="date"/>
+  </div>
+
+    <div class="repeat-summary" id="repeat-summary">Без повторения</div>
+  </div>
+
+  <div style="display: flex; gap: 8px; margin-top: 10px;">
+    <button class="save-btn" style="flex: 1;" onclick="createGroupSchedule()">Создать</button>
+    <button class="save-btn" style="flex: 1; background: #777;" onclick="toggleGroupScheduleForm(false)">Отмена</button>
+  </div>
+</div>
 </div>
 </div>
 <!-- ====== НАПРАВЛЕНИЯ И ГРУППЫ ====== -->
-<div class="page" data-title="Направления и группы" id="directions-groups">
+<div class="page" data-title="📚 Направления и группы" id="directions-groups">
 
 <div class="card" style="margin-bottom: 12px;">
 <button class="save-btn" onclick="showPage('direction-create-form')" style="width: 100%;">➕ Создать направление</button>
@@ -908,7 +1528,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== РАССЫЛКИ ====== -->
-<div class="page" data-title="Рассылки" id="mailings">
+<div class="page" data-title="📧 Рассылки" id="mailings">
 
 <button class="save-btn" onclick="showPage('mailing-create-form')" style="width: 100%; margin-bottom: 16px;">✉️ Создать новую рассылку</button>
 <div id="mailings-container">
@@ -916,7 +1536,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== ФОРМА СОЗДАНИЯ РАССЫЛКИ ====== -->
-<div class="page" data-title="Создать рассылку" id="mailing-create-form">
+<div class="page" data-title="✉️ Создать рассылку" id="mailing-create-form">
 
 <!-- БЛОК 1: ОСНОВНЫЕ ДАННЫЕ -->
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--accent);">
@@ -1005,7 +1625,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== УПРАВЛЕНИЕ НОВОСТЯМИ ====== -->
-<div class="page" data-title="Новости" id="news-manage">
+<div class="page" data-title="📰 Новости" id="news-manage">
 
 <button class="save-btn" onclick="showPage('news-add-form')" style="width: 100%; margin-bottom: 16px;">✍️ Создать новость</button>
 <div id="news-manage-container">
@@ -1013,12 +1633,12 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== ФОРМА ДОБАВЛЕНИЯ НОВОСТИ ====== -->
-<div class="page" data-title="Создать новость" id="news-add-form">
+<div class="page" data-title="📝 Создать новость" id="news-add-form">
 
 <button class="save-btn" onclick="openBotForCreateNews()" style="width: 100%; padding: 20px; font-size: 16px;">📝 Создать новость через бота</button>
 </div>
 <!-- ====== УПРАВЛЕНИЕ ПЕРСОНАЛОМ (ИЗ РАБОТЫ) ====== -->
-<div class="page" data-title="Управление персоналом" id="staff-manage">
+<div class="page" data-title="👥 Персонал" id="staff-manage">
 
 <button class="save-btn" onclick="showAddStaffForm()" style="width: 100%; margin-bottom: 16px;">➕ Добавить персонал</button>
 <div class="card" style="margin-bottom: 16px;">
@@ -1030,7 +1650,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== КЛИЕНТЫ ====== -->
-<div class="page" data-title="Клиенты" id="clients-list">
+<div class="page" data-title="👨‍👩‍👧‍👦 Клиенты" id="clients-list">
 
 <div class="card">
 <h4>🔍 Поиск клиента</h4>
@@ -1078,7 +1698,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== РАСПИСАНИЕ ПЕРСОНАЛА ====== -->
-<div class="page" data-title="Расписание сотрудника" id="staff-schedule">
+<div class="page" data-title="📅 Расписание сотрудника" id="staff-schedule">
 
 <div id="staff-schedule-container">
 <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
@@ -1089,7 +1709,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== СОЗДАНИЕ/РЕДАКТИРОВАНИЕ ЗАНЯТИЯ ====== -->
-<div class="page" data-title="Занятие" id="schedule-form">
+<div class="page" data-title="🗓 Занятие" id="schedule-form">
 
 <div class="card">
 <div class="form-group">
@@ -1121,7 +1741,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== УПРАВЛЕНИЕ ПЕРСОНАЛОМ ====== -->
-<div class="page" data-title="Управление персоналом" id="staff-management">
+<div class="page" data-title="👥 Персонал" id="staff-management">
 
 <button class="save-btn" onclick="showAddStaffForm()" style="width: 100%; margin-bottom: 12px;">➕ Добавить персонал</button>
 <div id="staff-list-container">
@@ -1129,7 +1749,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== ФОРМА ДОБАВЛЕНИЯ ПЕРСОНАЛА ====== -->
-<div class="page" data-title="Добавить персонал" id="staff-add-form">
+<div class="page" data-title="➕ Добавить персонал" id="staff-add-form">
 
 <div class="card">
 <div class="form-group">
@@ -1201,7 +1821,7 @@ textarea.form-input {
 <button class="save-btn" onclick="deleteCurrentStaff()" style="width: 100%; background: #ff6b6b;">🗑️ Удалить персонал</button>
 </div>
 <!-- ====== ФОРМА СОЗДАНИЯ НАПРАВЛЕНИЯ ====== -->
-<div class="page" data-title="Создать направление" id="direction-create-form">
+<div class="page" data-title="➕ Создать направление" id="direction-create-form">
 
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--accent);">
 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
@@ -1251,7 +1871,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== РЕДАКТИРОВАНИЕ НАПРАВЛЕНИЯ ====== -->
-<div class="page" data-title="Редактировать направление" id="direction-edit-form">
+<div class="page" data-title="✏️ Редактировать направление" id="direction-edit-form">
 <div class="direction-edit-header">
 
 <button class="lock-btn" id="direction-edit-lock-btn" onclick="toggleDirectionEditLock()" title="Разблокировать редактирование">🔓</button>
@@ -1325,7 +1945,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== РЕДАКТИРОВАНИЕ РАБОЧЕГО ПРОФИЛЯ ====== -->
-<div class="page" data-title="Профиль персонала" id="staff-profile-edit">
+<div class="page" data-title="👤 Профиль персонала" id="staff-profile-edit">
 
 <div class="card">
 <div class="form-group">
@@ -1354,7 +1974,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== СОЗДАНИЕ ГРУППЫ ====== -->
-<div class="page" data-title="Создать группу" id="direction-group-create">
+<div class="page" data-title="➕ Создать группу" id="direction-group-create">
 
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid #FF9800;">
 <div class="form-group">
@@ -1381,6 +2001,10 @@ textarea.form-input {
 <input class="form-input" id="edit-direction-group-duration" placeholder="Например: 60" type="number"/>
 </div>
 <div class="form-group">
+<label>Занятий в неделю</label>
+<input class="form-input" id="edit-direction-group-lessons" placeholder="Например: 3" type="number" min="1"/>
+</div>
+<div class="form-group">
 <label>Описание</label>
 <textarea class="form-input" id="edit-direction-group-desc" placeholder="Коротко о группе..." style="min-height: 80px;"></textarea>
 </div>
@@ -1394,7 +2018,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== РЕДАКТИРОВАНИЕ ГРУППЫ ====== -->
-<div class="page" data-title="Редактировать группу" id="direction-group-edit">
+<div class="page" data-title="✏️ Редактировать группу" id="direction-group-edit">
 
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid #4CAF50;">
 <div class="form-group">
@@ -1421,6 +2045,10 @@ textarea.form-input {
 <input class="form-input" id="edit-group-duration" placeholder="Например: 60" type="number"/>
 </div>
 <div class="form-group">
+<label>Занятий в неделю</label>
+<input class="form-input" id="edit-group-lessons" placeholder="Например: 3" type="number" min="1"/>
+</div>
+<div class="form-group">
 <label>Описание</label>
 <textarea class="form-input" id="edit-group-desc" placeholder="Коротко о группе..." style="min-height: 80px;"></textarea>
 </div>
@@ -1433,8 +2061,15 @@ textarea.form-input {
 <div id="edit-group-msg" style="margin: 12px 0 0 0; padding: 10px; border-radius: 8px; display: none;"></div>
 </div>
 </div>
-<div class="page" data-title="Информация" id="info">
+<div class="page" data-title="ℹ️ Информация" id="info">
 
+<h3 id="info-title" style="display: none;"></h3>
+<p class="small">Раздел находится в разработке</p>
+</div>
+<div class="page" data-title="⏱️ Индивидуальные занятия" id="info-individual">
+<p class="small">Раздел находится в разработке</p>
+</div>
+<div class="page" data-title="🔑 Аренда зала" id="info-rent">
 <p class="small">Раздел находится в разработке</p>
 </div>
 <!-- ====== ПРОСМОТР НОВОСТИ ====== -->
@@ -1470,6 +2105,46 @@ function getAuthHeaders(extraHeaders = {}) {
   }
   return headers;
 }
+
+function updateSafeAreaVars() {
+  const inset = tg.safeAreaInset || tg.contentSafeAreaInset || {};
+  const top = Number(inset.top) || 0;
+  const bottom = Number(inset.bottom) || 0;
+  document.documentElement.style.setProperty('--safe-top', `${top}px`);
+  document.documentElement.style.setProperty('--safe-bottom', `${bottom}px`);
+}
+
+function initMobileViewport() {
+  const platform = tg.platform;
+  const isMobile = platform === 'android' || platform === 'ios';
+  if (!isMobile) return;
+
+  document.body.classList.add('tg-mobile');
+
+  try {
+    if (!tg.isExpanded) {
+      tg.expand();
+    }
+  } catch (err) {
+    // ignore expand errors
+  }
+
+  if (typeof tg.requestFullscreen === 'function') {
+    setTimeout(() => {
+      try {
+        tg.requestFullscreen();
+      } catch (err) {
+        // ignore fullscreen errors
+      }
+    }, 200);
+  }
+}
+
+initMobileViewport();
+updateSafeAreaVars();
+if (typeof tg.onEvent === 'function') {
+  tg.onEvent('viewportChanged', updateSafeAreaVars);
+}
 tg.expand();
 
 /* ====== НАВИГАЦИЯ ====== */
@@ -1479,6 +2154,13 @@ let currentPageId = 'home';
 const header = document.getElementById('header');
 const headerTitle = document.getElementById('header-title');
 const headerBack = document.getElementById('header-back');
+const hasTelegramBackButton = typeof tg.BackButton !== 'undefined';
+
+if (hasTelegramBackButton && typeof tg.BackButton.onClick === 'function') {
+  tg.BackButton.onClick(() => {
+    goBack();
+  });
+}
 const pageTitleCache = {
   home: 'LISSA DANCE',
   schedule: 'LISSA DANCE',
@@ -1498,27 +2180,55 @@ function setHeaderBackVisible(isVisible) {
   headerBack.style.pointerEvents = isVisible ? 'auto' : 'none';
 }
 
+function syncTelegramBackButton(isVisible) {
+  if (hasTelegramBackButton) {
+    if (isVisible) {
+      tg.BackButton.show();
+    } else {
+      tg.BackButton.hide();
+    }
+    if (headerBack) {
+      headerBack.style.display = 'none';
+    }
+  } else if (headerBack) {
+    headerBack.style.display = '';
+  }
+}
+
 function applyHeaderForPage(pageId) {
   currentPageId = pageId;
-  if (!header) return;
-  if (pageId === 'news-detail') {
-    header.style.display = 'none';
-    return;
-  }
-
-  header.style.display = 'flex';
   const isRoot = ROOT_PAGES.includes(pageId);
   setHeaderBackVisible(!isRoot);
+  syncTelegramBackButton(!isRoot);
 
   const page = document.getElementById(pageId);
-  const dataTitle = page ? page.getAttribute('data-title') : null;
+  if (!page) return;
+  const dataTitle = page.getAttribute('data-title');
   if (dataTitle) {
-    setHeaderTitle(dataTitle);
-    return;
-  }
+    let brandEl = page.querySelector('.brand-header');
+    if (!brandEl) {
+      brandEl = document.createElement('div');
+      brandEl.className = 'brand-header';
+      brandEl.innerHTML = `
+        <div class="brand-row">
+          <div class="brand-avatar"></div>
+          <div class="brand-name"></div>
+        </div>
+        <h2 class="page-title"></h2>
+      `;
+      page.insertBefore(brandEl, page.firstChild);
+    }
+    const brandNameEl = brandEl.querySelector('.brand-name');
+    if (brandNameEl) {
+      brandNameEl.textContent = dataTitle;
+    }
 
-  if (pageTitleCache[pageId]) {
-    setHeaderTitle(pageTitleCache[pageId]);
+    const titleEl = brandEl.querySelector('.page-title');
+    if (titleEl) {
+      titleEl.textContent = '';
+      titleEl.style.display = 'none';
+    }
+    pageTitleCache[pageId] = dataTitle;
   }
 }
 
@@ -1619,12 +2329,845 @@ function showSection(section) {
       document.getElementById('info-title').innerText = 'Направления';
       setHeaderTitle('Направления');
       break;
-    case 'info-contacts':
-      showPage('info');
-      document.getElementById('info-title').innerText = 'Контакты';
-      setHeaderTitle('Контакты');
+    case 'info-individual':
+      showPage('info-individual');
+      setHeaderTitle('Индивидуальные занятия');
+      break;
+    case 'info-rent':
+      showPage('info-rent');
+      setHeaderTitle('Аренда зала');
       break;
   }
+}
+
+/* ====== АДМИН-РАСПИСАНИЕ (РАБОТА) ====== */
+let scheduleView = 'week';
+let scheduleFocusDate = new Date();
+let scheduleItems = [];
+let scheduleInitialized = false;
+
+const WORK_START_HOUR = 9;
+const WORK_END_HOUR = 22;
+const SLOT_MINUTES = 30;
+
+function initScheduleControl() {
+  if (!scheduleInitialized) {
+    scheduleInitialized = true;
+  }
+  updateScheduleControlsUI();
+  loadScheduleV2();
+  initGroupScheduleForm();
+}
+
+function setScheduleView(view) {
+  scheduleView = view;
+  updateScheduleControlsUI();
+  loadScheduleV2();
+}
+
+function shiftScheduleDate(delta) {
+  const stepDays = scheduleView === 'week' ? 7 : 1;
+  scheduleFocusDate = new Date(scheduleFocusDate.getTime() + delta * stepDays * 24 * 60 * 60 * 1000);
+  updateScheduleControlsUI();
+  loadScheduleV2();
+}
+
+function updateScheduleControlsUI() {
+  const weekBtn = document.getElementById('schedule-view-week');
+  const dayBtn = document.getElementById('schedule-view-day');
+  if (weekBtn && dayBtn) {
+    weekBtn.classList.toggle('active', scheduleView === 'week');
+    dayBtn.classList.toggle('active', scheduleView === 'day');
+  }
+
+  const label = document.getElementById('schedule-date-label');
+  if (label) {
+    if (scheduleView === 'week') {
+      const start = getWeekStart(scheduleFocusDate);
+      const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+      label.textContent = `${formatDateShort(start)} - ${formatDateShort(end)}`;
+    } else {
+      label.textContent = formatDateLong(scheduleFocusDate);
+    }
+  }
+}
+
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = (d.getDay() + 6) % 7; // 0=Mon
+  d.setDate(d.getDate() - day);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function formatDateShort(d) {
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+}
+
+function formatDateLong(d) {
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function timeToMinutes(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function minutesToTime(min) {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function formatTimeLabel(timeStr) {
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return '';
+  const minutes = parseInt(parts[1], 10);
+  return minutes === 0 ? timeStr : '';
+}
+
+function isHalfHour(timeStr) {
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return false;
+  const minutes = parseInt(parts[1], 10);
+  return minutes === 30;
+}
+
+function loadScheduleV2() {
+  const dateFrom = scheduleView === 'week' ? getWeekStart(scheduleFocusDate) : new Date(scheduleFocusDate);
+  const dateTo = scheduleView === 'week'
+    ? new Date(dateFrom.getTime() + 6 * 24 * 60 * 60 * 1000)
+    : new Date(scheduleFocusDate);
+
+  const params = new URLSearchParams({
+    date_from: dateFrom.toISOString().slice(0, 10),
+    date_to: dateTo.toISOString().slice(0, 10)
+  });
+
+  fetch(`/schedule/v2?${params.toString()}`, { headers: getAuthHeaders() })
+    .then(async res => {
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Ошибка загрузки расписания');
+      }
+      return res.json();
+    })
+    .then(data => {
+      scheduleItems = Array.isArray(data) ? data : [];
+      renderScheduleGrid();
+    })
+    .catch(err => {
+      console.error(err);
+      const container = document.getElementById('schedule-grid-container');
+      if (container) {
+        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка загрузки расписания</p>';
+      }
+    });
+}
+
+function renderScheduleGrid() {
+  const container = document.getElementById('schedule-grid-container');
+  if (!container) return;
+
+  const slots = [];
+  for (let t = WORK_START_HOUR * 60; t < WORK_END_HOUR * 60; t += SLOT_MINUTES) {
+    slots.push(minutesToTime(t));
+  }
+
+  if (scheduleView === 'day') {
+    const dateStr = scheduleFocusDate.toISOString().slice(0, 10);
+    let html = `<div class="schedule-grid day">`;
+    html += `<div class="schedule-cell head">Время</div><div class="schedule-cell head">${formatDateShort(scheduleFocusDate)}</div>`;
+    for (const time of slots) {
+      const timeClass = isHalfHour(time) ? 'schedule-cell time half' : 'schedule-cell time';
+      html += `<div class="${timeClass}">${formatTimeLabel(time)}</div>`;
+      const busyInfo = getSlotInfo(dateStr, time);
+      html += renderSlotCell(dateStr, time, busyInfo);
+    }
+    html += `</div>`;
+    container.innerHTML = html;
+  } else {
+    const weekStart = getWeekStart(scheduleFocusDate);
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart.getTime() + i * 24 * 60 * 60 * 1000);
+      days.push(d);
+    }
+
+    let html = `<div class="schedule-grid">`;
+    html += `<div class="schedule-cell head">Время</div>`;
+    for (const d of days) {
+      html += `<div class="schedule-cell head">${d.toLocaleDateString('ru-RU', { weekday: 'short', day: '2-digit' })}</div>`;
+    }
+    for (const time of slots) {
+      const timeClass = isHalfHour(time) ? 'schedule-cell time half' : 'schedule-cell time';
+      html += `<div class="${timeClass}">${formatTimeLabel(time)}</div>`;
+      for (const d of days) {
+        const dateStr = d.toISOString().slice(0, 10);
+        const busyInfo = getSlotInfo(dateStr, time);
+        html += renderSlotCell(dateStr, time, busyInfo);
+      }
+    }
+    html += `</div>`;
+    container.innerHTML = html;
+  }
+}
+
+function getSlotInfo(dateStr, timeStr) {
+  const slotStart = timeToMinutes(timeStr);
+  const slotEnd = slotStart + SLOT_MINUTES;
+  const item = scheduleItems.find(s => {
+    if (s.date !== dateStr) return false;
+    if (!s.time_from || !s.time_to) return false;
+    const start = timeToMinutes(s.time_from);
+    const end = timeToMinutes(s.time_to);
+    return slotStart < end && slotEnd > start && s.status !== 'cancelled';
+  });
+  return item || null;
+}
+
+function renderSlotCell(dateStr, timeStr, item) {
+  if (item) {
+    const info = getSlotRenderInfo(item, timeStr);
+    const labelHtml = info.showLabel ? `<div class="schedule-event">${getScheduleLabel(item)}</div>` : '';
+    const color = getScheduleColor(item);
+    return `<div class="schedule-cell schedule-slot busy ${item.object_type}" style="background: ${color};" onclick="openScheduleDetailById(${item.id})">${labelHtml}</div>`;
+  }
+  return `<div class="schedule-cell schedule-slot" onclick="openScheduleForm('${dateStr}', '${timeStr}')"></div>`;
+}
+
+function getScheduleLabel(item) {
+  const typeMap = {
+    group: 'Группа',
+    individual: 'Индив.',
+    rental: 'Аренда'
+  };
+  return `${typeMap[item.object_type] || 'Событие'} #${item.object_id}`;
+}
+
+function getSlotRenderInfo(item, timeStr) {
+  if (!item.time_from || !item.time_to) return { showLabel: true };
+  const start = timeToMinutes(item.time_from);
+  const end = timeToMinutes(item.time_to);
+  const slotStart = timeToMinutes(timeStr);
+  const totalSlots = Math.max(1, Math.ceil((end - start) / SLOT_MINUTES));
+  const slotIndex = Math.floor((slotStart - start) / SLOT_MINUTES);
+  const midIndex = Math.floor((totalSlots - 1) / 2);
+  return { showLabel: slotIndex === midIndex };
+}
+
+function getScheduleColor(item) {
+  const baseOffset = {
+    group: 210,
+    individual: 120,
+    rental: 290
+  }[item.object_type] || 0;
+  const key = `${item.object_type}-${item.object_id || ''}`;
+  const hue = (hashString(key) + baseOffset) % 360;
+  return `hsla(${hue}, 70%, 85%, 0.8)`;
+}
+
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) - hash) + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function openScheduleDetailById(id) {
+  const item = scheduleItems.find(s => s.id === id);
+  if (!item) return;
+  openScheduleDetail(item);
+}
+
+function openScheduleDetail(item) {
+  const card = document.getElementById('schedule-detail-modal');
+  const overlay = document.getElementById('schedule-detail-overlay');
+  const content = document.getElementById('schedule-detail-content');
+  if (!card || !content || !overlay) return;
+
+  const typeMap = {
+    group: 'Групповое занятие',
+    individual: 'Индивидуальное занятие',
+    rental: 'Аренда'
+  };
+
+  const dateText = item.date ? new Date(item.date).toLocaleDateString('ru-RU') : '—';
+  const timeText = item.time_from && item.time_to ? `${item.time_from} - ${item.time_to}` : '—';
+
+  content.innerHTML = `
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <div class="schedule-detail-chip">📌 ${typeMap[item.object_type] || 'Событие'}</div>
+      <div class="schedule-detail-chip">📅 ${dateText}</div>
+      <div class="schedule-detail-chip">⏰ ${timeText}</div>
+    </div>
+    <div class="schedule-detail-card" id="schedule-detail-extra"></div>
+  `;
+
+  card.classList.add('show');
+  overlay.classList.add('show');
+
+  if (item.object_type === 'group') {
+    loadGroupScheduleDetails(item.object_id);
+  } else {
+    const extra = document.getElementById('schedule-detail-extra');
+    if (extra) extra.innerHTML = '<div class="small">Нет дополнительных данных</div>';
+  }
+}
+
+function closeScheduleDetail() {
+  const card = document.getElementById('schedule-detail-modal');
+  const overlay = document.getElementById('schedule-detail-overlay');
+  if (card) card.classList.remove('show');
+  if (overlay) overlay.classList.remove('show');
+}
+
+function loadGroupScheduleDetails(groupId) {
+  const extra = document.getElementById('schedule-detail-extra');
+  if (!extra) return;
+  extra.innerHTML = '<div class="small">⏳ Загрузка деталей группы...</div>';
+
+  fetch(`/api/groups/${groupId}`, { headers: getAuthHeaders() })
+    .then(async res => {
+      if (!res.ok) throw new Error('Ошибка загрузки группы');
+      return res.json();
+    })
+    .then(async group => {
+      let directionTitle = '—';
+      let directionPrice = null;
+      let teacherName = '—';
+
+      if (group.direction_id) {
+        try {
+          const dirRes = await fetch(`/api/directions/${group.direction_id}`, { headers: getAuthHeaders() });
+          if (dirRes.ok) {
+            const dir = await dirRes.json();
+            directionTitle = dir.title || directionTitle;
+            directionPrice = dir.base_price || directionPrice;
+          }
+        } catch (err) {
+          // ignore
+        }
+      }
+
+      if (group.teacher_id) {
+        try {
+          const staffRes = await fetch(`/staff/${group.teacher_id}`, { headers: getAuthHeaders() });
+          if (staffRes.ok) {
+            const staff = await staffRes.json();
+            teacherName = staff.name || teacherName;
+          }
+        } catch (err) {
+          // ignore
+        }
+      }
+
+      extra.innerHTML = `
+        <div class="schedule-detail-row">👥 <strong>Группа:</strong> ${group.name || '—'}</div>
+        <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${directionTitle}</div>
+        <div class="schedule-detail-row">👩‍🏫 <strong>Учитель:</strong> ${teacherName}</div>
+        <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${group.age_group || '—'}</div>
+        ${group.lessons_per_week ? `<div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${group.lessons_per_week}</div>` : ''}
+        <div class="schedule-detail-row">💰 <strong>Цена:</strong> ${directionPrice ? directionPrice + ' ₽' : '—'}</div>
+      `;
+    })
+    .catch(() => {
+      extra.innerHTML = '<div class="small">❌ Не удалось загрузить детали группы</div>';
+    });
+}
+
+function openScheduleForm(dateStr, timeStr) {
+  const form = document.getElementById('schedule-admin-form');
+  if (!form) return;
+  form.classList.add('show');
+
+  const dateInput = document.getElementById('schedule-date');
+  const timeFromInput = document.getElementById('schedule-time-from');
+  const timeToInput = document.getElementById('schedule-time-to');
+
+  if (dateInput) dateInput.value = dateStr;
+  if (timeFromInput) timeFromInput.value = timeStr;
+  const end = minutesToTime(timeToMinutes(timeStr) + SLOT_MINUTES);
+  if (timeToInput) timeToInput.value = end;
+}
+
+function closeScheduleForm() {
+  const form = document.getElementById('schedule-admin-form');
+  if (form) form.classList.remove('show');
+}
+
+function createScheduleV2() {
+  const objectType = document.getElementById('schedule-object-type').value;
+  const objectId = document.getElementById('schedule-object-id').value;
+  const dateStr = document.getElementById('schedule-date').value;
+  const timeFrom = document.getElementById('schedule-time-from').value;
+  const timeTo = document.getElementById('schedule-time-to').value;
+  const repeatUntil = document.getElementById('schedule-repeat-until').value;
+
+  if (!objectId || !dateStr || !timeFrom || !timeTo) {
+    showNotification('⚠️ Заполните все поля');
+    return;
+  }
+
+  if (hasScheduleConflict(dateStr, timeFrom, timeTo)) {
+    showNotification('❌ В это время уже есть занятие');
+    return;
+  }
+
+  const payload = {
+    object_type: objectType,
+    object_id: parseInt(objectId, 10),
+    date: dateStr,
+    time_from: timeFrom,
+    time_to: timeTo,
+    repeat_weekly_until: repeatUntil || null
+  };
+
+  fetch('/schedule/v2', {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload)
+  })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Ошибка при создании');
+      }
+      showNotification('✅ Занятие создано');
+      closeScheduleForm();
+      loadScheduleV2();
+    })
+    .catch(err => {
+      console.error(err);
+      showNotification('❌ ' + err.message);
+    });
+}
+
+function hasScheduleConflict(dateStr, timeFrom, timeTo) {
+  const start = timeToMinutes(timeFrom);
+  const end = timeToMinutes(timeTo);
+  return scheduleItems.some(s => {
+    if (s.date !== dateStr) return false;
+    if (!s.time_from || !s.time_to) return false;
+    const sStart = timeToMinutes(s.time_from);
+    const sEnd = timeToMinutes(s.time_to);
+    return start < sEnd && end > sStart && s.status !== 'cancelled';
+  });
+}
+
+function initGroupScheduleForm() {
+  const select = document.getElementById('group-schedule-group');
+  if (!select || select.dataset.loaded === '1') return;
+
+  select.innerHTML = '<option value="">Загрузка групп...</option>';
+  fetch('/api/directions/manage', { headers: getAuthHeaders() })
+    .then(async res => {
+      if (!res.ok) throw new Error('Не удалось загрузить направления');
+      return res.json();
+    })
+    .then(async directions => {
+      const groups = [];
+      for (const d of directions) {
+        try {
+          const res = await fetch(`/api/directions/${d.direction_id}/groups`, { headers: getAuthHeaders() });
+          if (!res.ok) continue;
+          const g = await res.json();
+          g.forEach(gr => groups.push(gr));
+        } catch (err) {
+          // ignore
+        }
+      }
+      if (groups.length === 0) {
+        select.innerHTML = '<option value="">Группы не найдены</option>';
+        return;
+      }
+      select.innerHTML = '<option value="">Выберите группу</option>' + groups.map(gr => `<option value="${gr.id}">${gr.name}</option>`).join('');
+      select.dataset.loaded = '1';
+    })
+    .catch(() => {
+      select.innerHTML = '<option value="">Ошибка загрузки групп</option>';
+    });
+
+  select.addEventListener('change', () => {
+    updateGroupFormDefaults();
+  });
+
+  const dateInput = document.getElementById('group-schedule-date');
+  if (dateInput) {
+    dateInput.addEventListener('change', () => {
+      updateGroupFormDefaults();
+      updateRepeatSummary();
+    });
+  }
+
+  const weekdayRow = document.getElementById('repeat-weekdays-row');
+  if (weekdayRow) {
+    weekdayRow.addEventListener('click', e => {
+      const target = e.target;
+      if (target.classList.contains('chip')) {
+        target.classList.toggle('active');
+        updateRepeatSummary();
+      }
+    });
+  }
+
+  const repeatMode = document.getElementById('repeat-mode');
+  const repeatUntil = document.getElementById('repeat-until');
+  const repeatInterval = document.getElementById('repeat-interval');
+  if (repeatMode) repeatMode.addEventListener('change', updateRepeatSummary);
+  if (repeatInterval) repeatInterval.addEventListener('input', updateRepeatSummary);
+  if (repeatUntil) repeatUntil.addEventListener('change', updateRepeatSummary);
+  updateRepeatSummary();
+  updateGroupFormDefaults();
+}
+
+function toggleGroupScheduleForm(force) {
+  const modal = document.getElementById('group-schedule-modal');
+  const overlay = document.getElementById('group-schedule-overlay');
+  if (!modal || !overlay) return;
+  const shouldShow = typeof force === 'boolean' ? force : !modal.classList.contains('show');
+  if (shouldShow) {
+    resetGroupScheduleForm();
+    modal.classList.add('show');
+    overlay.classList.add('show');
+  } else {
+    modal.classList.remove('show');
+    overlay.classList.remove('show');
+  }
+}
+
+function updateRepeatSummary() {
+  const mode = document.getElementById('repeat-mode')?.value || 'none';
+  const interval = parseInt(document.getElementById('repeat-interval')?.value || '1', 10);
+  const untilInput = document.getElementById('repeat-until');
+  const until = untilInput?.value;
+  const dateBase = document.getElementById('group-schedule-date')?.value;
+  const summary = document.getElementById('repeat-summary');
+  const weekdays = getSelectedWeekdays();
+
+  if (!summary) return;
+  if (mode === 'none') {
+    summary.textContent = 'Без повторения';
+    toggleRepeatControls();
+    return;
+  }
+
+  let text = 'Повторять ';
+  if (mode === 'weekly') {
+    text += `каждую ${interval} неделю`;
+    if (weekdays.length) {
+      text += ` (${weekdays.map(d => WEEKDAY_LABELS[d]).join(', ')})`;
+    }
+  } else if (mode === 'daily') {
+    text += `каждые ${interval} день`;
+  } else if (mode === 'monthly') {
+    text += `каждый ${interval} месяц`;
+  }
+  const baseDate = dateBase ? new Date(dateBase) : new Date();
+  const finalUntil = until || addMonths(baseDate, 6).toISOString().slice(0, 10);
+  text += ` до ${new Date(finalUntil).toLocaleDateString('ru-RU')}`;
+  summary.textContent = text;
+  toggleRepeatControls();
+}
+
+function toggleRepeatControls() {
+  const mode = document.getElementById('repeat-mode')?.value || 'none';
+  const intervalRow = document.getElementById('repeat-interval-row');
+  const weekRow = document.getElementById('repeat-weekdays-row');
+  const untilRow = document.getElementById('repeat-until')?.parentElement;
+  const label = document.getElementById('repeat-interval-label');
+  if (intervalRow) intervalRow.style.display = mode === 'none' ? 'none' : 'flex';
+  if (weekRow) weekRow.style.display = mode === 'weekly' ? 'flex' : 'none';
+  if (untilRow) untilRow.style.display = mode === 'none' ? 'none' : 'flex';
+  if (label) {
+    label.textContent = mode === 'daily' ? 'день' : mode === 'monthly' ? 'месяц' : 'неделю';
+  }
+}
+
+const WEEKDAY_LABELS = {
+  0: 'Вс',
+  1: 'Пн',
+  2: 'Вт',
+  3: 'Ср',
+  4: 'Чт',
+  5: 'Пт',
+  6: 'Сб'
+};
+
+function getSelectedWeekdays() {
+  const chips = document.querySelectorAll('#repeat-weekdays-row .chip.active');
+  return Array.from(chips).map(c => parseInt(c.dataset.day, 10));
+}
+
+function getWeekRangeForDate(dateStr) {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return null;
+  const start = getWeekStart(date);
+  const end = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
+  return {
+    dateFrom: start.toISOString().slice(0, 10),
+    dateTo: end.toISOString().slice(0, 10)
+  };
+}
+
+function getGroupWeekCount(groupId, dateStr) {
+  const range = getWeekRangeForDate(dateStr);
+  if (!range) return Promise.resolve(null);
+  const params = new URLSearchParams({
+    date_from: range.dateFrom,
+    date_to: range.dateTo
+  });
+  return fetch(`/schedule/v2?${params.toString()}`, { headers: getAuthHeaders() })
+    .then(res => res.ok ? res.json() : [])
+    .then(items => {
+      if (!Array.isArray(items)) return 0;
+      return items.filter(s => s.object_type === 'group' && s.object_id === parseInt(groupId, 10) && s.status !== 'cancelled').length;
+    })
+    .catch(() => null);
+}
+
+function createGroupSchedule() {
+  const groupId = document.getElementById('group-schedule-group')?.value;
+  const dateStr = document.getElementById('group-schedule-date')?.value;
+  const timeFrom = document.getElementById('group-schedule-time-from')?.value;
+  const timeTo = document.getElementById('group-schedule-time-to')?.value;
+  const mode = document.getElementById('repeat-mode')?.value || 'none';
+  const interval = parseInt(document.getElementById('repeat-interval')?.value || '1', 10);
+  const untilStrInput = document.getElementById('repeat-until')?.value;
+  const untilStr = untilStrInput || addMonths(new Date(dateStr), 6).toISOString().slice(0, 10);
+
+  if (!groupId || !dateStr || !timeFrom || !timeTo) {
+    showNotification('⚠️ Заполните все поля');
+    return;
+  }
+
+  if (hasScheduleConflict(dateStr, timeFrom, timeTo)) {
+    showNotification('❌ В это время уже есть занятие');
+    return;
+  }
+
+  const dates = buildRepeatDates(dateStr, mode, interval, untilStr);
+  if (!dates.length) {
+    showNotification('⚠️ Не удалось построить даты');
+    return;
+  }
+
+  const dateFrom = dates[0];
+  const dateTo = dates[dates.length - 1];
+
+  const params = new URLSearchParams({
+    date_from: dateFrom,
+    date_to: dateTo
+  });
+
+  fetch(`/schedule/v2?${params.toString()}`, { headers: getAuthHeaders() })
+    .then(async res => {
+      if (!res.ok) throw new Error('Ошибка проверки конфликтов');
+      return res.json();
+    })
+    .then(data => {
+      scheduleItems = Array.isArray(data) ? data : [];
+      const conflict = dates.some(d => hasScheduleConflict(d, timeFrom, timeTo));
+      if (conflict) {
+        showNotification('❌ В выбранные даты уже есть занятия');
+        return;
+      }
+      createGroupScheduleEntries(groupId, dates, timeFrom, timeTo);
+    })
+    .catch(err => {
+      console.error(err);
+      showNotification('❌ Ошибка проверки конфликтов');
+    });
+}
+
+function updateGroupFormDefaults() {
+  const groupId = document.getElementById('group-schedule-group')?.value;
+  const dateStr = document.getElementById('group-schedule-date')?.value;
+  const preview = document.getElementById('group-schedule-preview');
+  if (!groupId) {
+    if (preview) {
+      preview.style.display = 'none';
+      preview.innerHTML = '';
+    }
+    return;
+  }
+  fetch(`/api/groups/${groupId}`, { headers: getAuthHeaders() })
+    .then(async res => {
+      if (!res.ok) throw new Error('Не удалось загрузить группу');
+      return res.json();
+    })
+    .then(group => {
+      const timeFromInput = document.getElementById('group-schedule-time-from');
+      const timeToInput = document.getElementById('group-schedule-time-to');
+      if (timeFromInput && timeToInput && (!timeFromInput.value || !timeToInput.value)) {
+        const base = group.duration_minutes || 60;
+        const from = timeFromInput.value || '09:00';
+        const endMinutes = timeToMinutes(from) + base;
+        timeFromInput.value = from;
+        timeToInput.value = minutesToTime(endMinutes);
+      }
+
+      if (preview) {
+        preview.style.display = 'grid';
+        const lessonsRow = group.lessons_per_week
+          ? `<div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${group.lessons_per_week}${dateStr ? ' (в этой неделе: <span id="group-week-count">…</span>)' : ''}</div>`
+          : '';
+        preview.innerHTML = `
+          <div class="schedule-detail-row">👥 <strong>Группа:</strong> ${group.name || '—'}</div>
+          <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${group.age_group || '—'}</div>
+          ${lessonsRow}
+          <div class="schedule-detail-row">⏱️ <strong>Длительность:</strong> ${group.duration_minutes ? group.duration_minutes + ' мин' : '—'}</div>
+        `;
+        if (group.teacher_name) {
+          preview.innerHTML += `<div class="schedule-detail-row">👩‍🏫 <strong>Учитель:</strong> ${group.teacher_name}</div>`;
+        }
+        preview.innerHTML += `<div class="schedule-detail-row">🎯 <strong>Направление:</strong> —</div>`;
+        preview.innerHTML += `<div class="schedule-detail-row">💰 <strong>Цена:</strong> —</div>`;
+      }
+
+      if (group.lessons_per_week && dateStr) {
+        getGroupWeekCount(groupId, dateStr).then(count => {
+          const countEl = document.getElementById('group-week-count');
+          if (countEl) countEl.textContent = count === null ? '—' : String(count);
+        });
+      }
+
+      if (group.direction_id && preview) {
+        fetch(`/api/directions/${group.direction_id}`, { headers: getAuthHeaders() })
+          .then(async res => {
+            if (!res.ok) throw new Error('Не удалось загрузить направление');
+            return res.json();
+          })
+          .then(direction => {
+            const rows = preview.querySelectorAll('.schedule-detail-row');
+            if (rows.length >= 2) {
+              rows[rows.length - 2].innerHTML = `🎯 <strong>Направление:</strong> ${direction.title || '—'}`;
+              rows[rows.length - 1].innerHTML = `💰 <strong>Цена:</strong> ${direction.base_price ? direction.base_price + ' ₽' : '—'}`;
+            }
+          })
+          .catch(() => {});
+      }
+    })
+    .catch(() => {
+      // ignore
+    });
+}
+
+function resetGroupScheduleForm() {
+  const groupSelect = document.getElementById('group-schedule-group');
+  const dateInput = document.getElementById('group-schedule-date');
+  const timeFromInput = document.getElementById('group-schedule-time-from');
+  const timeToInput = document.getElementById('group-schedule-time-to');
+  const repeatUntil = document.getElementById('repeat-until');
+  const repeatInterval = document.getElementById('repeat-interval');
+  const repeatMode = document.getElementById('repeat-mode');
+
+  if (groupSelect) groupSelect.value = '';
+  if (dateInput) dateInput.value = '';
+  if (timeFromInput) timeFromInput.value = '';
+  if (timeToInput) timeToInput.value = '';
+  if (repeatInterval) repeatInterval.value = '1';
+  if (repeatMode) repeatMode.value = 'weekly';
+  if (repeatUntil) repeatUntil.value = '';
+
+  const chips = document.querySelectorAll('#repeat-weekdays-row .chip');
+  chips.forEach(c => c.classList.remove('active'));
+
+  updateRepeatSummary();
+}
+
+function createGroupScheduleEntries(groupId, dates, timeFrom, timeTo) {
+  const headers = getAuthHeaders({ 'Content-Type': 'application/json' });
+  const requests = dates.map(d => () => fetch('/schedule/v2', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      object_type: 'group',
+      object_id: parseInt(groupId, 10),
+      date: d,
+      time_from: timeFrom,
+      time_to: timeTo
+    })
+  }));
+
+  let chain = Promise.resolve();
+  requests.forEach(req => {
+    chain = chain.then(() => req());
+  });
+
+  chain
+    .then(() => {
+      showNotification('✅ Занятия созданы');
+      toggleGroupScheduleForm(false);
+      loadScheduleV2();
+    })
+    .catch(err => {
+      console.error(err);
+      showNotification('❌ Ошибка создания');
+    });
+}
+
+function buildRepeatDates(startDateStr, mode, interval, untilStr) {
+  const start = new Date(startDateStr);
+  if (Number.isNaN(start.getTime())) return [];
+  const until = untilStr ? new Date(untilStr) : addMonths(start, 6);
+  if (untilStr && Number.isNaN(until.getTime())) return [];
+
+  const dates = [];
+  if (mode === 'none') {
+    dates.push(startDateStr);
+    return dates;
+  }
+
+  if (!until) {
+    dates.push(startDateStr);
+    return dates;
+  }
+
+  if (mode === 'daily') {
+    let current = new Date(start);
+    while (current <= until) {
+      dates.push(current.toISOString().slice(0, 10));
+      current.setDate(current.getDate() + interval);
+    }
+    return dates;
+  }
+
+  if (mode === 'monthly') {
+    let current = new Date(start);
+    while (current <= until) {
+      dates.push(current.toISOString().slice(0, 10));
+      current.setMonth(current.getMonth() + interval);
+    }
+    return dates;
+  }
+
+  const weekdays = getSelectedWeekdays();
+  const targetWeekdays = weekdays.length ? weekdays : [start.getDay()];
+  let current = new Date(start);
+  while (current <= until) {
+    const weekStart = new Date(current);
+    const day = weekStart.getDay();
+    weekStart.setDate(weekStart.getDate() - day);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      if (d < start || d > until) continue;
+      if (targetWeekdays.includes(d.getDay())) {
+        dates.push(d.toISOString().slice(0, 10));
+      }
+    }
+    current.setDate(current.getDate() + interval * 7);
+  }
+  return Array.from(new Set(dates)).sort();
+}
+
+function addMonths(date, count) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + count);
+  return d;
 }
 
 function goHome() {
@@ -2168,39 +3711,174 @@ function displayStaffSchedules(schedules) {
 async function loadPublicSchedule() {
   try {
     const container = document.getElementById('schedule-container');
-    container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+    if (container) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+    }
     
-    const response = await fetch('/schedule');
+    const response = await fetch('/schedule/public');
     
     if (!response.ok) {
-      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке расписания</p>';
+      if (container) {
+        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке расписания</p>';
+      }
       return;
     }
     
     const schedules = await response.json();
+    window.publicScheduleItems = Array.isArray(schedules) ? schedules : [];
     
-    if (schedules.length === 0) {
-      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 Занятий нет</p>';
-      return;
-    }
-    
-    container.innerHTML = schedules.map(s => {
-      const teacherName = s.teacher && s.teacher.name ? s.teacher.name : '—';
-      return `
-      <div class="card">
-        <div>
-          <div style="font-weight: 600; font-size: 15px;">${s.title}</div>
-          <div style="font-size: 13px; color: var(--hint); margin-top: 4px;">📅 ${new Date(s.date).toLocaleDateString('ru-RU')}</div>
-          <div style="font-size: 13px; color: var(--hint);">🕐 ${s.start} - ${s.end}</div>
-          <div style="font-size: 13px; color: var(--hint);">👨‍🏫 ${teacherName}</div>
-        </div>
-      </div>
-    `;
-    }).join('');
+    initPublicScheduleStrip();
+    renderPublicScheduleList();
   } catch (error) {
     console.error('Ошибка при загрузке расписания:', error);
-    document.getElementById('schedule-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка сети</p>';
+    const container = document.getElementById('schedule-container');
+    if (container) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка сети</p>';
+    }
   }
+}
+
+function initPublicScheduleStrip() {
+  const strip = document.getElementById('public-schedule-strip');
+  const monthLabel = document.getElementById('public-schedule-month');
+  if (!strip) return;
+
+  const today = new Date();
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
+    days.push(d);
+  }
+
+  if (!window.publicScheduleDate) {
+    window.publicScheduleDate = today.toISOString().slice(0, 10);
+  }
+
+  if (monthLabel) {
+    monthLabel.textContent = today.toLocaleDateString('ru-RU', { month: 'long' });
+  }
+
+  const labels = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+  strip.innerHTML = days.map((d, idx) => {
+    const dateStr = d.toISOString().slice(0, 10);
+    const isActive = window.publicScheduleDate === dateStr;
+    const dayLabel = labels[d.getDay()];
+    const shortLabel = idx === 0 ? 'сегодня' : idx === 1 ? 'завтра' : '';
+    return `
+      <div class="public-date-card ${isActive ? 'active' : ''}" onclick="selectPublicScheduleDate('${dateStr}')">
+        <div class="public-date-dow">${dayLabel}</div>
+        <div class="public-date-day">${d.getDate()}</div>
+        <div class="public-date-label">${shortLabel}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function selectPublicScheduleDate(dateStr) {
+  window.publicScheduleDate = dateStr;
+  initPublicScheduleStrip();
+  renderPublicScheduleList();
+}
+
+function renderPublicScheduleList() {
+  const container = document.getElementById('schedule-container');
+  if (!container) return;
+  const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
+  const selected = window.publicScheduleDate;
+  const filtered = selected ? items.filter(s => s.date === selected) : items;
+
+  if (!filtered.length) {
+    container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 На этот день занятий нет</p>';
+    return;
+  }
+
+  const sorted = filtered.slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+  container.innerHTML = sorted.map(s => {
+    const teacherName = s.teacher_name || (s.teacher && s.teacher.name ? s.teacher.name : '—');
+    const directionTitle = s.direction || '—';
+    const startTime = formatTimeShort(s.start);
+    const endTime = formatTimeShort(s.end);
+    const duration = getDurationMinutes(startTime, endTime);
+    const color = getPublicScheduleColor(s.title || '');
+    return `
+      <div class="public-schedule-item" onclick="openPublicScheduleModal(${s.id})">
+        <div class="public-schedule-time">
+          <div class="public-dot" style="background:${color};"></div>
+          <div class="public-time">${startTime || '—'}</div>
+          <div class="public-duration">${duration ? duration + ' мин' : '—'}</div>
+        </div>
+        <div>
+          <div class="public-info-title">${s.title || 'Занятие'}</div>
+          <div class="public-info-sub">${directionTitle}</div>
+          <div class="public-info-sub">Групповое занятие</div>
+          <div class="public-info-teacher">${teacherName}</div>
+        </div>
+        <div class="public-chevron">›</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function getDurationMinutes(start, end) {
+  if (!start || !end) return null;
+  const [sh, sm] = start.split(':').map(Number);
+  const [eh, em] = end.split(':').map(Number);
+  if (Number.isNaN(sh) || Number.isNaN(eh)) return null;
+  return Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
+}
+
+function formatTimeShort(timeStr) {
+  if (!timeStr) return '';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr;
+  return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+}
+
+function getPublicScheduleColor(key) {
+  const hue = (hashString(key || '') + 180) % 360;
+  return `hsl(${hue}, 70%, 55%)`;
+}
+
+function openPublicScheduleModal(id) {
+  const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+
+  const modal = document.getElementById('public-schedule-modal');
+  const overlay = document.getElementById('public-schedule-overlay');
+  const content = document.getElementById('public-schedule-modal-content');
+  if (!modal || !overlay || !content) return;
+
+  const startTime = formatTimeShort(item.start);
+  const endTime = formatTimeShort(item.end);
+  const duration = getDurationMinutes(startTime, endTime);
+  const lessons = item.lessons_per_week ? item.lessons_per_week : '—';
+
+  content.innerHTML = `
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+      <div class="schedule-detail-chip">📅 ${item.date ? new Date(item.date).toLocaleDateString('ru-RU') : '—'}</div>
+      <div class="schedule-detail-chip">⏰ ${startTime || '—'} — ${endTime || '—'}</div>
+      <div class="schedule-detail-chip">⏳ ${duration ? duration + ' мин' : '—'}</div>
+    </div>
+    <div class="schedule-detail-card">
+      <div class="schedule-detail-row">👥 <strong>Группа:</strong> ${item.title || '—'}</div>
+      <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${item.direction || '—'}</div>
+      <div class="schedule-detail-row">👩‍🏫 <strong>Преподаватель:</strong> ${item.teacher_name || '—'}</div>
+      <div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${lessons}</div>
+      <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${item.age_group || '—'}</div>
+      <div class="schedule-detail-row">📝 <strong>Описание направления:</strong> ${item.direction_description || '—'}</div>
+    </div>
+  `;
+
+  modal.classList.add('show');
+  overlay.classList.add('show');
+}
+
+function closePublicScheduleModal() {
+  const modal = document.getElementById('public-schedule-modal');
+  const overlay = document.getElementById('public-schedule-overlay');
+  if (modal) modal.classList.remove('show');
+  if (overlay) overlay.classList.remove('show');
 }
 
 async function loadTeachers() {
@@ -3622,6 +5300,9 @@ window.showPage = function(pageId) {
   if (pageId === 'direction-create-form') {
     resetDirectionForm();
   }
+  if (pageId === 'schedule-control') {
+    initScheduleControl();
+  }
   return originalShowPage(pageId);
 };
 
@@ -4033,6 +5714,7 @@ function loadDirectionGroups() {
               <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👶 ${g.age_group}</span>
               <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👥 ${g.max_students} учеников</span>
               <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">⏱️ ${g.duration_minutes} мин</span>
+              ${g.lessons_per_week ? `<span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">📆 ${g.lessons_per_week} в неделю</span>` : ''}
             </div>
             <div class="small">${g.description || 'Описание не указано'}</div>
           </div>
@@ -4136,6 +5818,7 @@ function openCreateGroupPage() {
   showPage('direction-group-create');
   window.selectedGroupTeacher = null;
   document.getElementById('group-teacher-search').value = '';
+  document.getElementById('edit-direction-group-lessons').value = '';
   loadGroupTeachers();
 }
 
@@ -4163,6 +5846,7 @@ function createDirectionGroup() {
   const ageGroup = document.getElementById('edit-direction-group-age').value.trim();
   const maxStudents = document.getElementById('edit-direction-group-max').value;
   const durationMinutes = document.getElementById('edit-direction-group-duration').value;
+  const lessonsPerWeek = document.getElementById('edit-direction-group-lessons').value;
   const description = document.getElementById('edit-direction-group-desc').value.trim();
 
   if (!name || !teacherId || !ageGroup || !maxStudents || !durationMinutes) {
@@ -4179,6 +5863,7 @@ function createDirectionGroup() {
       age_group: ageGroup,
       max_students: parseInt(maxStudents, 10),
       duration_minutes: parseInt(durationMinutes, 10),
+      lessons_per_week: lessonsPerWeek ? parseInt(lessonsPerWeek, 10) : null,
       description
     })
   })
@@ -4192,6 +5877,7 @@ function createDirectionGroup() {
       document.getElementById('edit-direction-group-age').value = '';
       document.getElementById('edit-direction-group-max').value = '';
       document.getElementById('edit-direction-group-duration').value = '';
+      document.getElementById('edit-direction-group-lessons').value = '';
       document.getElementById('edit-direction-group-desc').value = '';
       document.getElementById('group-teacher-search').value = '';
       window.selectedGroupTeacher = null;
@@ -4334,6 +6020,7 @@ function openEditGroupPage(groupId) {
       document.getElementById('edit-group-max').value = group.max_students || '';
       document.getElementById('edit-group-duration').value = group.duration_minutes || '';
       document.getElementById('edit-group-desc').value = group.description || '';
+      document.getElementById('edit-group-lessons').value = group.lessons_per_week || '';
       window.editGroupPreselectTeacherId = group.teacher_id;
       loadEditGroupTeachers();
     })
@@ -4355,6 +6042,7 @@ function saveGroupChanges() {
   const ageGroup = document.getElementById('edit-group-age').value.trim();
   const maxStudents = document.getElementById('edit-group-max').value;
   const durationMinutes = document.getElementById('edit-group-duration').value;
+  const lessonsPerWeek = document.getElementById('edit-group-lessons').value;
   const description = document.getElementById('edit-group-desc').value.trim();
 
   if (!name || !teacherId || !ageGroup || !maxStudents || !durationMinutes) {
@@ -4371,6 +6059,7 @@ function saveGroupChanges() {
       age_group: ageGroup,
       max_students: parseInt(maxStudents, 10),
       duration_minutes: parseInt(durationMinutes, 10),
+      lessons_per_week: lessonsPerWeek ? parseInt(lessonsPerWeek, 10) : null,
       description
     })
   })

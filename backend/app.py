@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, send_from_directory, request, g, make_response
-from datetime import date, time, datetime
+from datetime import date, time, datetime, timedelta
 import os
 import json
 import hashlib
@@ -7,10 +7,10 @@ from werkzeug.utils import secure_filename
 import logging
 import uuid
 import requests
-from sqlalchemy import or_
+from sqlalchemy import or_, text
 
 from backend.db import init_db, get_session, BASE_DIR, Session, engine
-from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group
+from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental
 from backend.media_manager import save_user_photo, delete_user_photo
 from backend.permissions import has_permission
 
@@ -30,6 +30,18 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(PROJECT_ROOT, 
 app.secret_key = 'dance-studio-secret-key-2026'  # Генерируется для сессий и flash сообщений
 init_db()
 
+def ensure_groups_lessons_per_week_column():
+    try:
+        with engine.begin() as conn:
+            columns = [row[1] for row in conn.execute(text("PRAGMA table_info(groups)")).fetchall()]
+            if "lessons_per_week" not in columns:
+                conn.execute(text("ALTER TABLE groups ADD COLUMN lessons_per_week INTEGER"))
+                print("✅ Добавлена колонка lessons_per_week в таблицу groups")
+    except Exception as exc:
+        print(f"⚠️ Не удалось проверить/добавить колонку lessons_per_week: {exc}")
+
+ensure_groups_lessons_per_week_column()
+
 # ====== Проверка прав по telegram_id ======
 def check_permission(telegram_id, permission):
     db = g.db
@@ -42,11 +54,10 @@ def check_permission(telegram_id, permission):
 
 def require_permission(permission, allow_self_staff_id=None):
     telegram_id = None
+    telegram_id = request.headers.get("X-Telegram-Id") or request.args.get("telegram_id")
     data = request.get_json(silent=True) if request.is_json else None
-    if data:
-        telegram_id = data.get("actor_telegram_id") or data.get("telegram_id")
-    if not telegram_id:
-        telegram_id = request.headers.get("X-Telegram-Id") or request.args.get("telegram_id")
+    if not telegram_id and data:
+        telegram_id = data.get("actor_telegram_id")
 
     if not telegram_id:
         return {"error": "telegram_id обязателен"}, 401
@@ -57,6 +68,7 @@ def require_permission(permission, allow_self_staff_id=None):
         return {"error": "Неверный telegram_id"}, 400
 
     if allow_self_staff_id is not None:
+        db = g.db
         staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
         if staff and staff.id == allow_self_staff_id:
             return None
@@ -156,6 +168,23 @@ def format_schedule(s):
     }
 
 
+def format_schedule_v2(s):
+    return {
+        "id": s.id,
+        "object_type": s.object_type,
+        "object_id": s.object_id,
+        "group_id": s.group_id,
+        "teacher_id": s.teacher_id,
+        "date": s.date.isoformat() if s.date else None,
+        "time_from": str(s.time_from) if s.time_from else None,
+        "time_to": str(s.time_to) if s.time_to else None,
+        "status": s.status,
+        "status_comment": s.status_comment,
+        "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+        "updated_by": s.updated_by
+    }
+
+
 @app.route("/")
 def index():
     return send_from_directory(FRONTEND_DIR, "index.html")
@@ -189,6 +218,89 @@ def schedule():
     return jsonify([format_schedule(s) for s in data])
 
 
+@app.route("/schedule/public")
+def schedule_public():
+    db = g.db
+    items = db.query(Schedule).filter(
+        Schedule.object_type == "group",
+        Schedule.status != "cancelled"
+    ).all()
+
+    result = []
+    for s in items:
+        group = None
+        if s.group_id:
+            group = db.query(Group).filter_by(id=s.group_id).first()
+        elif s.object_id:
+            group = db.query(Group).filter_by(id=s.object_id).first()
+
+        direction_title = None
+        direction_description = None
+        teacher_name = None
+        lessons_per_week = None
+        age_group = None
+        if group:
+            if group.direction_id:
+                direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
+                if direction:
+                    direction_title = direction.title
+                    direction_description = direction.description
+            if group.teacher_id:
+                teacher = db.query(Staff).filter_by(id=group.teacher_id).first()
+                teacher_name = teacher.name if teacher else None
+            lessons_per_week = group.lessons_per_week
+            age_group = group.age_group
+
+        time_from = s.time_from or s.start_time
+        time_to = s.time_to or s.end_time
+
+        result.append({
+            "id": s.id,
+            "title": group.name if group and group.name else s.title,
+            "direction": direction_title,
+            "direction_description": direction_description,
+            "teacher_name": teacher_name,
+            "lessons_per_week": lessons_per_week,
+            "age_group": age_group,
+            "date": s.date.isoformat() if s.date else None,
+            "start": str(time_from) if time_from else None,
+            "end": str(time_to) if time_to else None
+        })
+
+    return jsonify(result)
+
+
+@app.route("/schedule/v2", methods=["GET"])
+def schedule_v2_list():
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    query = db.query(Schedule)
+    object_type = request.args.get("object_type")
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+
+    if object_type:
+        query = query.filter(Schedule.object_type == object_type)
+    if date_from:
+        try:
+            date_from_val = datetime.strptime(date_from, "%Y-%m-%d").date()
+            query = query.filter(Schedule.date >= date_from_val)
+        except ValueError:
+            return {"error": "date_from должен быть в формате YYYY-MM-DD"}, 400
+    if date_to:
+        try:
+            date_to_val = datetime.strptime(date_to, "%Y-%m-%d").date()
+            query = query.filter(Schedule.date <= date_to_val)
+        except ValueError:
+            return {"error": "date_to должен быть в формате YYYY-MM-DD"}, 400
+
+    data = query.all()
+    return jsonify([format_schedule_v2(s) for s in data])
+
+
 @app.route("/schedule", methods=["POST"])
 def create_schedule():
     """
@@ -215,6 +327,99 @@ def create_schedule():
     db.commit()
     
     return format_schedule(schedule), 201
+
+
+@app.route("/schedule/v2", methods=["POST"])
+def create_schedule_v2():
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    data = request.json or {}
+
+    object_type = data.get("object_type")
+    object_id = data.get("object_id")
+    date_str = data.get("date")
+    time_from_str = data.get("time_from")
+    time_to_str = data.get("time_to")
+    repeat_until_str = data.get("repeat_weekly_until")
+
+    if object_type not in ["group", "individual", "rental"]:
+        return {"error": "object_type должен быть одним из: group, individual, rental"}, 400
+    if not object_id:
+        return {"error": "object_id обязателен"}, 400
+    if not date_str or not time_from_str or not time_to_str:
+        return {"error": "date, time_from, time_to обязательны"}, 400
+
+    try:
+        date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
+        time_from_val = datetime.strptime(time_from_str, "%H:%M").time()
+        time_to_val = datetime.strptime(time_to_str, "%H:%M").time()
+    except ValueError:
+        return {"error": "Неверный формат даты или времени"}, 400
+
+    if time_from_val >= time_to_val:
+        return {"error": "time_from должен быть меньше time_to"}, 400
+
+    group_id = data.get("group_id")
+    teacher_id = data.get("teacher_id")
+
+    title = None
+    if object_type == "group":
+        group = db.query(Group).filter_by(id=object_id).first()
+        if not group:
+            return {"error": "Группа не найдена"}, 404
+        group_id = group.id
+        teacher_id = group.teacher_id
+        title = group.name
+    elif object_type == "individual":
+        lesson = db.query(IndividualLesson).filter_by(id=object_id).first()
+        if not lesson:
+            return {"error": "Индивидуальное занятие не найдено"}, 404
+        teacher_id = lesson.teacher_id
+        title = "Индивидуальное занятие"
+    elif object_type == "rental":
+        rental = db.query(HallRental).filter_by(id=object_id).first()
+        if not rental:
+            return {"error": "Аренда не найдена"}, 404
+        title = "Аренда зала"
+
+    def build_entry(entry_date):
+        return Schedule(
+            object_id=object_id,
+            object_type=object_type,
+            date=entry_date,
+            time_from=time_from_val,
+            time_to=time_to_val,
+            status=data.get("status", "scheduled"),
+            status_comment=data.get("status_comment"),
+            updated_by=data.get("updated_by"),
+            group_id=group_id,
+            teacher_id=teacher_id,
+            title=title or f"{object_type} #{object_id}",
+            start_time=time_from_val,
+            end_time=time_to_val
+        )
+
+    entries = [build_entry(date_val)]
+    if repeat_until_str:
+        try:
+            repeat_until = datetime.strptime(repeat_until_str, "%Y-%m-%d").date()
+        except ValueError:
+            return {"error": "repeat_weekly_until должен быть в формате YYYY-MM-DD"}, 400
+        current_date = date_val
+        while True:
+            current_date = current_date + timedelta(days=7)
+            if current_date > repeat_until:
+                break
+            entries.append(build_entry(current_date))
+
+    for entry in entries:
+        db.add(entry)
+    db.commit()
+
+    return jsonify([format_schedule_v2(s) for s in entries]), 201
 
 
 @app.route("/schedule/<int:schedule_id>", methods=["PUT"])
@@ -249,6 +454,45 @@ def update_schedule(schedule_id):
     return format_schedule(schedule)
 
 
+@app.route("/schedule/v2/<int:schedule_id>", methods=["PUT"])
+def update_schedule_v2(schedule_id):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "Занятие не найдено"}, 404
+
+    data = request.json or {}
+
+    if "date" in data:
+        try:
+            schedule.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
+        except ValueError:
+            return {"error": "date должен быть в формате YYYY-MM-DD"}, 400
+    if "time_from" in data:
+        try:
+            schedule.time_from = datetime.strptime(data["time_from"], "%H:%M").time()
+        except ValueError:
+            return {"error": "time_from должен быть в формате HH:MM"}, 400
+    if "time_to" in data:
+        try:
+            schedule.time_to = datetime.strptime(data["time_to"], "%H:%M").time()
+        except ValueError:
+            return {"error": "time_to должен быть в формате HH:MM"}, 400
+    if "status" in data:
+        schedule.status = data["status"]
+    if "status_comment" in data:
+        schedule.status_comment = data["status_comment"]
+    if "updated_by" in data:
+        schedule.updated_by = data["updated_by"]
+
+    db.commit()
+    return format_schedule_v2(schedule)
+
+
 @app.route("/schedule/<int:schedule_id>", methods=["DELETE"])
 def delete_schedule(schedule_id):
     """
@@ -264,6 +508,23 @@ def delete_schedule(schedule_id):
     db.commit()
     
     return {"ok": True, "message": "Занятие удалено"}
+
+
+@app.route("/schedule/v2/<int:schedule_id>", methods=["DELETE"])
+def delete_schedule_v2(schedule_id):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "Занятие не найдено"}, 404
+
+    schedule.status = "cancelled"
+    schedule.status_comment = schedule.status_comment or "Отменено"
+    db.commit()
+    return {"ok": True, "message": "Занятие отменено"}
 
 
 @app.route("/seed")
@@ -1751,6 +2012,7 @@ def get_direction_groups(direction_id):
             "age_group": gr.age_group,
             "max_students": gr.max_students,
             "duration_minutes": gr.duration_minutes,
+            "lessons_per_week": gr.lessons_per_week,
             "created_at": gr.created_at.isoformat()
         })
 
@@ -1772,6 +2034,7 @@ def create_direction_group(direction_id):
     age_group = data.get("age_group")
     max_students = data.get("max_students")
     duration_minutes = data.get("duration_minutes")
+    lessons_per_week = data.get("lessons_per_week")
     description = data.get("description")
 
     if not name or not teacher_id or not age_group or not max_students or not duration_minutes:
@@ -1787,6 +2050,13 @@ def create_direction_group(direction_id):
     except ValueError:
         return {"error": "max_students и duration_minutes должны быть числами"}, 400
 
+    lessons_per_week_int = None
+    if lessons_per_week is not None and lessons_per_week != "":
+        try:
+            lessons_per_week_int = int(lessons_per_week)
+        except ValueError:
+            return {"error": "lessons_per_week должен быть числом"}, 400
+
     group = Group(
         direction_id=direction_id,
         teacher_id=teacher_id,
@@ -1794,7 +2064,8 @@ def create_direction_group(direction_id):
         description=description,
         age_group=age_group,
         max_students=max_students_int,
-        duration_minutes=duration_minutes_int
+        duration_minutes=duration_minutes_int,
+        lessons_per_week=lessons_per_week_int
     )
     db.add(group)
     db.commit()
@@ -1809,6 +2080,7 @@ def create_direction_group(direction_id):
         "age_group": group.age_group,
         "max_students": group.max_students,
         "duration_minutes": group.duration_minutes,
+        "lessons_per_week": group.lessons_per_week,
         "created_at": group.created_at.isoformat()
     }, 201
 
@@ -1832,6 +2104,7 @@ def get_group(group_id):
         "age_group": group.age_group,
         "max_students": group.max_students,
         "duration_minutes": group.duration_minutes,
+        "lessons_per_week": group.lessons_per_week,
         "created_at": group.created_at.isoformat()
     })
 
@@ -1861,6 +2134,14 @@ def update_group(group_id):
             group.duration_minutes = int(data["duration_minutes"])
         except ValueError:
             return {"error": "duration_minutes должен быть числом"}, 400
+    if "lessons_per_week" in data:
+        if data["lessons_per_week"] in (None, ""):
+            group.lessons_per_week = None
+        else:
+            try:
+                group.lessons_per_week = int(data["lessons_per_week"])
+            except ValueError:
+                return {"error": "lessons_per_week должен быть числом"}, 400
     if "teacher_id" in data:
         teacher = db.query(Staff).filter_by(id=data["teacher_id"]).first()
         if not teacher:
