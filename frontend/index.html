@@ -244,6 +244,60 @@ body.tg-mobile .header-back {
   margin: 4px 0 0 0;
 }
 
+.staff-card-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.staff-card-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.staff-card-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.staff-card-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.staff-card-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.staff-card-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 
 
 /* ====== ТЕКСТ ====== */
@@ -846,6 +900,10 @@ textarea.form-input {
   background: #fff;
 }
 
+#teacher-working-hours .schedule-grid {
+  touch-action: none;
+}
+
 .schedule-grid.day {
   grid-template-columns: 64px 1fr;
 }
@@ -884,6 +942,14 @@ textarea.form-input {
 
 .schedule-slot.busy {
   cursor: not-allowed;
+}
+
+.schedule-slot.non-working {
+  background: #ffcdd2;
+}
+
+.schedule-slot.non-working:hover {
+  background: #ef9a9a;
 }
 
 .schedule-slot.busy.group {
@@ -972,6 +1038,36 @@ textarea.form-input {
 }
 
 .group-schedule-modal.show {
+  display: block;
+}
+
+.confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.25);
+  display: none;
+  z-index: 1001;
+}
+
+.confirm-modal-overlay.show {
+  display: block;
+}
+
+.confirm-modal {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+  padding: 16px;
+  display: none;
+  z-index: 1002;
+}
+
+.confirm-modal.show {
   display: block;
 }
 
@@ -1783,11 +1879,20 @@ textarea.form-input {
 <div class="card">
 <div class="form-group">
 <label>Должность *</label>
-<select class="form-input" id="staff-add-position">
+<select class="form-input" id="staff-add-position" onchange="updateStaffTeachesToggle()">
 <option value="">Выберите должность</option>
 <option value="учитель">👩‍🏫 Учитель</option>
 <option value="администратор">📋 Администратор</option>
 </select>
+</div>
+
+
+<div class="form-group">
+<label>👩‍🏫 Преподает</label>
+<label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text);">
+<input id="staff-add-teaches" type="checkbox"/>
+<span>Преподаватель</span>
+</label>
 </div>
 <div class="form-group">
 <label>Специализация (опционально)</label>
@@ -1797,6 +1902,10 @@ textarea.form-input {
 <label>Биография (опционально)</label>
 <textarea class="form-input" id="staff-add-bio" placeholder="Описание сотрудника" style="height: 80px; resize: none;"></textarea>
 </div>
+<label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); margin-bottom: 12px;">
+<input id="staff-add-notify" type="checkbox" checked/>
+<span>Отправить уведомление в Telegram</span>
+</label>
 <button class="save-btn" onclick="saveNewStaff()" style="width: 100%; margin-top: 12px;">💾 Добавить персонал</button>
 </div>
 </div>
@@ -1979,6 +2088,13 @@ textarea.form-input {
 <label>Биография</label>
 <textarea class="form-input" id="staff-profile-bio" placeholder="Коротко о себе..." style="min-height: 80px;"></textarea>
 </div>
+<div class="form-group" id="staff-profile-teaches-group" style="display: none;">
+<label>👩‍🏫 Преподаёт</label>
+<label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text);">
+<input id="staff-profile-teaches" type="checkbox"/>
+<span>Преподаватель</span>
+</label>
+</div>
 <div class="form-group">
 <label>Телефон</label>
 <input class="form-input" id="staff-profile-phone" placeholder="+7 900 000 00 00" type="text"/>
@@ -1987,9 +2103,43 @@ textarea.form-input {
 <label>Email</label>
 <input class="form-input" id="staff-profile-email" placeholder="name@example.com" type="email"/>
 </div>
+<input id="staff-profile-photo-input" type="file" accept="image/*" style="display: none;" onchange="uploadStaffPhotoFromGallery()"/>
+<button class="save-btn" onclick="openStaffPhotoPicker()" style="width: 100%; margin-top: 8px;">
+      📸 Загрузить фото
+    </button>
 <button class="save-btn" onclick="saveStaffProfile()" style="width: 100%; margin-top: 8px;">
       💾 Сохранить
     </button>
+</div>
+<div class="card" style="margin-top: 12px;">
+<h4 style="margin-bottom: 10px;">График работы</h4>
+<button class="save-btn" onclick="openTeacherWorkingHours()" style="width: 100%;">🗓 Открыть график работы</button>
+</div>
+</div>
+<!-- ====== РАБОЧИЕ ЧАСЫ ПРЕПОДАВАТЕЛЯ ====== -->
+<div class="page" data-title="🗓 Рабочие часы" id="teacher-working-hours">
+<div class="card" style="margin-bottom: 12px;">
+  <div class="schedule-toolbar">
+    <button class="button active" id="working-hours-view-week" onclick="setWorkingHoursView('week')">Неделя</button>
+    <button class="button" id="working-hours-view-day" onclick="setWorkingHoursView('day')">День</button>
+  </div>
+  <div class="form-group" id="working-hours-day-select-group" style="display: none; margin-top: 12px;">
+    <label>День недели</label>
+    <select class="form-input" id="working-hours-day-select" onchange="renderWorkingHoursEditor()">
+      <option value="0">Понедельник</option>
+      <option value="1">Вторник</option>
+      <option value="2">Среда</option>
+      <option value="3">Четверг</option>
+      <option value="4">Пятница</option>
+      <option value="5">Суббота</option>
+      <option value="6">Воскресенье</option>
+    </select>
+  </div>
+</div>
+<div id="working-hours-container"></div>
+<div class="card" style="margin-top: 12px;">
+  <button class="save-btn" onclick="saveTeacherWorkingHours()" style="width: 100%; background: #4CAF50;">✅ Сохранить рабочие часы</button>
+  <button class="save-btn" onclick="goBack()" style="width: 100%; margin-top: 8px; background: #777;">❌ Назад</button>
 </div>
 </div>
 <!-- ====== СОЗДАНИЕ ГРУППЫ ====== -->
@@ -2108,6 +2258,19 @@ textarea.form-input {
 <p id="news-detail-content" style="white-space: pre-wrap;"></p>
 </div>
 </div>
+<div class="confirm-modal-overlay" id="staff-delete-overlay" onclick="closeStaffDeleteModal()"></div>
+<div class="confirm-modal" id="staff-delete-modal">
+<h4 style="margin: 0 0 6px 0;">Вы действительно хотите удалить?</h4>
+<p class="small" id="staff-delete-subtitle" style="margin: 0 0 12px 0; color: var(--hint);">—</p>
+<label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); margin-bottom: 12px;">
+<input id="staff-delete-notify" type="checkbox" checked/>
+<span>Отправить оповещение</span>
+</label>
+<div style="display: flex; gap: 8px;">
+<button class="save-btn" onclick="confirmStaffDelete()" style="flex: 1; background: #ef5350;">Удалить</button>
+<button class="save-btn" onclick="closeStaffDeleteModal()" style="flex: 1; background: var(--card); color: var(--text);">Отмена</button>
+</div>
+</div>
 <!-- ====== НИЖНЕЕ МЕНЮ ====== -->
 <div class="bottom-nav">
 <div class="nav-btn active" onclick="showPage('home')">🏠<br/>Главная</div>
@@ -2117,8 +2280,10 @@ textarea.form-input {
 </div>
 <script>
 /* ====== TELEGRAM ====== */
-const tg = window.Telegram.WebApp;
-tg.ready();
+const tg = window.Telegram?.WebApp;
+if (tg && typeof tg.ready === 'function') {
+  tg.ready();
+}
 
 function getAuthHeaders(extraHeaders = {}) {
   const telegramId = tg.initDataUnsafe?.user?.id;
@@ -2452,7 +2617,7 @@ function openDirectionDetail(directionId) {
                   <span>${lessons}</span>
                   <span>👥 ${g.max_students || '—'} учеников</span>
                 </div>
-                <button class="save-btn" style="width: 100%; margin-top: 8px; background: #111;">Записаться</button>
+                <button class="save-btn" style="width: 100%; margin-top: 8px; background: #111;">Подробнее</button>
               </div>
             `;
           }).join('')
@@ -3404,6 +3569,26 @@ async function loadStaffList() {
   }
 }
 
+function getStaffInitials(name) {
+  const safe = (name || '').trim();
+  if (!safe) return '?';
+  const parts = safe.split(/\s+/).filter(Boolean);
+  const first = parts[0] ? parts[0][0] : '';
+  const second = parts.length > 1 ? parts[1][0] : (parts[0] && parts[0][1] ? parts[0][1] : '');
+  return (first + second).toUpperCase();
+}
+
+function getStaffAvatarColor(name) {
+  const colors = ['#f44336', '#e91e63', '#9c27b0', '#3f51b5', '#2196f3', '#009688', '#4caf50', '#ff9800'];
+  const safe = (name || '').trim();
+  if (!safe) return '#9e9e9e';
+  let hash = 0;
+  for (let i = 0; i < safe.length; i++) {
+    hash = (hash * 31 + safe.charCodeAt(i)) >>> 0;
+  }
+  return colors[hash % colors.length];
+}
+
 function displayStaffList(staffList) {
   // Определяем правильный контейнер в зависимости от текущей страницы
   const currentPage = Array.from(document.querySelectorAll('.page')).find(p => p.classList.contains('active'));
@@ -3414,15 +3599,30 @@ function displayStaffList(staffList) {
   const container = document.getElementById(containerId);
   if (!container) return;
   
-  container.innerHTML = staffList.map(s => `
+  container.innerHTML = staffList.map(s => {
+    const photoUrl = s.photo ? buildMediaUrl(s.photo) : null;
+    const initials = getStaffInitials(s.name);
+    const avatarBg = getStaffAvatarColor(s.name);
+    return `
     <div class="card" onclick="openStaffDetail(${s.id}, '${s.name}', '${s.position}', '${s.phone ? s.phone : ''}', '${s.email}', '${s.specialization || ''}', '${s.bio || ''}', '${s.status}')" style="cursor: pointer;">
-      <div style="font-weight: 600; font-size: 16px;">${s.name}</div>
-      ${s.username ? `<div style="font-size: 13px; color: var(--accent); margin-top: 2px;">@${s.username}</div>` : ''}
-      <div style="font-size: 14px; color: var(--hint); margin-top: 4px;">📍 ${s.position}</div>
-      ${s.phone ? `<div style="font-size: 13px; color: var(--hint); margin-top: 2px;">📱 ${s.phone}</div>` : ''}
-      <div style="font-size: 12px; color: ${s.status === 'active' ? '#4caf50' : '#ff6b6b'}; margin-top: 6px;">● ${s.status === 'active' ? 'Активен' : 'Неактивен'}</div>
+      <div class="staff-card-row">
+        <div class="staff-card-avatar" style="background: ${photoUrl ? '#e0e0e0' : avatarBg};">
+          ${photoUrl ? `<img src="${photoUrl}" alt=""/>` : `<span>${initials}</span>`}
+        </div>
+        <div style="flex: 1;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+            <div style="font-weight: 600; font-size: 16px;">${s.name}</div>
+            ${s.teaches ? '<span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(76, 175, 80, 0.12); color: #2e7d32;">👩‍🏫</span>' : ''}
+          </div>
+          ${s.username ? `<div style="font-size: 13px; color: var(--accent); margin-top: 2px;">@${s.username}</div>` : ''}
+          <div style="font-size: 14px; color: var(--hint); margin-top: 4px;">📍 ${s.position}</div>
+          ${s.phone ? `<div style="font-size: 13px; color: var(--hint); margin-top: 2px;">📱 ${s.phone}</div>` : ''}
+          <div style="font-size: 12px; color: ${s.status === 'active' ? '#4caf50' : '#ff6b6b'}; margin-top: 6px;">● ${s.status === 'active' ? 'Активен' : 'Неактивен'}</div>
+        </div>
+      </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
 
 function searchStaffManage() {
@@ -3473,12 +3673,33 @@ function showAddStaffForm() {
   document.getElementById('staff-add-position').value = '';
   document.getElementById('staff-add-specialization').value = '';
   document.getElementById('staff-add-bio').value = '';
+  const notifyCheckbox = document.getElementById('staff-add-notify');
+  if (notifyCheckbox) {
+    notifyCheckbox.checked = true;
+  }
+  const teachesCheckbox = document.getElementById('staff-add-teaches');
+  if (teachesCheckbox) {
+    teachesCheckbox.checked = false;
+    teachesCheckbox.disabled = false;
+  }
+  updateStaffTeachesToggle();
   
   // Загружаем текущий персонал и всех пользователей при открытии формы
   loadCurrentStaffAndUsers();
   
   showPage('staff-add-form');
   setHeaderTitle('➕ Добавить персонал');
+}
+
+function updateStaffTeachesToggle() {
+  const positionSelect = document.getElementById('staff-add-position');
+  const teachesCheckbox = document.getElementById('staff-add-teaches');
+  if (!positionSelect || !teachesCheckbox) return;
+
+  const position = (positionSelect.value || '').toLowerCase();
+  const isTeacher = position === 'учитель';
+  teachesCheckbox.checked = isTeacher ? true : teachesCheckbox.checked;
+  teachesCheckbox.disabled = isTeacher;
 }
 
 async function loadCurrentStaffAndUsers() {
@@ -3637,6 +3858,8 @@ async function saveNewStaff() {
   const position = document.getElementById('staff-add-position').value;
   const specialization = document.getElementById('staff-add-specialization').value.trim();
   const bio = document.getElementById('staff-add-bio').value.trim();
+  const teaches = document.getElementById('staff-add-teaches')?.checked;
+  const notify = document.getElementById('staff-add-notify')?.checked;
   
   // Проверяем обязательные поля
   if (!position) {
@@ -3650,7 +3873,9 @@ async function saveNewStaff() {
       telegram_id: window.selectedStaffUserData.telegram_id,
       position,
       specialization: specialization || undefined,
-      bio: bio || undefined
+      bio: bio || undefined,
+      teaches: teaches ? 1 : 0,
+      notify: notify ? 1 : 0
     };
     
     const response = await fetch('/staff', {
@@ -3677,19 +3902,54 @@ async function saveNewStaff() {
   }
 }
 
-async function deleteStaffMember(staffId, name) {
-  if (!confirm(`Удалить ${name}?`)) {
-    return;
+let pendingDeleteStaffId = null;
+let pendingDeleteStaffName = '';
+
+function openStaffDeleteModal(staffId, name) {
+  pendingDeleteStaffId = staffId;
+  pendingDeleteStaffName = name || '';
+  const overlay = document.getElementById('staff-delete-overlay');
+  const modal = document.getElementById('staff-delete-modal');
+  const subtitle = document.getElementById('staff-delete-subtitle');
+  const notifyCheckbox = document.getElementById('staff-delete-notify');
+  if (subtitle) {
+    subtitle.textContent = pendingDeleteStaffName ? `Персонал: ${pendingDeleteStaffName}` : '—';
   }
-  
+  if (notifyCheckbox) {
+    notifyCheckbox.checked = true;
+  }
+  if (overlay) overlay.classList.add('show');
+  if (modal) modal.classList.add('show');
+}
+
+function closeStaffDeleteModal() {
+  const overlay = document.getElementById('staff-delete-overlay');
+  const modal = document.getElementById('staff-delete-modal');
+  if (overlay) overlay.classList.remove('show');
+  if (modal) modal.classList.remove('show');
+  pendingDeleteStaffId = null;
+  pendingDeleteStaffName = '';
+}
+
+async function confirmStaffDelete() {
+  if (!pendingDeleteStaffId) return;
+  const notifyCheckbox = document.getElementById('staff-delete-notify');
+  const notify = notifyCheckbox ? notifyCheckbox.checked : true;
+  const staffId = pendingDeleteStaffId;
+  const shouldGoBack = (currentDetailStaffId && currentDetailStaffId === staffId);
+  closeStaffDeleteModal();
+
   try {
-    const response = await fetch(`/staff/${staffId}`, {
+    const response = await fetch(`/staff/${staffId}?notify=${notify ? 1 : 0}`, {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
     
     if (response.ok) {
       showNotification('✅ Персонал удален');
+      if (shouldGoBack && document.getElementById('staff-detail')?.classList.contains('active')) {
+        goBack();
+      }
       loadStaffList();
     } else {
       showNotification('❌ Ошибка при удалении');
@@ -3698,6 +3958,10 @@ async function deleteStaffMember(staffId, name) {
     console.error('Ошибка при удалении:', error);
     showNotification('❌ Ошибка сети');
   }
+}
+
+function deleteStaffMember(staffId, name) {
+  openStaffDeleteModal(staffId, name);
 }
 
 let currentDetailStaffId = null;
@@ -3742,13 +4006,28 @@ function openStaffDetail(id, name, position, phone, email, specialization, bio, 
     });
 }
 
+function buildMediaUrl(photoPath) {
+  if (!photoPath) return null;
+  let normalized = String(photoPath).replace(/\\/g, '/');
+  while (normalized.startsWith('../')) {
+    normalized = normalized.slice(3);
+  }
+  if (normalized.startsWith('./')) {
+    normalized = normalized.slice(2);
+  }
+  if (normalized.startsWith('/database/')) return normalized;
+  if (normalized.startsWith('database/')) return `/${normalized}`;
+  return `/media/${normalized.replace(/^\/+/, '')}`;
+}
+
 function updateStaffDetailAvatar(photoPath, telegramId) {
   const img = document.getElementById('staff-detail-avatar-img');
   const placeholder = document.querySelector('#staff-detail-avatar p');
   if (!img || !placeholder) return;
 
   if (photoPath) {
-    img.src = `/media/${photoPath}`;
+    const mediaUrl = buildMediaUrl(photoPath);
+    if (mediaUrl) img.src = mediaUrl;
     img.style.display = 'block';
     placeholder.style.display = 'none';
     return;
@@ -3768,27 +4047,9 @@ function updateStaffDetailAvatar(photoPath, telegramId) {
 }
 
 async function deleteCurrentStaff() {
-  if (!confirm('Удалить этого персонала?')) {
-    return;
-  }
-  
-  try {
-    const response = await fetch(`/staff/${currentDetailStaffId}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders()
-    });
-    
-    if (response.ok) {
-      showNotification('✅ Персонал удален');
-      goBack();
-      setTimeout(() => loadStaffList(), 500);
-    } else {
-      showNotification('❌ Ошибка при удалении');
-    }
-  } catch (error) {
-    console.error('Ошибка при удалении:', error);
-    showNotification('❌ Ошибка сети');
-  }
+  if (!currentDetailStaffId) return;
+  const name = document.getElementById('staff-detail-name')?.innerText || '';
+  openStaffDeleteModal(currentDetailStaffId, name);
 }
 
 async function loadStaffSchedule() {
@@ -4489,7 +4750,8 @@ async function displayStaffInfo(userData) {
       // Обновляем фото
       if (staff.photo_path) {
         const img = document.getElementById('staff-panel-avatar-img');
-        img.src = `/media/${staff.photo_path}`;
+        const mediaUrl = buildMediaUrl(staff.photo_path);
+        if (mediaUrl) img.src = mediaUrl;
         img.style.display = 'block';
         document.querySelector('.staff-avatar-small p').style.display = 'none';
       }
@@ -4526,6 +4788,15 @@ async function openStaffProfileEdit() {
     document.getElementById('staff-profile-bio').value = staff.bio || '';
     document.getElementById('staff-profile-phone').value = staff.phone || '';
     document.getElementById('staff-profile-email').value = staff.email || '';
+    const teachesGroup = document.getElementById('staff-profile-teaches-group');
+    const teachesCheckbox = document.getElementById('staff-profile-teaches');
+    if (teachesCheckbox) {
+      teachesCheckbox.checked = !!staff.teaches;
+    }
+    if (teachesGroup) {
+      const isOwner = (currentStaffPosition || '').toLowerCase() === 'владелец';
+      teachesGroup.style.display = isOwner ? 'block' : 'none';
+    }
 
     showPage('staff-profile-edit');
   } catch (error) {
@@ -4546,18 +4817,24 @@ async function saveStaffProfile() {
   const bio = document.getElementById('staff-profile-bio').value.trim();
   const phone = document.getElementById('staff-profile-phone').value.trim();
   const email = document.getElementById('staff-profile-email').value.trim();
+  const teachesCheckbox = document.getElementById('staff-profile-teaches');
+  const isOwner = (currentStaffPosition || '').toLowerCase() === 'владелец';
 
   try {
+    const payload = {
+      name: name || null,
+      specialization: specialization || null,
+      bio: bio || null,
+      phone: phone || null,
+      email: email || null
+    };
+    if (isOwner && teachesCheckbox) {
+      payload.teaches = teachesCheckbox.checked ? 1 : 0;
+    }
     const response = await fetch(`/staff/${staffId}`, {
       method: 'PUT',
       headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        name: name || null,
-        specialization: specialization || null,
-        bio: bio || null,
-        phone: phone || null,
-        email: email || null
-      })
+      body: JSON.stringify(payload)
     });
 
     const data = await response.json();
@@ -4573,6 +4850,280 @@ async function saveStaffProfile() {
     goBack();
   } catch (error) {
     console.error('Ошибка при сохранении профиля персонала:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+// ====== РАБОЧИЕ ЧАСЫ ПРЕПОДАВАТЕЛЯ ======
+let workingHoursView = 'week';
+let currentWorkingHoursTeacherId = null;
+let teacherWorkingHours = [];
+let nonWorkingSlots = new Set();
+let workingHoursDragActive = false;
+let workingHoursDragValue = null;
+let workingHoursDragBound = false;
+
+const WORKING_WEEKDAY_LABELS = [
+  'Понедельник',
+  'Вторник',
+  'Среда',
+  'Четверг',
+  'Пятница',
+  'Суббота',
+  'Воскресенье'
+];
+const WORKING_WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+
+function openTeacherWorkingHours() {
+  const staffId = window.currentStaffProfileId;
+  if (!staffId) {
+    showNotification('❌ ID персонала не найден');
+    return;
+  }
+  currentWorkingHoursTeacherId = staffId;
+  workingHoursView = 'week';
+  const daySelect = document.getElementById('working-hours-day-select');
+  if (daySelect) {
+    daySelect.value = '0';
+  }
+  loadTeacherWorkingHours();
+  showPage('teacher-working-hours');
+}
+
+function setWorkingHoursView(view) {
+  workingHoursView = view;
+  const weekBtn = document.getElementById('working-hours-view-week');
+  const dayBtn = document.getElementById('working-hours-view-day');
+  if (weekBtn && dayBtn) {
+    weekBtn.classList.toggle('active', view === 'week');
+    dayBtn.classList.toggle('active', view === 'day');
+  }
+  const daySelectGroup = document.getElementById('working-hours-day-select-group');
+  if (daySelectGroup) {
+    daySelectGroup.style.display = view === 'day' ? 'block' : 'none';
+  }
+  renderWorkingHoursEditor();
+}
+
+async function loadTeacherWorkingHours() {
+  if (!currentWorkingHoursTeacherId) return;
+  try {
+    const response = await fetch(`/teacher-working-hours/${currentWorkingHoursTeacherId}`, {
+      headers: getAuthHeaders()
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      showNotification('❌ ' + (data.error || 'Не удалось загрузить рабочие часы'));
+      return;
+    }
+    teacherWorkingHours = Array.isArray(data) ? data : [];
+    buildNonWorkingSlots();
+    renderWorkingHoursEditor();
+  } catch (error) {
+    console.error('Ошибка при загрузке рабочих часов:', error);
+    showNotification('❌ Ошибка сети');
+  }
+}
+
+function renderWorkingHoursEditor() {
+  const container = document.getElementById('working-hours-container');
+  if (!container) return;
+
+  container.innerHTML = renderWorkingHoursGrid();
+  bindWorkingHoursDrag(container);
+}
+
+function getAllSlotTimes() {
+  const slots = [];
+  for (let t = WORK_START_HOUR * 60; t < WORK_END_HOUR * 60; t += SLOT_MINUTES) {
+    slots.push(minutesToTime(t));
+  }
+  return slots;
+}
+
+function buildNonWorkingSlots() {
+  const activeIntervals = teacherWorkingHours.filter(i => i.status !== 'archived');
+  if (activeIntervals.length === 0) {
+    nonWorkingSlots = new Set();
+    return;
+  }
+
+  const allSlots = new Set();
+  const slotTimes = getAllSlotTimes();
+  for (let d = 0; d <= 6; d++) {
+    for (const time of slotTimes) {
+      allSlots.add(`${d}|${time}`);
+    }
+  }
+
+  activeIntervals.forEach(i => {
+      if (!i.time_from || !i.time_to) return;
+      const start = timeToMinutes(i.time_from);
+      const end = timeToMinutes(i.time_to);
+      for (let t = start; t < end; t += SLOT_MINUTES) {
+        allSlots.delete(`${i.weekday}|${minutesToTime(t)}`);
+      }
+    });
+
+  nonWorkingSlots = allSlots;
+}
+
+function renderWorkingHoursGrid() {
+  const slots = getAllSlotTimes();
+
+  if (workingHoursView === 'day') {
+    const weekday = parseInt(document.getElementById('working-hours-day-select')?.value || '0', 10);
+    let html = `<div class="schedule-grid day">`;
+    html += `<div class="schedule-cell head">Время</div><div class="schedule-cell head">${WORKING_WEEKDAY_LABELS[weekday]}</div>`;
+    for (const time of slots) {
+      const timeClass = isHalfHour(time) ? 'schedule-cell time half' : 'schedule-cell time';
+      html += `<div class="${timeClass}">${formatTimeLabel(time)}</div>`;
+      html += renderWorkingHoursSlotCell(weekday, time);
+    }
+    html += `</div>`;
+    return html;
+  }
+
+  let html = `<div class="schedule-grid">`;
+  html += `<div class="schedule-cell head">Время</div>`;
+  for (let d = 0; d <= 6; d++) {
+    html += `<div class="schedule-cell head">${WORKING_WEEKDAY_SHORT[d]}</div>`;
+  }
+  for (const time of slots) {
+    const timeClass = isHalfHour(time) ? 'schedule-cell time half' : 'schedule-cell time';
+    html += `<div class="${timeClass}">${formatTimeLabel(time)}</div>`;
+    for (let d = 0; d <= 6; d++) {
+      html += renderWorkingHoursSlotCell(d, time);
+    }
+  }
+  html += `</div>`;
+  return html;
+}
+
+function renderWorkingHoursSlotCell(weekday, timeStr) {
+  const key = `${weekday}|${timeStr}`;
+  const isNonWorking = nonWorkingSlots.has(key);
+  const className = isNonWorking ? 'schedule-cell schedule-slot non-working' : 'schedule-cell schedule-slot';
+  return `<div class="${className}" data-wh-slot="1" data-weekday="${weekday}" data-time="${timeStr}" onclick="toggleWorkingHoursSlot(${weekday}, '${timeStr}')"></div>`;
+}
+
+function toggleWorkingHoursSlot(weekday, timeStr) {
+  const key = `${weekday}|${timeStr}`;
+  if (nonWorkingSlots.has(key)) {
+    nonWorkingSlots.delete(key);
+  } else {
+    nonWorkingSlots.add(key);
+  }
+  renderWorkingHoursEditor();
+}
+
+function setNonWorkingSlot(weekday, timeStr, makeNonWorking, cellEl) {
+  const key = `${weekday}|${timeStr}`;
+  if (makeNonWorking) {
+    nonWorkingSlots.add(key);
+    if (cellEl) cellEl.classList.add('non-working');
+  } else {
+    nonWorkingSlots.delete(key);
+    if (cellEl) cellEl.classList.remove('non-working');
+  }
+}
+
+function bindWorkingHoursDrag(container) {
+  if (workingHoursDragBound) return;
+  workingHoursDragBound = true;
+
+  container.addEventListener('pointerdown', (event) => {
+    const target = event.target.closest('[data-wh-slot]');
+    if (!target) return;
+    event.preventDefault();
+    const weekday = parseInt(target.dataset.weekday, 10);
+    const timeStr = target.dataset.time;
+    const isNonWorking = nonWorkingSlots.has(`${weekday}|${timeStr}`);
+    workingHoursDragActive = true;
+    workingHoursDragValue = !isNonWorking;
+    setNonWorkingSlot(weekday, timeStr, workingHoursDragValue, target);
+  });
+
+  container.addEventListener('pointerover', (event) => {
+    if (!workingHoursDragActive) return;
+    const target = event.target.closest('[data-wh-slot]');
+    if (!target) return;
+    const weekday = parseInt(target.dataset.weekday, 10);
+    const timeStr = target.dataset.time;
+    setNonWorkingSlot(weekday, timeStr, workingHoursDragValue, target);
+  });
+
+  window.addEventListener('pointerup', () => {
+    workingHoursDragActive = false;
+    workingHoursDragValue = null;
+  });
+}
+
+function buildIntervalsFromSlots() {
+  const byDay = new Map();
+  const slotTimes = getAllSlotTimes();
+  for (let day = 0; day <= 6; day++) {
+    for (const timeStr of slotTimes) {
+      const key = `${day}|${timeStr}`;
+      if (!nonWorkingSlots.has(key)) {
+        if (!byDay.has(day)) byDay.set(day, []);
+        byDay.get(day).push(timeToMinutes(timeStr));
+      }
+    }
+  }
+
+  const items = [];
+  for (let day = 0; day <= 6; day++) {
+    const times = (byDay.get(day) || []).sort((a, b) => a - b);
+    if (times.length === 0) continue;
+    let start = times[0];
+    let prev = times[0];
+    for (let i = 1; i < times.length; i++) {
+      const t = times[i];
+      if (t === prev + SLOT_MINUTES) {
+        prev = t;
+        continue;
+      }
+      items.push({
+        weekday: day,
+        time_from: minutesToTime(start),
+        time_to: minutesToTime(prev + SLOT_MINUTES)
+      });
+      start = t;
+      prev = t;
+    }
+    items.push({
+      weekday: day,
+      time_from: minutesToTime(start),
+      time_to: minutesToTime(prev + SLOT_MINUTES)
+    });
+  }
+  return items;
+}
+
+async function saveTeacherWorkingHours() {
+  if (!currentWorkingHoursTeacherId) {
+    showNotification('❌ ID персонала не найден');
+    return;
+  }
+  const items = buildIntervalsFromSlots();
+  try {
+    const response = await fetch(`/teacher-working-hours/${currentWorkingHoursTeacherId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ items })
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      showNotification('❌ ' + (data.error || 'Не удалось сохранить'));
+      return;
+    }
+    teacherWorkingHours = Array.isArray(data.items) ? data.items : teacherWorkingHours;
+    buildNonWorkingSlots();
+    showNotification('✅ Рабочие часы сохранены');
+    renderWorkingHoursEditor();
+  } catch (error) {
+    console.error('Ошибка при сохранении рабочих часов:', error);
     showNotification('❌ Ошибка сети');
   }
 }
@@ -4624,7 +5175,10 @@ function displayProfilePhoto(photoPath) {
   const img = document.getElementById('profile-photo-img');
   const placeholder = document.getElementById('profile-photo-placeholder');
   
-  img.src = `/media/${photoPath}`;
+  const mediaUrl = buildMediaUrl(photoPath);
+  if (mediaUrl) {
+    img.src = mediaUrl;
+  }
   img.style.display = 'block';
   placeholder.style.display = 'none';
 }
@@ -4898,6 +5452,78 @@ async function openBotForCreateNews() {
   } catch (error) {
     console.error('Ошибка при получении имени бота:', error);
     window.open('https://t.me/dance_studio_admin_bot?start=create_news', '_blank');
+  }
+}
+
+async function openBotForStaffPhoto() {
+  const staffId = window.currentStaffProfileId;
+  if (!staffId) {
+    showNotification('❌ ID персонала не найден');
+    return;
+  }
+  try {
+    const response = await fetch('/bot-username');
+    const data = await response.json();
+    const botUsername = data.bot_username || 'dance_studio_admin_bot';
+    const botLink = `https://t.me/${botUsername}?start=staff_photo_${staffId}`;
+    if (tg?.openLink) {
+      tg.openLink(botLink);
+    } else {
+      window.open(botLink, '_blank');
+    }
+  } catch (error) {
+    window.open(`https://t.me/dance_studio_admin_bot?start=staff_photo_${staffId}`, '_blank');
+  }
+}
+
+function openStaffPhotoPicker() {
+  const input = document.getElementById('staff-profile-photo-input');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
+async function uploadStaffPhotoFromGallery() {
+  const staffId = window.currentStaffProfileId;
+  if (!staffId) {
+    showNotification('❌ ID персонала не найден');
+    return;
+  }
+  const input = document.getElementById('staff-profile-photo-input');
+  const file = input?.files?.[0];
+  if (!file) return;
+
+  try {
+    const formData = new FormData();
+    formData.append('photo', file);
+
+    const response = await fetch(`/staff/${staffId}/photo`, {
+      method: 'POST',
+      body: formData,
+      headers: getAuthHeaders()
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      showNotification('✅ Фото загружено');
+      if (data.photo_path) {
+        const mediaUrl = buildMediaUrl(data.photo_path);
+        const staffAvatar = document.getElementById('staff-panel-avatar-img');
+        if (mediaUrl && staffAvatar) {
+          staffAvatar.src = mediaUrl;
+          staffAvatar.style.display = 'block';
+          document.querySelector('.staff-avatar-small p').style.display = 'none';
+        }
+      }
+      return;
+    }
+
+    const error = await response.json();
+    showNotification('❌ ' + (error.error || 'Не удалось загрузить фото'));
+  } catch (error) {
+    console.error('Ошибка при загрузке фото персонала:', error);
+    showNotification('❌ Ошибка сети при загрузке фото: ' + (error && error.message ? error.message : 'unknown'));
   }
 }
 

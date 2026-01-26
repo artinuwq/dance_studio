@@ -10,7 +10,7 @@ import requests
 from sqlalchemy import or_, text
 
 from backend.db import init_db, get_session, BASE_DIR, Session, engine
-from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental
+from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental, TeacherWorkingHours
 from backend.media_manager import save_user_photo, delete_user_photo
 from backend.permissions import has_permission
 
@@ -315,7 +315,9 @@ def create_schedule():
     """
     db = g.db
     data = request.json
+
     
+
     if not data.get("title") or not data.get("teacher_id") or not data.get("date") or not data.get("start_time") or not data.get("end_time"):
         return {"error": "title, teacher_id, date, start_time и end_time обязательны"}, 400
     
@@ -1124,24 +1126,79 @@ def create_staff():
     if not staff_name or not data.get("position"):
         return {"error": "name (или telegram_id с профилем) и position обязательны"}, 400
 
+    # Проверяем допустимые должности
+    valid_positions = ["учитель", "администратор", "владелец", "тех. админ"]
+    if data.get("position").lower() not in valid_positions:
+        return {"error": f"Допустимые должности: {', '.join(valid_positions)}"}, 400
+
+    notify_flag = data.get("notify", True)
+    notify_user = str(notify_flag).strip().lower() in ["1", "true", "yes", "y", "on"]
+
+    teaches_value = 0
+    teaches_raw = normalize_teaches(data.get("teaches"))
+    if teaches_raw is None:
+        teaches_value = 1 if data.get("position").lower() == "???????" else 0
+    else:
+        teaches_value = teaches_raw
+
+    
     # Защита от дублей по telegram_id
     if data.get("telegram_id"):
         existing_staff = db.query(Staff).filter_by(telegram_id=data.get("telegram_id")).first()
         if existing_staff:
+            if existing_staff.status == "dismissed":
+                existing_staff.name = staff_name
+                existing_staff.position = data["position"]
+                existing_staff.specialization = data.get("specialization")
+                existing_staff.bio = data.get("bio")
+                existing_staff.status = "active"
+                existing_staff.teaches = teaches_value
+                db.commit()
+
+                if data.get("telegram_id"):
+                    try_fetch_telegram_avatar(data.get("telegram_id"), db, staff_obj=existing_staff)
+
+                if data.get("telegram_id") and notify_user:
+                    try:
+                        import requests
+                        from config import BOT_TOKEN
+
+                        position_display = {
+                            "учитель": "👩‍🏫 Учитель",
+                            "администратор": "📋 Администратор",
+                            "владелец": "👑 Владелец",
+                            "тех. админ": "⚙️ Технический администратор"
+                        }
+
+                        position_name = position_display.get(data["position"], data["position"])
+                        message_text = (
+                            f"🎉 Вы снова в команде!\n\n"
+                            f"Вам назначена должность:\n"
+                            f"<b>{position_name}</b>\n\n"
+                            f"Добро пожаловать обратно!"
+                        )
+
+                        telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+                        payload = {
+                            "chat_id": data.get("telegram_id"),
+                            "text": message_text,
+                            "parse_mode": "HTML"
+                        }
+                        requests.post(telegram_api_url, json=payload, timeout=5)
+                    except Exception:
+                        pass
+
+                return {
+                    "message": "Персонал восстановлен",
+                    "id": existing_staff.id,
+                    "restored": True
+                }, 200
+
             return {
                 "error": "Пользователь с таким telegram_id уже существует",
                 "existing_id": existing_staff.id
             }, 409
     
-    # Проверяем допустимые должности
-    valid_positions = ["учитель", "администратор", "владелец", "тех. админ"]
-    if data.get("position").lower() not in valid_positions:
-        return {"error": f"Допустимые должности: {', '.join(valid_positions)}"}, 400
-    
-    teaches_value = normalize_teaches(data.get("teaches"))
-    if teaches_value is None:
-        teaches_value = 1 if data.get("position").lower() == "учитель" else 0
-
     staff = Staff(
         name=staff_name,
         phone=data.get("phone") or "+7 000 000 00 00",  # Телефон опциональный
@@ -1160,7 +1217,7 @@ def create_staff():
         try_fetch_telegram_avatar(data.get("telegram_id"), db, staff_obj=staff)
     
     # Отправляем уведомление в Telegram если есть telegram_id
-    if data.get("telegram_id"):
+    if data.get("telegram_id") and notify_user:
         try:
             import requests
             from config import BOT_TOKEN
@@ -1315,6 +1372,20 @@ def update_staff(staff_id):
     if "bio" in data:
         staff.bio = data["bio"]
     if "teaches" in data:
+        actor_telegram_id = request.headers.get("X-Telegram-Id") or request.args.get("telegram_id")
+        if not actor_telegram_id and data:
+            actor_telegram_id = data.get("actor_telegram_id")
+        try:
+            actor_telegram_id = int(actor_telegram_id) if actor_telegram_id is not None else None
+        except (TypeError, ValueError):
+            return {"error": "Неверный telegram_id"}, 400
+        actor_staff = None
+        if actor_telegram_id is not None:
+            actor_staff = db.query(Staff).filter_by(telegram_id=actor_telegram_id, status="active").first()
+        allowed_positions = {"администратор", "владелец", "тех. админ"}
+        actor_position = (actor_staff.position or "").strip().lower() if actor_staff else ""
+        if actor_position not in allowed_positions:
+            return {"error": "Нет прав на изменение поля teaches"}, 403
         staff.teaches = normalize_teaches(data["teaches"])
     if "status" in data:
         staff.status = data["status"]
@@ -1337,6 +1408,121 @@ def update_staff(staff_id):
     }
 
 
+@app.route("/teacher-working-hours/<int:teacher_id>", methods=["GET"])
+def get_teacher_working_hours(teacher_id):
+    perm_error = require_permission("manage_staff", allow_self_staff_id=teacher_id)
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    items = (
+        db.query(TeacherWorkingHours)
+        .filter_by(teacher_id=teacher_id, status="active")
+        .order_by(TeacherWorkingHours.weekday.asc(), TeacherWorkingHours.time_from.asc())
+        .all()
+    )
+    return [
+        {
+            "id": i.id,
+            "teacher_id": i.teacher_id,
+            "weekday": i.weekday,
+            "time_from": i.time_from.strftime("%H:%M") if i.time_from else None,
+            "time_to": i.time_to.strftime("%H:%M") if i.time_to else None,
+            "valid_from": i.valid_from.isoformat() if i.valid_from else None,
+            "valid_to": i.valid_to.isoformat() if i.valid_to else None,
+            "status": i.status,
+            "created_at": i.created_at.isoformat() if i.created_at else None,
+            "updated_at": i.updated_at.isoformat() if i.updated_at else None
+        }
+        for i in items
+    ]
+
+
+@app.route("/teacher-working-hours/<int:teacher_id>", methods=["PUT"])
+def put_teacher_working_hours(teacher_id):
+    perm_error = require_permission("manage_staff", allow_self_staff_id=teacher_id)
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    data = request.json or {}
+    items = data.get("items", [])
+    if not isinstance(items, list):
+        return {"error": "items должен быть списком"}, 400
+
+    parsed_items = []
+    for item in items:
+        try:
+            weekday = int(item.get("weekday"))
+        except (TypeError, ValueError):
+            return {"error": "weekday должен быть числом 0..6"}, 400
+        if weekday < 0 or weekday > 6:
+            return {"error": "weekday должен быть в диапазоне 0..6"}, 400
+
+        time_from_str = item.get("time_from")
+        time_to_str = item.get("time_to")
+        if not time_from_str or not time_to_str:
+            return {"error": "time_from и time_to обязательны"}, 400
+        try:
+            time_from_val = datetime.strptime(time_from_str, "%H:%M").time()
+            time_to_val = datetime.strptime(time_to_str, "%H:%M").time()
+        except ValueError:
+            return {"error": "time_from и time_to должны быть в формате HH:MM"}, 400
+        if time_from_val >= time_to_val:
+            return {"error": "time_from должен быть меньше time_to"}, 400
+
+        valid_from = item.get("valid_from")
+        valid_to = item.get("valid_to")
+        try:
+            valid_from_val = datetime.strptime(valid_from, "%Y-%m-%d").date() if valid_from else None
+            valid_to_val = datetime.strptime(valid_to, "%Y-%m-%d").date() if valid_to else None
+        except ValueError:
+            return {"error": "valid_from и valid_to должны быть в формате YYYY-MM-DD"}, 400
+
+        parsed_items.append(
+            {
+                "weekday": weekday,
+                "time_from": time_from_val,
+                "time_to": time_to_val,
+                "valid_from": valid_from_val,
+                "valid_to": valid_to_val,
+            }
+        )
+
+    existing = db.query(TeacherWorkingHours).filter_by(teacher_id=teacher_id, status="active").all()
+    for row in existing:
+        row.status = "archived"
+        row.updated_at = datetime.now()
+
+    for item in parsed_items:
+        db.add(
+            TeacherWorkingHours(
+                teacher_id=teacher_id,
+                weekday=item["weekday"],
+                time_from=item["time_from"],
+                time_to=item["time_to"],
+                valid_from=item["valid_from"],
+                valid_to=item["valid_to"],
+                status="active",
+            )
+        )
+
+    db.commit()
+
+    return {
+        "items": [
+            {
+                "weekday": i["weekday"],
+                "time_from": i["time_from"].strftime("%H:%M"),
+                "time_to": i["time_to"].strftime("%H:%M"),
+                "valid_from": i["valid_from"].isoformat() if i["valid_from"] else None,
+                "valid_to": i["valid_to"].isoformat() if i["valid_to"] else None,
+                "status": "active",
+            }
+            for i in parsed_items
+        ]
+    }
+
 @app.route("/staff/<int:staff_id>", methods=["DELETE"])
 def delete_staff(staff_id):
     """
@@ -1354,12 +1540,17 @@ def delete_staff(staff_id):
     
     staff_name = staff.name
     telegram_id = staff.telegram_id
-    
-    db.delete(staff)
+
+    # Вместо физического удаления — деактивируем, чтобы не ломать расписание
+    staff.status = "dismissed"
+    staff.teaches = 0
     db.commit()
     
+    notify_flag = request.args.get("notify", "1").strip().lower()
+    notify_user = notify_flag in ["1", "true", "yes", "y", "on"]
+
     # Отправляем уведомление об увольнении в Telegram если есть telegram_id
-    if telegram_id:
+    if telegram_id and notify_user:
         try:
             import requests
             from config import BOT_TOKEN
@@ -1389,7 +1580,8 @@ def delete_staff(staff_id):
     
     return {
         "message": f"Персонал '{staff_name}' удален",
-        "deleted_id": staff_id
+        "deleted_id": staff_id,
+        "status": staff.status
     }
 
 
@@ -1484,7 +1676,10 @@ def list_teachers():
     db = g.db
     teachers = db.query(Staff).filter(
         Staff.status == "active",
-        or_(Staff.position.in_(["учитель", "Учитель"]), Staff.teaches == 1)
+        or_(
+            Staff.teaches == 1,
+            (Staff.position.in_(["учитель", "Учитель"]) & Staff.teaches.is_(None))
+        )
     ).all()
     
     result = []
@@ -1515,7 +1710,7 @@ def list_all_staff():
     Возвращает список всего персонала для администраторов
     """
     db = g.db
-    staff = db.query(Staff).all()
+    staff = db.query(Staff).filter(Staff.status != "dismissed").all()
     
     result = []
     for s in staff:

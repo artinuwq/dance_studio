@@ -8,9 +8,9 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
-from config import BOT_TOKEN
+from config import BOT_TOKEN, WEB_APP_URL
 from backend.db import get_session
-from backend.models import News, User, Mailing, Group, DirectionUploadSession
+from backend.models import News, User, Mailing, Group, DirectionUploadSession, Staff
 from datetime import datetime
 import os
 import tempfile
@@ -33,6 +33,10 @@ class DirectionUploadStates(StatesGroup):
     waiting_for_photo = State()
     uploading_photo = State()
 
+class StaffPhotoStates(StatesGroup):
+    waiting_for_photo = State()
+    uploading_photo = State()
+
 
 @dp.message(CommandStart())
 async def start(message, state: FSMContext):
@@ -48,7 +52,7 @@ async def start(message, state: FSMContext):
         menu_button=MenuButtonWebApp(
             text="🩰 LISSA DANCE",
             web_app=WebAppInfo(
-                url="https://lumica.duckdns.org/"
+                url=(WEB_APP_URL or "https://lumica.duckdns.org/")
             )
         )
     )
@@ -72,6 +76,35 @@ async def start(message, state: FSMContext):
         await state.update_data(user_id=user_id)
     
     # Проверяем, есть ли параметр для загрузки фото направления
+    elif start_param and start_param.startswith("staff_photo_"):
+        staff_id_str = start_param[len("staff_photo_"):]
+        try:
+            staff_id = int(staff_id_str)
+        except ValueError:
+            await message.answer("❌ Неверный формат ID сотрудника.")
+            return
+
+        db = get_session()
+        try:
+            staff = db.query(Staff).filter_by(id=staff_id).first()
+            if not staff:
+                await message.answer("❌ Сотрудник не найден.")
+                return
+
+            await state.update_data(staff_id=staff_id)
+            await message.answer(
+                f"📸 <b>Загрузка фото сотрудника</b>\n\n"
+                f"<b>Сотрудник:</b> {staff.name}\n"
+                f"Отправьте фото (JPG/PNG).",
+                parse_mode=ParseMode.HTML
+            )
+            await state.set_state(StaffPhotoStates.waiting_for_photo)
+        except Exception as e:
+            print(f"Ошибка при подготовке загрузки фото сотрудника: {e}")
+            await message.answer("❌ Ошибка при подготовке загрузки фото.")
+        finally:
+            db.close()
+
     elif start_param and start_param.startswith("upload_"):
         # Извлекаем токен из параметра (upload_TOKEN)
         token = start_param[7:]  # Убираем "upload_" префикс
@@ -684,3 +717,45 @@ async def process_direction_photo(message, state: FSMContext):
         await state.set_state(DirectionUploadStates.waiting_for_photo)
 
 
+@dp.message(StaffPhotoStates.waiting_for_photo)
+async def process_staff_photo(message, state: FSMContext):
+    if not message.photo:
+        await message.answer("❌ Пожалуйста, отправьте фото (JPG/PNG).")
+        return
+
+    await state.set_state(StaffPhotoStates.uploading_photo)
+    data = await state.get_data()
+    staff_id = data.get("staff_id")
+    if not staff_id:
+        await message.answer("❌ ID сотрудника не найден.")
+        await state.clear()
+        return
+
+    try:
+        file_info = await bot.get_file(message.photo[-1].file_id)
+        file_path = await bot.download_file(file_info.file_path)
+        file_content = file_path.read()
+
+        async with aiohttp.ClientSession() as session:
+            form = aiohttp.FormData()
+            form.add_field('photo', file_content, filename=f'photo_{staff_id}.jpg', content_type='image/jpeg')
+
+            async with session.post(
+                f"http://localhost:5000/staff/{staff_id}/photo",
+                data=form
+            ) as resp:
+                if resp.status in (200, 201):
+                    await message.answer("✅ Фото сотрудника успешно загружено.")
+                    await state.clear()
+                    return
+
+                error_msg = await resp.text()
+                raise Exception(f"Ошибка сервера: {resp.status} - {error_msg}")
+
+    except Exception as e:
+        print(f"❌ Ошибка при загрузке фото сотрудника: {e}")
+        await message.answer(
+            f"❌ Ошибка при загрузке фото:\n{str(e)}\n\n"
+            f"Попробуйте отправить фото еще раз."
+        )
+        await state.set_state(StaffPhotoStates.waiting_for_photo)

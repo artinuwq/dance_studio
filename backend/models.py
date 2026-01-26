@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 
@@ -213,3 +213,144 @@ class DirectionUploadSession(Base):
 
     # Отношение к администратору
     admin = relationship("Staff", foreign_keys=[admin_id])
+
+
+# ======================== РАБОЧИЕ ЧАСЫ ПРЕПОДАВАТЕЛЕЙ ========================
+class TeacherWorkingHours(Base):
+    __tablename__ = "teacher_working_hours"
+
+    id = Column(Integer, primary_key=True)
+    teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    weekday = Column(Integer, nullable=False)  # 0..6 (0=Пн)
+    time_from = Column(Time, nullable=False)
+    time_to = Column(Time, nullable=False)
+    valid_from = Column(Date, nullable=True)  # NULL = всегда
+    valid_to = Column(Date, nullable=True)  # NULL = бессрочно
+    status = Column(String, default="active", nullable=False)  # active/archived
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    teacher = relationship("Staff", foreign_keys=[teacher_id])
+
+    __table_args__ = (
+        Index("ix_teacher_working_hours_teacher_weekday", "teacher_id", "weekday"),
+        Index("ix_teacher_working_hours_teacher_validity", "teacher_id", "valid_from", "valid_to"),
+    )
+
+
+# ======================== ИСКЛЮЧЕНИЯ И ОТПУСКА ПРЕПОДАВАТЕЛЕЙ ========================
+class TeacherTimeOff(Base):
+    __tablename__ = "teacher_time_off"
+
+    id = Column(Integer, primary_key=True)
+    teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    time_from = Column(Time, nullable=True)  # NULL = весь день
+    time_to = Column(Time, nullable=True)  # NULL = весь день
+    reason = Column(Text, nullable=True)
+    status = Column(String, default="active", nullable=False)  # active/archived
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    teacher = relationship("Staff", foreign_keys=[teacher_id])
+
+    __table_args__ = (
+        Index("ix_teacher_time_off_teacher_date", "teacher_id", "date"),
+    )
+
+
+# ======================== ОТМЕТКИ ОТКЛОНЕНИЙ РАСПИСАНИЯ ========================
+class ScheduleOverrides(Base):
+    __tablename__ = "schedule_overrides"
+
+    id = Column(Integer, primary_key=True)
+    schedule_id = Column(Integer, ForeignKey("schedule.id"), nullable=False)
+    override_type = Column(String, nullable=False)  # OUTSIDE_WORKING_HOURS
+    reason = Column(Text, nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    schedule = relationship("Schedule", foreign_keys=[schedule_id])
+    created_by_user = relationship("User", foreign_keys=[created_by_user_id])
+
+
+class GroupAbonement(Base):
+    __tablename__ = "group_abonements"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=False)
+    balance_credits = Column(Integer, nullable=False)
+    status = Column(String, nullable=False)
+    valid_from = Column(DateTime, nullable=True)
+    valid_to = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    user = relationship("User", foreign_keys=[user_id])
+    group = relationship("Group", foreign_keys=[group_id])
+
+    __table_args__ = (
+        CheckConstraint("balance_credits >= 0", name="ck_group_abonements_balance_credits_non_negative"),
+    )
+
+
+class Attendance(Base):
+    __tablename__ = "attendance"
+
+    id = Column(Integer, primary_key=True)
+    schedule_id = Column(Integer, ForeignKey("schedule.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String, nullable=False)
+    abonement_id = Column(Integer, ForeignKey("group_abonements.id"), nullable=True)
+    marked_at = Column(DateTime, nullable=True)
+    marked_by_staff_id = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    schedule = relationship("Schedule", foreign_keys=[schedule_id])
+    user = relationship("User", foreign_keys=[user_id])
+    abonement = relationship("GroupAbonement", foreign_keys=[abonement_id])
+    marked_by_staff = relationship("Staff", foreign_keys=[marked_by_staff_id])
+
+
+class PaymentTransaction(Base):
+    __tablename__ = "payment_transactions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    amount = Column(Integer, nullable=False)
+    currency = Column(String, default="RUB", nullable=False)
+    provider = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    meta = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    paid_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_payment_transactions_amount_positive"),
+    )
+
+
+class GroupAbonementActionLog(Base):
+    __tablename__ = "group_abonement_action_logs"
+
+    id = Column(Integer, primary_key=True)
+    abonement_id = Column(Integer, ForeignKey("group_abonements.id"), nullable=False)
+    action_type = Column(String, nullable=False)
+    credits_delta = Column(Integer, nullable=True)
+    reason = Column(String, nullable=True)
+    note = Column(Text, nullable=True)
+    attendance_id = Column(Integer, ForeignKey("attendance.id"), nullable=True)
+    payment_id = Column(Integer, ForeignKey("payment_transactions.id"), nullable=True)
+    actor_type = Column(String, nullable=False)
+    actor_id = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    payload = Column(Text, nullable=True)
+
+    abonement = relationship("GroupAbonement", foreign_keys=[abonement_id])
+    attendance = relationship("Attendance", foreign_keys=[attendance_id])
+    payment = relationship("PaymentTransaction", foreign_keys=[payment_id])
