@@ -236,15 +236,20 @@ def schedule_public():
 
         direction_title = None
         direction_description = None
+        direction_image = None
+        direction_id = None
         teacher_name = None
         lessons_per_week = None
         age_group = None
         if group:
             if group.direction_id:
+                direction_id = group.direction_id
                 direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
                 if direction:
                     direction_title = direction.title
                     direction_description = direction.description
+                    if direction.image_path:
+                        direction_image = "/" + direction.image_path.replace("\\", "/")
             if group.teacher_id:
                 teacher = db.query(Staff).filter_by(id=group.teacher_id).first()
                 teacher_name = teacher.name if teacher else None
@@ -259,6 +264,8 @@ def schedule_public():
             "title": group.name if group and group.name else s.title,
             "direction": direction_title,
             "direction_description": direction_description,
+            "direction_image": direction_image,
+            "direction_id": direction_id,
             "teacher_name": teacher_name,
             "lessons_per_week": lessons_per_week,
             "age_group": age_group,
@@ -1916,7 +1923,7 @@ def get_directions():
     """Получает все активные направления"""
     db = g.db
     directions = db.query(Direction).filter_by(status="active").order_by(Direction.created_at.desc()).all()
-    
+
     print(f"✓ Найдено {len(directions)} активных направлений")
     
     result = []
@@ -1924,6 +1931,7 @@ def get_directions():
         image_url = None
         if d.image_path:
             image_url = "/" + d.image_path.replace("\\", "/")
+        groups_count = db.query(Group).filter_by(direction_id=d.direction_id).count()
         
         result.append({
             "direction_id": d.direction_id,
@@ -1932,7 +1940,8 @@ def get_directions():
             "base_price": d.base_price,
             "is_popular": d.is_popular,
             "image_path": image_url,
-            "created_at": d.created_at.isoformat()
+            "created_at": d.created_at.isoformat(),
+            "groups_count": groups_count
         })
     
     return jsonify(result)
@@ -1949,6 +1958,7 @@ def get_directions_manage():
         image_url = None
         if d.image_path:
             image_url = "/" + d.image_path.replace("\\", "/")
+        groups_count = db.query(Group).filter_by(direction_id=d.direction_id).count()
         
         result.append({
             "direction_id": d.direction_id,
@@ -1959,7 +1969,8 @@ def get_directions_manage():
             "status": d.status,
             "image_path": image_url,
             "created_at": d.created_at.isoformat(),
-            "updated_at": d.updated_at.isoformat()
+            "updated_at": d.updated_at.isoformat(),
+            "groups_count": groups_count
         })
     
     return jsonify(result)

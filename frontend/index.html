@@ -1107,6 +1107,11 @@ textarea.form-input {
   cursor: pointer;
 }
 
+.public-date-card:hover,
+.public-schedule-item:hover {
+  cursor: pointer;
+}
+
 .public-date-card.active {
   background: #111;
   color: #fff;
@@ -1180,6 +1185,15 @@ textarea.form-input {
   margin-bottom: 4px;
 }
 
+.public-info-image {
+  width: 100%;
+  height: 90px;
+  border-radius: 12px;
+  object-fit: cover;
+  margin-bottom: 6px;
+  display: block;
+}
+
 .public-info-sub {
   font-size: 13px;
   color: var(--hint);
@@ -1191,41 +1205,47 @@ textarea.form-input {
   color: var(--hint);
 }
 
+/* ====== НАПРАВЛЕНИЕ (ДЕТАЛИ) ====== */
+.direction-detail-photo {
+  width: calc(100% + 32px);
+  height: 300px;
+  background: var(--card);
+  overflow: hidden;
+  margin-bottom: -30px;
+  margin-left: -16px;
+  margin-right: -16px;
+  position: relative;
+  z-index: 1;
+  border-radius: 0;
+}
+
+.direction-detail-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.direction-detail-content {
+  background: var(--bg);
+  border-radius: 24px 24px 0 0;
+  padding: 20px 16px 16px 16px;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 -10px 20px rgba(0, 0, 0, 0.08);
+  margin-left: -16px;
+  margin-right: -16px;
+}
+
 .public-chevron {
   font-size: 18px;
   color: var(--hint);
   align-self: center;
 }
 
-.public-schedule-modal {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: #fff;
-  border-radius: 20px 20px 0 0;
-  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.15);
-  padding: 16px;
-  display: none;
-  z-index: 1002;
-  max-height: 70vh;
-  overflow-y: auto;
-}
-
-.public-schedule-modal.show {
-  display: block;
-}
-
-.public-schedule-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.2);
-  display: none;
-  z-index: 1001;
-}
-
-.public-schedule-overlay.show {
-  display: block;
+.public-schedule-detail {
+  display: grid;
+  gap: 12px;
 }
 </style>
 </head>
@@ -1349,10 +1369,9 @@ textarea.form-input {
 <div class="public-schedule-list" id="schedule-container">
   <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>
 </div>
-<div class="public-schedule-overlay" id="public-schedule-overlay" onclick="closePublicScheduleModal()"></div>
-<div class="public-schedule-modal" id="public-schedule-modal">
-  <div id="public-schedule-modal-content"></div>
 </div>
+<div class="page" data-title="🗓 Занятие" id="public-schedule-detail">
+  <div class="public-schedule-detail" id="public-schedule-detail-content"></div>
 </div>
 <!-- ====== РАБОТЫ (ПЕРСОНАЛ) ====== -->
 <div class="page work-page" data-title="👨‍💼 Работа" id="staff">
@@ -2064,7 +2083,11 @@ textarea.form-input {
 <div class="page" data-title="ℹ️ Информация" id="info">
 
 <h3 id="info-title" style="display: none;"></h3>
-<p class="small">Раздел находится в разработке</p>
+<p class="small" id="info-placeholder">Раздел находится в разработке</p>
+<div id="info-directions-container" style="display: none;"></div>
+</div>
+<div class="page" data-title="🎯 Направление" id="direction-detail">
+  <div id="direction-detail-content"></div>
 </div>
 <div class="page" data-title="⏱️ Индивидуальные занятия" id="info-individual">
 <p class="small">Раздел находится в разработке</p>
@@ -2323,11 +2346,13 @@ function showSection(section) {
       showPage('info');
       document.getElementById('info-title').innerText = 'Преподаватели';
       setHeaderTitle('Преподаватели');
+      resetInfoPage();
       break;
     case 'info-directions':
       showPage('info');
       document.getElementById('info-title').innerText = 'Направления';
       setHeaderTitle('Направления');
+      loadInfoDirections();
       break;
     case 'info-individual':
       showPage('info-individual');
@@ -2338,6 +2363,115 @@ function showSection(section) {
       setHeaderTitle('Аренда зала');
       break;
   }
+}
+
+function resetInfoPage() {
+  const container = document.getElementById('info-directions-container');
+  const placeholder = document.getElementById('info-placeholder');
+  if (container) {
+    container.style.display = 'none';
+    container.innerHTML = '';
+  }
+  if (placeholder) {
+    placeholder.style.display = 'block';
+    placeholder.textContent = 'Раздел находится в разработке';
+  }
+}
+
+function loadInfoDirections() {
+  const container = document.getElementById('info-directions-container');
+  const placeholder = document.getElementById('info-placeholder');
+  if (!container) return;
+  container.style.display = 'block';
+  if (placeholder) placeholder.style.display = 'none';
+
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">⏳ Загрузка направлений...</p>';
+
+  fetch('/api/directions')
+    .then(async res => {
+      if (!res.ok) throw new Error('Не удалось загрузить направления');
+      return res.json();
+    })
+    .then(directions => {
+      if (!directions || directions.length === 0) {
+        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">📭 Направлений нет</p>';
+        return;
+      }
+      container.innerHTML = directions.map(d => {
+        const imageHtml = d.image_path
+          ? `<img src="${d.image_path}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin-bottom: 10px;">`
+          : '';
+        const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
+        const groupsCount = typeof d.groups_count === 'number' ? `👥 ${d.groups_count} групп` : '';
+        const metaLine = [price, groupsCount].filter(Boolean).join(' • ');
+        return `
+          <div class="card" style="cursor: pointer;" onclick="openDirectionDetail(${d.direction_id})">
+            ${imageHtml}
+            <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">${d.title || 'Направление'}</div>
+            <div class="small" style="margin-bottom: 8px;">${d.description || 'Описание отсутствует'}</div>
+            ${metaLine ? `<div class="small">${metaLine}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    })
+    .catch(err => {
+      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 12px;">❌ ${err.message}</p>`;
+    });
+}
+
+function openDirectionDetail(directionId) {
+  if (!directionId) return;
+  const content = document.getElementById('direction-detail-content');
+  if (!content) return;
+
+  content.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">⏳ Загрузка...</p>';
+  showPage('direction-detail');
+
+  Promise.all([
+    fetch(`/api/directions/${directionId}`).then(res => res.ok ? res.json() : Promise.reject(new Error('Не удалось загрузить направление'))),
+    fetch(`/api/directions/${directionId}/groups`).then(res => res.ok ? res.json() : [])
+  ])
+    .then(([d, groups]) => {
+      const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
+      const status = d.status === 'active' ? '✅ Активно' : '⏸️ Неактивно';
+      const photoBlock = d.image_path
+        ? `<div class="direction-detail-photo"><img src="${d.image_path}" alt="Направление"></div>`
+        : '';
+
+      const groupsHtml = (groups && groups.length)
+        ? groups.map(g => {
+            const teacher = g.teacher_name ? `👩‍🏫 ${g.teacher_name}` : '👩‍🏫 —';
+            const lessons = g.lessons_per_week ? `📆 ${g.lessons_per_week} в неделю` : '📆 —';
+            return `
+              <div class="card" style="margin-bottom: 8px;">
+                <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">${g.name || 'Группа'}</div>
+                <div class="small" style="margin-bottom: 6px;">${teacher}</div>
+                <div class="small" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <span>🎈 ${g.age_group || '—'}</span>
+                  <span>⏱️ ${g.duration_minutes ? g.duration_minutes + ' мин' : '—'}</span>
+                  <span>${lessons}</span>
+                  <span>👥 ${g.max_students || '—'} учеников</span>
+                </div>
+                <button class="save-btn" style="width: 100%; margin-top: 8px; background: #111;">Записаться</button>
+              </div>
+            `;
+          }).join('')
+        : '<p class="small" style="text-align: center; color: var(--hint); padding: 10px;">📭 Групп пока нет</p>';
+
+      content.innerHTML = `
+        ${photoBlock}
+        <div class="direction-detail-content">
+          <div style="font-weight: 700; font-size: 20px; margin-bottom: 6px;">${d.title || 'Направление'}</div>
+          <div class="small" style="margin-bottom: 8px;">${[status, price].filter(Boolean).join(' • ')}</div>
+          <div class="small" style="margin-bottom: 10px;">${d.description || 'Описание отсутствует'}</div>
+          <div style="font-weight: 700; font-size: 16px; margin: 12px 0 8px 0;">Группы</div>
+          ${groupsHtml}
+        </div>
+      `;
+    })
+    .catch(err => {
+      content.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 12px;">❌ ${err.message}</p>`;
+    });
 }
 
 /* ====== АДМИН-РАСПИСАНИЕ (РАБОТА) ====== */
@@ -3727,8 +3861,10 @@ async function loadPublicSchedule() {
     const schedules = await response.json();
     window.publicScheduleItems = Array.isArray(schedules) ? schedules : [];
     
-    initPublicScheduleStrip();
-    renderPublicScheduleList();
+    preloadPublicDirections().then(() => {
+      initPublicScheduleStrip();
+      renderPublicScheduleList();
+    });
   } catch (error) {
     console.error('Ошибка при загрузке расписания:', error);
     const container = document.getElementById('schedule-container');
@@ -3736,6 +3872,34 @@ async function loadPublicSchedule() {
       container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка сети</p>';
     }
   }
+}
+
+function preloadPublicDirections() {
+  const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
+  const missingIds = Array.from(new Set(items
+    .filter(s => s.direction_id && !s.direction_image)
+    .map(s => s.direction_id)
+  ));
+  if (!missingIds.length) return Promise.resolve();
+  if (!window.publicDirectionsCache) window.publicDirectionsCache = {};
+
+  return Promise.all(missingIds.map(id => {
+    if (window.publicDirectionsCache[id]) return Promise.resolve();
+    return fetch(`/api/directions/${id}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(dir => {
+        if (dir && dir.image_path) {
+          window.publicDirectionsCache[id] = dir.image_path;
+        }
+      })
+      .catch(() => {});
+  })).then(() => {
+    items.forEach(s => {
+      if (!s.direction_image && s.direction_id && window.publicDirectionsCache[s.direction_id]) {
+        s.direction_image = window.publicDirectionsCache[s.direction_id];
+      }
+    });
+  });
 }
 
 function initPublicScheduleStrip() {
@@ -3801,7 +3965,7 @@ function renderPublicScheduleList() {
     const duration = getDurationMinutes(startTime, endTime);
     const color = getPublicScheduleColor(s.title || '');
     return `
-      <div class="public-schedule-item" onclick="openPublicScheduleModal(${s.id})">
+      <div class="public-schedule-item" onclick="openPublicScheduleDetail(${s.id})">
         <div class="public-schedule-time">
           <div class="public-dot" style="background:${color};"></div>
           <div class="public-time">${startTime || '—'}</div>
@@ -3839,46 +4003,41 @@ function getPublicScheduleColor(key) {
   return `hsl(${hue}, 70%, 55%)`;
 }
 
-function openPublicScheduleModal(id) {
+function openPublicScheduleDetail(id) {
   const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
   const item = items.find(i => i.id === id);
   if (!item) return;
 
-  const modal = document.getElementById('public-schedule-modal');
-  const overlay = document.getElementById('public-schedule-overlay');
-  const content = document.getElementById('public-schedule-modal-content');
-  if (!modal || !overlay || !content) return;
+  const content = document.getElementById('public-schedule-detail-content');
+  if (!content) return;
 
   const startTime = formatTimeShort(item.start);
   const endTime = formatTimeShort(item.end);
   const duration = getDurationMinutes(startTime, endTime);
   const lessons = item.lessons_per_week ? item.lessons_per_week : '—';
+  const directionImage = item.direction_image || '';
 
   content.innerHTML = `
-    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+    ${directionImage ? `<div class="card" style="padding:0; overflow:hidden; margin-bottom:8px;"><img src="${directionImage}" alt="Направление" style="width:100%; height:180px; object-fit:cover; display:block;"></div>` : ''}
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
       <div class="schedule-detail-chip">📅 ${item.date ? new Date(item.date).toLocaleDateString('ru-RU') : '—'}</div>
       <div class="schedule-detail-chip">⏰ ${startTime || '—'} — ${endTime || '—'}</div>
       <div class="schedule-detail-chip">⏳ ${duration ? duration + ' мин' : '—'}</div>
     </div>
     <div class="schedule-detail-card">
       <div class="schedule-detail-row">👥 <strong>Группа:</strong> ${item.title || '—'}</div>
-      <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${item.direction || '—'}</div>
       <div class="schedule-detail-row">👩‍🏫 <strong>Преподаватель:</strong> ${item.teacher_name || '—'}</div>
       <div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${lessons}</div>
       <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${item.age_group || '—'}</div>
+    </div>
+    <div class="schedule-detail-card">
+      <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${item.direction || '—'}</div>
       <div class="schedule-detail-row">📝 <strong>Описание направления:</strong> ${item.direction_description || '—'}</div>
+      <button class="save-btn" style="width:100%; margin-top:4px; background:#111;">Перейти в направление</button>
     </div>
   `;
 
-  modal.classList.add('show');
-  overlay.classList.add('show');
-}
-
-function closePublicScheduleModal() {
-  const modal = document.getElementById('public-schedule-modal');
-  const overlay = document.getElementById('public-schedule-overlay');
-  if (modal) modal.classList.remove('show');
-  if (overlay) overlay.classList.remove('show');
+  showPage('public-schedule-detail');
 }
 
 async function loadTeachers() {
