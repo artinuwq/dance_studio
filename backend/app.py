@@ -10,7 +10,7 @@ import requests
 from sqlalchemy import or_, text
 
 from backend.db import init_db, get_session, BASE_DIR, Session, engine
-from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental, TeacherWorkingHours
+from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental, TeacherWorkingHours, GroupAbonement, PaymentTransaction
 from backend.media_manager import save_user_photo, delete_user_photo
 from backend.permissions import has_permission
 
@@ -1137,7 +1137,7 @@ def create_staff():
     teaches_value = 0
     teaches_raw = normalize_teaches(data.get("teaches"))
     if teaches_raw is None:
-        teaches_value = 1 if data.get("position").lower() == "???????" else 0
+        teaches_value = 1 if data.get("position").lower() == "учитель" else 0
     else:
         teaches_value = teaches_raw
 
@@ -2208,11 +2208,15 @@ def get_direction_groups(direction_id):
     result = []
     for gr in groups:
         teacher_name = gr.teacher.name if gr.teacher else None
+        teacher_photo = None
+        if gr.teacher and gr.teacher.photo_path:
+            teacher_photo = "/" + gr.teacher.photo_path.replace("\\", "/")
         result.append({
             "id": gr.id,
             "direction_id": gr.direction_id,
             "teacher_id": gr.teacher_id,
             "teacher_name": teacher_name,
+            "teacher_photo": teacher_photo,
             "name": gr.name,
             "description": gr.description,
             "age_group": gr.age_group,
@@ -2652,3 +2656,215 @@ def upload_direction_photo(token):
     except Exception as e:
         print(f"Ошибка при загрузке фотографии: {e}")
         return {"error": str(e)}, 500
+
+
+# ======================== ГРУППОВЫЕ АБОНЕМЕНТЫ / ОПЛАТЫ (ЗАГЛУШКА) ========================
+def get_current_user_from_request(db):
+    telegram_id = request.headers.get("X-Telegram-Id") or request.args.get("telegram_id")
+    if not telegram_id:
+        return None
+    try:
+        telegram_id = int(telegram_id)
+    except (TypeError, ValueError):
+        return None
+    return db.query(User).filter_by(telegram_id=telegram_id).first()
+
+
+def get_next_group_date(db, group_id):
+    today = datetime.now().date()
+    q = db.query(Schedule).filter(
+        Schedule.object_type == "group",
+        Schedule.date.isnot(None),
+        Schedule.status != "cancelled",
+        ((Schedule.group_id == group_id) | (Schedule.object_id == group_id)),
+        Schedule.date >= today
+    ).order_by(Schedule.date.asc())
+    item = q.first()
+    if item and item.date:
+        return item.date
+    return today
+
+
+@app.route("/api/group-abonements/create", methods=["POST"])
+def create_group_abonement():
+    db = g.db
+    data = request.json or {}
+
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "Пользователь не найден"}, 401
+
+    group_id = data.get("group_id")
+    lessons_count = data.get("lessons_count")
+    if not group_id or not lessons_count:
+        return {"error": "group_id и lessons_count обязательны"}, 400
+
+    try:
+        group_id = int(group_id)
+        lessons_count = int(lessons_count)
+    except (TypeError, ValueError):
+        return {"error": "group_id и lessons_count должны быть числами"}, 400
+
+    if lessons_count <= 0:
+        return {"error": "lessons_count должен быть больше 0"}, 400
+
+    group = db.query(Group).filter_by(id=group_id).first()
+    if not group:
+        return {"error": "Группа не найдена"}, 404
+
+    direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
+    price_per_lesson = direction.base_price if direction else None
+    if not price_per_lesson or price_per_lesson <= 0:
+        return {"error": "Цена направления не задана"}, 400
+
+    total_amount = lessons_count * price_per_lesson
+    base_date = get_next_group_date(db, group_id)
+    valid_from = datetime.combine(base_date, time.min)
+    valid_to = valid_from + timedelta(days=30)
+
+    abonement = GroupAbonement(
+        user_id=user.id,
+        group_id=group_id,
+        balance_credits=lessons_count,
+        status="pending_activation",
+        valid_from=valid_from,
+        valid_to=valid_to
+    )
+    db.add(abonement)
+    db.flush()
+
+    payment = PaymentTransaction(
+        user_id=user.id,
+        amount=total_amount,
+        currency="RUB",
+        provider="stub",
+        status="pending",
+        description=f"Абонемент на {lessons_count} занятий",
+        meta=json.dumps({"abonement_id": abonement.id})
+    )
+    db.add(payment)
+    db.commit()
+
+    return {
+        "abonement_id": abonement.id,
+        "payment_id": payment.id,
+        "amount": total_amount,
+        "currency": "RUB",
+        "valid_from": abonement.valid_from.isoformat() if abonement.valid_from else None,
+        "valid_to": abonement.valid_to.isoformat() if abonement.valid_to else None,
+        "status": "pending"
+    }, 201
+
+
+@app.route("/api/payment-transactions/<int:payment_id>/pay", methods=["POST"])
+def pay_transaction(payment_id):
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "Пользователь не найден"}, 401
+
+    payment = db.query(PaymentTransaction).filter_by(id=payment_id, user_id=user.id).first()
+    if not payment:
+        return {"error": "Транзакция не найдена"}, 404
+
+    if payment.status == "paid":
+        return {"status": "already_paid"}
+
+    payment.status = "paid"
+    payment.paid_at = datetime.now()
+
+    abonement = None
+    if payment.meta:
+        try:
+            meta = json.loads(payment.meta)
+            abonement_id = meta.get("abonement_id")
+            if abonement_id:
+                abonement = db.query(GroupAbonement).filter_by(id=abonement_id, user_id=user.id).first()
+        except Exception:
+            abonement = None
+
+    if not abonement:
+        abonement = db.query(GroupAbonement).filter_by(user_id=user.id, status="pending_activation").order_by(GroupAbonement.created_at.desc()).first()
+
+    if abonement:
+        abonement.status = "active"
+
+    db.commit()
+    return {"status": "paid"}
+
+
+@app.route("/api/payment-transactions/my", methods=["GET"])
+def get_my_transactions():
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "Пользователь не найден"}, 401
+
+    items = db.query(PaymentTransaction).filter_by(user_id=user.id).order_by(PaymentTransaction.created_at.desc()).all()
+    result = []
+    for t in items:
+        result.append({
+            "id": t.id,
+            "amount": t.amount,
+            "currency": t.currency,
+            "provider": t.provider,
+            "status": t.status,
+            "description": t.description,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "paid_at": t.paid_at.isoformat() if t.paid_at else None
+        })
+
+    return jsonify(result)
+
+
+@app.route("/api/group-abonements/my", methods=["GET"])
+def get_my_abonements():
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "Пользователь не найден"}, 401
+
+    items = db.query(GroupAbonement).filter_by(user_id=user.id, status="active").order_by(GroupAbonement.created_at.desc()).all()
+    result = []
+    for a in items:
+        group = db.query(Group).filter_by(id=a.group_id).first()
+        direction = db.query(Direction).filter_by(direction_id=group.direction_id).first() if group else None
+        result.append({
+            "id": a.id,
+            "group_id": a.group_id,
+            "group_name": group.name if group else None,
+            "direction_title": direction.title if direction else None,
+            "balance_credits": a.balance_credits,
+            "status": a.status,
+            "valid_from": a.valid_from.isoformat() if a.valid_from else None,
+            "valid_to": a.valid_to.isoformat() if a.valid_to else None
+        })
+
+    return jsonify(result)
+
+
+@app.route("/api/groups/my", methods=["GET"])
+def get_my_groups():
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "Пользователь не найден"}, 401
+
+    abonements = db.query(GroupAbonement).filter_by(user_id=user.id, status="active").all()
+    group_ids = sorted({a.group_id for a in abonements})
+    result = []
+    for group_id in group_ids:
+        group = db.query(Group).filter_by(id=group_id).first()
+        if not group:
+            continue
+        direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
+        teacher = db.query(Staff).filter_by(id=group.teacher_id).first()
+        result.append({
+            "group_id": group.id,
+            "group_name": group.name,
+            "direction_title": direction.title if direction else None,
+            "teacher_name": teacher.name if teacher else None
+        })
+
+    return jsonify(result)
+

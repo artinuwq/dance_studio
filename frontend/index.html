@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 
 <html lang="ru">
 <head>
@@ -304,6 +304,30 @@ body.tg-mobile .header-back {
 .small {
   color: var(--hint);
   font-size: 14px;
+}
+
+/* ====== ДЕТАЛИ ГРУПП ====== */
+.group-detail-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.group-detail-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.group-detail-row span {
+  color: var(--hint);
+  white-space: nowrap;
+}
+
+.group-detail-row div {
+  font-weight: 600;
+  color: var(--text);
 }
 
 /* ====== НАЗАД ====== */
@@ -1343,6 +1367,89 @@ textarea.form-input {
   display: grid;
   gap: 12px;
 }
+
+.group-inline-details {
+  margin-top: 0;
+  padding: 0;
+  border-radius: 10px;
+  background: transparent;
+  border: 0;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+}
+
+.group-inline-details.show {
+  opacity: 1;
+  margin-top: 10px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.group-summary,
+.group-teacher {
+  transition: opacity 0.2s ease, max-height 0.25s ease;
+  max-height: 200px;
+  overflow: hidden;
+}
+
+.group-summary.hidden,
+.group-teacher.hidden {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+}
+
+.group-teacher-link {
+  margin-top: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.group-teacher-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-teacher-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  color: #555;
+  font-weight: 700;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.group-teacher-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.group-teacher-label {
+  font-size: 11px;
+  color: var(--hint);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
 </style>
 </head>
 <body>
@@ -1776,14 +1883,20 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== ПРОФИЛЬ ====== -->
-<div class="page" id="profile">
+<div class="page" data-title="👤 Профиль" id="profile">
 <div class="profile">
 <div class="avatar" id="avatar"></div>
 <h3 id="profile-name">—</h3>
 <p class="small" id="profile-username">—</p>
 </div>
+<div class="menu-item" onclick="showPage('profile-info')">📋 Личная информация</div>
+<div class="menu-item" onclick="showPage('profile-transactions')">💳 Транзакции</div>
+<div class="menu-item" onclick="showPage('profile-abonements')">🎟️ Абонементы</div>
+<div class="menu-item" onclick="showPage('profile-groups')">👥 Группы</div>
+</div>
+<div class="page" data-title="📋 Личная информация" id="profile-info">
 <div class="card">
-<h4>📋 Личная информация</h4>
+<h4>Личная информация</h4>
 <div class="form-group">
 <label>Имя</label>
 <input class="form-input" id="profile-input-name" placeholder="Ваше имя" type="text"/>
@@ -1807,9 +1920,24 @@ textarea.form-input {
 <button class="save-btn" onclick="saveProfileChanges()">💾 Сохранить изменения</button>
 </div>
 <div class="card">
-<h4>ℹ️ Информация об аккаунте</h4>
+<h4>Информация об аккаунте</h4>
 <p class="small"><strong>Статус:</strong> <span id="profile-status">—</span></p>
 <p class="small"><strong>Дата регистрации:</strong> <span id="profile-registered">—</span></p>
+</div>
+</div>
+<div class="page" data-title="💳 Транзакции" id="profile-transactions">
+<div id="profile-transactions-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>
+</div>
+</div>
+<div class="page" data-title="🎟️ Абонементы" id="profile-abonements">
+<div id="profile-abonements-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>
+</div>
+</div>
+<div class="page" data-title="👥 Группы" id="profile-groups">
+<div id="profile-groups-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>
 </div>
 </div>
 <!-- ====== РАСПИСАНИЕ ПЕРСОНАЛА ====== -->
@@ -2492,6 +2620,25 @@ function showPage(id) {
       }
     }, 0);
   }
+  if (id === 'profile-info') {
+    setHeaderTitle('Личная информация');
+  }
+
+  if (id === 'profile-transactions') {
+    setHeaderTitle('Транзакции');
+    loadProfileTransactions();
+  }
+
+  if (id === 'profile-abonements') {
+    setHeaderTitle('Абонементы');
+    loadProfileAbonements();
+  }
+
+  if (id === 'profile-groups') {
+    setHeaderTitle('Группы');
+    loadProfileGroups();
+  }
+
 }
 
 function openInfo(title) {
@@ -2603,27 +2750,37 @@ function openDirectionDetail(directionId) {
         ? `<div class="direction-detail-photo"><img src="${d.image_path}" alt="Направление"></div>`
         : '';
 
+      
+      
+
+
+window.groupDetails = window.groupDetails || {};
       const groupsHtml = (groups && groups.length)
         ? groups.map(g => {
-            const teacher = g.teacher_name ? `👩‍🏫 ${g.teacher_name}` : '👩‍🏫 —';
-            const lessons = g.lessons_per_week ? `📆 ${g.lessons_per_week} в неделю` : '📆 —';
+            const teacherName = g.teacher_name || '—';
+            const teacher = teacherName ? ` ${teacherName}` : '';
+            const lessons = g.lessons_per_week ? `${g.lessons_per_week} в неделю` : '—';
+            window.groupDetails[g.id] = g;
             return `
               <div class="card" style="margin-bottom: 8px;">
                 <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">${g.name || 'Группа'}</div>
-                <div class="small" style="margin-bottom: 6px;">${teacher}</div>
-                <div class="small" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                  <span>🎈 ${g.age_group || '—'}</span>
-                  <span>⏱️ ${g.duration_minutes ? g.duration_minutes + ' мин' : '—'}</span>
-                  <span>${lessons}</span>
-                  <span>👥 ${g.max_students || '—'} учеников</span>
+                <div class="small group-teacher" id="group-teacher-${g.id}" style="margin-bottom: 6px;">${teacher}</div>
+                
+                <div class="small group-summary" id="group-summary-${g.id}" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <span>&#x1F388; ${g.age_group || '-'}</span>
+                  <span>&#x23F1; ${g.duration_minutes ? g.duration_minutes + ' min' : '-'}</span>
+                  <span>&#x1F4C6; ${lessons}</span>
+                  <span>&#x1F465; ${g.max_students || '-'}</span>
                 </div>
-                <button class="save-btn" style="width: 100%; margin-top: 8px; background: #111;">Подробнее</button>
+
+                <button class="save-btn" id="group-detail-btn-${g.id}" style="width: 100%; margin-top: 8px; background: #111;" onclick="toggleGroupInlineDetails(${g.id})">Подробнее</button>
+                <div class="group-inline-details" id="group-inline-details-${g.id}"></div>
               </div>
             `;
           }).join('')
-        : '<p class="small" style="text-align: center; color: var(--hint); padding: 10px;">📭 Групп пока нет</p>';
+        : '<p class="small" style="text-align: center; color: var(--hint); padding: 10px;">Групп пока нет</p>';
 
-      content.innerHTML = `
+content.innerHTML = `
         ${photoBlock}
         <div class="direction-detail-content">
           <div style="font-weight: 700; font-size: 20px; margin-bottom: 6px;">${d.title || 'Направление'}</div>
@@ -2638,6 +2795,72 @@ function openDirectionDetail(directionId) {
       content.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 12px;">❌ ${err.message}</p>`;
     });
 }
+
+
+
+
+function toggleGroupInlineDetails(groupId) {
+  const details = document.getElementById(`group-inline-details-${groupId}`);
+  const button = document.getElementById(`group-detail-btn-${groupId}`);
+  const summary = document.getElementById(`group-summary-${groupId}`);
+  const teacher = document.getElementById(`group-teacher-${groupId}`);
+  if (!details || !button) return;
+
+  if (!details.innerHTML) {
+    const data = (window.groupDetails && window.groupDetails[groupId]) || {};
+    const title = data?.name || 'Группа';
+    const teacherName = data?.teacher_name || '—';
+    const teacherInitials = teacherName
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(part => part[0].toUpperCase())
+      .join('') || '—';
+    const teacherPhoto = data?.teacher_photo || '';
+    const age = data?.age_group || '—';
+    const duration = data?.duration_minutes ? `${data.duration_minutes} мин` : '—';
+    const lessons = data?.lessons_per_week ? `${data.lessons_per_week} в неделю` : '—';
+    const maxStudents = data?.max_students ? `${data.max_students}` : '—';
+    const description = data?.description || 'Описание отсутствует';
+
+    details.innerHTML = `
+      <div style="font-weight: 700; font-size: 15px;">${title}</div>
+      <div class="group-teacher-link" onclick="openTeacherProfilePlaceholder()">
+        <div class="group-teacher-label">Профиль преподавателя</div>
+        <div class="group-teacher-row">
+          <div class="group-teacher-avatar">
+            ${teacherPhoto ? `<img src="${teacherPhoto}" alt="${teacherName}">` : teacherInitials}
+          </div>
+          <div class="small" style="font-weight: 600;">${teacherName}</div>
+        </div>
+      </div>
+      <div class="group-detail-grid" style="margin-top: 8px;">
+        <div class="group-detail-row"><span>Возраст:</span><div>${age}</div></div>
+        <div class="group-detail-row"><span>Длительность:</span><div>${duration}</div></div>
+        <div class="group-detail-row"><span>Занятий в неделю:</span><div>${lessons}</div></div>
+        <div class="group-detail-row"><span>Макс. учеников:</span><div>${maxStudents}</div></div>
+      </div>
+      <div class="small" style="margin-top: 10px;">${description}</div>
+      <button class="save-btn" style="width: 100%; margin-top: 10px;">Записаться</button>
+    `;
+  }
+
+  const isOpen = !details.classList.contains('show');
+  details.classList.toggle('show', isOpen);
+  button.textContent = isOpen ? 'Свернуть' : 'Подробнее';
+  if (summary) summary.classList.toggle('hidden', isOpen);
+  if (teacher) teacher.classList.toggle('hidden', isOpen);
+  if (isOpen) {
+    details.style.maxHeight = details.scrollHeight + 'px';
+  } else {
+    details.style.maxHeight = '0px';
+  }
+}
+
+function openTeacherProfilePlaceholder() {
+  return;
+}
+
 
 /* ====== АДМИН-РАСПИСАНИЕ (РАБОТА) ====== */
 let scheduleView = 'week';
@@ -4661,6 +4884,128 @@ function getStatusText(status) {
   return statusMap[status] || status;
 }
 
+function loadProfileTransactions() {
+  const container = document.getElementById('profile-transactions-container');
+  if (!container) return;
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>';
+
+  fetch('/api/payment-transactions/my', { headers: getAuthHeaders() })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Не удалось загрузить транзакции');
+      return data;
+    })
+    .then(items => {
+      if (!items.length) {
+        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Транзакций нет</p>';
+        return;
+      }
+      container.innerHTML = items.map(t => {
+        const amount = `${t.amount} ${t.currency || 'RUB'}`;
+        const status = formatPaymentStatus(t.status);
+        const created = t.created_at ? formatDate(t.created_at) : '?';
+        return `
+          <div class="card">
+            <div style="font-weight: 600; margin-bottom: 6px;">${amount}</div>
+            <div class="small" style="margin-bottom: 4px;">${status}</div>
+            <div class="small">${t.description || 'Платеж'}</div>
+            <div class="small" style="margin-top: 6px;">${created}</div>
+          </div>
+        `;
+      }).join('');
+    })
+    .catch(err => {
+      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 20px;">Ошибка: ${err.message}</p>`;
+    });
+}
+
+function loadProfileAbonements() {
+  const container = document.getElementById('profile-abonements-container');
+  if (!container) return;
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>';
+
+  fetch('/api/group-abonements/my', { headers: getAuthHeaders() })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Не удалось загрузить абонементы');
+      return data;
+    })
+    .then(items => {
+      if (!items.length) {
+        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Абонементов нет</p>';
+        return;
+      }
+      container.innerHTML = items.map(a => {
+        const status = formatAbonementStatus(a.status);
+        const validTo = a.valid_to ? formatDate(a.valid_to) : '?';
+        return `
+          <div class="card">
+            <div style="font-weight: 600; margin-bottom: 6px;">${a.group_name || 'Группа'}</div>
+            <div class="small" style="margin-bottom: 4px;">${status}</div>
+            <div class="small">Остаток занятий: ${a.balance_credits ?? '—'}</div>
+            <div class="small" style="margin-top: 6px;">Действует до: ${validTo}</div>
+          </div>
+        `;
+      }).join('');
+    })
+    .catch(err => {
+      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 20px;">Ошибка: ${err.message}</p>`;
+    });
+}
+
+function loadProfileGroups() {
+  const container = document.getElementById('profile-groups-container');
+  if (!container) return;
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>';
+
+  fetch('/api/groups/my', { headers: getAuthHeaders() })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Не удалось загрузить группы');
+      return data;
+    })
+    .then(items => {
+      if (!items.length) {
+        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Групп нет</p>';
+        return;
+      }
+      container.innerHTML = items.map(g => {
+        const teacher = g.teacher_name ? g.teacher_name : '?';
+        return `
+          <div class="card">
+            <div style="font-weight: 600; margin-bottom: 6px;">${g.group_name || 'Группа'}</div>
+            <div class="small" style="margin-bottom: 4px;">${g.direction_title || ''}</div>
+            <div class="small">Преподаватель: ${teacher}</div>
+          </div>
+        `;
+      }).join('');
+    })
+    .catch(err => {
+      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 20px;">Ошибка: ${err.message}</p>`;
+    });
+}
+
+function formatPaymentStatus(status) {
+  const map = {
+    pending: 'Ожидание оплаты',
+    paid: 'Оплачено',
+    failed: 'Ошибка',
+    refunded: 'Возврат',
+    cancelled: 'Отменено'
+  };
+  return map[status] || status || '?';
+}
+
+function formatAbonementStatus(status) {
+  const map = {
+    pending_activation: 'Ожидает активации',
+    active: 'Активен',
+    expired: 'Истек',
+    blocked: 'Заблокирован'
+  };
+  return map[status] || status || '?';
+}
+
 function formatDate(dateString) {
   const date = new Date(dateString);
   return date.toLocaleDateString('ru-RU', { 
@@ -5325,7 +5670,7 @@ async function registerUserIfNeeded(user) {
 /* DEBUG VERSION */
 console.log("Mini App version:", new URLSearchParams(location.search).get("v"));
 
-/* ====== ???????? ???????? ====== */
+/* ====== STAFF PROFILE ====== */
 const NEWS_CACHE_KEY = 'news_cache_v1';
 const NEWS_ETAG_KEY = 'news_etag_v1';
 let cachedNews = null;
