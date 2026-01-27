@@ -1,6 +1,7 @@
 import asyncio
 import aiohttp
 import time
+import zipfile
 from aiogram import Bot, Dispatcher
 from aiogram.types import MenuButtonWebApp, WebAppInfo, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart, Command, StateFilter
@@ -8,18 +9,371 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
-from config import BOT_TOKEN, WEB_APP_URL
+from config import (
+    BOT_TOKEN,
+    WEB_APP_URL,
+    TECH_LOGS_CHAT_ID,
+    TECH_BACKUPS_TOPIC_ID,
+    TECH_STATUS_TOPIC_ID,
+    TECH_CRITICAL_TOPIC_ID,
+    TECH_STATUS_MESSAGE_ID,
+    OWNER_IDS,
+    TECH_ADMIN_ID,
+)
 from backend.db import get_session
+from backend.permissions import has_permission
 from backend.models import News, User, Mailing, Group, DirectionUploadSession, Staff
-from datetime import datetime
+from datetime import datetime, time as dt_time, timedelta
 import os
 import tempfile
 import base64
+from pathlib import Path
 
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
+TECH_LOGS_CHAT_ID_RUNTIME = TECH_LOGS_CHAT_ID
+TECH_BACKUPS_TOPIC_ID_RUNTIME = TECH_BACKUPS_TOPIC_ID
+TECH_STATUS_TOPIC_ID_RUNTIME = TECH_STATUS_TOPIC_ID
+TECH_CRITICAL_TOPIC_ID_RUNTIME = TECH_CRITICAL_TOPIC_ID
+TECH_STATUS_MESSAGE_ID_RUNTIME = TECH_STATUS_MESSAGE_ID
+
+BACKUP_KEEP_COUNT = 3
+BACKUP_LOCK = asyncio.Lock()
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+BACKUP_SOURCE_DIR = PROJECT_ROOT / "database"
+BACKUP_DIR = BACKUP_SOURCE_DIR / "backups"
+
+
+def _env_file_path() -> Path:
+    return Path(__file__).resolve().parent.parent / ".env"
+
+
+def _upsert_env_value(key: str, value: int) -> None:
+    if value is None:
+        return
+    env_path = _env_file_path()
+    try:
+        lines = env_path.read_text(encoding="utf-8").splitlines()
+    except FileNotFoundError:
+        lines = []
+    updated = False
+    new_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("#") or "=" not in line:
+            new_lines.append(line)
+            continue
+        existing_key = line.split("=", 1)[0].strip()
+        if existing_key == key:
+            new_lines.append(f"{key}={value}")
+            updated = True
+        else:
+            new_lines.append(line)
+    if not updated:
+        new_lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+
+async def _ensure_forum_topic(name: str, current_id: int | None, env_key: str) -> int | None:
+    if current_id:
+        return current_id
+    if not TECH_LOGS_CHAT_ID_RUNTIME:
+        return None
+    try:
+        topic = await bot.create_forum_topic(chat_id=TECH_LOGS_CHAT_ID_RUNTIME, name=name)
+        topic_id = topic.message_thread_id
+        _upsert_env_value(env_key, topic_id)
+        return topic_id
+    except Exception as e:
+        print(f"⚠️ Не удалось создать тему '{name}': {e}")
+        return None
+
+async def _ensure_topic_name(topic_id: int | None, name: str, env_key: str | None = None) -> int | None:
+    if not TECH_LOGS_CHAT_ID_RUNTIME:
+        return topic_id
+    if not topic_id:
+        if env_key:
+            return await _ensure_forum_topic(name, None, env_key)
+        return None
+    try:
+        await bot.edit_forum_topic(
+            chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+            message_thread_id=topic_id,
+            name=name
+        )
+        return topic_id
+    except Exception as e:
+        if "message thread not found" in str(e).lower() and env_key:
+            return await _ensure_forum_topic(name, None, env_key)
+        if "TOPIC_NOT_MODIFIED" in str(e):
+            return topic_id
+        print(f"WARN: topic rename failed for {name}: {e}")
+        return topic_id
+
+
+
+async def ensure_tech_topics() -> None:
+    global TECH_BACKUPS_TOPIC_ID_RUNTIME
+    global TECH_STATUS_TOPIC_ID_RUNTIME
+    global TECH_CRITICAL_TOPIC_ID_RUNTIME
+
+    if not TECH_LOGS_CHAT_ID_RUNTIME:
+        print("⚠️ TECH_LOGS_CHAT_ID не задан, темы не создаются.")
+        return
+
+    try:
+        chat = await bot.get_chat(TECH_LOGS_CHAT_ID_RUNTIME)
+        if not getattr(chat, "is_forum", False):
+            print("⚠️ TECH_LOGS_CHAT_ID не является форум-супергруппой.")
+            return
+    except Exception as e:
+        print(f"⚠️ Не удалось получить чат для техлогов: {e}")
+        return
+
+    TECH_BACKUPS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
+        "Бэкапы", TECH_BACKUPS_TOPIC_ID_RUNTIME, "TECH_BACKUPS_TOPIC_ID"
+    )
+    TECH_STATUS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
+        "Статус бота", TECH_STATUS_TOPIC_ID_RUNTIME, "TECH_STATUS_TOPIC_ID"
+    )
+    TECH_CRITICAL_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
+        "Критичные ошибки", TECH_CRITICAL_TOPIC_ID_RUNTIME, "TECH_CRITICAL_TOPIC_ID"
+    )
+    TECH_BACKUPS_TOPIC_ID_RUNTIME = await _ensure_topic_name(TECH_BACKUPS_TOPIC_ID_RUNTIME, "Бэкапы", "TECH_BACKUPS_TOPIC_ID")
+    TECH_STATUS_TOPIC_ID_RUNTIME = await _ensure_topic_name(TECH_STATUS_TOPIC_ID_RUNTIME, "Статус бота", "TECH_STATUS_TOPIC_ID")
+    TECH_CRITICAL_TOPIC_ID_RUNTIME = await _ensure_topic_name(TECH_CRITICAL_TOPIC_ID_RUNTIME, "Критичные ошибки", "TECH_CRITICAL_TOPIC_ID")
+
+
+async def _send_tech_message(
+    topic_id: int | None,
+    text: str,
+    parse_mode: str | None = None,
+    *,
+    topic_name: str | None = None,
+    env_key: str | None = None,
+) -> int | None:
+    if not TECH_LOGS_CHAT_ID_RUNTIME:
+        return topic_id
+    if not topic_id:
+        if topic_name and env_key:
+            topic_id = await _ensure_forum_topic(topic_name, None, env_key)
+        if not topic_id:
+            return None
+    try:
+        await bot.send_message(
+            chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+            message_thread_id=topic_id,
+            text=text,
+            parse_mode=parse_mode
+        )
+        return topic_id
+    except Exception as e:
+        if topic_name and env_key and "message thread not found" in str(e).lower():
+            topic_id = await _ensure_forum_topic(topic_name, None, env_key)
+            if topic_id:
+                try:
+                    await bot.send_message(
+                        chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                        message_thread_id=topic_id,
+                        text=text,
+                        parse_mode=parse_mode
+                    )
+                    return topic_id
+                except Exception:
+                    pass
+        print(f"⚠️ Не удалось отправить техсообщение: {e}")
+        return topic_id
+
+
+async def send_tech_backup(text: str) -> None:
+    global TECH_BACKUPS_TOPIC_ID_RUNTIME
+    TECH_BACKUPS_TOPIC_ID_RUNTIME = await _send_tech_message(
+        TECH_BACKUPS_TOPIC_ID_RUNTIME,
+        text,
+        topic_name="Бэкапы",
+        env_key="TECH_BACKUPS_TOPIC_ID"
+    )
+
+
+async def send_tech_critical(text: str) -> None:
+    global TECH_CRITICAL_TOPIC_ID_RUNTIME
+    TECH_CRITICAL_TOPIC_ID_RUNTIME = await _send_tech_message(
+        TECH_CRITICAL_TOPIC_ID_RUNTIME,
+        text,
+        topic_name="Критичные ошибки",
+        env_key="TECH_CRITICAL_TOPIC_ID"
+    )
+
+
+async def update_bot_status(text: str) -> None:
+    global TECH_STATUS_MESSAGE_ID_RUNTIME
+    global TECH_STATUS_TOPIC_ID_RUNTIME
+    if not TECH_LOGS_CHAT_ID_RUNTIME:
+        return
+    if not TECH_STATUS_TOPIC_ID_RUNTIME:
+        TECH_STATUS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
+            "Статус бота", None, "TECH_STATUS_TOPIC_ID"
+        )
+        if not TECH_STATUS_TOPIC_ID_RUNTIME:
+            return
+
+    if TECH_STATUS_MESSAGE_ID_RUNTIME:
+        try:
+            await bot.edit_message_text(
+                chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                message_id=TECH_STATUS_MESSAGE_ID_RUNTIME,
+                text=text
+            )
+            return
+        except Exception:
+            TECH_STATUS_MESSAGE_ID_RUNTIME = None
+
+    try:
+        msg = await bot.send_message(
+            chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+            message_thread_id=TECH_STATUS_TOPIC_ID_RUNTIME,
+            text=text
+        )
+        TECH_STATUS_MESSAGE_ID_RUNTIME = msg.message_id
+        _upsert_env_value("TECH_STATUS_MESSAGE_ID", msg.message_id)
+    except Exception as e:
+        if "message thread not found" in str(e).lower():
+            TECH_STATUS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
+                "Статус бота", None, "TECH_STATUS_TOPIC_ID"
+            )
+            if TECH_STATUS_TOPIC_ID_RUNTIME:
+                try:
+                    msg = await bot.send_message(
+                        chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                        message_thread_id=TECH_STATUS_TOPIC_ID_RUNTIME,
+                        text=text
+                    )
+                    TECH_STATUS_MESSAGE_ID_RUNTIME = msg.message_id
+                    _upsert_env_value("TECH_STATUS_MESSAGE_ID", msg.message_id)
+                    return
+                except Exception:
+                    pass
+        print(f"⚠️ Не удалось отправить статус бота: {e}")
+
+
+
+
+def _create_backup_archive() -> Path:
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    archive_path = BACKUP_DIR / f"database_backup_{timestamp}.zip"
+
+    with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(BACKUP_SOURCE_DIR):
+            root_path = Path(root)
+            if str(root_path.resolve()).startswith(str(BACKUP_DIR.resolve())):
+                continue
+            for filename in files:
+                file_path = root_path / filename
+                arcname = file_path.relative_to(BACKUP_SOURCE_DIR)
+                zf.write(file_path, arcname.as_posix())
+
+    return archive_path
+
+
+def _cleanup_old_backups() -> None:
+    if not BACKUP_DIR.exists():
+        return
+    backups = sorted(
+        BACKUP_DIR.glob("database_backup_*.zip"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+    )
+    for old_backup in backups[BACKUP_KEEP_COUNT:]:
+        try:
+            old_backup.unlink()
+        except Exception:
+            pass
+
+
+async def _ensure_backup_topic() -> int | None:
+    global TECH_BACKUPS_TOPIC_ID_RUNTIME
+    if not TECH_BACKUPS_TOPIC_ID_RUNTIME:
+        TECH_BACKUPS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
+            "Бэкапы", None, "TECH_BACKUPS_TOPIC_ID"
+        )
+    return TECH_BACKUPS_TOPIC_ID_RUNTIME
+
+
+async def create_and_send_backup(reason: str, notify_user_id: int | None = None) -> None:
+    async with BACKUP_LOCK:
+        try:
+            archive_path = await asyncio.to_thread(_create_backup_archive)
+            _cleanup_old_backups()
+            topic_id = await _ensure_backup_topic()
+            if topic_id:
+                caption = f"🗄 Бэкап ({reason}) {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"
+                try:
+                    await bot.send_document(
+                        chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                        message_thread_id=topic_id,
+                        document=FSInputFile(str(archive_path)),
+                        caption=caption
+                    )
+                except Exception as e:
+                    if "message thread not found" in str(e).lower():
+                        global TECH_BACKUPS_TOPIC_ID_RUNTIME
+                        TECH_BACKUPS_TOPIC_ID_RUNTIME = None
+                        topic_id = await _ensure_backup_topic()
+                        if topic_id:
+                            await bot.send_document(
+                                chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                                message_thread_id=topic_id,
+                                document=FSInputFile(str(archive_path)),
+                                caption=caption
+                            )
+            if notify_user_id:
+                await bot.send_message(
+                    chat_id=notify_user_id,
+                    text="✅ Бэкап создан и отправлен в супергруппу."
+                )
+        except Exception as e:
+            try:
+                await send_tech_critical(f"? ?????? ??????: {type(e).__name__}: {e}")
+            except Exception:
+                pass
+            if notify_user_id:
+                await bot.send_message(
+                    chat_id=notify_user_id,
+                    text="❌ Не удалось создать бэкап."
+                )
+
+
+async def _backup_scheduler() -> None:
+    while True:
+        now = datetime.now()
+        today = now.date()
+        candidate_midnight = datetime.combine(today, dt_time(0, 0))
+        candidate_noon = datetime.combine(today, dt_time(12, 0))
+        if now < candidate_noon:
+            next_run = candidate_midnight if now < candidate_midnight else candidate_noon
+        else:
+            next_run = datetime.combine(today + timedelta(days=1), dt_time(0, 0))
+
+        sleep_seconds = max((next_run - now).total_seconds(), 1)
+        await asyncio.sleep(sleep_seconds)
+        await create_and_send_backup("scheduled")
+
+
+async def _can_run_backup(user_id: int) -> bool:
+    if user_id in OWNER_IDS or (TECH_ADMIN_ID and user_id == TECH_ADMIN_ID):
+        return True
+    db = get_session()
+    try:
+        staff = db.query(Staff).filter_by(telegram_id=user_id, status="active").first()
+        if not staff or not staff.position:
+            return False
+        position = staff.position.strip().lower()
+        return has_permission(position, "manage_backups")
+    finally:
+        db.close()
 
 class CreateNewsStates(StatesGroup):
     waiting_for_title = State()
@@ -159,6 +513,17 @@ async def start(message, state: FSMContext):
         )
         print(f"DEBUG: Стандартный старт без параметров")
 
+
+
+
+@dp.message(Command("backup"))
+async def handle_backup_command(message, state: FSMContext):
+    user_id = message.from_user.id
+    if not await _can_run_backup(user_id):
+        await message.answer("❌ Нет доступа к созданию бэкапа.")
+        return
+    await message.answer("⏳ Делаю бэкап и отправляю в тех. группу...")
+    await create_and_send_backup("manual", notify_user_id=user_id)
 
 async def register_user_in_db(telegram_id, name, from_user=None):
     """Регистрирует пользователя в БД если его еще нет"""
@@ -553,12 +918,31 @@ async def run_bot():
         print(f"⚠️ Не удалось получить информацию о боте: {e}")
     
     # Запускаем обработку очереди рассылок в фоне
+    backup_task = None
+    queue_task = None
+    await ensure_tech_topics()
+    await update_bot_status(f"✅ Бот запущен {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
+    await create_and_send_backup("startup")
+    backup_task = asyncio.create_task(_backup_scheduler())
     queue_task = asyncio.create_task(process_mailing_queue())
     
     try:
         await dp.start_polling(bot)
+    except Exception as e:
+        try:
+            await send_tech_critical(f"❌ Bot polling error: {type(e).__name__}: {e}")
+        except Exception:
+            pass
+        raise
     finally:
-        queue_task.cancel()
+        try:
+            await update_bot_status(f"⛔ Бот остановлен {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
+        except Exception:
+            pass
+        if backup_task:
+            backup_task.cancel()
+        if queue_task:
+            queue_task.cancel()
 
 
 # ======================== СИСТЕМА ЗАГРУЗКИ ФОТОГРАФИЙ НАПРАВЛЕНИЙ ========================

@@ -22,6 +22,7 @@ ROLES = {
             "manage_permissions",
             "manage_mailings",
             "system_settings",
+            "manage_backups",
             "full_system_access",  # Полный доступ к системе
         ]
     },
@@ -61,6 +62,7 @@ ROLES = {
             "manage_staff",            # Управление должностями/персоналом
             "manage_permissions",      # Управление разрешениями
             "system_settings",         # Системные настройки
+            "manage_backups",         # ???????????????????? ????????????????
             "manage_mailings",         # Управление рассылками
         ]
     }

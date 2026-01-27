@@ -8,11 +8,13 @@ import logging
 import uuid
 import requests
 from sqlalchemy import or_, text
+from werkzeug.exceptions import HTTPException
 
 from backend.db import init_db, get_session, BASE_DIR, Session, engine
 from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental, TeacherWorkingHours, GroupAbonement, PaymentTransaction
 from backend.media_manager import save_user_photo, delete_user_photo
 from backend.permissions import has_permission
+from backend.tech_notifier import send_critical_sync
 
 # Flask-Admin
 from flask_admin import Admin, AdminIndexView
@@ -84,6 +86,16 @@ class AdminView(AdminIndexView):
         return True  # TODO: добавить проверку прав доступа
 
 admin = Admin(app, name='🩰 Dance Studio Admin', index_view=AdminView())
+
+@app.errorhandler(Exception)
+def handle_unhandled_exception(error):
+    if isinstance(error, HTTPException):
+        return error
+    try:
+        send_critical_sync(f"? Flask error: {type(error).__name__}: {error}")
+    except Exception:
+        pass
+    return jsonify({"error": "Internal server error"}), 500
 
 # Добавляем модели в админ-панель
 class UserModelView(ModelView):
@@ -2867,4 +2879,5 @@ def get_my_groups():
         })
 
     return jsonify(result)
+
 

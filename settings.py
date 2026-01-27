@@ -64,3 +64,10 @@ WEB_APP_URL = os.getenv('WEB_APP_URL', '')
 OWNER_IDS = _parse_int_list(os.getenv('OWNER_IDS', ''), [])
 TECH_ADMIN_ID = _parse_int(os.getenv('TECH_ADMIN_ID', ''), None)
 BETA_TEST_MODE = _parse_bool(os.getenv('BETA_TEST_MODE', ''), True)
+
+# Tech logs / forum topics
+TECH_LOGS_CHAT_ID = _parse_int(os.getenv('TECH_LOGS_CHAT_ID', ''), None)
+TECH_BACKUPS_TOPIC_ID = _parse_int(os.getenv('TECH_BACKUPS_TOPIC_ID', ''), None)
+TECH_STATUS_TOPIC_ID = _parse_int(os.getenv('TECH_STATUS_TOPIC_ID', ''), None)
+TECH_CRITICAL_TOPIC_ID = _parse_int(os.getenv('TECH_CRITICAL_TOPIC_ID', ''), None)
+TECH_STATUS_MESSAGE_ID = _parse_int(os.getenv('TECH_STATUS_MESSAGE_ID', ''), None)
