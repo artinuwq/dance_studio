@@ -11,10 +11,11 @@ from sqlalchemy import or_, text
 from werkzeug.exceptions import HTTPException
 
 from backend.db import init_db, get_session, BASE_DIR, Session, engine
-from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental, TeacherWorkingHours, GroupAbonement, PaymentTransaction
+from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental, TeacherWorkingHours, GroupAbonement, PaymentTransaction, BookingRequest
 from backend.media_manager import save_user_photo, delete_user_photo
 from backend.permissions import has_permission
 from backend.tech_notifier import send_critical_sync
+from backend.booking_utils import format_booking_message, build_booking_keyboard_data
 
 # Flask-Admin
 from flask_admin import Admin, AdminIndexView
@@ -2681,6 +2682,169 @@ def get_current_user_from_request(db):
         return None
     return db.query(User).filter_by(telegram_id=telegram_id).first()
 
+def _time_overlaps(start_a, end_a, start_b, end_b) -> bool:
+    return start_a < end_b and start_b < end_a
+
+
+def _compute_duration_minutes(time_from, time_to) -> int | None:
+    if not time_from or not time_to:
+        return None
+    delta = datetime.combine(date.today(), time_to) - datetime.combine(date.today(), time_from)
+    minutes = int(delta.total_seconds() // 60)
+    return minutes if minutes > 0 else None
+
+
+def _find_booking_overlaps(db, date_val, time_from, time_to) -> list[dict]:
+    overlaps = []
+
+    schedules = db.query(Schedule).filter(
+        Schedule.date == date_val,
+        Schedule.status.notin_(["cancelled", "deleted"])
+    ).all()
+    for item in schedules:
+        start = item.time_from or item.start_time
+        end = item.time_to or item.end_time
+        if not start or not end:
+            continue
+        if _time_overlaps(time_from, time_to, start, end):
+            overlaps.append({
+                "date": date_val.strftime("%d.%m.%Y"),
+                "time_from": start.strftime("%H:%M"),
+                "time_to": end.strftime("%H:%M"),
+                "title": item.title or "Занятие"
+            })
+
+    rentals = db.query(HallRental).filter_by(date=date_val).all()
+    for item in rentals:
+        if not item.time_from or not item.time_to:
+            continue
+        if _time_overlaps(time_from, time_to, item.time_from, item.time_to):
+            overlaps.append({
+                "date": date_val.strftime("%d.%m.%Y"),
+                "time_from": item.time_from.strftime("%H:%M"),
+                "time_to": item.time_to.strftime("%H:%M"),
+                "title": "Аренда зала"
+            })
+
+    lessons = db.query(IndividualLesson).filter_by(date=date_val).all()
+    for item in lessons:
+        if not item.time_from or not item.time_to:
+            continue
+        if _time_overlaps(time_from, time_to, item.time_from, item.time_to):
+            overlaps.append({
+                "date": date_val.strftime("%d.%m.%Y"),
+                "time_from": item.time_from.strftime("%H:%M"),
+                "time_to": item.time_to.strftime("%H:%M"),
+                "title": "Индивидуальное занятие"
+            })
+
+    return overlaps
+
+
+def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
+    try:
+        from config import BOT_TOKEN, BOOKINGS_ADMIN_CHAT_ID
+    except Exception:
+        return
+
+    if not BOT_TOKEN or not BOOKINGS_ADMIN_CHAT_ID:
+        return
+
+    text = format_booking_message(booking, user)
+    keyboard_data = build_booking_keyboard_data(booking.status, booking.object_type, booking.id)
+
+    payload = {
+        "chat_id": BOOKINGS_ADMIN_CHAT_ID,
+        "text": text,
+        "parse_mode": "HTML",
+    }
+    if keyboard_data:
+        payload["reply_markup"] = {"inline_keyboard": keyboard_data}
+
+    telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    try:
+        requests.post(telegram_api_url, json=payload, timeout=5)
+    except Exception:
+        pass
+
+
+@app.route("/api/booking-requests", methods=["POST"])
+def create_booking_request():
+    db = g.db
+    data = request.json or {}
+
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "Пользователь не найден"}, 401
+
+    object_type = data.get("object_type")
+    if object_type not in ["rental", "individual", "group"]:
+        return {"error": "object_type должен быть rental, individual или group"}, 400
+
+    date_str = data.get("date")
+    time_from_str = data.get("time_from")
+    time_to_str = data.get("time_to")
+    comment = data.get("comment")
+
+    date_val = None
+    time_from_val = None
+    time_to_val = None
+
+    if object_type != "group":
+        if not date_str or not time_from_str or not time_to_str:
+            return {"error": "date, time_from и time_to обязательны"}, 400
+
+    if date_str:
+        try:
+            date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return {"error": "date должен быть в формате YYYY-MM-DD"}, 400
+    if time_from_str:
+        try:
+            time_from_val = datetime.strptime(time_from_str, "%H:%M").time()
+        except ValueError:
+            return {"error": "time_from должен быть в формате HH:MM"}, 400
+    if time_to_str:
+        try:
+            time_to_val = datetime.strptime(time_to_str, "%H:%M").time()
+        except ValueError:
+            return {"error": "time_to должен быть в формате HH:MM"}, 400
+
+    if time_from_val and time_to_val and time_from_val >= time_to_val:
+        return {"error": "time_from должен быть меньше time_to"}, 400
+
+    overlaps = []
+    if date_val and time_from_val and time_to_val:
+        overlaps = _find_booking_overlaps(db, date_val, time_from_val, time_to_val)
+
+    status = "AWAITING_PAYMENT" if object_type == "group" else "NEW"
+
+    booking = BookingRequest(
+        user_id=user.id,
+        user_telegram_id=user.telegram_id,
+        user_name=user.name,
+        user_username=user.username,
+        object_type=object_type,
+        date=date_val,
+        time_from=time_from_val,
+        time_to=time_to_val,
+        duration_minutes=_compute_duration_minutes(time_from_val, time_to_val),
+        comment=comment,
+        overlaps_json=json.dumps(overlaps, ensure_ascii=False),
+        status=status,
+    )
+
+    db.add(booking)
+    db.commit()
+
+    _notify_booking_admins(booking, user)
+
+    return {
+        "id": booking.id,
+        "status": booking.status,
+        "overlaps": overlaps,
+    }, 201
+
 
 def get_next_group_date(db, group_id):
     today = datetime.now().date()
@@ -2879,5 +3043,3 @@ def get_my_groups():
         })
 
     return jsonify(result)
-
-
