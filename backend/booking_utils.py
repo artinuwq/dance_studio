@@ -1,0 +1,188 @@
+import html
+import json
+from datetime import datetime
+
+BOOKING_STATUS_LABELS = {
+    "NEW": "NEW — ожидает решения администратора",
+    "APPROVED": "APPROVED — бронь подтверждена, оплата не получена",
+    "AWAITING_PAYMENT": "AWAITING_PAYMENT — ожидаем оплату",
+    "PAID": "PAID — заявка завершена",
+    "REJECTED": "REJECTED — заявка отклонена",
+    "CANCELLED": "CANCELLED — бронь отменена",
+    "PAYMENT_FAILED": "PAYMENT_FAILED — оплата не получена",
+}
+
+BOOKING_TYPE_LABELS = {
+    "rental": "Аренда зала",
+    "individual": "Индивидуальное занятие",
+    "group": "Групповое занятие",
+}
+
+
+def parse_overlaps(overlaps_json: str | None) -> list[dict]:
+    if not overlaps_json:
+        return []
+    try:
+        data = json.loads(overlaps_json)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [item for item in data if isinstance(item, dict)]
+
+
+def _format_date(value) -> str:
+    if not value:
+        return "—"
+    if isinstance(value, str):
+        return value
+    return value.strftime("%d.%m.%Y")
+
+
+def _format_time(value) -> str:
+    if not value:
+        return "—"
+    if isinstance(value, str):
+        return value
+    return value.strftime("%H:%M")
+
+
+def _format_duration(minutes: int | None) -> str:
+    if not minutes:
+        return ""
+    hours = minutes // 60
+    mins = minutes % 60
+    parts = []
+    if hours:
+        if hours % 10 == 1 and hours % 100 != 11:
+            suffix = ""
+        elif 2 <= hours % 10 <= 4 and not (12 <= hours % 100 <= 14):
+            suffix = "а"
+        else:
+            suffix = "ов"
+        parts.append(f"{hours} час{suffix}")
+    if mins:
+        parts.append(f"{mins} мин")
+    return " ".join(parts)
+
+
+def format_overlap_lines(overlaps: list[dict]) -> list[str]:
+    lines = []
+    for item in overlaps:
+        date_val = _format_date(item.get("date"))
+        time_from = _format_time(item.get("time_from"))
+        time_to = _format_time(item.get("time_to"))
+        title = item.get("title") or "Занятие"
+        safe_title = html.escape(str(title))
+        lines.append(f"• {date_val} — {time_from}–{time_to} ({safe_title})")
+    return lines
+
+
+def format_booking_message(booking, user=None) -> str:
+    user_name = booking.user_name or (user.name if user else None) or "—"
+    username = booking.user_username or (user.username if user else None)
+    telegram_id = booking.user_telegram_id or (user.telegram_id if user else None)
+
+    safe_name = html.escape(str(user_name))
+    username_display = f"@{html.escape(username)}" if username else "—"
+    contact_links = []
+    if username:
+        contact_links.append(f"<a href=\"https://t.me/{html.escape(username)}\">@{html.escape(username)}</a>")
+    if telegram_id:
+        contact_links.append(f"<a href=\"tg://user?id={telegram_id}\">tg://user?id={telegram_id}</a>")
+    contact_line = " • ".join(contact_links) if contact_links else "—"
+
+    header = "🆕 НОВАЯ ЗАЯВКА" if booking.status == "NEW" else "📝 ЗАЯВКА"
+    booking_type = BOOKING_TYPE_LABELS.get(booking.object_type, booking.object_type)
+
+    time_section = ""
+    if booking.date and booking.time_from and booking.time_to:
+        duration = booking.duration_minutes
+        duration_text = _format_duration(duration)
+        duration_suffix = f" ({duration_text})" if duration_text else ""
+        time_section = (
+            "🗓 Время:\n"
+            f"• Дата: {_format_date(booking.date)}\n"
+            f"• С {_format_time(booking.time_from)} до {_format_time(booking.time_to)}{duration_suffix}\n\n"
+        )
+
+    overlaps = parse_overlaps(booking.overlaps_json)
+    if overlaps:
+        overlap_lines = "\n".join(format_overlap_lines(overlaps))
+        overlaps_section = (
+            "⚠️ Пересечения:\n"
+            "⚠️ ПЕРЕСЕЧЕНИЯ ОБНАРУЖЕНЫ\n\n"
+            f"{overlap_lines}\n\n"
+            "Рекомендуется проверить перед подтверждением.\n\n"
+        )
+    else:
+        overlaps_section = (
+            "⚠️ Пересечения:\n"
+            "✅ Пересечений не обнаружено\n\n"
+        )
+
+    status_line = BOOKING_STATUS_LABELS.get(booking.status, booking.status)
+    status_section = f"📌 Статус:\n{status_line}\n"
+
+    admin_section = ""
+    if booking.status_updated_at:
+        admin_title = "👤 Подтвердил:" if booking.status == "PAID" else "👤 Администратор:"
+        admin_name = booking.status_updated_by_username or booking.status_updated_by_name or "—"
+        safe_admin = html.escape(str(admin_name))
+        admin_time = booking.status_updated_at.strftime("%d.%m.%Y %H:%M")
+        admin_section = (
+            "\n"
+            f"{admin_title}\n"
+            f"• {safe_admin}\n"
+            f"• {admin_time}\n"
+        )
+
+    return (
+        f"{header}\n\n"
+        "👤 Клиент:\n"
+        f"• Имя: {safe_name}\n"
+        f"• Username: {username_display}\n"
+        f"• Telegram ID: {telegram_id or '—'}\n"
+        f"• Написать: {contact_line}\n\n"
+        "📦 Тип:\n"
+        f"{booking_type}\n\n"
+        f"{time_section}"
+        f"{overlaps_section}"
+        f"{status_section}"
+        f"{admin_section}"
+    )
+
+
+def build_booking_keyboard_data(status: str, object_type: str, booking_id: int) -> list[list[dict]]:
+    if object_type == "group":
+        if status != "AWAITING_PAYMENT":
+            return []
+        return [
+            [
+                {"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"},
+                {"text": "❌ Не оплатил", "callback_data": f"booking:{booking_id}:payment_failed"},
+            ]
+        ]
+
+    if status == "NEW":
+        return [
+            [
+                {"text": "✅ Подтвердить бронь", "callback_data": f"booking:{booking_id}:approve"},
+                {"text": "❌ Отказать", "callback_data": f"booking:{booking_id}:reject"},
+            ]
+        ]
+    if status == "APPROVED":
+        return [
+            [
+                {"text": "💳 Попросить оплатить", "callback_data": f"booking:{booking_id}:request_payment"},
+                {"text": "❌ Отменить", "callback_data": f"booking:{booking_id}:cancel"},
+            ]
+        ]
+    if status == "AWAITING_PAYMENT":
+        return [
+            [
+                {"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"},
+                {"text": "❌ Не оплатил", "callback_data": f"booking:{booking_id}:payment_failed"},
+            ]
+        ]
+    return []

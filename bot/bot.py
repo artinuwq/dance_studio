@@ -2,8 +2,8 @@ import asyncio
 import aiohttp
 import time
 import zipfile
-from aiogram import Bot, Dispatcher
-from aiogram.types import MenuButtonWebApp, WebAppInfo, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import MenuButtonWebApp, WebAppInfo, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -19,10 +19,12 @@ from config import (
     TECH_STATUS_MESSAGE_ID,
     OWNER_IDS,
     TECH_ADMIN_ID,
+    BOOKINGS_ADMIN_CHAT_ID,
 )
 from backend.db import get_session
 from backend.permissions import has_permission
-from backend.models import News, User, Mailing, Group, DirectionUploadSession, Staff
+from backend.models import News, User, Mailing, Group, DirectionUploadSession, Staff, BookingRequest
+from backend.booking_utils import format_booking_message, build_booking_keyboard_data
 from datetime import datetime, time as dt_time, timedelta
 import os
 import tempfile
@@ -943,6 +945,99 @@ async def run_bot():
             backup_task.cancel()
         if queue_task:
             queue_task.cancel()
+
+
+def _build_booking_keyboard_markup(status: str, object_type: str, booking_id: int) -> InlineKeyboardMarkup | None:
+    keyboard_data = build_booking_keyboard_data(status, object_type, booking_id)
+    if not keyboard_data:
+        return None
+    rows = []
+    for row in keyboard_data:
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=button["text"],
+                    callback_data=button["callback_data"]
+                )
+                for button in row
+            ]
+        )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+@dp.callback_query(F.data.startswith("booking:"))
+async def handle_booking_action(callback: CallbackQuery):
+    if not callback.data or not callback.message:
+        return
+
+    if BOOKINGS_ADMIN_CHAT_ID and callback.message.chat.id != BOOKINGS_ADMIN_CHAT_ID:
+        await callback.answer("Эта кнопка доступна только для админ-группы.", show_alert=True)
+        return
+
+    parts = callback.data.split(":", 2)
+    if len(parts) != 3:
+        await callback.answer("Некорректное действие.", show_alert=True)
+        return
+
+    _, booking_id_str, action = parts
+    try:
+        booking_id = int(booking_id_str)
+    except ValueError:
+        await callback.answer("Некорректный идентификатор заявки.", show_alert=True)
+        return
+
+    db = get_session()
+    try:
+        booking = db.query(BookingRequest).filter_by(id=booking_id).first()
+        if not booking:
+            await callback.answer("Заявка не найдена.", show_alert=True)
+            return
+
+        allowed_actions = {
+            button["callback_data"].split(":")[-1]
+            for row in build_booking_keyboard_data(booking.status, booking.object_type, booking.id)
+            for button in row
+        }
+        if action not in allowed_actions:
+            await callback.answer("Действие недоступно для текущего статуса.", show_alert=True)
+            return
+
+        action_map = {
+            "approve": "APPROVED",
+            "reject": "REJECTED",
+            "request_payment": "AWAITING_PAYMENT",
+            "cancel": "CANCELLED",
+            "confirm_payment": "PAID",
+            "payment_failed": "PAYMENT_FAILED",
+        }
+        next_status = action_map.get(action)
+        if not next_status:
+            await callback.answer("Неизвестное действие.", show_alert=True)
+            return
+
+        admin_user = callback.from_user
+        staff = db.query(Staff).filter_by(telegram_id=admin_user.id, status="active").first()
+
+        booking.status = next_status
+        booking.status_updated_by_id = staff.id if staff else None
+        booking.status_updated_by_username = f"@{admin_user.username}" if admin_user.username else None
+        booking.status_updated_by_name = staff.name if staff else admin_user.full_name
+        booking.status_updated_at = datetime.now()
+
+        db.commit()
+
+        user = db.query(User).filter_by(id=booking.user_id).first()
+        text = format_booking_message(booking, user)
+        reply_markup = _build_booking_keyboard_markup(booking.status, booking.object_type, booking.id)
+
+        await callback.message.edit_text(
+            text,
+            parse_mode=ParseMode.HTML,
+            reply_markup=reply_markup
+        )
+        await callback.answer("Статус заявки обновлен.")
+    finally:
+        db.close()
 
 
 # ======================== СИСТЕМА ЗАГРУЗКИ ФОТОГРАФИЙ НАПРАВЛЕНИЙ ========================

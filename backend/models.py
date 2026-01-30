@@ -170,6 +170,29 @@ class HallRental(Base):
     duration_minutes = Column(Integer, nullable=True)
 
 
+class BookingRequest(Base):
+    __tablename__ = "booking_requests"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_telegram_id = Column(Integer, nullable=True)
+    user_name = Column(String, nullable=True)
+    user_username = Column(String, nullable=True)
+    object_type = Column(String, nullable=False)  # rental | individual | group
+    date = Column(Date, nullable=True)
+    time_from = Column(Time, nullable=True)
+    time_to = Column(Time, nullable=True)
+    duration_minutes = Column(Integer, nullable=True)
+    comment = Column(Text, nullable=True)
+    overlaps_json = Column(Text, nullable=True)
+    status = Column(String, default="NEW", nullable=False)
+    status_updated_by_id = Column(Integer, nullable=True)
+    status_updated_by_username = Column(String, nullable=True)
+    status_updated_by_name = Column(String, nullable=True)
+    status_updated_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+
 class Mailing(Base):
     __tablename__ = "mailings"
 
