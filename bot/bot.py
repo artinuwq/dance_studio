@@ -965,7 +965,7 @@ def _build_booking_keyboard_markup(status: str, object_type: str, booking_id: in
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-@dp.callback_query(F.data.startswith("booking:"))
+@dp.callback_query(F.data.startswith("booking"))
 async def handle_booking_action(callback: CallbackQuery):
     if not callback.data or not callback.message:
         return
@@ -975,11 +975,12 @@ async def handle_booking_action(callback: CallbackQuery):
         return
 
     parts = callback.data.split(":", 2)
-    if len(parts) != 3:
+    if len(parts) < 2:
         await callback.answer("Некорректное действие.", show_alert=True)
         return
 
-    _, booking_id_str, action = parts
+    prefix, booking_id_str = parts[0], parts[1]
+    action = parts[2] if len(parts) == 3 else None
     try:
         booking_id = int(booking_id_str)
     except ValueError:
@@ -993,23 +994,69 @@ async def handle_booking_action(callback: CallbackQuery):
             await callback.answer("Заявка не найдена.", show_alert=True)
             return
 
-        allowed_actions = {
-            button["callback_data"].split(":")[-1]
-            for row in build_booking_keyboard_data(booking.status, booking.object_type, booking.id)
-            for button in row
-        }
-        if action not in allowed_actions:
-            await callback.answer("Действие недоступно для текущего статуса.", show_alert=True)
+        if prefix == "booking_cancel":
+            user = db.query(User).filter_by(id=booking.user_id).first()
+            text = format_booking_message(booking, user)
+            reply_markup = _build_booking_keyboard_markup(booking.status, booking.object_type, booking.id)
+            await callback.message.edit_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
+            await callback.answer("Отмена подтверждения.")
             return
 
-        action_map = {
-            "approve": "APPROVED",
-            "reject": "REJECTED",
-            "request_payment": "AWAITING_PAYMENT",
-            "cancel": "CANCELLED",
-            "confirm_payment": "PAID",
-            "payment_failed": "PAYMENT_FAILED",
-        }
+        if prefix == "booking_confirm":
+            if action not in {"approve", "reject"}:
+                await callback.answer("Неверное подтверждение.", show_alert=True)
+                return
+
+        if prefix != "booking_confirm":
+            allowed_actions = {
+                button["callback_data"].split(":")[-1]
+                for row in build_booking_keyboard_data(booking.status, booking.object_type, booking.id)
+                for button in row
+            }
+            if action not in allowed_actions:
+                await callback.answer("Действие недоступно для текущего статуса.", show_alert=True)
+                return
+            if action in {"approve", "reject"}:
+                confirm_markup = InlineKeyboardMarkup(inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="✅ Да",
+                            callback_data=f"booking_confirm:{booking.id}:{action}"
+                        ),
+                        InlineKeyboardButton(
+                            text="❌ Отмена",
+                            callback_data=f"booking_cancel:{booking.id}"
+                        ),
+                    ]
+                ])
+                user = db.query(User).filter_by(id=booking.user_id).first()
+                text = format_booking_message(booking, user)
+                await callback.message.edit_text(
+                    text,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=confirm_markup
+                )
+                await callback.answer("Подтвердите действие повторно.")
+                return
+
+        if prefix == "booking_confirm":
+            action_map = {
+                "approve": "APPROVED",
+                "reject": "REJECTED",
+            }
+        else:
+            action_map = {
+                "approve": "APPROVED",
+                "reject": "REJECTED",
+                "request_payment": "AWAITING_PAYMENT",
+                "cancel": "CANCELLED",
+                "confirm_payment": "PAID",
+                "payment_failed": "PAYMENT_FAILED",
+            }
         next_status = action_map.get(action)
         if not next_status:
             await callback.answer("Неизвестное действие.", show_alert=True)
@@ -1036,8 +1083,29 @@ async def handle_booking_action(callback: CallbackQuery):
             reply_markup=reply_markup
         )
         await callback.answer("Статус заявки обновлен.")
+        await _notify_user_on_status_change(user, booking, next_status)
     finally:
         db.close()
+
+
+async def _notify_user_on_status_change(user: User | None, booking: BookingRequest, status: str) -> None:
+    telegram_id = user.telegram_id if user else booking.user_telegram_id
+    if not telegram_id:
+        return
+
+    text_map = {
+        "APPROVED": "Ваша заявка подтверждена. В ближайшее время с вами свяжется администратор для обсуждения оплаты.",
+        "REJECTED": "К сожалению, вашу заявку отклонили. При необходимости вы можете отправить новую заявку или обратиться к администратору.",
+        "PAID": "Ваша заявка полностью одобрена, ждём вас на занятиях!",
+    }
+    message_text = text_map.get(status)
+    if not message_text:
+        return
+
+    try:
+        await bot.send_message(chat_id=telegram_id, text=message_text)
+    except Exception:
+        pass
 
 
 # ======================== СИСТЕМА ЗАГРУЗКИ ФОТОГРАФИЙ НАПРАВЛЕНИЙ ========================

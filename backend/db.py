@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.orm import sessionmaker
 from backend.models import Base, Staff, User
 from backend.media_manager import create_required_directories
@@ -19,11 +19,26 @@ engine = create_engine(
 
 Session = sessionmaker(bind=engine)
 
+def ensure_booking_request_columns():
+    required_columns = {
+        "group_id": "INTEGER",
+        "lessons_count": "INTEGER",
+        "group_start_date": "DATE",
+        "valid_until": "DATE",
+    }
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(booking_requests)"))
+        existing = {row[1] for row in result}
+        for name, data_type in required_columns.items():
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE booking_requests ADD COLUMN {name} {data_type}"))
+
 def init_db():
     # Создаем необходимые папки
     create_required_directories()
     # Создаем таблицы
     Base.metadata.create_all(engine)
+    ensure_booking_request_columns()
     # Инициализируем admin и owner
     init_admin_and_owner()
 

@@ -184,6 +184,10 @@ class BookingRequest(Base):
     time_to = Column(Time, nullable=True)
     duration_minutes = Column(Integer, nullable=True)
     comment = Column(Text, nullable=True)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    lessons_count = Column(Integer, nullable=True)
+    group_start_date = Column(Date, nullable=True)
+    valid_until = Column(Date, nullable=True)
     overlaps_json = Column(Text, nullable=True)
     status = Column(String, default="NEW", nullable=False)
     status_updated_by_id = Column(Integer, nullable=True)
@@ -191,6 +195,8 @@ class BookingRequest(Base):
     status_updated_by_name = Column(String, nullable=True)
     status_updated_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    group = relationship("Group", foreign_keys=[group_id])
 
 
 class Mailing(Base):

@@ -1450,6 +1450,257 @@ textarea.form-input {
   letter-spacing: 0.6px;
 }
 
+.group-booking-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.group-booking-overlay.show {
+  display: flex;
+}
+
+.group-booking-slider-wrapper {
+  margin-top: 6px;
+  width: 100%;
+}
+
+.group-booking-slider-marks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--hint);
+  margin-top: 4px;
+}
+
+.group-booking-slider-selected {
+  font-size: 12px;
+  color: var(--accent);
+  margin-top: 6px;
+  text-align: left;
+}
+
+.teacher-cards-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.teacher-card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.teacher-photo {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: #e0e0e0;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-weight: 600;
+  color: #555;
+}
+
+.teacher-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.teacher-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.teacher-info .teacher-name {
+  font-weight: 600;
+}
+
+.teacher-info .teacher-meta {
+  font-size: 12px;
+  color: var(--hint);
+}
+.group-booking-price-preview {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.group-booking-range-text,
+.group-booking-meta {
+  font-size: 13px;
+  color: var(--text);
+  margin-top: 4px;
+}
+
+.group-booking-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+}
+
+.group-booking-card {
+  position: relative;
+  background: white;
+  width: min(420px, calc(100% - 32px));
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.25);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group-booking-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+}
+
+.group-booking-header button {
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.teacher-detail-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.teacher-detail-overlay.show {
+  display: flex;
+}
+
+.teacher-detail-card {
+  background: white;
+  border-radius: 16px;
+  width: min(480px, calc(100% - 32px));
+  padding: 20px;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.teacher-profile-photo {
+  width: 100%;
+  height: 200px;
+  border-radius: 16px;
+  background: var(--card);
+  overflow: hidden;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.teacher-profile-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.teacher-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.teacher-detail-header button {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--hint);
+}
+
+.teacher-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.teacher-detail-label {
+  font-size: 12px;
+  color: var(--hint);
+  margin: 0;
+}
+
+.teacher-detail-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  min-height: 40px;
+}
+
+.teacher-detail-schedule {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.teacher-detail-schedule-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.group-booking-body label {
+  font-size: 12px;
+  color: var(--hint);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.group-booking-body input,
+.group-booking-body textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  font-size: 14px;
+}
+
+.group-booking-body input[type=range] {
+  padding: 0;
+}
+
+.group-booking-body textarea {
+  min-height: 70px;
+  resize: vertical;
+}
+
+.group-booking-footer {
+  margin-top: 4px;
+}
+
+.group-booking-footer .save-btn {
+  width: 100%;
+}
 </style>
 </head>
 <body>
@@ -2359,10 +2610,25 @@ textarea.form-input {
 </div>
 </div>
 <div class="page" data-title="ℹ️ Информация" id="info">
-
-<h3 id="info-title" style="display: none;"></h3>
-<p class="small" id="info-placeholder">Раздел находится в разработке</p>
-<div id="info-directions-container" style="display: none;"></div>
+  <h3 id="info-title" style="display: none;"></h3>
+  <p class="small" id="info-placeholder">Раздел находится в разработке</p>
+  <div id="info-section-content" style="display: none;"></div>
+</div>
+<div class="page" data-title="👩‍🏫 Преподаватель" id="teacher-profile-page">
+  <div class="card">
+    <div class="teacher-profile-photo" id="teacher-profile-photo"></div>
+    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+      <h3 id="teacher-profile-name">Преподаватель</h3>
+      <button class="header-back" style="padding: 4px 10px; font-size: 18px;" onclick="goBack()">Назад</button>
+    </div>
+    <p class="small" id="teacher-profile-specialization"></p>
+    <p class="teacher-detail-label">Биография</p>
+    <p id="teacher-profile-bio" class="teacher-detail-text">—</p>
+    <p class="teacher-detail-label">График работы</p>
+    <div id="teacher-profile-schedule" class="teacher-detail-schedule">
+      <p class="small">График загружается…</p>
+    </div>
+  </div>
 </div>
 <div class="page" data-title="🎯 Направление" id="direction-detail">
   <div id="direction-detail-content"></div>
@@ -2405,6 +2671,43 @@ textarea.form-input {
 <div class="nav-btn" onclick="showPage('schedule')">🗓<br/>Расписание</div>
 <div class="nav-btn hidden" id="staff-nav-btn" onclick="showPage('staff')">👨‍💼<br/>Работа</div>
 <div class="nav-btn" onclick="showPage('profile')">👤<br/>Профиль</div>
+</div>
+<div id="group-booking-overlay" class="group-booking-overlay">
+  <div class="group-booking-backdrop" onclick="closeGroupBookingForm()"></div>
+  <div class="group-booking-card">
+    <div class="group-booking-header">
+      <div id="group-booking-title">Форма записи</div>
+      <button type="button" onclick="closeGroupBookingForm()" aria-label="Закрыть">✕</button>
+    </div>
+      <div class="group-booking-body">
+        <label>Количество занятий *</label>
+        <div class="group-booking-slider-wrapper">
+          <input
+            id="group-booking-lessons"
+            type="range"
+            min="1"
+            max="32"
+            value="4"
+            step="1"
+          />
+          <div class="group-booking-slider-marks">
+            <span id="group-booking-slider-min">1</span>
+            <span id="group-booking-slider-mid">16</span>
+            <span id="group-booking-slider-max">32</span>
+          </div>
+        </div>
+        <div class="group-booking-slider-selected" id="group-booking-selected-value">Выбрано: 4 занятий</div>
+        <div class="group-booking-price-preview" id="group-booking-price-preview">Примерная цена: —</div>
+        <div class="group-booking-range-text" id="group-booking-range-text">Диапазон 1–32</div>
+        <div class="group-booking-meta">Следующее занятие: <span id="group-booking-next-session">—</span></div>
+        <div class="group-booking-meta">Абонемент действует до: <span id="group-booking-valid-until">—</span></div>
+        <label>Комментарий</label>
+        <textarea id="group-booking-note" placeholder="Например, желаю подтвердить с ..."></textarea>
+      </div>
+    <div class="group-booking-footer">
+      <button id="group-booking-submit" class="save-btn" type="button" onclick="submitGroupBookingForm()">Оформить</button>
+    </div>
+  </div>
 </div>
 <script>
 /* ====== TELEGRAM ====== */
@@ -2659,6 +2962,7 @@ function showSection(section) {
       document.getElementById('info-title').innerText = 'Преподаватели';
       setHeaderTitle('Преподаватели');
       resetInfoPage();
+      loadInfoTeachers();
       break;
     case 'info-directions':
       showPage('info');
@@ -2678,7 +2982,7 @@ function showSection(section) {
 }
 
 function resetInfoPage() {
-  const container = document.getElementById('info-directions-container');
+  const container = document.getElementById('info-section-content');
   const placeholder = document.getElementById('info-placeholder');
   if (container) {
     container.style.display = 'none';
@@ -2691,7 +2995,7 @@ function resetInfoPage() {
 }
 
 function loadInfoDirections() {
-  const container = document.getElementById('info-directions-container');
+  const container = document.getElementById('info-section-content');
   const placeholder = document.getElementById('info-placeholder');
   if (!container) return;
   container.style.display = 'block';
@@ -2731,6 +3035,116 @@ function loadInfoDirections() {
     });
 }
 
+function loadInfoTeachers() {
+  const container = document.getElementById('info-section-content');
+  const placeholder = document.getElementById('info-placeholder');
+  if (!container) return;
+  container.style.display = 'block';
+  if (placeholder) placeholder.style.display = 'none';
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">⏳ Загрузка преподавателей...</p>';
+
+  fetch('/api/teachers')
+    .then(async res => {
+      if (!res.ok) throw new Error('Не удалось загрузить преподавателей');
+      return res.json();
+    })
+    .then(staff => {
+      if (!staff || staff.length === 0) {
+        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">📭 Преподавателей пока нет</p>';
+        return;
+      }
+      container.innerHTML = '<div class="teacher-cards-grid">' + staff.map(t => {
+        const safeName = escapeHtml(t.name || '');
+        const safeSpecialization = escapeHtml(t.specialization || t.position || '');
+        const initials = (t.name || '').split(' ').map(part => part[0]?.toUpperCase()).filter(Boolean).slice(0, 2).join('') || '—';
+        const photo = t.photo ? `<img src="${escapeHtml(t.photo)}" alt="${safeName}">` : `<span>${escapeHtml(initials)}</span>`;
+        return `
+          <div class="teacher-card" onclick="openTeacherDetail(${t.id})" style="cursor:pointer;">
+            <div class="teacher-photo">${photo}</div>
+            <div class="teacher-info">
+              <div class="teacher-name">${safeName || '—'}</div>
+              <div class="teacher-meta">${safeSpecialization}</div>
+            </div>
+          </div>
+        `;
+      }).join('') + '</div>';
+    })
+    .catch(err => {
+      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 12px;">❌ ${err.message}</p>`;
+    });
+}
+
+const TEACHER_WEEKDAYS = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
+
+function renderTeacherSchedule(items) {
+  if (!items || !items.length) {
+    return '<p class="small">Свободен всегда</p>';
+  }
+  return items.map(item => {
+    const weekday = TEACHER_WEEKDAYS[item.weekday] || '—';
+    const timeFrom = item.time_from || '—';
+    const timeTo = item.time_to || '—';
+    const validity = (item.valid_from || item.valid_to)
+      ? ` (${item.valid_from || '...' } → ${item.valid_to || '...'})`
+      : '';
+    return `
+      <div class="teacher-detail-schedule-row">
+        <span>${weekday}${validity}</span>
+        <span>${timeFrom} — ${timeTo}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function openTeacherDetail(id) {
+  showPage('teacher-profile-page');
+  setHeaderTitle('Преподаватель');
+  document.getElementById('teacher-profile-name').textContent = 'Загрузка...';
+  document.getElementById('teacher-profile-specialization').textContent = '';
+  document.getElementById('teacher-profile-bio').textContent = '';
+  document.getElementById('teacher-profile-schedule').innerHTML = '<p class="small">График загружается...</p>';
+
+  try {
+    const [detail, schedule] = await Promise.all([
+      fetch(`/api/teachers/${id}`).then(res => res.ok ? res.json() : Promise.reject(new Error('Не удалось загрузить информацию'))),
+      fetch(`/api/teachers/${id}/schedule`).then(res => res.ok ? res.json() : []),
+    ]);
+    document.getElementById('teacher-profile-name').textContent = detail.name || '—';
+    const specialization = detail.specialization || detail.position || '—';
+    document.getElementById('teacher-profile-specialization').textContent = specialization;
+    document.getElementById('teacher-profile-bio').textContent = detail.bio || 'Информация о биографии отсутствует.';
+    document.getElementById('teacher-profile-schedule').innerHTML = renderTeacherSchedule(schedule);
+    const photoContainer = document.getElementById('teacher-profile-photo');
+    if (photoContainer) {
+      photoContainer.innerHTML = '';
+      if (detail.photo) {
+        const img = document.createElement('img');
+        img.src = detail.photo;
+        img.alt = detail.name || 'Преподаватель';
+        photoContainer.appendChild(img);
+        photoContainer.style.display = 'flex';
+      } else {
+        photoContainer.style.display = 'none';
+      }
+    }
+  } catch (err) {
+    document.getElementById('teacher-profile-name').textContent = 'Ошибка загрузки';
+    document.getElementById('teacher-profile-specialization').textContent = '';
+    document.getElementById('teacher-profile-bio').textContent = err.message;
+    document.getElementById('teacher-profile-schedule').innerHTML = '<p class="small">Не удалось загрузить график</p>';
+    const photoContainer = document.getElementById('teacher-profile-photo');
+    if (photoContainer) {
+      photoContainer.innerHTML = '';
+      photoContainer.style.display = 'none';
+    }
+  }
+}
+
+function closeTeacherDetail() {
+  showPage('info');
+  setHeaderTitle('Информация');
+}
+
 function openDirectionDetail(directionId) {
   if (!directionId) return;
   const content = document.getElementById('direction-detail-content');
@@ -2751,10 +3165,9 @@ function openDirectionDetail(directionId) {
         : '';
 
       
-      
 
-
-window.groupDetails = window.groupDetails || {};
+      window.groupDetails = window.groupDetails || {};
+      window.currentDirectionForBooking = d;
       const groupsHtml = (groups && groups.length)
         ? groups.map(g => {
             const teacherName = g.teacher_name || '—';
@@ -2841,7 +3254,13 @@ function toggleGroupInlineDetails(groupId) {
         <div class="group-detail-row"><span>Макс. учеников:</span><div>${maxStudents}</div></div>
       </div>
       <div class="small" style="margin-top: 10px;">${description}</div>
-      <button class="save-btn" style="width: 100%; margin-top: 10px;">Записаться</button>
+      <button
+        id="group-book-btn-${groupId}"
+        type="button"
+        class="save-btn"
+        style="width: 100%; margin-top: 10px;"
+        onclick="openGroupBookingForm(${groupId})"
+      >Записаться</button>
     `;
   }
 
@@ -2854,6 +3273,243 @@ function toggleGroupInlineDetails(groupId) {
     details.style.maxHeight = details.scrollHeight + 'px';
   } else {
     details.style.maxHeight = '0px';
+  }
+}
+
+let activeGroupBookingId = null;
+
+function pluralizeLessonWord(count) {
+  const mod100 = count % 100;
+  if (mod100 >= 11 && mod100 <= 14) {
+    return 'занятий';
+  }
+  const mod10 = count % 10;
+  if (mod10 === 1) {
+    return 'занятие';
+  }
+  if (mod10 >= 2 && mod10 <= 4) {
+    return 'занятия';
+  }
+  return 'занятий';
+}
+
+function updateGroupBookingLessonsLabel(value) {
+  const label = document.getElementById('group-booking-selected-value');
+  if (!label || !Number.isFinite(value)) return;
+  label.textContent = `Выбрано: ${value} ${pluralizeLessonWord(value)}`;
+}
+
+function updateGroupBookingSliderMarks() {
+  const slider = document.getElementById('group-booking-lessons');
+  if (!slider) return;
+  const minLabel = document.getElementById('group-booking-slider-min');
+  const midLabel = document.getElementById('group-booking-slider-mid');
+  const maxLabel = document.getElementById('group-booking-slider-max');
+  const min = Number(slider.min) || 1;
+  const max = Number(slider.max) || min;
+  const mid = Math.max(min, Math.floor((min + max) / 2));
+  if (minLabel) minLabel.textContent = String(min);
+  if (midLabel) midLabel.textContent = String(mid);
+  if (maxLabel) maxLabel.textContent = String(max);
+  updateGroupBookingRangeText();
+}
+
+function updateGroupBookingRangeText() {
+  const rangeText = document.getElementById('group-booking-range-text');
+  const slider = document.getElementById('group-booking-lessons');
+  if (!rangeText || !slider) return;
+  const min = slider.min || '1';
+  const max = slider.max || '1';
+  rangeText.textContent = `Диапазон ${min}–${max}`;
+}
+
+function updateGroupBookingPricePreview(lessonsCount) {
+  const preview = document.getElementById('group-booking-price-preview');
+  if (!preview) return;
+  if (!window.currentDirectionForBooking) {
+    preview.textContent = 'Примерная цена: —';
+    return;
+  }
+  const pricePerLesson = Number(window.currentDirectionForBooking.base_price);
+  if (!Number.isFinite(pricePerLesson) || pricePerLesson <= 0) {
+    preview.textContent = 'Примерная цена: цена за занятие не указана';
+    return;
+  }
+  const total = lessonsCount * pricePerLesson;
+  const formatted = new Intl.NumberFormat('ru-RU').format(total);
+  preview.textContent = `Примерная цена: ${formatted} ₽`;
+}
+
+function formatBookingDisplayDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
+}
+
+function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function openGroupBookingForm(groupId) {
+  const group = (window.groupDetails && window.groupDetails[groupId]) || null;
+  if (!group) {
+    showNotification('Не удалось определить группу');
+    return;
+  }
+  activeGroupBookingId = groupId;
+  const overlay = document.getElementById('group-booking-overlay');
+  if (!overlay) return;
+  const titleEl = document.getElementById('group-booking-title');
+  const directionTitle = window.currentDirectionForBooking?.title || '';
+  if (titleEl) {
+    titleEl.textContent = `${group.name || 'Группа'}${directionTitle ? ` — ${directionTitle}` : ''}`;
+  }
+  const lessonsInput = document.getElementById('group-booking-lessons');
+  if (lessonsInput) {
+    const perWeek = Math.max(1, Number(group.lessons_per_week) || 1);
+    const maxLessons = perWeek * 2 * 4;
+    lessonsInput.min = 1;
+    lessonsInput.max = maxLessons;
+    lessonsInput.step = 1;
+    lessonsInput.oninput = () => {
+      updateGroupBookingDates();
+      updateGroupBookingSliderMarks();
+    };
+    const defaultLessons = Math.min(perWeek * 4, maxLessons);
+    lessonsInput.value = defaultLessons;
+    updateGroupBookingLessonsLabel(defaultLessons);
+    updateGroupBookingSliderMarks();
+  }
+  const startInput = document.getElementById('group-booking-start-date');
+  const validInput = document.getElementById('group-booking-validity');
+  const today = new Date();
+  const formattedToday = today.toISOString().slice(0, 10);
+  if (startInput) startInput.value = formattedToday;
+  if (validInput) {
+    const validDate = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000);
+    validInput.value = validDate.toISOString().slice(0, 10);
+  }
+  const noteInput = document.getElementById('group-booking-note');
+  if (noteInput) noteInput.value = '';
+  groupBookingLessonsPerWeek = Math.max(1, Number(group.lessons_per_week) || 1);
+  groupBookingNextSessionDate = null;
+  groupBookingValidUntilDate = null;
+
+  try {
+    const res = await fetch(`/api/groups/${groupId}/next-session`, { headers: getAuthHeaders() });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.next_session_date) {
+        groupBookingNextSessionDate = data.next_session_date;
+      }
+    }
+  } catch (err) {
+    console.error('Не удалось загрузить дату следующего занятия:', err);
+  }
+  updateGroupBookingDates();
+  overlay.classList.add('show');
+}
+
+function closeGroupBookingForm() {
+  const overlay = document.getElementById('group-booking-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('show');
+  activeGroupBookingId = null;
+}
+
+let groupBookingNextSessionDate = null;
+let groupBookingValidUntilDate = null;
+let groupBookingLessonsPerWeek = 1;
+
+function updateGroupBookingDates() {
+  const lessonsInput = document.getElementById('group-booking-lessons');
+  const lessonsValue = lessonsInput ? Number(lessonsInput.value) : NaN;
+  if (!Number.isFinite(lessonsValue) || lessonsValue <= 0) {
+    return;
+  }
+  const lessonsCount = Math.max(1, Math.floor(lessonsValue));
+  updateGroupBookingLessonsLabel(lessonsCount);
+  updateGroupBookingPricePreview(lessonsCount);
+
+  const baseDate = groupBookingNextSessionDate
+    ? new Date(groupBookingNextSessionDate)
+    : new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const weeksCount = groupBookingLessonsPerWeek > 0
+    ? Math.ceil(lessonsCount / groupBookingLessonsPerWeek)
+    : lessonsCount;
+  const validDate = new Date(baseDate);
+  validDate.setDate(validDate.getDate() + weeksCount * 7);
+  groupBookingValidUntilDate = validDate.toISOString().slice(0, 10);
+
+  const nextSessionEl = document.getElementById('group-booking-next-session');
+  if (nextSessionEl) {
+    nextSessionEl.textContent = formatBookingDisplayDate(baseDate);
+  }
+  const validUntilEl = document.getElementById('group-booking-valid-until');
+  if (validUntilEl) {
+    validUntilEl.textContent = formatBookingDisplayDate(groupBookingValidUntilDate);
+  }
+}
+
+async function submitGroupBookingForm() {
+  if (!activeGroupBookingId) {
+    showNotification('Нет выбранной группы');
+    return;
+  }
+  const submitButton = document.getElementById('group-booking-submit');
+  if (!submitButton) return;
+  const originalText = submitButton.textContent;
+  submitButton.disabled = true;
+  submitButton.textContent = 'Отправка...';
+  const lessonsInput = document.getElementById('group-booking-lessons');
+  const lessonsValue = lessonsInput ? Number(lessonsInput.value) : NaN;
+  if (!Number.isFinite(lessonsValue) || lessonsValue <= 0) {
+    showNotification('Укажи корректное количество занятий');
+    submitButton.disabled = false;
+    submitButton.textContent = originalText;
+    return;
+  }
+  const lessonsCount = Math.max(1, Math.floor(lessonsValue));
+  updateGroupBookingDates();
+  const note = document.getElementById('group-booking-note')?.value.trim();
+  const group = (window.groupDetails && window.groupDetails[activeGroupBookingId]) || null;
+  const payload = {
+    object_type: 'group',
+    comment: note || null,
+    lessons_count: lessonsCount,
+    group_id: activeGroupBookingId,
+    start_date: groupBookingNextSessionDate,
+    valid_until: groupBookingValidUntilDate,
+  };
+  try {
+    const response = await fetch('/api/booking-requests', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error((data && data.error) || 'Не удалось отправить заявку');
+    }
+    showNotification('✅ Заявка на группу отправлена');
+    closeGroupBookingForm();
+  } catch (error) {
+    console.error(error);
+    showNotification('❌ ' + (error.message || 'Ошибка при записи'));
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = originalText;
   }
 }
 

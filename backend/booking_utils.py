@@ -103,23 +103,32 @@ def format_booking_message(booking, user=None) -> str:
         time_section = (
             "🗓 Время:\n"
             f"• Дата: {_format_date(booking.date)}\n"
-            f"• С {_format_time(booking.time_from)} до {_format_time(booking.time_to)}{duration_suffix}\n\n"
+        f"• С {_format_time(booking.time_from)} до {_format_time(booking.time_to)}{duration_suffix}\n\n"
+    )
+
+    comment_section = ""
+    if booking.comment:
+        comment_section = (
+            "📝 Комментарий:\n"
+            f"{html.escape(str(booking.comment))}\n\n"
         )
 
-    overlaps = parse_overlaps(booking.overlaps_json)
-    if overlaps:
-        overlap_lines = "\n".join(format_overlap_lines(overlaps))
-        overlaps_section = (
-            "⚠️ Пересечения:\n"
-            "⚠️ ПЕРЕСЕЧЕНИЯ ОБНАРУЖЕНЫ\n\n"
-            f"{overlap_lines}\n\n"
-            "Рекомендуется проверить перед подтверждением.\n\n"
-        )
-    else:
-        overlaps_section = (
-            "⚠️ Пересечения:\n"
-            "✅ Пересечений не обнаружено\n\n"
-        )
+    overlaps_section = ""
+    if booking.object_type != "group":
+        overlaps = parse_overlaps(booking.overlaps_json)
+        if overlaps:
+            overlap_lines = "\n".join(format_overlap_lines(overlaps))
+            overlaps_section = (
+                "⚠️ Пересечения:\n"
+                "⚠️ ПЕРЕСЕЧЕНИЯ ОБНАРУЖЕНЫ\n\n"
+                f"{overlap_lines}\n\n"
+                "Рекомендуется проверить перед подтверждением.\n\n"
+            )
+        else:
+            overlaps_section = (
+                "⚠️ Пересечения:\n"
+                "✅ Пересечений не обнаружено\n\n"
+            )
 
     status_line = BOOKING_STATUS_LABELS.get(booking.status, booking.status)
     status_section = f"📌 Статус:\n{status_line}\n"
@@ -137,16 +146,43 @@ def format_booking_message(booking, user=None) -> str:
             f"• {admin_time}\n"
         )
 
+    lesson_section = ""
+    if booking.object_type == "group":
+        lesson_lines = []
+        group = getattr(booking, "group", None)
+        if group and group.name:
+            lesson_lines.append(f"• Группа: {html.escape(group.name)}")
+        direction = getattr(group, "direction", None) if group else None
+        if direction and direction.title:
+            lesson_lines.append(f"• Направление: {html.escape(direction.title)}")
+            if direction.base_price:
+                lesson_lines.append(f"• Цена занятия: {direction.base_price} ₽")
+        if group and group.teacher and group.teacher.name:
+            lesson_lines.append(f"• Преподаватель: {html.escape(group.teacher.name)}")
+        if group and group.age_group:
+            lesson_lines.append(f"• Возраст: {html.escape(group.age_group)}")
+        if group and group.lessons_per_week:
+            lesson_lines.append(f"• {group.lessons_per_week} занятий в неделю")
+        if booking.lessons_count:
+            lesson_lines.append(f"• Кол-во занятий: {booking.lessons_count}")
+        if booking.group_start_date:
+            lesson_lines.append(f"• Следующее занятие: {_format_date(booking.group_start_date)}")
+        if booking.valid_until:
+            lesson_lines.append(f"• Абонемент действует до: {_format_date(booking.valid_until)}")
+        if lesson_lines:
+            lesson_section = "🎯 О занятии:\n" + "\n".join(lesson_lines) + "\n\n"
+
     return (
         f"{header}\n\n"
         "👤 Клиент:\n"
         f"• Имя: {safe_name}\n"
         f"• Username: {username_display}\n"
-        f"• Telegram ID: {telegram_id or '—'}\n"
         f"• Написать: {contact_line}\n\n"
         "📦 Тип:\n"
         f"{booking_type}\n\n"
         f"{time_section}"
+        f"{lesson_section}"
+        f"{comment_section}"
         f"{overlaps_section}"
         f"{status_section}"
         f"{admin_section}"
@@ -155,14 +191,21 @@ def format_booking_message(booking, user=None) -> str:
 
 def build_booking_keyboard_data(status: str, object_type: str, booking_id: int) -> list[list[dict]]:
     if object_type == "group":
-        if status != "AWAITING_PAYMENT":
-            return []
-        return [
-            [
-                {"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"},
-                {"text": "❌ Не оплатил", "callback_data": f"booking:{booking_id}:payment_failed"},
+        if status in {"AWAITING_PAYMENT", "NEW"}:
+            return [
+                [
+                    {"text": "✅ Подтвердить бронь", "callback_data": f"booking:{booking_id}:approve"},
+                    {"text": "❌ Отказать", "callback_data": f"booking:{booking_id}:reject"},
+                ]
             ]
-        ]
+        if status == "APPROVED":
+            return [
+                [
+                    {"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"},
+                    {"text": "❌ Отказать", "callback_data": f"booking:{booking_id}:payment_failed"},
+                ]
+            ]
+        return []
 
     if status == "NEW":
         return [
@@ -174,8 +217,8 @@ def build_booking_keyboard_data(status: str, object_type: str, booking_id: int) 
     if status == "APPROVED":
         return [
             [
-                {"text": "💳 Попросить оплатить", "callback_data": f"booking:{booking_id}:request_payment"},
-                {"text": "❌ Отменить", "callback_data": f"booking:{booking_id}:cancel"},
+                {"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"},
+                {"text": "❌ Отказать", "callback_data": f"booking:{booking_id}:payment_failed"},
             ]
         ]
     if status == "AWAITING_PAYMENT":

@@ -1681,11 +1681,8 @@ def delete_staff_photo(staff_id):
         return {"error": str(e)}, 500
 
 
-@app.route("/staff/list/teachers")
-def list_teachers():
-    """
-    Возвращает список всех учителей
-    """
+@app.route("/api/teachers", methods=["GET"])
+def list_public_teachers():
     db = g.db
     teachers = db.query(Staff).filter(
         Staff.status == "active",
@@ -1694,27 +1691,76 @@ def list_teachers():
             (Staff.position.in_(["учитель", "Учитель"]) & Staff.teaches.is_(None))
         )
     ).all()
-    
-    result = []
-    for t in teachers:
-        # Получаем username из User если есть telegram_id
-        username = None
-        if t.telegram_id:
-            user = db.query(User).filter_by(telegram_id=t.telegram_id).first()
-            if user:
-                username = user.username
-        
-        result.append({
+
+    return jsonify([
+        {
             "id": t.id,
             "name": t.name,
             "position": t.position,
             "specialization": t.specialization,
-            "username": username,
-            "teaches": t.teaches,
-            "photo": t.photo_path
-        })
-    
-    return jsonify(result)
+            "bio": t.bio,
+            "photo": t.photo_path,
+        }
+        for t in teachers
+    ])
+
+
+@app.route("/api/teachers/<int:teacher_id>", methods=["GET"])
+def get_public_teacher(teacher_id):
+    db = g.db
+    teacher = (
+        db.query(Staff)
+        .filter(
+            Staff.id == teacher_id,
+            Staff.status == "active",
+            or_(
+                Staff.teaches == 1,
+                (Staff.position.in_(["учитель", "Учитель"]) & Staff.teaches.is_(None))
+            )
+        )
+        .first()
+    )
+    if not teacher:
+        return {"error": "Преподаватель не найден"}, 404
+    return {
+        "id": teacher.id,
+        "name": teacher.name,
+        "position": teacher.position,
+        "specialization": teacher.specialization,
+        "bio": teacher.bio,
+        "photo": teacher.photo_path,
+    }
+
+
+@app.route("/api/teachers/<int:teacher_id>/schedule", methods=["GET"])
+def get_public_teacher_schedule(teacher_id):
+    db = g.db
+    teacher_exists = db.query(Staff).filter(
+        Staff.id == teacher_id,
+        Staff.status == "active",
+        or_(
+            Staff.teaches == 1,
+            (Staff.position.in_(["учитель", "Учитель"]) & Staff.teaches.is_(None))
+        )
+    ).first()
+    if not teacher_exists:
+        return {"error": "Преподаватель не найден"}, 404
+    items = (
+        db.query(TeacherWorkingHours)
+        .filter_by(teacher_id=teacher_id, status="active")
+        .order_by(TeacherWorkingHours.weekday.asc(), TeacherWorkingHours.time_from.asc())
+        .all()
+    )
+    return [
+        {
+            "weekday": i.weekday,
+            "time_from": i.time_from.strftime("%H:%M") if i.time_from else None,
+            "time_to": i.time_to.strftime("%H:%M") if i.time_to else None,
+            "valid_from": i.valid_from.isoformat() if i.valid_from else None,
+            "valid_to": i.valid_to.isoformat() if i.valid_to else None,
+        }
+        for i in items
+    ]
 
 
 @app.route("/staff/list/all")
@@ -2132,7 +2178,7 @@ def get_directions():
     db = g.db
     directions = db.query(Direction).filter_by(status="active").order_by(Direction.created_at.desc()).all()
 
-    print(f"✓ Найдено {len(directions)} активных направлений")
+    #print(f"✓ Найдено {len(directions)} активных направлений")
     
     result = []
     for d in directions:
@@ -2785,10 +2831,18 @@ def create_booking_request():
     time_from_str = data.get("time_from")
     time_to_str = data.get("time_to")
     comment = data.get("comment")
+    group_id = data.get("group_id")
+    lessons_count = data.get("lessons_count")
+    group_start_date_str = data.get("start_date")
+    valid_until_str = data.get("valid_until")
 
     date_val = None
     time_from_val = None
     time_to_val = None
+    group_id_val = None
+    lessons_count_val = None
+    group_start_date_val = None
+    valid_until_val = None
 
     if object_type != "group":
         if not date_str or not time_from_str or not time_to_str:
@@ -2809,6 +2863,32 @@ def create_booking_request():
             time_to_val = datetime.strptime(time_to_str, "%H:%M").time()
         except ValueError:
             return {"error": "time_to должен быть в формате HH:MM"}, 400
+
+    if group_id is not None:
+        try:
+            group_id_val = int(group_id)
+        except (TypeError, ValueError):
+            return {"error": "group_id должен быть числом"}, 400
+
+    if lessons_count is not None:
+        try:
+            lessons_count_val = int(lessons_count)
+        except (TypeError, ValueError):
+            return {"error": "lessons_count должен быть числом"}, 400
+        if lessons_count_val <= 0:
+            return {"error": "lessons_count должен быть больше 0"}, 400
+
+    if group_start_date_str:
+        try:
+            group_start_date_val = datetime.strptime(group_start_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return {"error": "start_date должен быть в формате YYYY-MM-DD"}, 400
+
+    if valid_until_str:
+        try:
+            valid_until_val = datetime.strptime(valid_until_str, "%Y-%m-%d").date()
+        except ValueError:
+            return {"error": "valid_until должен быть в формате YYYY-MM-DD"}, 400
 
     if time_from_val and time_to_val and time_from_val >= time_to_val:
         return {"error": "time_from должен быть меньше time_to"}, 400
@@ -2832,6 +2912,10 @@ def create_booking_request():
         comment=comment,
         overlaps_json=json.dumps(overlaps, ensure_ascii=False),
         status=status,
+        group_id=group_id_val,
+        lessons_count=lessons_count_val,
+        group_start_date=group_start_date_val,
+        valid_until=valid_until_val,
     )
 
     db.add(booking)
