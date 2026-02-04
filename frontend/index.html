@@ -7,14 +7,17 @@
 <title>Dance Studio</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-/* ====== ЦВЕТА (ФИКСИРОВАННАЯ БЕЛАЯ ТЕМА) ====== */
+/* ====== БАЗОВАЯ ТЕМНАЯ ПАЛИТРА В СТИЛЕ РЕФЕРЕНСА ====== */
 :root {
-  --bg: #ffffff;
-  --text: #111111;
-  --hint: #777777;
-  --accent: #e91e63;
-  --card: #f5f5f5;
-  --border: #eeeeee;
+  --bg: #0f0f0f;
+  --card: #151515;
+  --elevated: #1d1d1d;
+  --border: #242424;
+  --text: #f5f5f7;
+  --hint: #9a9da6;
+  --accent: #fe5815;
+  --accent-soft: rgba(254, 88, 21, 0.12);
+  --accent-strong: rgba(254, 88, 21, 0.22);
   --safe-top: 0px;
   --safe-bottom: 0px;
 }
@@ -22,7 +25,7 @@
 /* ====== БАЗА ====== */
 * {
   box-sizing: border-box;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
 }
 
 body {
@@ -99,6 +102,9 @@ body.tg-mobile .header-back {
   padding: 14px;
   border-radius: 14px;
   margin-bottom: 12px;
+  border: 1px solid var(--border);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  color: var(--text);
 }
 
 /* Компактные секции на вкладке "Работа" */
@@ -119,6 +125,9 @@ body.tg-mobile .header-back {
   border-radius: 12px;
   margin-bottom: 10px;
   cursor: pointer;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  color: var(--text);
 }
 
 .menu-item:active {
@@ -135,7 +144,7 @@ body.tg-mobile .header-back {
   height: auto;
   display: flex;
   align-items: center;
-  background: var(--bg);
+  background: rgba(12, 12, 12, 0.96);
   border-top: 1px solid var(--border);
   padding: 6px 8px calc(env(safe-area-inset-bottom) + 10px);
   box-sizing: border-box;
@@ -154,7 +163,7 @@ body.tg-mobile .header-back {
 
 .nav-btn.active {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .nav-btn.hidden {
@@ -178,7 +187,7 @@ body.tg-mobile .header-back {
   position: absolute;
   bottom: -2px;
   height: 3px;
-  background: #2196F3;
+  background: var(--accent);
   transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -259,7 +268,7 @@ body.tg-mobile .header-back {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #e0e0e0;
+  background: #262626;
   color: #fff;
   font-weight: 700;
   display: flex;
@@ -286,7 +295,7 @@ body.tg-mobile .header-back {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #e0e0e0;
+  background: #262626;
   color: #fff;
   font-weight: 700;
   display: flex;
@@ -352,7 +361,7 @@ body.tg-mobile .header-back {
 }
 
 .section-item {
-  background: #ffffff;
+  background: var(--card);
   padding: 16px;
   border-radius: 16px;
   margin-bottom: 12px;
@@ -360,13 +369,14 @@ body.tg-mobile .header-back {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
   transition: all 0.2s;
 }
 
 .section-item:active {
   opacity: 0.7;
-  background: var(--border);
+  background: #111;
 }
 
 .section-item-left {
@@ -386,10 +396,11 @@ body.tg-mobile .header-back {
   color: #ffffff;
   font-size: 24px;
   flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .section-icon--orange {
-  background: #ff9800;
+  background: #fe5815;
 }
 
 .section-icon--purple {
@@ -412,6 +423,7 @@ body.tg-mobile .header-back {
   font-weight: 700;
   font-size: 16px;
   margin: 0;
+  color: var(--text);
 }
 
 .section-item-desc {
@@ -421,7 +433,7 @@ body.tg-mobile .header-back {
 }
 
 .section-item-arrow {
-  color: #1a1a1a;
+  color: var(--text);
   font-size: 28px;
   font-weight: 700;
 }
@@ -472,7 +484,7 @@ body.tg-mobile .header-back {
   width: 56px;
   height: 56px;
   border-radius: 12px;
-  background: #e0e0e0;
+  background: #262626;
   overflow: hidden;
   align-self: center;
   display: flex;
@@ -514,7 +526,7 @@ body.tg-mobile .header-back {
 
 .individual-date-card.active {
   border-color: var(--accent);
-  background: rgba(233, 30, 99, 0.08);
+  background: rgba(254, 88, 21, 0.12);
 }
 
 .individual-time-area {
@@ -590,11 +602,13 @@ body.tg-mobile .header-back {
   align-items: center;
   justify-content: space-between;
   transition: all 0.2s;
+  border: 1px solid var(--border);
+  color: var(--text);
 }
 
 .contact-btn:active {
   opacity: 0.7;
-  background: var(--border);
+  background: #111;
 }
 
 .contact-btn-content {
@@ -701,7 +715,7 @@ textarea.form-input {
 }
 
 .rental-booking-message.error {
-  color: #c62828;
+  color: #ffb3b3;
 }
 
 .rental-note {
@@ -730,9 +744,9 @@ textarea.form-input {
   position: relative;
   height: 28px;
   border-radius: 14px;
-  background: #f5f5f5;
+  background: #1d1d1d;
   overflow: hidden;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .rental-occupancy-timeline::after {
@@ -748,8 +762,8 @@ textarea.form-input {
   top: 4px;
   bottom: 4px;
   border-radius: 10px;
-  background: rgba(233, 30, 99, 0.35);
-  border: 1px solid rgba(233, 30, 99, 0.9);
+  background: rgba(254, 88, 21, 0.28);
+  border: 1px solid rgba(254, 88, 21, 0.9);
   transition: transform 0.2s;
 }
 
@@ -791,8 +805,8 @@ textarea.form-input {
   border-radius: 999px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #e91e63;
-  border: 1px solid rgba(233, 30, 99, 0.25);
+  color: var(--accent);
+  border: 1px solid rgba(254, 88, 21, 0.35);
 }
 
 .save-btn {
@@ -856,7 +870,7 @@ textarea.form-input {
   display: none;
   position: absolute;
   inset: 0;
-  background: rgba(245, 245, 245, 0.7);
+  background: rgba(0, 0, 0, 0.55);
   border-radius: 12px;
   z-index: 2;
   pointer-events: all;
@@ -978,7 +992,7 @@ textarea.form-input {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: linear-gradient(135deg, var(--accent), #ff69b4);
+  background: linear-gradient(135deg, var(--accent), #ff8a3d);
 }
 
 .news-item::before {
@@ -988,7 +1002,7 @@ textarea.form-input {
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, var(--accent), #ff69b4);
+  background: linear-gradient(135deg, var(--accent), #ff8a3d);
   z-index: -1;
 }
 
@@ -1181,9 +1195,9 @@ textarea.form-input {
 }
 
 .schedule-filter-toggle.active {
-  background: #e3f2fd;
-  border-color: #64b5f6;
-  color: #0d47a1;
+  background: var(--accent-soft);
+  border-color: rgba(254, 88, 21, 0.6);
+  color: var(--accent);
 }
 
 .schedule-toolbar .button {
@@ -1235,7 +1249,7 @@ textarea.form-input {
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  background: #fff;
+  background: var(--card);
 }
 
 #teacher-working-hours .schedule-grid {
@@ -1277,8 +1291,8 @@ textarea.form-input {
 .schedule-grid-block-highlight {
   position: absolute;
   pointer-events: none;
-  background: rgba(200, 200, 200, 0.12);
-  border: 2px solid rgba(33, 150, 243, 0.45);
+  background: var(--accent-soft);
+  border: 2px solid rgba(254, 88, 21, 0.45);
   border-radius: 10px;
   transition: width 0.12s ease, height 0.12s ease, top 0.12s ease, left 0.12s ease, opacity 0.12s ease;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
@@ -1287,7 +1301,7 @@ textarea.form-input {
 }
 
 .schedule-slot {
-  background: #fff;
+  background: var(--card);
   cursor: pointer;
   min-height: 42px;
   border-radius: 0;
@@ -1320,12 +1334,12 @@ textarea.form-input {
 }
 
 .schedule-slot.tentative {
-  border-color: rgba(233, 30, 99, 0.8);
-  background: rgba(233, 30, 99, 0.08);
+  border-color: rgba(254, 88, 21, 0.8);
+  background: rgba(254, 88, 21, 0.12);
 }
 
 .schedule-slot.tentative .schedule-event {
-  color: #c62828;
+  color: #ffb3b3;
 }
 
 .schedule-slot-highlighted-other,
@@ -1339,17 +1353,17 @@ textarea.form-input {
 .schedule-slot-highlighted-active {
   border-width: 1px !important;
   border-style: solid !important;
-  border-color: rgba(33, 150, 243, 0.6) !important;
-  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(254, 88, 21, 0.7) !important;
+  background: rgba(254, 88, 21, 0.08) !important;
   z-index: 1;
 }
 
 .schedule-slot.non-working {
-  background: #ffcdd2;
+  background: rgba(255, 99, 99, 0.15);
 }
 
 .schedule-slot.non-working:hover {
-  background: #ef9a9a;
+  background: rgba(255, 99, 99, 0.22);
 }
 
 /* Схлопываем части одной заявки в единую колонку */
@@ -1359,21 +1373,21 @@ textarea.form-input {
 }
 
 .schedule-slot.slot-grouped {
-  border-left: 1px solid rgba(233, 30, 99, 0.8) !important;
-  border-right: 1px solid rgba(233, 30, 99, 0.8) !important;
-  background: rgba(233, 30, 99, 0.08) !important;
+  border-left: 1px solid rgba(254, 88, 21, 0.8) !important;
+  border-right: 1px solid rgba(254, 88, 21, 0.8) !important;
+  background: rgba(254, 88, 21, 0.12) !important;
 }
 
 .schedule-slot.slot-group-start {
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
-  border-top: 2px solid rgba(233, 30, 99, 0.8);
+  border-top: 2px solid rgba(254, 88, 21, 0.8);
 }
 
 .schedule-slot.slot-group-end {
   border-bottom-left-radius: 10px;
   border-bottom-right-radius: 10px;
-  border-bottom: 2px solid rgba(233, 30, 99, 0.8);
+  border-bottom: 2px solid rgba(254, 88, 21, 0.8);
 }
 
 .schedule-slot.slot-group-middle {
@@ -1408,7 +1422,7 @@ textarea.form-input {
   left: 0;
   right: 0;
   bottom: 0;
-  background: #fff;
+  background: var(--card);
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.15);
   padding: 16px;
@@ -1451,7 +1465,7 @@ textarea.form-input {
   left: 0;
   right: 0;
   bottom: 0;
-  background: #fff;
+  background: var(--card);
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.15);
   padding: 16px;
@@ -1483,7 +1497,7 @@ textarea.form-input {
   right: 16px;
   top: 50%;
   transform: translateY(-50%);
-  background: #fff;
+  background: var(--card);
   border-radius: 16px;
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
   padding: 16px;
@@ -1530,9 +1544,9 @@ textarea.form-input {
 
 .schedule-detail-client-btn {
   border-radius: 999px;
-  border: 1px solid rgba(233, 30, 99, 0.65);
-  background: rgba(233, 30, 99, 0.08);
-  color: #e91e63;
+  border: 1px solid rgba(254, 88, 21, 0.65);
+  background: var(--accent-soft);
+  color: var(--accent);
   padding: 6px 14px;
   font-size: 12px;
   font-weight: 600;
@@ -1541,14 +1555,14 @@ textarea.form-input {
 }
 
 .schedule-detail-client-btn:hover {
-  background: rgba(233, 30, 99, 0.18);
+  background: var(--accent-strong);
 }
 
 .repeat-panel {
   margin-top: 10px;
   padding: 10px;
   border-radius: 12px;
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--border);
 }
 
@@ -1641,7 +1655,7 @@ textarea.form-input {
 
 .public-date-card {
   min-width: 64px;
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 8px 10px;
@@ -1829,7 +1843,7 @@ textarea.form-input {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px;
-  background: #fff;
+  background: var(--card);
   display: grid;
   gap: 6px;
   text-align: left;
@@ -1847,7 +1861,7 @@ textarea.form-input {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #e0e0e0;
+  background: #262626;
   color: #555;
   font-weight: 700;
   font-size: 12px;
@@ -1923,7 +1937,7 @@ textarea.form-input {
   width: 70px;
   height: 70px;
   border-radius: 50%;
-  background: #e0e0e0;
+  background: #262626;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -2146,7 +2160,7 @@ textarea.form-input {
 </head>
 <body>
 <header id="header">
-<button aria-label="Назад" class="header-back" id="header-back" onclick="goBack()">←</button>
+<button aria-label="Назад" class="header-back" id="header-back" onclick="goBack()"><</button>
 <div class="header-center">
 <div class="header-center-title" id="header-title">LISSA DANCE</div>
 </div>
@@ -2243,7 +2257,7 @@ textarea.form-input {
 </div>
 <div class="contact-btn">
 <div class="contact-btn-content">
-<span class="contact-icon">💬</span>
+<span class="contact-icon">📱</span>
 <div>
 <div class="contact-label">Telegram</div>
 <div class="contact-value">Скоро</div>
@@ -2361,7 +2375,7 @@ textarea.form-input {
   </div>
 </div>
 
-<button class="save-btn" style="width: 100%; margin-top: 12px; background: #2196F3;" onclick="toggleGroupScheduleForm()">➕ Добавить групповое занятие</button>
+<button class="save-btn" style="width: 100%; margin-top: 12px; background: var(--accent);" onclick="toggleGroupScheduleForm()">➕ Добавить групповое занятие</button>
 <div class="group-schedule-overlay" id="group-schedule-overlay" onclick="toggleGroupScheduleForm(false)"></div>
 <div class="group-schedule-modal" id="group-schedule-modal">
   <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
@@ -2436,7 +2450,7 @@ textarea.form-input {
 </div>
 <!-- ВКЛАДКИ -->
 <div class="tabs-container" style="display: flex; gap: 8px; margin-bottom: 12px; border-bottom: 2px solid var(--border); position: relative;">
-<button class="nav-tab" id="active-tab" onclick="switchDirectionTab('active')" style="flex: 1; padding: 12px; background: none; border: none; color: #2196F3; font-weight: bold; cursor: pointer;">✅ Активные</button>
+<button class="nav-tab" id="active-tab" onclick="switchDirectionTab('active')" style="flex: 1; padding: 12px; background: none; border: none; color: var(--accent); font-weight: bold; cursor: pointer;">✅ Активные</button>
 <button class="nav-tab" id="archived-tab" onclick="switchDirectionTab('archived')" style="flex: 1; padding: 12px; background: none; border: none; color: var(--hint); font-weight: bold; cursor: pointer;">📦 Архив</button>
 <div class="tab-indicator"></div>
 </div>
@@ -2472,9 +2486,9 @@ textarea.form-input {
 <input class="form-input" id="mailing-purpose" placeholder="Например: Информирование, Приглашение, Напоминание..." type="text"/>
 </div>
 <!-- БЛОК 2: КОМ ОТПРАВИТЬ -->
-<div class="card" style="margin-bottom: 16px; border-left: 4px solid #2196F3;">
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid var(--accent);">
 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
-<span style="font-size: 20px;">👥</span>
+<span style="font-size: 20px;">📝</span>
 <h4 style="margin: 0;">Кому отправить</h4>
 </div>
 <!-- Тип кому отправлять -->
@@ -2493,11 +2507,11 @@ textarea.form-input {
 <!-- Поиск пользователей -->
 <input class="form-input" id="mailing-users-search" oninput="searchMailingUsers()" placeholder="Поиск по имени, ID или @юзернейм..." style="margin-bottom: 10px;" type="text"/>
 <!-- Результаты поиска -->
-<div id="mailing-users-search-results" style="max-height: 300px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; padding: 8px;">
+<div id="mailing-users-search-results" style="max-height: 300px; overflow-y: auto; background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 12px; padding: 8px;">
 <p class="small" style="text-align: center; color: var(--hint); padding: 12px;">Загрузка пользователей...</p>
 </div>
 <!-- Выбранные пользователи -->
-<div style="background: #f5f5f5; padding: 12px; border-radius: 8px;">
+<div style="background: var(--card); padding: 12px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);">
 <label class="label" style="font-weight: 600; margin-bottom: 8px;">✓ Выбранные пользователи</label>
 <div id="mailing-selected-users" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 32px; align-content: flex-start;">
 <p class="small" style="color: var(--hint); width: 100%;">Выбрано: <span id="mailing-users-count" style="font-weight: 600;">0</span></p>
@@ -2687,7 +2701,7 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== ФОРМА ДОБАВЛЕНИЯ ПЕРСОНАЛА ====== -->
-<div class="page" data-title="➕ Добавить персонал" id="staff-add-form">
+<div class="page" data-title="? Добавить персонал" id="staff-add-form">
 
 <div class="card">
 <div class="form-group">
@@ -2786,20 +2800,20 @@ textarea.form-input {
 <label class="label" style="font-weight: 600;">Описание *</label>
 <textarea class="form-input" id="direction-description" placeholder="Опишите направление..." style="margin-bottom: 14px; min-height: 100px; resize: vertical;"></textarea>
 <!-- Цена -->
-<label class="label" style="font-weight: 600;">Базовая цена (₽) *</label>
+<label class="label" style="font-weight: 600;">Базовая цена (?) *</label>
 <input class="form-input" id="direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
 </div>
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid #4CAF50;">
 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
-<span style="font-size: 20px;">📸</span>
+<span style="font-size: 20px;">📝</span>
 <h4 style="margin: 0;">Фотография</h4>
 </div>
 <!-- Статус загрузки -->
-<div id="direction-photo-status" style="padding: 12px; background: #f0f0f0; border-radius: 8px; margin-bottom: 12px; text-align: center;">
+<div id="direction-photo-status" style="padding: 12px; background: #1f1f1f; border-radius: 8px; margin-bottom: 12px; text-align: center;">
 <p style="margin: 0; color: var(--hint); font-size: 14px;">❌ Фотография не загружена</p>
 </div>
 <!-- Кнопка для получения токена -->
-<button class="save-btn" id="direction-upload-btn" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: #2196F3;">
+<button class="save-btn" id="direction-upload-btn" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: var(--accent);">
       📱 Загрузить фото через бот
     </button>
 <p style="font-size: 12px; color: var(--hint); margin: 0; line-height: 1.5;">
@@ -2810,14 +2824,14 @@ textarea.form-input {
     ✅ Создать направление
   </button>
 <button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
-    ❌ Отменить
+    ? Отменить
   </button>
 <!-- Сообщение об ошибке -->
-<div id="direction-error-msg" style="margin-top: 12px; padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828; display: none;">
+<div id="direction-error-msg" style="margin-top: 12px; padding: 12px; background: rgba(244, 67, 54, 0.18); border-radius: 8px; color: #ffb3b3; display: none;">
 <p id="direction-error-text" style="margin: 0;"></p>
 </div>
 <!-- Сообщение об успехе -->
-<div id="direction-success-msg" style="margin-top: 12px; padding: 12px; background: #e8f5e9; border-radius: 8px; color: #2e7d32; display: none;">
+<div id="direction-success-msg" style="margin-top: 12px; padding: 12px; background: rgba(76, 175, 80, 0.2); border-radius: 8px; color: #c8e6c9; display: none;">
 <p id="direction-success-text" style="margin: 0;"></p>
 </div>
 </div>
@@ -2829,9 +2843,9 @@ textarea.form-input {
 </div>
 <p class="small" id="direction-edit-lock-hint" style="margin: 6px 0 12px 0;">Поля заблокированы, чтобы избежать случайных изменений.</p>
 <!-- ГРУППЫ -->
-<div class="card" style="margin-bottom: 16px; border-left: 4px solid #FF9800;">
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #fe5815;">
 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
-<span style="font-size: 20px;">👥</span>
+<span style="font-size: 20px;">📝</span>
 <h4 style="margin: 0; flex: 1;">Группы</h4>
 <button class="lock-btn" onclick="openCreateGroupPage()" title="Создать группу">➕</button>
 </div>
@@ -2853,7 +2867,7 @@ textarea.form-input {
 <label class="label" style="font-weight: 600;">Описание *</label>
 <textarea class="form-input direction-editable" id="edit-direction-description" placeholder="Опишите направление..." style="margin-bottom: 14px; min-height: 100px; resize: vertical;"></textarea>
 <!-- Цена -->
-<label class="label" style="font-weight: 600;">Базовая цена (₽) *</label>
+<label class="label" style="font-weight: 600;">Базовая цена (?) *</label>
 <input class="form-input direction-editable" id="edit-direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
 <!-- Статус -->
 <label class="label" style="font-weight: 600;">Статус</label>
@@ -2866,13 +2880,13 @@ textarea.form-input {
 <div class="card direction-lockable" style="margin-bottom: 16px; border-left: 4px solid #4CAF50;">
 <div aria-hidden="true" class="lock-overlay"></div>
 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
-<span style="font-size: 20px;">📸</span>
+<span style="font-size: 20px;">📝</span>
 <h4 style="margin: 0;">Фотография</h4>
 </div>
-<div id="edit-direction-photo-preview" style="width: 100%; height: 150px; background: #f0f0f0; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: var(--hint); overflow: hidden;">
+<div id="edit-direction-photo-preview" style="width: 100%; height: 150px; background: #1f1f1f; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: var(--hint); overflow: hidden;">
       📸 Фото не загружено
     </div>
-<button class="save-btn direction-editable" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: #2196F3;">
+<button class="save-btn direction-editable" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: var(--accent);">
       📱 Загрузить новое фото через бот
     </button>
 </div>
@@ -2880,18 +2894,18 @@ textarea.form-input {
 <div class="direction-lockable" style="margin-bottom: 12px;">
 <div aria-hidden="true" class="lock-overlay"></div>
 <button class="save-btn direction-editable" id="direction-save-btn" onclick="saveDirectionChanges()" style="width: 100%; margin-bottom: 8px; background: #4CAF50;">
-      ✅ Сохранить изменения
+      ? Сохранить изменения
     </button>
 <button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
-      ❌ Отменить
+      ? Отменить
     </button>
 </div>
 <!-- Сообщение об ошибке -->
-<div id="edit-direction-error-msg" style="margin-top: 12px; padding: 12px; background: #ffebee; border-radius: 8px; color: #c62828; display: none;">
+<div id="edit-direction-error-msg" style="margin-top: 12px; padding: 12px; background: rgba(244, 67, 54, 0.18); border-radius: 8px; color: #ffb3b3; display: none;">
 <p id="edit-direction-error-text" style="margin: 0;"></p>
 </div>
 <!-- Сообщение об успехе -->
-<div id="edit-direction-success-msg" style="margin-top: 12px; padding: 12px; background: #e8f5e9; border-radius: 8px; color: #2e7d32; display: none;">
+<div id="edit-direction-success-msg" style="margin-top: 12px; padding: 12px; background: rgba(76, 175, 80, 0.2); border-radius: 8px; color: #c8e6c9; display: none;">
 <p id="edit-direction-success-text" style="margin: 0;"></p>
 </div>
 </div>
@@ -2905,7 +2919,7 @@ textarea.form-input {
 </div>
 <div class="form-group">
 <label>Специализация</label>
-<input class="form-input" id="staff-profile-specialization" placeholder="Например: Балет, Хип‑хоп" type="text"/>
+<input class="form-input" id="staff-profile-specialization" placeholder="Например: Балет, Хип?хоп" type="text"/>
 </div>
 <div class="form-group">
 <label>Биография</label>
@@ -2966,12 +2980,12 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== СОЗДАНИЕ ГРУППЫ ====== -->
-<div class="page" data-title="➕ Создать группу" id="direction-group-create">
+<div class="page" data-title="? Создать группу" id="direction-group-create">
 
-<div class="card" style="margin-bottom: 16px; border-left: 4px solid #FF9800;">
+<div class="card" style="margin-bottom: 16px; border-left: 4px solid #fe5815;">
 <div class="form-group">
 <label>Название группы *</label>
-<input class="form-input" id="edit-direction-group-name" placeholder="Например: Дети 10-12, Хип‑хоп Beginners" type="text"/>
+<input class="form-input" id="edit-direction-group-name" placeholder="Например: Дети 10-12, Хип?хоп Beginners" type="text"/>
 </div>
 <div class="form-group">
 <label>Преподаватель *</label>
@@ -3000,11 +3014,11 @@ textarea.form-input {
 <label>Описание</label>
 <textarea class="form-input" id="edit-direction-group-desc" placeholder="Коротко о группе..." style="min-height: 80px;"></textarea>
 </div>
-<button class="save-btn" onclick="createDirectionGroup()" style="width: 100%; margin-bottom: 8px; background: #FF9800;">
-      ➕ Создать группу
+<button class="save-btn" onclick="createDirectionGroup()" style="width: 100%; margin-bottom: 8px; background: #fe5815;">
+      ? Создать группу
     </button>
 <button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
-      ❌ Отменить
+      ? Отменить
     </button>
 <div id="edit-direction-group-msg" style="margin: 12px 0 0 0; padding: 10px; border-radius: 8px; display: none;"></div>
 </div>
@@ -3045,10 +3059,10 @@ textarea.form-input {
 <textarea class="form-input" id="edit-group-desc" placeholder="Коротко о группе..." style="min-height: 80px;"></textarea>
 </div>
 <button class="save-btn" onclick="saveGroupChanges()" style="width: 100%; margin-bottom: 8px; background: #4CAF50;">
-      ✅ Сохранить изменения
+      ? Сохранить изменения
     </button>
 <button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
-      ❌ Отменить
+      ? Отменить
     </button>
 <div id="edit-group-msg" style="margin: 12px 0 0 0; padding: 10px; border-radius: 8px; display: none;"></div>
 </div>
@@ -3201,7 +3215,7 @@ textarea.form-input {
 <!-- ====== ПРОСМОТР НОВОСТИ ====== -->
 <div class="page" id="news-detail">
 <div class="news-detail-header">
-<div class="news-detail-back" onclick="goBack()">←</div>
+<div class="news-detail-back" onclick="goBack()"><</div>
 <h3 class="news-detail-title-header">Новости</h3>
 </div>
 <div id="news-detail-photo-container"></div>
@@ -3827,7 +3841,7 @@ function renderHallOccupancy(_date, bookings) {
       const item = document.createElement('div');
       item.className = 'rental-occupancy-item';
       const timeText = `${book.time_from || '—'} — ${book.time_to || '—'}`;
-      const icon = HALL_EVENT_ICONS[book.object_type] || '⏱';
+      const icon = HALL_EVENT_ICONS[book.object_type] || '?';
       item.innerHTML = `
         <span>${icon} ${timeText}</span>
         <span class="rental-occupancy-status">${formatScheduleStatusLabel(book.status)}</span>
@@ -3874,7 +3888,7 @@ function loadInfoDirections() {
       }).join('');
     })
     .catch(err => {
-      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 12px;">❌ ${err.message}</p>`;
+      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 12px;">❌ ${err.message}</p>`;
     });
 }
 
@@ -3913,7 +3927,7 @@ function loadInfoTeachers() {
       }).join('') + '</div>';
     })
     .catch(err => {
-      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 12px;">❌ ${err.message}</p>`;
+      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 12px;">❌ ${err.message}</p>`;
     });
 }
 
@@ -3928,7 +3942,7 @@ function renderTeacherSchedule(items) {
     const timeFrom = item.time_from || '—';
     const timeTo = item.time_to || '—';
     const validity = (item.valid_from || item.valid_to)
-      ? ` (${item.valid_from || '...' } → ${item.valid_to || '...'})`
+      ? ` (${item.valid_from || '...' } > ${item.valid_to || '...'})`
       : '';
     return `
       <div class="teacher-detail-schedule-row">
@@ -4528,7 +4542,7 @@ content.innerHTML = `
       `;
     })
     .catch(err => {
-      content.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 12px;">❌ ${err.message}</p>`;
+      content.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 12px;">❌ ${err.message}</p>`;
     });
 }
 
@@ -4660,7 +4674,7 @@ function updateGroupBookingPricePreview(lessonsCount) {
   }
   const total = lessonsCount * pricePerLesson;
   const formatted = new Intl.NumberFormat('ru-RU').format(total);
-  preview.textContent = `Примерная цена: ${formatted} ₽`;
+  preview.textContent = `Примерная цена: ${formatted} ?`;
 }
 
 function formatBookingDisplayDate(value) {
@@ -4825,11 +4839,11 @@ async function submitGroupBookingForm() {
     if (!response.ok) {
       throw new Error((data && data.error) || 'Не удалось отправить заявку');
     }
-    showNotification('✅ Заявка на группу отправлена');
+    showNotification('? Заявка на группу отправлена');
     closeGroupBookingForm();
   } catch (error) {
     console.error(error);
-    showNotification('❌ ' + (error.message || 'Ошибка при записи'));
+    showNotification('? ' + (error.message || 'Ошибка при записи'));
   } finally {
     submitButton.disabled = false;
     submitButton.textContent = originalText;
@@ -5128,7 +5142,7 @@ function getScheduleStatusIcon(status) {
       return '💰';
     case 'APPROVED':
     case 'PENDING':
-      return '⏳';
+      return '?';
     default:
       return '';
   }
@@ -5343,7 +5357,7 @@ function loadGroupScheduleDetails(groupId) {
         <div class="schedule-detail-row">👩‍🏫 <strong>Учитель:</strong> ${teacherName}</div>
         <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${group.age_group || '—'}</div>
         ${group.lessons_per_week ? `<div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${group.lessons_per_week}</div>` : ''}
-        <div class="schedule-detail-row">💰 <strong>Цена:</strong> ${directionPrice ? directionPrice + ' ₽' : '—'}</div>
+        <div class="schedule-detail-row">💰 <strong>Цена:</strong> ${directionPrice ? directionPrice + ' ?' : '—'}</div>
       `;
     })
     .catch(() => {
@@ -5376,7 +5390,7 @@ function renderIndividualLessonDetails(item, extra) {
       extra.innerHTML = `
         <div class="schedule-detail-row">👩‍🏫 <strong>Преподаватель:</strong> ${teacherName}</div>
         <div class="schedule-detail-row">🧑‍🎓 <strong>Ученик:</strong> ${studentName}</div>
-        <div class="schedule-detail-row">ℹ️ <strong>Статус:</strong> ${statusIcon ? statusIcon + ' ' : ''}${statusText}</div>
+        <div class="schedule-detail-row">📌 <strong>Статус:</strong> ${statusIcon ? statusIcon + ' ' : ''}${statusText}</div>
       `;
       const chatLink = buildStudentChatLink(detail.student);
       appendScheduleDetailActionButton(extra, chatLink);
@@ -5464,7 +5478,7 @@ function createScheduleV2() {
   }
 
   if (hasScheduleConflict(dateStr, timeFrom, timeTo)) {
-    showNotification('❌ В это время уже есть занятие');
+    showNotification('? В это время уже есть занятие');
     return;
   }
 
@@ -5487,13 +5501,13 @@ function createScheduleV2() {
       if (!res.ok) {
         throw new Error(data.error || 'Ошибка при создании');
       }
-      showNotification('✅ Занятие создано');
+      showNotification('? Занятие создано');
       closeScheduleForm();
       loadScheduleV2();
     })
     .catch(err => {
       console.error(err);
-      showNotification('❌ ' + err.message);
+      showNotification('? ' + err.message);
     });
 }
 
@@ -5696,7 +5710,7 @@ function createGroupSchedule() {
   }
 
   if (hasScheduleConflict(dateStr, timeFrom, timeTo)) {
-    showNotification('❌ В это время уже есть занятие');
+    showNotification('? В это время уже есть занятие');
     return;
   }
 
@@ -5723,14 +5737,14 @@ function createGroupSchedule() {
       scheduleItems = Array.isArray(data) ? data : [];
       const conflict = dates.some(d => hasScheduleConflict(d, timeFrom, timeTo));
       if (conflict) {
-        showNotification('❌ В выбранные даты уже есть занятия');
+        showNotification('? В выбранные даты уже есть занятия');
         return;
       }
       createGroupScheduleEntries(groupId, dates, timeFrom, timeTo);
     })
     .catch(err => {
       console.error(err);
-      showNotification('❌ Ошибка проверки конфликтов');
+      showNotification('? Ошибка проверки конфликтов');
     });
 }
 
@@ -5796,7 +5810,7 @@ function updateGroupFormDefaults() {
             const rows = preview.querySelectorAll('.schedule-detail-row');
             if (rows.length >= 2) {
               rows[rows.length - 2].innerHTML = `🎯 <strong>Направление:</strong> ${direction.title || '—'}`;
-              rows[rows.length - 1].innerHTML = `💰 <strong>Цена:</strong> ${direction.base_price ? direction.base_price + ' ₽' : '—'}`;
+              rows[rows.length - 1].innerHTML = `💰 <strong>Цена:</strong> ${direction.base_price ? direction.base_price + ' ?' : '—'}`;
             }
           })
           .catch(() => {});
@@ -5851,13 +5865,13 @@ function createGroupScheduleEntries(groupId, dates, timeFrom, timeTo) {
 
   chain
     .then(() => {
-      showNotification('✅ Занятия созданы');
+      showNotification('? Занятия созданы');
       toggleGroupScheduleForm(false);
       loadScheduleV2();
     })
     .catch(err => {
       console.error(err);
-      showNotification('❌ Ошибка создания');
+      showNotification('? Ошибка создания');
     });
 }
 
@@ -6032,7 +6046,7 @@ function getStaffInitials(name) {
 }
 
 function getStaffAvatarColor(name) {
-  const colors = ['#f44336', '#e91e63', '#9c27b0', '#3f51b5', '#2196f3', '#009688', '#4caf50', '#ff9800'];
+  const colors = ['#fe5815', '#ff7a30', '#ff9d4a', '#ffb86c', '#ff7043', '#ff8f00', '#ffa726', '#f4511e'];
   const safe = (name || '').trim();
   if (!safe) return '#9e9e9e';
   let hash = 0;
@@ -6059,18 +6073,18 @@ function displayStaffList(staffList) {
     return `
     <div class="card" onclick="openStaffDetail(${s.id}, '${s.name}', '${s.position}', '${s.phone ? s.phone : ''}', '${s.email}', '${s.specialization || ''}', '${s.bio || ''}', '${s.status}')" style="cursor: pointer;">
       <div class="staff-card-row">
-        <div class="staff-card-avatar" style="background: ${photoUrl ? '#e0e0e0' : avatarBg};">
+        <div class="staff-card-avatar" style="background: ${photoUrl ? '#262626' : avatarBg};">
           ${photoUrl ? `<img src="${photoUrl}" alt=""/>` : `<span>${initials}</span>`}
         </div>
         <div style="flex: 1;">
           <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
             <div style="font-weight: 600; font-size: 16px;">${s.name}</div>
-            ${s.teaches ? '<span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(76, 175, 80, 0.12); color: #2e7d32;">👩‍🏫</span>' : ''}
+            ${s.teaches ? '<span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(76, 175, 80, 0.12); color: #c8e6c9;">👩‍🏫</span>' : ''}
           </div>
           ${s.username ? `<div style="font-size: 13px; color: var(--accent); margin-top: 2px;">@${s.username}</div>` : ''}
           <div style="font-size: 14px; color: var(--hint); margin-top: 4px;">📍 ${s.position}</div>
           ${s.phone ? `<div style="font-size: 13px; color: var(--hint); margin-top: 2px;">📱 ${s.phone}</div>` : ''}
-          <div style="font-size: 12px; color: ${s.status === 'active' ? '#4caf50' : '#ff6b6b'}; margin-top: 6px;">● ${s.status === 'active' ? 'Активен' : 'Неактивен'}</div>
+          <div style="font-size: 12px; color: ${s.status === 'active' ? '#4caf50' : '#ff6b6b'}; margin-top: 6px;">${s.status === 'active' ? '✅ Активен' : '⏸️ Неактивен'}</div>
         </div>
       </div>
     </div>
@@ -6110,7 +6124,7 @@ function searchStaffManage() {
   }
   
   if (filtered.length === 0) {
-    document.getElementById('staff-manage-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Персонал не найден</p>';
+    document.getElementById('staff-manage-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 Персонал не найден</p>';
   } else {
     displayStaffList(filtered);
   }
@@ -6141,7 +6155,7 @@ function showAddStaffForm() {
   loadCurrentStaffAndUsers();
   
   showPage('staff-add-form');
-  setHeaderTitle('➕ Добавить персонал');
+  setHeaderTitle('? Добавить персонал');
 }
 
 function updateStaffTeachesToggle() {
@@ -6233,7 +6247,7 @@ async function searchForStaffUser() {
       }
     } else {
       if (filteredUsers.length === 0) {
-        document.getElementById('staff-user-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 16px 0;">❌ Персонал не найден</p>';
+        document.getElementById('staff-user-search-results').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 16px 0;">📭 Персонал не найден</p>';
         return;
       }
     }
@@ -6251,14 +6265,14 @@ function displaySearchResults(users) {
     const safePhone = (u.phone || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
     const safeEmail = (u.email || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
     const isSelected = window.selectedStaffUserData && window.selectedStaffUserData.id === u.id;
-    const borderColor = isSelected ? '#1976d2' : 'var(--accent)';
-    const bgColor = isSelected ? '#e3f2fd' : 'var(--bg)';
+    const borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
+    const bgColor = isSelected ? 'var(--accent-soft)' : 'var(--card)';
     
     return `
       <div class="card" id="user-card-${u.id}" style="margin-bottom: 8px; cursor: pointer; background: ${bgColor}; border-left: 4px solid ${borderColor}; transition: all 0.2s;" onclick="selectStaffUser(${u.id}, '${safeName}', ${u.telegram_id}, '${safePhone}', '${safeEmail}')">
         <div style="font-weight: 600; font-size: 14px;">
           ${u.name}
-          ${window.selectedStaffUserData && window.selectedStaffUserData.id === u.id ? ' ✓' : ''}
+          ${window.selectedStaffUserData && window.selectedStaffUserData.id === u.id ? ' ?' : ''}
         </div>
         <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">ID: ${u.telegram_id}${u.username ? ` • @${u.username}` : ''}</div>
         ${u.phone ? `<div style="font-size: 12px; color: var(--hint);">📱 ${u.phone}</div>` : ''}
@@ -6282,21 +6296,17 @@ function selectStaffUser(id, name, telegramId, phone, email) {
   const allCards = document.querySelectorAll('[id^="user-card-"]');
   allCards.forEach(card => {
     if (card.id === `user-card-${id}`) {
-      // Выбранная карточка - синяя
-      card.style.background = '#e3f2fd';
-      card.style.borderLeftColor = '#1976d2';
-      // Добавляем галочку
+      card.style.background = 'var(--accent-soft)';
+      card.style.borderLeftColor = 'var(--accent)';
       const titleDiv = card.querySelector('div');
-      if (!titleDiv.textContent.includes('✓')) {
-        titleDiv.textContent += ' ✓';
+      if (!titleDiv.textContent.includes('✅')) {
+        titleDiv.textContent += ' ✅';
       }
     } else {
-      // Остальные карточки - стандартный вид
-      card.style.background = 'var(--bg)';
-      card.style.borderLeftColor = 'var(--accent)';
-      // Убираем галочку
+      card.style.background = 'var(--card)';
+      card.style.borderLeftColor = 'var(--border)';
       const titleDiv = card.querySelector('div');
-      titleDiv.textContent = titleDiv.textContent.replace(' ✓', '');
+      titleDiv.textContent = titleDiv.textContent.replace(' ✅', '');
     }
   });
 }
@@ -6338,7 +6348,7 @@ async function saveNewStaff() {
     });
     
     if (response.ok) {
-      showNotification('✅ Персонал добавлен');
+      showNotification('? Персонал добавлен');
       setTimeout(() => {
         // Очищаем выбор
         window.selectedStaffUserData = null;
@@ -6347,7 +6357,7 @@ async function saveNewStaff() {
       }, 500);
     } else {
       const error = await response.json();
-      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+      showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
     }
   } catch (error) {
     console.error('Ошибка при добавлении персонала:', error);
@@ -6399,13 +6409,13 @@ async function confirmStaffDelete() {
     });
     
     if (response.ok) {
-      showNotification('✅ Персонал удален');
+      showNotification('? Персонал удален');
       if (shouldGoBack && document.getElementById('staff-detail')?.classList.contains('active')) {
         goBack();
       }
       loadStaffList();
     } else {
-      showNotification('❌ Ошибка при удалении');
+      showNotification('? Ошибка при удалении');
     }
   } catch (error) {
     console.error('Ошибка при удалении:', error);
@@ -6438,7 +6448,7 @@ function openStaffDetail(id, name, position, phone, email, specialization, bio, 
   document.getElementById('staff-detail-email').innerText = email || '—';
   document.getElementById('staff-detail-specialization').innerText = specialization || '—';
   document.getElementById('staff-detail-bio').innerText = bio || '—';
-  document.getElementById('staff-detail-status').innerText = status === 'active' ? '✅ Активен' : '❌ Неактивен';
+  document.getElementById('staff-detail-status').innerText = status === 'active' ? '✅ Активен' : '⏸️ Неактивен';
   
   showPage('staff-detail');
   setHeaderTitle(name);
@@ -6548,9 +6558,9 @@ function displayStaffSchedules(schedules) {
           <div style="font-weight: 600; font-size: 15px;">${s.title}</div>
           <div style="font-size: 13px; color: var(--hint); margin-top: 4px;">📅 ${new Date(s.date).toLocaleDateString('ru-RU')}</div>
           <div style="font-size: 13px; color: var(--hint);">🕐 ${s.start} - ${s.end}</div>
-          <div style="font-size: 13px; color: var(--hint);">👨‍🏫 ${s.teacher.name}</div>
+          <div style="font-size: 13px; color: var(--hint);">👩‍🏫 ${s.teacher.name}</div>
         </div>
-        <div style="font-size: 24px;">→</div>
+        <div style="font-size: 24px;">></div>
       </div>
     </div>
   `).join('');
@@ -6840,11 +6850,11 @@ async function saveSchedule() {
       });
       
       if (response.ok) {
-        showNotification('✅ Занятие обновлено');
+        showNotification('? Занятие обновлено');
         goBack();
       } else {
         const error = await response.json();
-        showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+        showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
       }
     } else {
       // Создаем новое занятие
@@ -6855,22 +6865,22 @@ async function saveSchedule() {
       });
       
       if (response.ok) {
-        showNotification('✅ Занятие создано');
+        showNotification('? Занятие создано');
         goBack();
       } else {
         const error = await response.json();
-        showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+        showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
       }
     }
   } catch (error) {
     console.error('Ошибка при сохранении занятия:', error);
-    showNotification('❌ Ошибка при сохранении занятия');
+    showNotification('? Ошибка при сохранении занятия');
   }
 }
 
 async function deleteSchedule() {
   if (!currentScheduleId) {
-    showNotification('❌ ID занятия не найден');
+    showNotification('? ID занятия не найден');
     return;
   }
   
@@ -6884,15 +6894,15 @@ async function deleteSchedule() {
     });
     
     if (response.ok) {
-      showNotification('✅ Занятие удалено');
+      showNotification('? Занятие удалено');
       goBack();
     } else {
       const error = await response.json();
-      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+      showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
     }
   } catch (error) {
     console.error('Ошибка при удалении занятия:', error);
-    showNotification('❌ Ошибка при удалении занятия');
+    showNotification('? Ошибка при удалении занятия');
   }
 }
 
@@ -7018,7 +7028,7 @@ async function loadProfileData(telegramId) {
     const data = await response.json();
     currentUserData = data;
     
-    console.log('✅ Профиль загружен:', data);
+    console.log('? Профиль загружен:', data);
     
     // Заполняем форму данными
     document.getElementById('profile-input-name').value = data.name || '';
@@ -7048,7 +7058,7 @@ async function loadProfileData(telegramId) {
 /* ====== СОХРАНЕНИЕ ИЗМЕНЕНИЙ ПРОФИЛЯ ====== */
 async function saveProfileChanges() {
   if (!currentUserData) {
-    showNotification('❌ Данные профиля не загружены');
+    showNotification('? Данные профиля не загружены');
     return;
   }
   
@@ -7087,20 +7097,20 @@ async function saveProfileChanges() {
       const newData = await response.json();
       currentUserData = newData;
       
-      console.log('✅ Профиль сохранен:', newData);
+      console.log('? Профиль сохранен:', newData);
       
       // Обновляем отображение имени
       document.getElementById('profile-name').innerText = newData.name;
       
-      showNotification('✅ Профиль успешно обновлен!');
+      showNotification('? Профиль успешно обновлен!');
     } else {
       const error = await response.json();
       console.error('Ошибка сервера:', error);
-      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+      showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
     }
   } catch (error) {
     console.error('Ошибка при сохранении профиля:', error);
-    showNotification('❌ Ошибка при сохранении профиля');
+    showNotification('? Ошибка при сохранении профиля');
   }
 }
 
@@ -7145,7 +7155,7 @@ function loadProfileTransactions() {
       }).join('');
     })
     .catch(err => {
-      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 20px;">Ошибка: ${err.message}</p>`;
+      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">Ошибка: ${err.message}</p>`;
     });
 }
 
@@ -7179,7 +7189,7 @@ function loadProfileAbonements() {
       }).join('');
     })
     .catch(err => {
-      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 20px;">Ошибка: ${err.message}</p>`;
+      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">Ошибка: ${err.message}</p>`;
     });
 }
 
@@ -7211,7 +7221,7 @@ function loadProfileGroups() {
       }).join('');
     })
     .catch(err => {
-      container.innerHTML = `<p class="small" style="text-align: center; color: #c62828; padding: 20px;">Ошибка: ${err.message}</p>`;
+      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">Ошибка: ${err.message}</p>`;
     });
 }
 
@@ -7275,7 +7285,7 @@ async function loadAllClients() {
     }
     
     displayClients(allClients);
-    console.log(`✅ Загружено ${allClients.length} клиентов`);
+    console.log(`? Загружено ${allClients.length} клиентов`);
   } catch (error) {
     console.error('Ошибка при загрузке клиентов:', error);
     document.getElementById('staff-clients-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка сети</p>';
@@ -7347,12 +7357,12 @@ async function openStaffProfileEdit() {
   try {
     const response = await fetch(`/staff/check/${currentUserData.telegram_id}`);
     if (!response.ok) {
-      showNotification('❌ Не удалось загрузить профиль');
+      showNotification('? Не удалось загрузить профиль');
       return;
     }
     const data = await response.json();
     if (!data.is_staff || !data.staff) {
-      showNotification('❌ Профиль персонала не найден');
+      showNotification('? Профиль персонала не найден');
       return;
     }
 
@@ -7383,7 +7393,7 @@ async function openStaffProfileEdit() {
 async function saveStaffProfile() {
   const staffId = window.currentStaffProfileId;
   if (!staffId) {
-    showNotification('❌ ID персонала не найден');
+    showNotification('? ID персонала не найден');
     return;
   }
 
@@ -7414,11 +7424,11 @@ async function saveStaffProfile() {
 
     const data = await response.json();
     if (!response.ok) {
-      showNotification('❌ ' + (data.error || 'Не удалось сохранить'));
+      showNotification('? ' + (data.error || 'Не удалось сохранить'));
       return;
     }
 
-    showNotification('✅ Профиль обновлен');
+    showNotification('? Профиль обновлен');
     if (currentUserData) {
       displayStaffInfo(currentUserData);
     }
@@ -7452,7 +7462,7 @@ const WORKING_WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', '
 function openTeacherWorkingHours() {
   const staffId = window.currentStaffProfileId;
   if (!staffId) {
-    showNotification('❌ ID персонала не найден');
+    showNotification('? ID персонала не найден');
     return;
   }
   currentWorkingHoursTeacherId = staffId;
@@ -7488,7 +7498,7 @@ async function loadTeacherWorkingHours() {
     });
     const data = await response.json();
     if (!response.ok) {
-      showNotification('❌ ' + (data.error || 'Не удалось загрузить рабочие часы'));
+      showNotification('? ' + (data.error || 'Не удалось загрузить рабочие часы'));
       return;
     }
     teacherWorkingHours = Array.isArray(data) ? data : [];
@@ -7678,7 +7688,7 @@ function buildIntervalsFromSlots() {
 
 async function saveTeacherWorkingHours() {
   if (!currentWorkingHoursTeacherId) {
-    showNotification('❌ ID персонала не найден');
+    showNotification('? ID персонала не найден');
     return;
   }
   const items = buildIntervalsFromSlots();
@@ -7690,12 +7700,12 @@ async function saveTeacherWorkingHours() {
     });
     const data = await response.json();
     if (!response.ok) {
-      showNotification('❌ ' + (data.error || 'Не удалось сохранить'));
+      showNotification('? ' + (data.error || 'Не удалось сохранить'));
       return;
     }
     teacherWorkingHours = Array.isArray(data.items) ? data.items : teacherWorkingHours;
     buildNonWorkingSlots();
-    showNotification('✅ Рабочие часы сохранены');
+    showNotification('? Рабочие часы сохранены');
     renderWorkingHoursEditor();
   } catch (error) {
     console.error('Ошибка при сохранении рабочих часов:', error);
@@ -7760,12 +7770,12 @@ function displayProfilePhoto(photoPath) {
 
 async function uploadProfilePhoto() {
   if (!isStaff) {
-    showNotification('❌ Загрузка фото доступна только для персонала');
+    showNotification('? Загрузка фото доступна только для персонала');
     return;
   }
   
   if (!currentUserData) {
-    showNotification('❌ Данные профиля не загружены');
+    showNotification('? Данные профиля не загружены');
     return;
   }
   
@@ -7780,7 +7790,7 @@ async function uploadProfilePhoto() {
   
   // Проверяем размер
   if (file.size > 5 * 1024 * 1024) {
-    showNotification('❌ Размер файла не должен превышать 5 МБ');
+    showNotification('? Размер файла не должен превышать 5 МБ');
     return;
   }
   
@@ -7799,11 +7809,11 @@ async function uploadProfilePhoto() {
       const data = await response.json();
       currentUserData.photo_path = data.photo_path;
       displayProfilePhoto(data.photo_path);
-      showNotification('✅ Фото успешно загружено!');
+      showNotification('? Фото успешно загружено!');
       fileInput.value = '';
     } else {
       const error = await response.json();
-      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+      showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
     }
   } catch (error) {
     console.error('Ошибка при загрузке фото:', error);
@@ -7813,12 +7823,12 @@ async function uploadProfilePhoto() {
 
 async function deleteProfilePhoto() {
   if (!isStaff) {
-    showNotification('❌ Удаление фото доступно только для персонала');
+    showNotification('? Удаление фото доступно только для персонала');
     return;
   }
   
   if (!currentUserData) {
-    showNotification('❌ Данные профиля не загружены');
+    showNotification('? Данные профиля не загружены');
     return;
   }
   
@@ -7840,14 +7850,14 @@ async function deleteProfilePhoto() {
       img.style.display = 'none';
       placeholder.style.display = 'block';
       
-      showNotification('✅ Фото удалено!');
+      showNotification('? Фото удалено!');
     } else {
       const error = await response.json();
-      showNotification('❌ Ошибка: ' + (error.error || 'неизвестная ошибка'));
+      showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
     }
   } catch (error) {
     console.error('Ошибка при удалении фото:', error);
-    showNotification('❌ Ошибка при удалении фото');
+    showNotification('? Ошибка при удалении фото');
   }
 }
 
@@ -7883,7 +7893,7 @@ async function registerUserIfNeeded(user) {
     });
     
     if (registerResponse.ok) {
-      console.log('✅ Пользователь успешно зарегистрирован');
+      console.log('? Пользователь успешно зарегистрирован');
       showNotification('Добро пожаловать! Пожалуйста, заполните ваши данные.');
       
       // Даем время на регистрацию и загружаем профиль
@@ -8003,7 +8013,7 @@ async function loadNewsManage() {
         <div style="font-size: 12px; color: var(--hint); margin-top: 4px;">${new Date(n.created_at).toLocaleDateString('ru-RU')} ${n.status === 'archived' ? '📦 В архиве' : ''}</div>
         <div style="font-size: 13px; margin-top: 8px; color: var(--text);">${n.content.substring(0, 100)}...</div>
         <div style="display: flex; gap: 8px; margin-top: 8px;">
-          ${n.status === 'active' ? `<button class="save-btn" onclick="archiveNews(${n.id})" style="flex: 1; background: #ffa940; margin: 0;">� Архив</button>` : `<button class="save-btn" onclick="restoreNews(${n.id})" style="flex: 1; background: #52c41a; margin: 0;">↩️ Вернуть</button>`}
+          ${n.status === 'active' ? `<button class="save-btn" onclick="archiveNews(${n.id})" style="flex: 1; background: #ffa940; margin: 0;">📦 Архив</button>` : `<button class="save-btn" onclick="restoreNews(${n.id})" style="flex: 1; background: #52c41a; margin: 0;">↩️ Вернуть</button>`}
           <button class="save-btn" onclick="deleteNews(${n.id})" style="flex: 1; background: #ff6b6b; margin: 0;">🗑️ Удалить</button>
         </div>
       </div>
@@ -8033,7 +8043,7 @@ async function openBotForCreateNews() {
 async function openBotForStaffPhoto() {
   const staffId = window.currentStaffProfileId;
   if (!staffId) {
-    showNotification('❌ ID персонала не найден');
+    showNotification('? ID персонала не найден');
     return;
   }
   try {
@@ -8062,7 +8072,7 @@ function openStaffPhotoPicker() {
 async function uploadStaffPhotoFromGallery() {
   const staffId = window.currentStaffProfileId;
   if (!staffId) {
-    showNotification('❌ ID персонала не найден');
+    showNotification('? ID персонала не найден');
     return;
   }
   const input = document.getElementById('staff-profile-photo-input');
@@ -8081,7 +8091,7 @@ async function uploadStaffPhotoFromGallery() {
 
     if (response.ok) {
       const data = await response.json();
-      showNotification('✅ Фото загружено');
+      showNotification('? Фото загружено');
       if (data.photo_path) {
         const mediaUrl = buildMediaUrl(data.photo_path);
         const staffAvatar = document.getElementById('staff-panel-avatar-img');
@@ -8095,7 +8105,7 @@ async function uploadStaffPhotoFromGallery() {
     }
 
     const error = await response.json();
-    showNotification('❌ ' + (error.error || 'Не удалось загрузить фото'));
+    showNotification('? ' + (error.error || 'Не удалось загрузить фото'));
   } catch (error) {
     console.error('Ошибка при загрузке фото персонала:', error);
     showNotification('❌ Ошибка сети при загрузке фото: ' + (error && error.message ? error.message : 'unknown'));
@@ -8116,10 +8126,10 @@ async function deleteNews(newsId) {
     });
     
     if (response.ok) {
-      showNotification('✅ Новость удалена');
+      showNotification('? Новость удалена');
       loadNewsManage();
     } else {
-      showNotification('❌ Ошибка при удалении');
+      showNotification('? Ошибка при удалении');
     }
   } catch (error) {
     console.error('Ошибка при удалении новости:', error);
@@ -8135,10 +8145,10 @@ async function archiveNews(newsId) {
     });
     
     if (response.ok) {
-      showNotification('✅ Новость отправлена в архив');
+      showNotification('? Новость отправлена в архив');
       loadNewsManage();
     } else {
-      showNotification('❌ Ошибка при архивировании');
+      showNotification('? Ошибка при архивировании');
     }
   } catch (error) {
     console.error('Ошибка при архивировании новости:', error);
@@ -8154,10 +8164,10 @@ async function restoreNews(newsId) {
     });
     
     if (response.ok) {
-      showNotification('✅ Новость восстановлена');
+      showNotification('? Новость восстановлена');
       loadNewsManage();
     } else {
-      showNotification('❌ Ошибка при восстановлении');
+      showNotification('? Ошибка при восстановлении');
     }
   } catch (error) {
     console.error('Ошибка при восстановлении новости:', error);
@@ -8392,7 +8402,7 @@ function displayMailingSearchResults(users) {
       <div style="padding: 10px 12px; cursor: pointer; background: ${bgColor}; color: ${textColor}; border-left: 4px solid ${borderColor}; margin-bottom: 8px; border-radius: 6px; transition: all 0.2s; hover-background: opacity(0.9);" onclick="toggleMailingUserSelection(${u.id}, '${safeName}')">
         <div style="font-weight: 600; font-size: 14px; display: flex; align-items: center; justify-content: space-between;">
           <span>${u.name}</span>
-          ${isSelected ? '<span style="font-size: 16px;">✓</span>' : ''}
+          ${isSelected ? '<span style="font-size: 16px;">✖️</span>' : ''}
         </div>
         <div class="small" style="opacity: 0.8; margin-top: 3px; font-size: 12px;">ID: ${u.telegram_id}${u.username ? ` • @${u.username}` : ''}</div>
       </div>
@@ -8433,9 +8443,9 @@ function updateMailingSelectedUsersDisplay() {
   for (const [userId, userName] of selectedMailingUsers) {
     const safeName = userName.replace(/'/g, "\\'").replace(/"/g, '\\"');
     html += `
-      <div style="background: var(--accent); color: white; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 2px 4px rgba(233, 30, 99, 0.2);">
+      <div style="background: var(--accent); color: white; padding: 8px 12px; border-radius: 20px; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 2px 4px rgba(254, 88, 21, 0.22);">
         <span>👤 ${userName}</span>
-        <span onclick="toggleMailingUserSelection(${userId}, '${safeName}')" style="cursor: pointer; font-weight: bold; opacity: 0.8; hover: opacity(1);">✕</span>
+        <span onclick="toggleMailingUserSelection(${userId}, '${safeName}')" style="cursor: pointer; font-weight: bold; opacity: 0.8; hover: opacity(1);">✖️</span>
       </div>
     `;
   }
@@ -8452,17 +8462,17 @@ async function createMailing() {
     const targetType = document.getElementById('mailing-target-type').value;
     
     if (!name) {
-      showNotification('❌ Введите название рассылки');
+      showNotification('? Введите название рассылки');
       return;
     }
     
     if (!purpose) {
-      showNotification('❌ Введите назначение рассылки');
+      showNotification('? Введите назначение рассылки');
       return;
     }
     
     if (!targetType) {
-      showNotification('❌ Выберите кому отправить');
+      showNotification('? Выберите кому отправить');
       return;
     }
     
@@ -8472,7 +8482,7 @@ async function createMailing() {
     // Специальная обработка для пользователей
     if (targetType === 'user') {
       if (selectedMailingUsers.size === 0) {
-        showNotification('❌ Выберите хотя бы одного пользователя');
+        showNotification('? Выберите хотя бы одного пользователя');
         return;
       }
       // Для пользователей используем специальный формат (могут быть несколько)
@@ -8481,7 +8491,7 @@ async function createMailing() {
       // Для остальных типов требуется ID
       const targetIdInput = document.getElementById('mailing-target-id').value.trim();
       if (!targetIdInput) {
-        showNotification('❌ Введите ID цели');
+        showNotification('? Введите ID цели');
         return;
       }
       targetId = parseInt(targetIdInput);
@@ -8492,7 +8502,7 @@ async function createMailing() {
     if (!mailingsSendNow) {
       const scheduledAtInput = document.getElementById('mailing-scheduled-at').value;
       if (!scheduledAtInput) {
-        showNotification('❌ Выберите дату и время отправки');
+        showNotification('? Выберите дату и время отправки');
         return;
       }
       // datetime-local возвращает строку в формате "2026-01-23T19:11"
@@ -8523,11 +8533,11 @@ async function createMailing() {
     
     if (!response.ok) {
       const error = await response.json();
-      showNotification('❌ ' + (error.error || 'Ошибка при создании рассылки'));
+      showNotification('? ' + (error.error || 'Ошибка при создании рассылки'));
       return;
     }
     
-    showNotification('✅ Рассылка создана успешно!');
+    showNotification('? Рассылка создана успешно!');
     
     // Очищаем форму
     document.getElementById('mailing-name').value = '';
@@ -8548,7 +8558,7 @@ async function createMailing() {
     
   } catch (error) {
     console.error('Ошибка при создании рассылки:', error);
-    showNotification('❌ Ошибка при создании рассылки');
+    showNotification('? Ошибка при создании рассылки');
   }
 }
 
@@ -8568,11 +8578,11 @@ async function loadMailings() {
     }
     
     const statusLabels = {
-      'pending': '⏳ На ожидании',
+      'pending': '? На ожидании',
       'scheduled': '📅 Запланирована',
       'sending': '📤 В процессе',
-      'sent': '✅ Отправлено',
-      'failed': '❌ Ошибка',
+      'sent': '? Отправлено',
+      'failed': '? Ошибка',
       'cancelled': '🚫 Отменено'
     };
     
@@ -8599,7 +8609,7 @@ async function loadMailings() {
         <div class="card">
           <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
             <h4 style="margin: 0;">${m.name}</h4>
-            <span class="small" style="background: ${m.mailing_type === 'automatic' ? '#4CAF50' : '#2196F3'}; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 500;">${mailingTypeLabel}</span>
+            <span class="small" style="background: ${m.mailing_type === 'automatic' ? '#4CAF50' : 'var(--accent)'}; color: white; padding: 4px 10px; border-radius: 12px; font-weight: 500;">${mailingTypeLabel}</span>
           </div>
           <p class="small" style="color: var(--hint); margin: 8px 0;">
             <strong>Назначение:</strong> ${m.purpose}
@@ -8638,16 +8648,16 @@ async function sendMailingNow(mailingId) {
     const data = await response.json();
     
     if (response.ok || response.status === 206) {
-      showNotification('✅ Рассылка отправлена!');
+      showNotification('? Рассылка отправлена!');
       setTimeout(() => {
         loadMailings();
       }, 1000);
     } else {
-      showNotification('❌ ' + (data.error || 'Ошибка при отправке'));
+      showNotification('? ' + (data.error || 'Ошибка при отправке'));
     }
   } catch (error) {
     console.error('Ошибка при отправке рассылки:', error);
-    showNotification('❌ Ошибка при отправке рассылки');
+    showNotification('? Ошибка при отправке рассылки');
   }
 }
 
@@ -8743,7 +8753,7 @@ async function generateDirectionUploadToken() {
       tg.openLink(botLink);
       
       // Показываем уведомление
-      showDirectionSuccess('✅ Бот открыт! Загрузите фотографию.');
+      showDirectionSuccess('? Бот открыт! Загрузите фотографию.');
       
       // Обновляем статус загрузки
       checkDirectionPhotoStatus(token);
@@ -8831,7 +8841,7 @@ async function createDirection() {
     localStorage.removeItem('direction_session_token');
     localStorage.removeItem('direction_session_id');
     
-    showDirectionSuccess(`✅ Направление "${data.title}" успешно создано!`);
+    showDirectionSuccess(`? Направление "${data.title}" успешно создано!`);
     
     // Возвращаемся в меню
     setTimeout(() => {
@@ -8898,7 +8908,7 @@ async function loadDirections() {
   } catch (error) {
     console.error('Ошибка при загрузке направлений:', error);
     const container = document.getElementById('directions-groups-container');
-    container.innerHTML = '<p class="small" style="text-align: center; color: #c62828; padding: 20px;">❌ Ошибка при загрузке</p>';
+    container.innerHTML = '<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ Ошибка при загрузке</p>';
   }
 }
 
@@ -8914,13 +8924,13 @@ function renderDirections(directions) {
   let html = '';
   
   directions.forEach(direction => {
-    const statusColor = direction.status === 'active' ? '#4CAF50' : '#ff9800';
+    const statusColor = direction.status === 'active' ? '#4CAF50' : '#fe5815';
     const statusText = direction.status === 'active' ? '✅ Активное' : '⏸️ Неактивное';
-    const popularBadge = direction.is_popular ? '⭐ Популярное' : '';
+    const popularBadge = direction.is_popular ? '? Популярное' : '';
     
     const imageHtml = direction.image_path 
       ? `<img src="${direction.image_path}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 12px;">`
-      : `<div style="width: 100%; height: 120px; background: #f0f0f0; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: var(--hint);">📸 Нет фото</div>`;
+      : `<div style="width: 100%; height: 120px; background: #1f1f1f; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: var(--hint);">📸 Нет фото</div>`;
     
     html += `
       <div class="card" style="margin-bottom: 12px; border-left: 4px solid ${statusColor}; position: relative;">
@@ -8929,9 +8939,9 @@ function renderDirections(directions) {
         <p style="font-size: 13px; color: var(--hint); margin: 0 0 8px 0; line-height: 1.4;">${direction.description || 'Нет описания'}</p>
         
         <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
-          <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">💰 ${direction.base_price} ₽</span>
-          <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: ${statusColor};">${statusText}</span>
-          ${popularBadge ? `<span style="background: #fff3cd; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${popularBadge}</span>` : ''}
+          <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">💰 ${direction.base_price} ₽</span>
+          <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: ${statusColor};">${statusText}</span>
+          ${popularBadge ? `<span style="background: var(--accent-soft); color: var(--accent); padding: 4px 8px; border-radius: 4px; font-size: 12px;">${popularBadge}</span>` : ''}
         </div>
         
         <div style="font-size: 11px; color: var(--hint); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
@@ -8939,8 +8949,8 @@ function renderDirections(directions) {
         </div>
         
         <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center; justify-content: space-between;">
-          <button class="save-btn" style="flex: 0 0 calc(100% - 48px); height: 40px; padding: 8px; font-size: 12px; background: #2196F3; border-radius: 8px;" onclick="editDirection(${direction.direction_id})">✏️ Редактировать</button>
-          <button class="save-btn" style="width: 40px; height: 40px; padding: 0; font-size: 18px; background: #ff9800; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" onclick="archiveDirection(${direction.direction_id})">📦</button>
+          <button class="save-btn" style="flex: 0 0 calc(100% - 48px); height: 40px; padding: 8px; font-size: 12px; background: var(--accent); border-radius: 8px;" onclick="editDirection(${direction.direction_id})">✏️ Редактировать</button>
+          <button class="save-btn" style="width: 40px; height: 40px; padding: 0; font-size: 18px; background: #fe5815; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" onclick="archiveDirection(${direction.direction_id})">🗑️</button>
         </div>
       </div>
     `;
@@ -8957,8 +8967,8 @@ function switchDirectionTab(tab) {
   const indicator = document.querySelector('.tab-indicator');
   
   // Обновляем цвета текста вкладок
-  activeTabBtn.style.color = tab === 'active' ? '#2196F3' : 'var(--hint)';
-  archivedTabBtn.style.color = tab === 'archived' ? '#2196F3' : 'var(--hint)';
+  activeTabBtn.style.color = tab === 'active' ? 'var(--accent)' : 'var(--hint)';
+  archivedTabBtn.style.color = tab === 'archived' ? 'var(--accent)' : 'var(--hint)';
   
   // Анимируем индикатор
   const activeTab = tab === 'active' ? activeTabBtn : archivedTabBtn;
@@ -8999,7 +9009,7 @@ function setDirectionEditLocked(locked) {
       lockBtn.title = 'Разблокировать редактирование';
       lockHint.textContent = 'Поля заблокированы, чтобы избежать случайных изменений.';
     } else {
-      lockBtn.textContent = '🔒';
+      lockBtn.textContent = '🔓';
       lockBtn.title = 'Заблокировать редактирование';
       lockHint.textContent = 'Редактирование разблокировано. Не забудьте сохранить изменения.';
     }
@@ -9073,10 +9083,10 @@ function loadDirectionGroups() {
             </div>
             <div class="small" style="margin-bottom: 6px;">Преподаватель: <b>${g.teacher_name || '—'}</b></div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
-              <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👶 ${g.age_group}</span>
-              <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👥 ${g.max_students} учеников</span>
-              <span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">⏱️ ${g.duration_minutes} мин</span>
-              ${g.lessons_per_week ? `<span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 12px;">📆 ${g.lessons_per_week} в неделю</span>` : ''}
+              <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👶 ${g.age_group}</span>
+              <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👥 ${g.max_students} учеников</span>
+              <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">⏱️ ${g.duration_minutes} мин</span>
+              ${g.lessons_per_week ? `<span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">📆 ${g.lessons_per_week} в неделю</span>` : ''}
             </div>
             <div class="small">${g.description || 'Описание не указано'}</div>
           </div>
@@ -9085,7 +9095,7 @@ function loadDirectionGroups() {
       groupsList.innerHTML = html;
     })
     .catch(err => {
-      groupsList.innerHTML = `<p style="text-align: center; color: #c62828; padding: 12px; margin: 0;">❌ ${err.message}</p>`;
+      groupsList.innerHTML = `<p style="text-align: center; color: #ffb3b3; padding: 12px; margin: 0;">❌ ${err.message}</p>`;
     });
 }
 
@@ -9151,13 +9161,13 @@ function displayGroupTeacherResults(teachers) {
     const safeName = (t.name || '—').replace(/'/g, "\\'").replace(/"/g, '\\"');
     const safeUsername = (t.username || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
     const isSelected = window.selectedGroupTeacher && window.selectedGroupTeacher.id === t.id;
-    const borderColor = isSelected ? '#1976d2' : 'var(--accent)';
-    const bgColor = isSelected ? '#e3f2fd' : 'var(--bg)';
+    const borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
+    const bgColor = isSelected ? 'var(--accent-soft)' : 'var(--card)';
     return `
       <div class="card" id="group-teacher-card-${t.id}" style="margin-bottom: 8px; cursor: pointer; background: ${bgColor}; border-left: 4px solid ${borderColor}; transition: all 0.2s;" onclick="selectGroupTeacher(${t.id}, '${safeName}', '${safeUsername}')">
         <div style="font-weight: 600; font-size: 14px;">
           ${t.name || '—'}
-          ${isSelected ? ' ✅' : ''}
+          ${isSelected ? ' ?' : ''}
         </div>
         <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">ID: ${t.id}${t.username ? ` • @${t.username}` : ''}</div>
       </div>
@@ -9174,7 +9184,7 @@ function selectGroupTeacher(id, name, username) {
 
 function openCreateGroupPage() {
   if (!window.currentEditDirectionId) {
-    alert('❌ Сначала откройте направление для редактирования');
+    alert('? Сначала откройте направление для редактирования');
     return;
   }
   showPage('direction-group-create');
@@ -9188,7 +9198,7 @@ function setDirectionGroupMessage(text, isError) {
   const msg = document.getElementById('edit-direction-group-msg');
   if (!msg) return;
   msg.style.display = 'block';
-  msg.style.background = isError ? '#ffebee' : '#e8f5e9';
+  msg.style.background = isError ? 'rgba(244, 67, 54, 0.18)' : 'rgba(76, 175, 80, 0.2)';
   msg.style.color = isError ? '#c62828' : '#2e7d32';
   msg.textContent = text;
   setTimeout(() => {
@@ -9199,7 +9209,7 @@ function setDirectionGroupMessage(text, isError) {
 function createDirectionGroup() {
   const directionId = window.currentEditDirectionId;
   if (!directionId) {
-    setDirectionGroupMessage('❌ ID направления не найден', true);
+    setDirectionGroupMessage('? ID направления не найден', true);
     return;
   }
 
@@ -9212,7 +9222,7 @@ function createDirectionGroup() {
   const description = document.getElementById('edit-direction-group-desc').value.trim();
 
   if (!name || !teacherId || !ageGroup || !maxStudents || !durationMinutes) {
-    setDirectionGroupMessage('❌ Заполните обязательные поля', true);
+    setDirectionGroupMessage('? Заполните обязательные поля', true);
     return;
   }
 
@@ -9243,14 +9253,14 @@ function createDirectionGroup() {
       document.getElementById('edit-direction-group-desc').value = '';
       document.getElementById('group-teacher-search').value = '';
       window.selectedGroupTeacher = null;
-      setDirectionGroupMessage('✅ Группа создана', false);
+      setDirectionGroupMessage('? Группа создана', false);
       loadDirectionGroups();
       setTimeout(() => {
         goBack();
       }, 600);
     })
     .catch(err => {
-      setDirectionGroupMessage('❌ ' + err.message, true);
+      setDirectionGroupMessage('? ' + err.message, true);
     });
 }
 
@@ -9258,7 +9268,7 @@ function setEditGroupMessage(text, isError) {
   const msg = document.getElementById('edit-group-msg');
   if (!msg) return;
   msg.style.display = 'block';
-  msg.style.background = isError ? '#ffebee' : '#e8f5e9';
+  msg.style.background = isError ? 'rgba(244, 67, 54, 0.18)' : 'rgba(76, 175, 80, 0.2)';
   msg.style.color = isError ? '#c62828' : '#2e7d32';
   msg.textContent = text;
   setTimeout(() => {
@@ -9335,13 +9345,13 @@ function displayEditGroupTeacherResults(teachers) {
     const safeName = (t.name || '—').replace(/'/g, "\\'").replace(/"/g, '\\"');
     const safeUsername = (t.username || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
     const isSelected = window.selectedEditGroupTeacher && window.selectedEditGroupTeacher.id === t.id;
-    const borderColor = isSelected ? '#1976d2' : 'var(--accent)';
-    const bgColor = isSelected ? '#e3f2fd' : 'var(--bg)';
+    const borderColor = isSelected ? 'var(--accent)' : 'var(--border)';
+    const bgColor = isSelected ? 'var(--accent-soft)' : 'var(--card)';
     return `
       <div class="card" id="edit-group-teacher-card-${t.id}" style="margin-bottom: 8px; cursor: pointer; background: ${bgColor}; border-left: 4px solid ${borderColor}; transition: all 0.2s;" onclick="selectEditGroupTeacher(${t.id}, '${safeName}', '${safeUsername}')">
         <div style="font-weight: 600; font-size: 14px;">
           ${t.name || '—'}
-          ${isSelected ? ' ✅' : ''}
+          ${isSelected ? ' ?' : ''}
         </div>
         <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">ID: ${t.id}${t.username ? ` • @${t.username}` : ''}</div>
       </div>
@@ -9364,7 +9374,7 @@ function openEditGroupPage(groupId) {
   try {
     showPage('direction-group-edit');
   } catch (err) {
-    showNotification('❌ Не удалось открыть форму редактирования группы');
+    showNotification('? Не удалось открыть форму редактирования группы');
     return;
   }
   const teacherSearch = document.getElementById('edit-group-teacher-search');
@@ -9387,15 +9397,15 @@ function openEditGroupPage(groupId) {
       loadEditGroupTeachers();
     })
     .catch(err => {
-      setEditGroupMessage('❌ ' + err.message, true);
-      showNotification('❌ ' + err.message);
+      setEditGroupMessage('? ' + err.message, true);
+      showNotification('? ' + err.message);
     });
 }
 
 function saveGroupChanges() {
   const groupId = window.currentEditGroupId;
   if (!groupId) {
-    setEditGroupMessage('❌ ID группы не найден', true);
+    setEditGroupMessage('? ID группы не найден', true);
     return;
   }
 
@@ -9408,7 +9418,7 @@ function saveGroupChanges() {
   const description = document.getElementById('edit-group-desc').value.trim();
 
   if (!name || !teacherId || !ageGroup || !maxStudents || !durationMinutes) {
-    setEditGroupMessage('❌ Заполните обязательные поля', true);
+    setEditGroupMessage('? Заполните обязательные поля', true);
     return;
   }
 
@@ -9431,14 +9441,14 @@ function saveGroupChanges() {
       return data;
     })
     .then(() => {
-      setEditGroupMessage('✅ Группа обновлена', false);
+      setEditGroupMessage('? Группа обновлена', false);
       loadDirectionGroups();
       setTimeout(() => {
         goBack();
       }, 600);
     })
     .catch(err => {
-      setEditGroupMessage('❌ ' + err.message, true);
+      setEditGroupMessage('? ' + err.message, true);
     });
 }
 
@@ -9450,7 +9460,7 @@ function saveDirectionChanges() {
 
   const directionId = window.currentEditDirectionId;
   if (!directionId) {
-    alert('❌ ID направления не найден');
+    alert('? ID направления не найден');
     return;
   }
   
@@ -9460,7 +9470,7 @@ function saveDirectionChanges() {
   const status = document.getElementById('edit-direction-status').value;
   
   if (!title || !description || !price) {
-    alert('❌ Пожалуйста, заполните все поля');
+    alert('? Пожалуйста, заполните все поля');
     return;
   }
   
@@ -9476,11 +9486,11 @@ function saveDirectionChanges() {
   })
     .then(r => r.json())
     .then(data => {
-      alert('✅ Направление обновлено');
+      alert('? Направление обновлено');
       goBack();
       loadDirections();
     })
-    .catch(err => alert('❌ Ошибка: ' + err.message));
+    .catch(err => alert('? Ошибка: ' + err.message));
 }
 
 function archiveDirection(directionId) {
@@ -9488,13 +9498,42 @@ function archiveDirection(directionId) {
     fetch(`/api/directions/${directionId}`, { method: 'DELETE' })
       .then(r => r.json())
       .then(data => {
-        alert('✅ Направление архивировано');
+        alert('? Направление архивировано');
         loadDirections();
       })
-      .catch(err => alert('❌ Ошибка: ' + err.message));
+      .catch(err => alert('? Ошибка: ' + err.message));
   }
 }
 
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

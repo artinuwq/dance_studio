@@ -9,7 +9,7 @@ from bot.bot import run_bot
 def run_flask():
     app.run(
         host="0.0.0.0",
-        port=5000,
+        port=3000,
         debug=True,
         use_reloader=False
     )
