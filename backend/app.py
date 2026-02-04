@@ -11,11 +11,11 @@ from sqlalchemy import or_, text
 from werkzeug.exceptions import HTTPException
 
 from backend.db import init_db, get_session, BASE_DIR, Session, engine
-from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental, TeacherWorkingHours, GroupAbonement, PaymentTransaction, BookingRequest
+from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental, TeacherWorkingHours, TeacherTimeOff, GroupAbonement, PaymentTransaction, BookingRequest
 from backend.media_manager import save_user_photo, delete_user_photo
 from backend.permissions import has_permission
 from backend.tech_notifier import send_critical_sync
-from backend.booking_utils import format_booking_message, build_booking_keyboard_data
+from backend.booking_utils import BOOKING_STATUS_LABELS, format_booking_message, build_booking_keyboard_data
 
 # Flask-Admin
 from flask_admin import Admin, AdminIndexView
@@ -29,6 +29,7 @@ FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
 
 app = Flask(__name__)
+app.logger.setLevel(logging.INFO)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(PROJECT_ROOT, "database", "dance.db")}'
 app.secret_key = 'dance-studio-secret-key-2026'  # Генерируется для сессий и flash сообщений
 init_db()
@@ -1763,6 +1764,102 @@ def get_public_teacher_schedule(teacher_id):
     ]
 
 
+@app.route("/api/teachers/<int:teacher_id>/availability", methods=["GET"])
+def get_teacher_availability(teacher_id):
+    db = g.db
+    teacher = db.query(Staff).filter(Staff.id == teacher_id, Staff.status == "active").first()
+    if not teacher:
+        return {"error": "Преподаватель не найден"}, 404
+
+    start_str = request.args.get("start")
+    days_str = request.args.get("days")
+    duration_str = request.args.get("duration")
+    step_str = request.args.get("step")
+
+    try:
+        start_date = datetime.strptime(start_str, "%Y-%m-%d").date() if start_str else date.today()
+    except ValueError:
+        return {"error": "start должен быть в формате YYYY-MM-DD"}, 400
+
+    def _parse_positive_int(value, default, min_value, max_value):
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return default
+        if parsed < min_value:
+            return min_value
+        if max_value is not None and parsed > max_value:
+            return max_value
+        return parsed
+
+    days_count = _parse_positive_int(days_str, 7, 1, 21)
+    duration_minutes = _parse_positive_int(duration_str, 60, 15, 240)
+    step_minutes = _parse_positive_int(step_str, 30, 15, 180)
+
+    working_hours = (
+        db.query(TeacherWorkingHours)
+        .filter_by(teacher_id=teacher_id, status="active")
+        .all()
+    )
+
+    dates = []
+    for offset in range(days_count):
+        day = start_date + timedelta(days=offset)
+        weekday = day.weekday()
+        entries = [
+            entry
+            for entry in working_hours
+            if entry.weekday == weekday
+            and (not entry.valid_from or entry.valid_from <= day)
+            and (not entry.valid_to or entry.valid_to >= day)
+            and entry.time_from
+            and entry.time_to
+            and entry.time_to > entry.time_from
+        ]
+        busy_intervals = _collect_busy_intervals(db, teacher_id, day)
+        busy_intervals.sort()
+        slots = []
+        seen = set()
+        free_ranges = []
+        for entry in entries:
+            start_min = _time_to_minutes(entry.time_from)
+            end_min = _time_to_minutes(entry.time_to)
+            last_start = end_min - duration_minutes
+            current = start_min
+            while current <= last_start:
+                if not _has_slot_conflict(current, duration_minutes, busy_intervals):
+                    slot_str = _minutes_to_time_str(current)
+                    if slot_str not in seen:
+                        seen.add(slot_str)
+                        slots.append(slot_str)
+                current += step_minutes
+            segments = _subtract_busy_intervals(start_min, end_min, busy_intervals)
+            for seg_start, seg_end in segments:
+                if seg_end - seg_start >= step_minutes:
+                    free_ranges.append({
+                        "from": _minutes_to_time_str(seg_start),
+                        "to": _minutes_to_time_str(seg_end),
+                        "from_minutes": seg_start,
+                        "to_minutes": seg_end,
+                    })
+        dates.append(
+            {
+                "date": day.isoformat(),
+                "weekday": weekday,
+                "slots": slots,
+                "free_ranges": free_ranges,
+            }
+        )
+
+    return {
+        "teacher_id": teacher_id,
+        "teacher_name": teacher.name,
+        "duration_minutes": duration_minutes,
+        "slot_step_minutes": step_minutes,
+        "dates": dates,
+    }
+
+
 @app.route("/staff/list/all")
 def list_all_staff():
     """
@@ -2787,6 +2884,92 @@ def _find_booking_overlaps(db, date_val, time_from, time_to) -> list[dict]:
     return overlaps
 
 
+def _time_to_minutes(value: time) -> int:
+    return value.hour * 60 + value.minute
+
+
+def _minutes_to_time_str(minutes: int) -> str:
+    hours = minutes // 60
+    mins = minutes % 60
+    return f"{hours:02d}:{mins:02d}"
+
+
+def _subtract_busy_intervals(start: int, end: int, busy_intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    segments: list[tuple[int, int]] = []
+    current = start
+    for busy_start, busy_end in busy_intervals:
+        if busy_end <= current:
+            continue
+        if busy_start >= end:
+            break
+        if busy_start > current:
+            segments.append((current, min(busy_start, end)))
+        current = max(current, busy_end)
+        if current >= end:
+            break
+    if current < end:
+        segments.append((current, end))
+    return segments
+
+
+def _has_slot_conflict(start_min: int, duration_minutes: int, busy_intervals: list[tuple[int, int]]) -> bool:
+    end_min = start_min + duration_minutes
+    for busy_start, busy_end in busy_intervals:
+        if start_min < busy_end and busy_start < end_min:
+            return True
+    return False
+
+
+def _collect_busy_intervals(db, teacher_id: int, target_date: date) -> list[tuple[int, int]]:
+    intervals: list[tuple[int, int]] = []
+
+    schedule_items = (
+        db.query(Schedule)
+        .filter(
+            Schedule.teacher_id == teacher_id,
+            Schedule.date == target_date,
+            Schedule.status.notin_(["cancelled", "deleted"]),
+        )
+        .all()
+    )
+    for item in schedule_items:
+        start = item.time_from or item.start_time
+        end = item.time_to or item.end_time
+        if not start or not end:
+            continue
+        start_min = _time_to_minutes(start)
+        end_min = _time_to_minutes(end)
+        if end_min <= start_min:
+            continue
+        intervals.append((start_min, end_min))
+
+    lessons = db.query(IndividualLesson).filter_by(teacher_id=teacher_id, date=target_date).all()
+    for lesson in lessons:
+        if not lesson.time_from or not lesson.time_to:
+            continue
+        start_min = _time_to_minutes(lesson.time_from)
+        end_min = _time_to_minutes(lesson.time_to)
+        if end_min <= start_min:
+            continue
+        intervals.append((start_min, end_min))
+
+    time_off_items = (
+        db.query(TeacherTimeOff)
+        .filter_by(teacher_id=teacher_id, date=target_date, status="active")
+        .all()
+    )
+    for off in time_off_items:
+        if off.time_from and off.time_to:
+            start_min = _time_to_minutes(off.time_from)
+            end_min = _time_to_minutes(off.time_to)
+            if end_min > start_min:
+                intervals.append((start_min, end_min))
+        else:
+            intervals.append((0, 24 * 60))
+
+    return intervals
+
+
 def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
     try:
         from config import BOT_TOKEN, BOOKINGS_ADMIN_CHAT_ID
@@ -2814,6 +2997,58 @@ def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
         pass
 
 
+@app.route("/api/booking-requests", methods=["GET"])
+def list_booking_requests():
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    query = db.query(BookingRequest).order_by(BookingRequest.date.asc(), BookingRequest.time_from.asc())
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+
+    if date_from:
+        try:
+            date_from_val = datetime.strptime(date_from, "%Y-%m-%d").date()
+            query = query.filter(BookingRequest.date >= date_from_val)
+        except ValueError:
+            return {"error": "date_from должен быть в формате YYYY-MM-DD"}, 400
+    if date_to:
+        try:
+            date_to_val = datetime.strptime(date_to, "%Y-%m-%d").date()
+            query = query.filter(BookingRequest.date <= date_to_val)
+        except ValueError:
+            return {"error": "date_to должен быть в формате YYYY-MM-DD"}, 400
+
+    result = []
+    for booking in query:
+        if not booking.date or not booking.time_from or not booking.time_to:
+            continue
+        if booking.status in {"REJECTED", "CANCELLED"}:
+            continue
+        time_from_str = booking.time_from.strftime("%H:%M") if booking.time_from else None
+        time_to_str = booking.time_to.strftime("%H:%M") if booking.time_to else None
+        result.append({
+            "id": booking.id,
+            "object_type": booking.object_type,
+            "group_id": booking.group_id,
+            "teacher_id": booking.teacher_id,
+            "date": booking.date.isoformat(),
+            "time_from": time_from_str,
+            "time_to": time_to_str,
+            "status": booking.status,
+            "status_label": BOOKING_STATUS_LABELS.get(booking.status, booking.status),
+            "user_name": booking.user_name,
+            "comment": booking.comment,
+            "lessons_count": booking.lessons_count,
+            "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
+            "valid_until": booking.valid_until.isoformat() if booking.valid_until else None,
+        })
+
+    return jsonify(result)
+
+
 @app.route("/api/booking-requests", methods=["POST"])
 def create_booking_request():
     db = g.db
@@ -2826,6 +3061,20 @@ def create_booking_request():
     object_type = data.get("object_type")
     if object_type not in ["rental", "individual", "group"]:
         return {"error": "object_type должен быть rental, individual или group"}, 400
+
+    teacher_id_val = None
+    teacher = None
+    if "teacher_id" in data:
+        try:
+            teacher_id_val = int(data.get("teacher_id"))
+        except (TypeError, ValueError):
+            return {"error": "teacher_id должен быть числом"}, 400
+        teacher = db.query(Staff).filter_by(id=teacher_id_val, status="active").first()
+        if not teacher:
+            return {"error": "Преподаватель не найден"}, 404
+
+    if object_type == "individual" and not teacher_id_val:
+        return {"error": "teacher_id обязателен для индивидуального занятия"}, 400
 
     date_str = data.get("date")
     time_from_str = data.get("time_from")
@@ -2912,6 +3161,7 @@ def create_booking_request():
         comment=comment,
         overlaps_json=json.dumps(overlaps, ensure_ascii=False),
         status=status,
+        teacher_id=teacher_id_val,
         group_id=group_id_val,
         lessons_count=lessons_count_val,
         group_start_date=group_start_date_val,
@@ -2919,6 +3169,39 @@ def create_booking_request():
     )
 
     db.add(booking)
+    db.flush()
+
+    individual_lesson = None
+    if object_type == "individual" and teacher_id_val and date_val and time_from_val and time_to_val:
+        individual_lesson = IndividualLesson(
+            teacher_id=teacher_id_val,
+            student_id=user.id,
+            date=date_val,
+            time_from=time_from_val,
+            time_to=time_to_val,
+            duration_minutes=booking.duration_minutes,
+            comment=comment,
+            person_comment=comment,
+            booking_id=booking.id,
+            status=status
+        )
+        db.add(individual_lesson)
+        db.flush()
+
+        lesson_schedule = Schedule(
+            object_type="individual",
+            object_id=individual_lesson.id,
+            date=date_val,
+            time_from=time_from_val,
+            time_to=time_to_val,
+            status=status,
+            title="Индивидуальное занятие",
+            start_time=time_from_val,
+            end_time=time_to_val,
+            teacher_id=teacher_id_val,
+        )
+        db.add(lesson_schedule)
+
     db.commit()
 
     _notify_booking_admins(booking, user)
@@ -2928,6 +3211,104 @@ def create_booking_request():
         "status": booking.status,
         "overlaps": overlaps,
     }, 201
+
+
+@app.route("/api/rental-occupancy")
+def rental_occupancy():
+    db = g.db
+    date_str = request.args.get("date")
+    if not date_str:
+        date_val = datetime.now().date()
+    else:
+        try:
+            date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return {"error": "date должен быть в формате YYYY-MM-DD"}, 400
+
+    entries = db.query(Schedule).filter(
+        Schedule.object_type == "rental",
+        Schedule.date == date_val,
+        Schedule.time_from.isnot(None),
+        Schedule.time_to.isnot(None),
+        Schedule.status.notin_(["cancelled", "deleted"])
+    ).all()
+
+    result = []
+    for entry in entries:
+        result.append({
+            "id": entry.id,
+            "date": entry.date.isoformat() if entry.date else None,
+            "time_from": entry.time_from.strftime("%H:%M") if entry.time_from else None,
+            "time_to": entry.time_to.strftime("%H:%M") if entry.time_to else None,
+            "status": entry.status,
+            "title": entry.title or "Аренда"
+        })
+
+    return jsonify(result), 200
+
+
+@app.route("/api/hall-occupancy")
+def hall_occupancy():
+    db = g.db
+    date_str = request.args.get("date")
+    if not date_str:
+        date_val = datetime.now().date()
+    else:
+        try:
+            date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return {"error": "date должен быть в формате YYYY-MM-DD"}, 400
+
+    entries = db.query(Schedule).filter(
+        Schedule.date == date_val,
+        Schedule.time_from.isnot(None),
+        Schedule.time_to.isnot(None),
+        Schedule.status.notin_(["cancelled", "deleted"])
+    ).order_by(Schedule.time_from.asc()).all()
+
+    result = []
+    for entry in entries:
+        result.append({
+            "id": entry.id,
+            "date": entry.date.isoformat() if entry.date else None,
+            "time_from": entry.time_from.strftime("%H:%M") if entry.time_from else None,
+            "time_to": entry.time_to.strftime("%H:%M") if entry.time_to else None,
+            "status": entry.status,
+            "title": entry.title or "Событие",
+            "object_type": entry.object_type
+        })
+
+    app.logger.info("hall occupancy %s -> %s entries", date_val, len(result))
+    return jsonify(result), 200
+
+
+@app.route("/api/individual-lessons/<int:lesson_id>")
+def get_individual_lesson(lesson_id):
+    db = g.db
+    lesson = db.query(IndividualLesson).filter_by(id=lesson_id).first()
+    if not lesson:
+        return {"error": "Индивидуальное занятие не найдено"}, 404
+
+    teacher = db.query(Staff).filter_by(id=lesson.teacher_id).first()
+    student = db.query(User).filter_by(id=lesson.student_id).first()
+
+    return jsonify({
+        "id": lesson.id,
+        "date": lesson.date.isoformat() if lesson.date else None,
+        "time_from": lesson.time_from.strftime("%H:%M") if lesson.time_from else None,
+        "time_to": lesson.time_to.strftime("%H:%M") if lesson.time_to else None,
+        "status": lesson.status,
+        "teacher": {
+            "id": teacher.id if teacher else None,
+            "name": teacher.name if teacher else "—"
+        },
+        "student": {
+            "id": student.id if student else None,
+            "name": student.name if student else "—",
+            "telegram_id": student.telegram_id if student else None,
+            "username": student.username if student else None
+        }
+    })
 
 
 def get_next_group_date(db, group_id):

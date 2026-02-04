@@ -23,8 +23,9 @@ from config import (
 )
 from backend.db import get_session
 from backend.permissions import has_permission
-from backend.models import News, User, Mailing, Group, DirectionUploadSession, Staff, BookingRequest
+from backend.models import News, User, Mailing, Group, DirectionUploadSession, Staff, BookingRequest, Schedule, IndividualLesson
 from backend.booking_utils import format_booking_message, build_booking_keyboard_data
+from sqlalchemy import or_
 from datetime import datetime, time as dt_time, timedelta
 import os
 import tempfile
@@ -965,6 +966,82 @@ def _build_booking_keyboard_markup(status: str, object_type: str, booking_id: in
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+def _create_schedule_from_lesson(
+    db,
+    lesson: IndividualLesson,
+    status: str,
+    booking: BookingRequest | None = None,
+) -> Schedule | None:
+    if not lesson.date or not lesson.time_from or not lesson.time_to:
+        return None
+    schedule = Schedule(
+        object_type="individual",
+        object_id=lesson.id,
+        group_id=(booking.group_id if booking else None),
+        date=lesson.date,
+        time_from=lesson.time_from,
+        time_to=lesson.time_to,
+        status=status,
+        title="Индивидуальное занятие",
+        start_time=lesson.time_from,
+        end_time=lesson.time_to,
+        teacher_id=lesson.teacher_id,
+    )
+    db.add(schedule)
+    db.flush()
+    return schedule
+
+
+def _sync_booking_status_to_schedule(db, booking: BookingRequest, staff: Staff | None, status: str) -> None:
+    if not booking.object_type:
+        return
+
+    filters = [Schedule.object_type == booking.object_type]
+    if booking.group_id:
+        filters.append(or_(Schedule.group_id == booking.group_id, Schedule.object_id == booking.group_id))
+    elif booking.teacher_id:
+        filters.append(Schedule.teacher_id == booking.teacher_id)
+
+    if booking.date:
+        filters.append(Schedule.date == booking.date)
+    if booking.time_from:
+        filters.append(Schedule.time_from == booking.time_from)
+    if booking.time_to:
+        filters.append(Schedule.time_to == booking.time_to)
+
+    if len(filters) <= 1:
+        return
+
+    schedule = (
+        db.query(Schedule)
+        .filter(*filters)
+        .order_by(Schedule.date.desc())
+        .first()
+    )
+    if not schedule and booking.object_type == "individual":
+        lesson = (
+            db.query(IndividualLesson)
+            .filter_by(booking_id=booking.id)
+            .first()
+        )
+        if lesson:
+            schedule = _create_schedule_from_lesson(db, lesson, status)
+    if not schedule:
+        return
+
+    schedule.status = status
+    schedule.status_comment = f"Синхронизировано с заявкой #{booking.id}"
+    if staff:
+        schedule.updated_by = staff.id
+
+    if schedule.object_type == "individual" and schedule.object_id:
+        lesson = db.query(IndividualLesson).filter_by(id=schedule.object_id).first()
+        if lesson:
+            lesson.status = status
+            lesson.status_updated_at = datetime.now()
+            lesson.status_updated_by_id = staff.id if staff else None
+
+
 @dp.callback_query(F.data.startswith("booking"))
 async def handle_booking_action(callback: CallbackQuery):
     if not callback.data or not callback.message:
@@ -1070,6 +1147,8 @@ async def handle_booking_action(callback: CallbackQuery):
         booking.status_updated_by_username = f"@{admin_user.username}" if admin_user.username else None
         booking.status_updated_by_name = staff.name if staff else admin_user.full_name
         booking.status_updated_at = datetime.now()
+
+        _sync_booking_status_to_schedule(db, booking, staff, next_status)
 
         db.commit()
 

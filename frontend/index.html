@@ -31,6 +31,10 @@ body {
   color: var(--text);
 }
 
+#schedule-grid-container {
+  position: relative;
+}
+
 /* ====== HEADER ====== */
 header {
   display: none;
@@ -135,6 +139,7 @@ body.tg-mobile .header-back {
   border-top: 1px solid var(--border);
   padding: 6px 8px calc(env(safe-area-inset-bottom) + 10px);
   box-sizing: border-box;
+  z-index: 1000;
 }
 
 .nav-btn {
@@ -421,6 +426,159 @@ body.tg-mobile .header-back {
   font-weight: 700;
 }
 
+.section-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.individual-intro-card h3 {
+  margin: 0 0 6px;
+}
+
+.individual-teacher-strip,
+.individual-date-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.individual-teacher-card {
+  min-width: 130px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--card);
+  cursor: pointer;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.individual-teacher-card.selected {
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.individual-teacher-card:hover {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.individual-teacher-photo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: #e0e0e0;
+  overflow: hidden;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.individual-teacher-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.individual-teacher-detail {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.individual-teacher-detail h4 {
+  margin: 0;
+}
+
+.individual-date-strip {
+  margin-top: 4px;
+}
+
+.individual-date-card {
+  min-width: 72px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 6px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--card);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.individual-date-card.active {
+  border-color: var(--accent);
+  background: rgba(233, 30, 99, 0.08);
+}
+
+.individual-time-area {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.individual-time-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.individual-slot-grid {
+  min-height: 90px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  background: var(--card);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.individual-slot-card {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 10px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--card);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 100px;
+}
+
+.individual-slot-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
+}
+
+.individual-slot-duration-display {
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.individual-booking-card {
+  margin-bottom: 60px;
+}
+
+.individual-booking-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.individual-booking-message {
+  min-height: 20px;
+  margin: 0;
+  color: var(--text);
+}
+
 /* ====== КОНТАКТНАЯ ИНФОРМАЦИЯ ====== */
 .contact-btn {
   background: var(--card);
@@ -503,6 +661,138 @@ body.tg-mobile .header-back {
 
 textarea.form-input {
   resize: vertical;
+}
+
+.rental-form-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rental-form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.rental-fieldset--wide {
+  flex: 1 1 100%;
+}
+
+.rental-date-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.rental-fieldset {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rental-booking-message {
+  min-height: 20px;
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.rental-booking-message.error {
+  color: #c62828;
+}
+
+.rental-note {
+  font-size: 13px;
+  color: var(--hint);
+}
+
+.rental-occupancy-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.rental-occupancy-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--hint);
+}
+
+.rental-occupancy-timeline {
+  position: relative;
+  height: 28px;
+  border-radius: 14px;
+  background: #f5f5f5;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.rental-occupancy-timeline::after {
+  content: '';
+  position: absolute;
+  inset: 20% 0;
+  border-top: 1px dashed rgba(0, 0, 0, 0.08);
+  pointer-events: none;
+}
+
+.rental-occupancy-slot {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 10px;
+  background: rgba(233, 30, 99, 0.35);
+  border: 1px solid rgba(233, 30, 99, 0.9);
+  transition: transform 0.2s;
+}
+
+.rental-occupancy-slot:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+.rental-occupancy-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rental-occupancy-debug {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #777;
+}
+
+.rental-occupancy-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+
+.rental-occupancy-item span {
+  font-weight: 600;
+}
+
+.rental-occupancy-status {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #e91e63;
+  border: 1px solid rgba(233, 30, 99, 0.25);
 }
 
 .save-btn {
@@ -878,6 +1168,24 @@ textarea.form-input {
   margin-bottom: 12px;
 }
 
+.schedule-filter-toggle {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.schedule-filter-toggle.active {
+  background: #e3f2fd;
+  border-color: #64b5f6;
+  color: #0d47a1;
+}
+
 .schedule-toolbar .button {
   flex: 1;
   padding: 10px;
@@ -892,6 +1200,12 @@ textarea.form-input {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
+}
+
+.schedule-filter-row {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .schedule-nav {
@@ -943,6 +1257,7 @@ textarea.form-input {
   padding: 2px 4px;
 }
 
+/* Убираем горизонтальные линии сетки внутри склеенных слотов */
 .schedule-cell.time {
   background: var(--card);
   color: var(--hint);
@@ -959,13 +1274,74 @@ textarea.form-input {
   font-size: 12px;
 }
 
+.schedule-grid-block-highlight {
+  position: absolute;
+  pointer-events: none;
+  background: rgba(200, 200, 200, 0.12);
+  border: 2px solid rgba(33, 150, 243, 0.45);
+  border-radius: 10px;
+  transition: width 0.12s ease, height 0.12s ease, top 0.12s ease, left 0.12s ease, opacity 0.12s ease;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+  z-index: 1;
+  opacity: 0;
+}
+
 .schedule-slot {
   background: #fff;
   cursor: pointer;
+  min-height: 42px;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.15s ease;
 }
 
-.schedule-slot.busy {
-  cursor: not-allowed;
+/* Визуальное объединение многослойных слотов одной заявки */
+.schedule-slot:hover {
+  border-radius: 8px;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+}
+
+.schedule-slot.confirmed,
+.schedule-slot.pending,
+.schedule-slot.tentative {
+  border: 1px solid transparent;
+}
+
+.schedule-slot.pending {
+  border-color: rgba(255, 152, 0, 0.9);
+}
+
+.schedule-slot.pending .schedule-event {
+  color: #e65100;
+}
+
+.schedule-slot.tentative {
+  border-color: rgba(233, 30, 99, 0.8);
+  background: rgba(233, 30, 99, 0.08);
+}
+
+.schedule-slot.tentative .schedule-event {
+  color: #c62828;
+}
+
+.schedule-slot-highlighted-other,
+.schedule-slot-highlighted-active {
+  border-width: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+.schedule-slot-highlighted-active {
+  border-width: 1px !important;
+  border-style: solid !important;
+  border-color: rgba(33, 150, 243, 0.6) !important;
+  background: rgba(0, 0, 0, 0.04) !important;
+  z-index: 1;
 }
 
 .schedule-slot.non-working {
@@ -976,13 +1352,37 @@ textarea.form-input {
   background: #ef9a9a;
 }
 
-.schedule-slot.busy.group {
+/* Схлопываем части одной заявки в единую колонку */
+.schedule-cell.slot-grouped {
+  border-top: 0;
+  border-bottom: 0;
 }
 
-.schedule-slot.busy.individual {
+.schedule-slot.slot-grouped {
+  border-left: 1px solid rgba(233, 30, 99, 0.8) !important;
+  border-right: 1px solid rgba(233, 30, 99, 0.8) !important;
+  background: rgba(233, 30, 99, 0.08) !important;
 }
 
-.schedule-slot.busy.rental {
+.schedule-slot.slot-group-start {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border-top: 2px solid rgba(233, 30, 99, 0.8);
+}
+
+.schedule-slot.slot-group-end {
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  border-bottom: 2px solid rgba(233, 30, 99, 0.8);
+}
+
+.schedule-slot.slot-group-middle {
+  border-radius: 0;
+}
+
+.schedule-slot.slot-group-middle,
+.schedule-slot.slot-group-end {
+  margin-top: -2px;
 }
 
 .schedule-event {
@@ -1120,6 +1520,28 @@ textarea.form-input {
   align-items: center;
   gap: 8px;
   font-size: 13px;
+}
+
+.schedule-detail-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.schedule-detail-client-btn {
+  border-radius: 999px;
+  border: 1px solid rgba(233, 30, 99, 0.65);
+  background: rgba(233, 30, 99, 0.08);
+  color: #e91e63;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.schedule-detail-client-btn:hover {
+  background: rgba(233, 30, 99, 0.18);
 }
 
 .repeat-panel {
@@ -1609,6 +2031,25 @@ textarea.form-input {
   height: 200px;
   border-radius: 16px;
   background: var(--card);
+  margin-bottom: 12px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.teacher-profile-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.teacher-profile-photo {
+  width: 100%;
+  height: 200px;
+  border-radius: 16px;
+  background: var(--card);
   overflow: hidden;
   display: none;
   align-items: center;
@@ -1874,10 +2315,13 @@ textarea.form-input {
 <div class="page" data-title="🗓 Расписание" id="schedule-control">
 
 <div id="schedule-control-container">
-<div class="schedule-toolbar">
-  <button class="button active" id="schedule-view-week" onclick="setScheduleView('week')">Неделя</button>
-  <button class="button" id="schedule-view-day" onclick="setScheduleView('day')">День</button>
-</div>
+    <div class="schedule-toolbar">
+      <button class="button active" id="schedule-view-week" onclick="setScheduleView('week')">Неделя</button>
+      <button class="button" id="schedule-view-day" onclick="setScheduleView('day')">День</button>
+    </div>
+    <div class="schedule-filter-row">
+      <button class="schedule-filter-toggle" id="schedule-confirmed-toggle" onclick="toggleScheduleConfirmedFilter()">Показать только подтверждённые</button>
+    </div>
 <div class="schedule-nav">
   <button class="nav-btn-mini" onclick="shiftScheduleDate(-1)">‹</button>
   <div class="date-label" id="schedule-date-label">—</div>
@@ -2634,10 +3078,125 @@ textarea.form-input {
   <div id="direction-detail-content"></div>
 </div>
 <div class="page" data-title="⏱️ Индивидуальные занятия" id="info-individual">
-<p class="small">Раздел находится в разработке</p>
+  <div class="card individual-intro-card">
+    <h3>Персональное занятие</h3>
+    <p class="small">Выберите преподавателя, удобную дату и укажите время начала и окончания занятий — админы подтвердят бронь в чате.</p>
+  </div>
+  <div class="card individual-teacher-card-wrapper">
+    <div class="section-title-row">
+      <h4>Тренеры</h4>
+      <span class="small">Прокрутите, чтобы выбрать</span>
+    </div>
+    <div class="individual-teacher-strip" id="individual-teacher-strip">
+      <p class="small">Загрузка тренеров...</p>
+    </div>
+    <div class="individual-teacher-detail" id="individual-teacher-detail">
+      <p class="small">Выберите преподавателя, чтобы узнать о нём.</p>
+    </div>
+  </div>
+  <div class="card individual-date-card-wrapper">
+    <div class="section-title-row">
+      <h4>Выберите дату</h4>
+      <span class="small">Ближайшие 1-2 недели</span>
+    </div>
+    <div class="individual-date-strip" id="individual-date-strip">
+      <p class="small">Сначала выберите тренера</p>
+    </div>
+  </div>
+  <div class="card individual-slot-card">
+    <div class="section-title-row">
+      <h4>Время</h4>
+      <span class="small" id="individual-slot-duration">Шаг 30 мин</span>
+    </div>
+    <div class="individual-time-area">
+      <div class="individual-time-column">
+        <div class="section-title-row"><span class="small">Начало</span></div>
+        <div class="individual-slot-grid" id="individual-start-grid">
+          <p class="small">Сначала выберите преподавателя и дату</p>
+        </div>
+      </div>
+      <div class="individual-time-column">
+        <div class="section-title-row"><span class="small">Окончание</span></div>
+        <div class="individual-slot-grid" id="individual-end-grid">
+          <p class="small">Выберите начало, чтобы увидеть окончания</p>
+        </div>
+      </div>
+    </div>
+    <p class="small individual-slot-status" id="individual-slot-status"></p>
+    <p class="small individual-slot-duration-display" id="individual-duration-display"></p>
+  </div>
+  <div class="card individual-booking-card">
+    <div class="form-group">
+      <label>Комментарий для админов (по желанию)</label>
+      <textarea class="form-input" id="individual-booking-comment" rows="3" placeholder="Например, хочу начать с разбора техники..."></textarea>
+    </div>
+    <div class="individual-booking-footer">
+      <button class="save-btn" id="individual-booking-submit" onclick="submitIndividualBooking()">Отправить заявку</button>
+      <p class="small individual-booking-message" id="individual-booking-msg"></p>
+    </div>
+  </div>
 </div>
 <div class="page" data-title="🔑 Аренда зала" id="info-rent">
-<p class="small">Раздел находится в разработке</p>
+  <div class="card">
+    <h3>Аренда зала</h3>
+    <p class="small">Выберите удобный день и время — мы перенаправим запрос админам, и они подтвердят бронь в чате.</p>
+  </div>
+  <div class="card rental-form-card">
+    <h4 style="margin:0;">Заявка на аренду</h4>
+    <p class="rental-note">Поля дата и время обязательны. После отправки администрация проверит доступность и напишет в чат.</p>
+    <div class="rental-form-row">
+      <div class="rental-fieldset rental-fieldset--wide">
+        <label class="label" for="rental-date">Дата</label>
+        <input class="form-input" id="rental-date" type="date"/>
+        <p class="rental-date-hint" id="rental-date-hint">Сначала выберите дату, чтобы увидеть занятость.</p>
+      </div>
+    </div>
+    <div class="rental-occupancy-panel" id="rental-occupancy-panel">
+      <div class="rental-occupancy-header">
+        <span>Занятость зала</span>
+        <span id="rental-occupancy-date">—</span>
+      </div>
+      <div class="rental-occupancy-timeline" id="rental-occupancy-timeline"></div>
+      <div class="rental-occupancy-debug small" id="rental-occupancy-debug">Запрос пока не выполнялся</div>
+      <div class="rental-occupancy-list" id="rental-occupancy-list">
+        <div class="small" id="rental-occupancy-placeholder">Выберите дату, чтобы увидеть занятость</div>
+      </div>
+    </div>
+    <div class="rental-form-row">
+      <div class="rental-fieldset">
+        <label class="label" for="rental-time-from">Начало</label>
+        <input class="form-input" id="rental-time-from" type="time" step="1800"/>
+      </div>
+      <div class="rental-fieldset">
+        <label class="label" for="rental-time-to">Окончание</label>
+        <input class="form-input" id="rental-time-to" type="time" step="1800"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="label" for="rental-purpose">Цель аренды и комментарий</label>
+      <textarea class="form-input" id="rental-purpose" rows="3" placeholder="Например: репетиция, мастер-класс, фотосъёмка"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="label" for="rental-contact">Контакт</label>
+      <input class="form-input" id="rental-contact" type="text" placeholder="Телеграм или телефон (чтобы админы могли уточнить)"/>
+    </div>
+    <button class="save-btn" id="rental-submit-btn" onclick="submitRentalBooking()">📩 Отправить заявку</button>
+    <p class="rental-booking-message" id="rental-booking-msg"></p>
+    <div class="rental-occupancy-panel" id="rental-occupancy-panel">
+      <div class="rental-occupancy-header">
+        <span>Занятость зала</span>
+        <span id="rental-occupancy-date">—</span>
+      </div>
+      <div class="rental-occupancy-timeline" id="rental-occupancy-timeline"></div>
+      <div class="rental-occupancy-list" id="rental-occupancy-list">
+        <div class="small" id="rental-occupancy-placeholder">Прогружаем текущие записи...</div>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <h4 style="margin:0;">Условия</h4>
+    <p class="small">Студия работает ежедневно с 09:00 до 22:00. Если время пересекается с другими событиями, админы предложат альтернативу. После подтверждения аренды мы создадим запись в расписании и отправим ссылку на оплату.</p>
+  </div>
 </div>
 <!-- ====== ПРОСМОТР НОВОСТИ ====== -->
 <div class="page" id="news-detail">
@@ -2971,12 +3530,10 @@ function showSection(section) {
       loadInfoDirections();
       break;
     case 'info-individual':
-      showPage('info-individual');
-      setHeaderTitle('Индивидуальные занятия');
+      openIndividualBookingPage();
       break;
     case 'info-rent':
-      showPage('info-rent');
-      setHeaderTitle('Аренда зала');
+      openRentalBookingPage();
       break;
   }
 }
@@ -2992,6 +3549,292 @@ function resetInfoPage() {
     placeholder.style.display = 'block';
     placeholder.textContent = 'Раздел находится в разработке';
   }
+}
+
+function openRentalBookingPage() {
+  showPage('info-rent');
+  setHeaderTitle('Аренда зала');
+  resetRentalBookingForm();
+}
+
+function resetRentalBookingForm() {
+  const dateInput = document.getElementById('rental-date');
+  const startInput = document.getElementById('rental-time-from');
+  const endInput = document.getElementById('rental-time-to');
+  const purposeInput = document.getElementById('rental-purpose');
+  const contactInput = document.getElementById('rental-contact');
+  if (dateInput) {
+    dateInput.min = new Date().toISOString().slice(0, 10);
+    dateInput.value = '';
+    setRentalDateHint('Сначала выберите дату, чтобы увидеть занятость.', false);
+    setOccupancyPlaceholder('Выберите дату, чтобы увидеть занятость.');
+  }
+  if (startInput) startInput.value = '09:00';
+  if (endInput) endInput.value = '11:00';
+  if (purposeInput) purposeInput.value = '';
+  if (contactInput) contactInput.value = '';
+  setRentalBookingMessage('');
+  rentalBookingState.submitting = false;
+  const btn = document.getElementById('rental-submit-btn');
+  if (btn) btn.disabled = false;
+  setRentalTimeInputsEnabled(false);
+  clearHallOccupancy();
+}
+
+function submitRentalBooking() {
+  if (rentalBookingState.submitting) return;
+  const dateInput = document.getElementById('rental-date');
+  const startInput = document.getElementById('rental-time-from');
+  const endInput = document.getElementById('rental-time-to');
+  if (!dateInput || !startInput || !endInput) return;
+  const dateValue = dateInput.value;
+  const startValue = startInput.value;
+  const endValue = endInput.value;
+  if (!dateValue) {
+    setRentalBookingMessage('Выберите дату', true);
+    return;
+  }
+  if (!startValue || !endValue) {
+    setRentalBookingMessage('Выберите начало и окончание', true);
+    return;
+  }
+  const startMinutes = timeStringToMinutes(startValue);
+  const endMinutes = timeStringToMinutes(endValue);
+  if (startMinutes >= endMinutes) {
+    setRentalBookingMessage('Окончание должно быть позже начала', true);
+    return;
+  }
+  const purpose = document.getElementById('rental-purpose')?.value?.trim() || '';
+  const contact = document.getElementById('rental-contact')?.value?.trim() || '';
+  const commentPieces = [];
+  if (purpose) commentPieces.push(purpose);
+  if (contact) commentPieces.push(`Контакт: ${contact}`);
+  const payload = {
+    object_type: 'rental',
+    date: dateValue,
+    time_from: startValue,
+    time_to: endValue,
+    comment: commentPieces.length ? commentPieces.join('\n') : undefined
+  };
+  const btn = document.getElementById('rental-submit-btn');
+  rentalBookingState.submitting = true;
+  if (btn) btn.disabled = true;
+  fetch('/api/booking-requests', {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload)
+  })
+    .then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error((data && data.error) || 'Не удалось отправить заявку');
+      }
+      setRentalBookingMessage('Заявка отправлена, админы вам напишут в Telegram.', false);
+      resetRentalBookingForm();
+    })
+    .catch(err => {
+      setRentalBookingMessage(err.message || 'Ошибка при отправке заявки', true);
+    })
+  .finally(() => {
+    rentalBookingState.submitting = false;
+    if (btn) btn.disabled = false;
+  });
+}
+
+function setRentalBookingMessage(text = '', isError = false) {
+  const msg = document.getElementById('rental-booking-msg');
+  if (!msg) return;
+  msg.textContent = text;
+  msg.classList.toggle('error', Boolean(isError));
+}
+
+function setRentalTimeInputsEnabled(enabled) {
+  ['rental-time-from', 'rental-time-to'].forEach(id => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    input.disabled = !enabled;
+  });
+}
+
+function setRentalDateHint(text, isError = false) {
+  const hint = document.getElementById('rental-date-hint');
+  if (!hint) return;
+  hint.textContent = text;
+  hint.style.color = isError ? '#c62828' : 'var(--hint)';
+}
+
+function setOccupancyPlaceholder(text) {
+  const placeholder = document.getElementById('rental-occupancy-placeholder');
+  if (!placeholder) return;
+  placeholder.textContent = text;
+  placeholder.style.display = text ? 'block' : 'none';
+}
+
+function updateOccupancyDebug(text) {
+  const debug = document.getElementById('rental-occupancy-debug');
+  if (!debug) return;
+  debug.textContent = text;
+}
+
+function clearHallOccupancy() {
+  const timeline = document.getElementById('rental-occupancy-timeline');
+  const list = document.getElementById('rental-occupancy-list');
+  if (timeline) timeline.innerHTML = '';
+  if (list) list.innerHTML = '';
+}
+
+const rentalDateInput = document.getElementById('rental-date');
+function normalizeIsoDate(value) {
+  if (!value) return '';
+  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) {
+    return value;
+  }
+  if (/^\\d{2}\\.\\d{2}\\.\\d{4}$/.test(value)) {
+    const [day, month, year] = value.split('.');
+    return `${year}-${month}-${day}`;
+  }
+  return value;
+}
+
+function handleRentalDateInputValue() {
+  if (!rentalDateInput) return '';
+  const rawValue = rentalDateInput.value;
+  return normalizeIsoDate(rawValue);
+}
+
+if (rentalDateInput) {
+  rentalDateInput.addEventListener('change', () => {
+    const iso = handleRentalDateInputValue();
+    loadHallOccupancy(iso);
+  });
+  rentalDateInput.addEventListener('input', () => {
+    const iso = handleRentalDateInputValue();
+    if (iso) {
+      loadHallOccupancy(iso);
+    }
+  });
+}
+
+let lastRentalDateValue = '';
+setInterval(() => {
+  if (!rentalDateInput) return;
+  const iso = handleRentalDateInputValue();
+  if (iso && iso !== lastRentalDateValue) {
+    lastRentalDateValue = iso;
+    loadHallOccupancy(iso);
+  }
+  if (!iso) {
+    lastRentalDateValue = '';
+  }
+}, 800);
+
+const RENTAL_TIMELINE_START_HOUR = 8;
+const RENTAL_TIMELINE_END_HOUR = 22;
+const RENTAL_TIMELINE_TOTAL_MINUTES = (RENTAL_TIMELINE_END_HOUR - RENTAL_TIMELINE_START_HOUR) * 60;
+const HALL_EVENT_ICONS = {
+  individual: '👤',
+  group: '👥',
+  rental: '🔑'
+};
+
+function loadHallOccupancy(dateStr) {
+  const dateInput = document.getElementById('rental-date');
+  const dateValue = dateStr || dateInput?.value;
+  if (!dateValue) {
+    setRentalDateHint('Сначала выберите дату, чтобы увидеть занятость.', false);
+    setOccupancyPlaceholder('Выберите дату, чтобы увидеть занятость.');
+    setRentalTimeInputsEnabled(false);
+    clearHallOccupancy();
+    updateOccupancyDebug('Запрос не сделан: даты нет');
+    return;
+  }
+  const dateLabel = document.getElementById('rental-occupancy-date');
+  if (dateLabel) {
+    const parsed = new Date(`${dateValue}T00:00:00`);
+    dateLabel.textContent = Number.isNaN(parsed.getTime())
+      ? dateValue
+      : parsed.toLocaleDateString('ru-RU', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  }
+  updateOccupancyDebug(`Запрос hall-occupancy?date=${dateValue} (в процессе)`);
+  setRentalDateHint('Загружаем текущие записи...', false);
+  setOccupancyPlaceholder('Прогружаем текущие записи...');
+  setRentalTimeInputsEnabled(false);
+  clearHallOccupancy();
+  const params = new URLSearchParams({ date: dateValue });
+  fetch(`/api/hall-occupancy?${params.toString()}`, { headers: getAuthHeaders() })
+    .then(async res => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error((err && err.error) || 'Не удалось загрузить занятость');
+      }
+      return res.json();
+    })
+    .then(bookings => {
+      renderHallOccupancy(dateValue, Array.isArray(bookings) ? bookings : []);
+    })
+    .catch(err => {
+      const parsed = err.message || 'Ошибка при загрузке';
+      setRentalDateHint(parsed, true);
+      setOccupancyPlaceholder(parsed);
+      setRentalTimeInputsEnabled(false);
+      updateOccupancyDebug(`Ошибка: ${parsed}`);
+    });
+}
+
+function renderHallOccupancy(_date, bookings) {
+  const timeline = document.getElementById('rental-occupancy-timeline');
+  const list = document.getElementById('rental-occupancy-list');
+  const placeholder = document.getElementById('rental-occupancy-placeholder');
+  if (timeline) {
+    timeline.innerHTML = '';
+  }
+  if (list) {
+    list.innerHTML = '';
+  }
+  setRentalTimeInputsEnabled(true);
+  if (!bookings.length) {
+    setRentalDateHint('Зал свободен, выберите удобное время.', false);
+    updateOccupancyDebug('На эту дату нет занятости');
+  } else {
+    setRentalDateHint('Выберите подходящий интервал.', false);
+    updateOccupancyDebug(`Получено ${bookings.length} блоков`);
+  }
+  if (!bookings.length) {
+    if (placeholder) {
+      placeholder.textContent = 'Свободно на весь день';
+      placeholder.style.display = 'block';
+    }
+    return;
+  }
+  if (placeholder) {
+    placeholder.style.display = 'none';
+  }
+  bookings.sort((a, b) => timeStringToMinutes(a.time_from || '00:00') - timeStringToMinutes(b.time_from || '00:00'));
+  bookings.forEach(book => {
+    const startMin = timeStringToMinutes(book.time_from || '00:00');
+    const endMin = timeStringToMinutes(book.time_to || '00:00');
+    const relativeStart = Math.max(0, startMin - RENTAL_TIMELINE_START_HOUR * 60);
+    const relativeEnd = Math.min(RENTAL_TIMELINE_TOTAL_MINUTES, endMin - RENTAL_TIMELINE_START_HOUR * 60);
+    if (timeline && relativeEnd > relativeStart) {
+      const slot = document.createElement('div');
+      slot.className = 'rental-occupancy-slot';
+      slot.style.left = `${(relativeStart / RENTAL_TIMELINE_TOTAL_MINUTES) * 100}%`;
+      slot.style.width = `${((relativeEnd - relativeStart) / RENTAL_TIMELINE_TOTAL_MINUTES) * 100}%`;
+      slot.title = `${book.time_from || '—'} — ${book.time_to || '—'} · ${formatScheduleStatusLabel(book.status)}`;
+      timeline.appendChild(slot);
+    }
+    if (list) {
+      const item = document.createElement('div');
+      item.className = 'rental-occupancy-item';
+      const timeText = `${book.time_from || '—'} — ${book.time_to || '—'}`;
+      const icon = HALL_EVENT_ICONS[book.object_type] || '⏱';
+      item.innerHTML = `
+        <span>${icon} ${timeText}</span>
+        <span class="rental-occupancy-status">${formatScheduleStatusLabel(book.status)}</span>
+      `;
+      list.appendChild(item);
+    }
+  });
 }
 
 function loadInfoDirections() {
@@ -3094,6 +3937,486 @@ function renderTeacherSchedule(items) {
       </div>
     `;
   }).join('');
+}
+
+const INDIVIDUAL_WEEKDAY_LABELS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+const individualBookingState = {
+  teachers: [],
+  selectedTeacherId: null,
+  availabilityDates: [],
+  availabilityByDate: {},
+  selectedDate: new Date().toISOString().slice(0, 10),
+  daysWindow: 7,
+  stepMinutes: 30,
+  loadingSlots: false,
+  availabilityRequestId: 0,
+  submitting: false,
+  selectedStart: null,
+  selectedEnd: null,
+  selectedStartMinutes: null,
+  selectedEndMinutes: null,
+  selectedRangeForStart: null,
+};
+window.individualBookingState = individualBookingState;
+const rentalBookingState = {
+  submitting: false
+};
+
+function openIndividualBookingPage() {
+  const startGrid = document.getElementById('individual-start-grid');
+  const endGrid = document.getElementById('individual-end-grid');
+  if (startGrid) startGrid.innerHTML = '<p class="small">Выберите преподавателя...</p>';
+  if (endGrid) endGrid.innerHTML = '<p class="small">Выберите начало, чтобы увидеть окончания</p>';
+  document.getElementById('individual-slot-status').textContent = '';
+  const durationDisplay = document.getElementById('individual-duration-display');
+  if (durationDisplay) durationDisplay.textContent = '';
+  setIndividualBookingMessage('');
+  resetIndividualTimeSelection();
+  showPage('info-individual');
+  setHeaderTitle('Индивидуальные занятия');
+  loadIndividualTeachers();
+}
+
+function loadIndividualTeachers() {
+  const state = individualBookingState;
+  resetIndividualTimeSelection();
+  const strip = document.getElementById('individual-teacher-strip');
+  if (strip) {
+    strip.innerHTML = '<p class="small">Загрузка тренеров...</p>';
+  }
+  fetch('/api/teachers')
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Не удалось загрузить тренеров');
+      }
+      return data;
+    })
+    .then(teachers => {
+      state.teachers = Array.isArray(teachers) ? teachers : [];
+      renderIndividualTeacherStrip();
+      const selected = state.teachers.find(t => t.id === state.selectedTeacherId);
+      if (!state.selectedTeacherId && state.teachers.length) {
+        selectIndividualTeacher(state.teachers[0].id);
+        return;
+      }
+      if (selected) {
+        updateIndividualTeacherDetail(selected);
+        loadIndividualAvailability();
+        return;
+      }
+      const detail = document.getElementById('individual-teacher-detail');
+      if (detail) {
+        detail.innerHTML = '<p class="small">Тренеры временно недоступны.</p>';
+      }
+      if (strip) {
+        strip.innerHTML = '<p class="small">Преподаватели не найдены</p>';
+      }
+    })
+    .catch(err => {
+      if (strip) {
+        strip.innerHTML = `<p class="small">❌ ${escapeHtml(err.message || 'Ошибка')}</p>`;
+      }
+      const detail = document.getElementById('individual-teacher-detail');
+      if (detail) {
+        detail.innerHTML = '<p class="small">Ошибка при загрузке тренеров.</p>';
+      }
+    });
+}
+
+function renderIndividualTeacherStrip() {
+  const state = individualBookingState;
+  const strip = document.getElementById('individual-teacher-strip');
+  if (!strip) return;
+  if (!state.teachers.length) {
+    strip.innerHTML = '<p class="small">Преподавателей пока нет</p>';
+    return;
+  }
+  const html = state.teachers.map(teacher => {
+    const safeName = escapeHtml(teacher.name || '—');
+    const safeSpec = escapeHtml(teacher.specialization || teacher.position || 'Преподаватель');
+    const photoUrl = buildMediaUrl(teacher.photo);
+    const initials = (teacher.name || '—').split(' ').map(part => part[0]?.toUpperCase()).filter(Boolean).join('') || '—';
+    const photoBlock = photoUrl
+      ? `<img src="${escapeHtml(photoUrl)}" alt="${safeName}">`
+      : `<span>${escapeHtml(initials)}</span>`;
+    const isSelected = teacher.id === state.selectedTeacherId;
+    return `
+      <div class="individual-teacher-card ${isSelected ? 'selected' : ''}" onclick="selectIndividualTeacher(${teacher.id})">
+        <div class="individual-teacher-photo">${photoBlock}</div>
+        <div class="teacher-name">${safeName}</div>
+        <div class="small">${safeSpec}</div>
+      </div>
+    `;
+  }).join('');
+  strip.innerHTML = html;
+}
+
+function updateIndividualTeacherDetail(teacher) {
+  const detail = document.getElementById('individual-teacher-detail');
+  if (!detail) return;
+  if (!teacher) {
+    detail.innerHTML = '<p class="small">Выберите преподавателя, чтобы увидеть профиль.</p>';
+    return;
+  }
+  const safeName = escapeHtml(teacher.name || 'Преподаватель');
+  const safeSpec = escapeHtml(teacher.specialization || teacher.position || 'Преподаватель');
+  const safeBio = escapeHtml(teacher.bio || 'Информация отсутствует.');
+  const photoUrl = buildMediaUrl(teacher.photo);
+  const initials = (teacher.name || '').split(' ').map(part => part[0]?.toUpperCase()).filter(Boolean).join('') || '—';
+  const photoBlock = photoUrl
+    ? `<img src="${escapeHtml(photoUrl)}" alt="${safeName}">`
+    : `<span>${escapeHtml(initials)}</span>`;
+  detail.innerHTML = `
+    <div style="display:flex; gap:12px; align-items:flex-start;">
+      <div class="individual-teacher-photo" style="border-radius:12px;">${photoBlock}</div>
+      <div>
+        <div class="teacher-name">${safeName}</div>
+        <div class="small">${safeSpec}</div>
+        <p class="small" style="margin:8px 0 0 0; line-height:1.4;">${safeBio}</p>
+      </div>
+    </div>
+  `;
+}
+
+function selectIndividualTeacher(teacherId) {
+  const state = individualBookingState;
+  if (state.selectedTeacherId === teacherId) {
+    return;
+  }
+  const teacher = state.teachers.find(t => t.id === teacherId);
+  if (!teacher) {
+    return;
+  }
+  state.selectedTeacherId = teacherId;
+  state.selectedDate = new Date().toISOString().slice(0, 10);
+  resetIndividualTimeSelection();
+  setIndividualBookingMessage('');
+  renderIndividualTeacherStrip();
+  updateIndividualTeacherDetail(teacher);
+  loadIndividualAvailability();
+}
+
+function loadIndividualAvailability() {
+  const state = individualBookingState;
+  const startGrid = document.getElementById('individual-start-grid');
+  const status = document.getElementById('individual-slot-status');
+  if (!state.selectedTeacherId) {
+    if (startGrid) startGrid.innerHTML = '<p class="small">Выберите преподавателя, чтобы загрузить слоты.</p>';
+    if (status) status.textContent = '';
+    return;
+  }
+  if (startGrid) startGrid.innerHTML = '<p class="small">Загрузка слотов...</p>';
+  if (status) status.textContent = '';
+  state.loadingSlots = true;
+  state.availabilityRequestId += 1;
+  const requestId = state.availabilityRequestId;
+  const params = new URLSearchParams({
+    start: state.selectedDate,
+    days: state.daysWindow,
+    duration: state.stepMinutes,
+    step: state.stepMinutes,
+  });
+  fetch(`/api/teachers/${state.selectedTeacherId}/availability?${params.toString()}`)
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Не удалось загрузить слоты');
+      }
+      return data;
+    })
+    .then(data => {
+      if (requestId !== state.availabilityRequestId) return;
+      state.stepMinutes = data.slot_step_minutes || state.stepMinutes;
+      const durationLabel = document.getElementById('individual-slot-duration');
+      if (durationLabel) {
+        durationLabel.textContent = `Шаг ${state.stepMinutes} мин`;
+      }
+      state.availabilityDates = Array.isArray(data.dates) ? data.dates : [];
+      state.availabilityByDate = {};
+      state.availabilityDates.forEach(item => {
+        state.availabilityByDate[item.date] = item;
+      });
+      if (!state.selectedDate || !state.availabilityByDate[state.selectedDate]) {
+        state.selectedDate = state.availabilityDates[0]?.date || state.selectedDate;
+      }
+      resetIndividualTimeSelection();
+      renderIndividualDateStrip();
+      renderIndividualTimeSelectors();
+    })
+    .catch(err => {
+      if (requestId !== state.availabilityRequestId) return;
+      if (startGrid) {
+        startGrid.innerHTML = '<p class="small">⚠️ Не удалось загрузить слоты.</p>';
+      }
+      if (status) {
+        status.textContent = err.message || 'Ошибка сети';
+      }
+    })
+    .finally(() => {
+      if (requestId !== state.availabilityRequestId) return;
+      state.loadingSlots = false;
+    });
+}
+
+function renderIndividualDateStrip() {
+  const container = document.getElementById('individual-date-strip');
+  if (!container) return;
+  if (!individualBookingState.availabilityDates.length) {
+    container.innerHTML = '<p class="small">Даты пока не готовы</p>';
+    return;
+  }
+  container.innerHTML = individualBookingState.availabilityDates.map(item => {
+    const label = formatIndividualDateLabel(item.date);
+    const slotCount = item.free_ranges?.length || 0;
+    const isActive = individualBookingState.selectedDate === item.date;
+    const badge = slotCount
+      ? `<div class="small">${slotCount} диапазон${slotCount === 1 ? '' : 'ов'}</div>`
+      : '<div class="small">нет интервалов</div>';
+    return `
+      <div class="individual-date-card ${isActive ? 'active' : ''}" onclick="setIndividualSelectedDate('${item.date}')">
+        <div class="individual-date-day">${label.day}</div>
+        <div class="individual-date-weekday">${label.label}</div>
+        ${badge}
+      </div>
+    `;
+  }).join('');
+}
+
+function setIndividualSelectedDate(dateStr) {
+  const state = individualBookingState;
+  if (!dateStr || state.selectedDate === dateStr) {
+    return;
+  }
+  state.selectedDate = dateStr;
+  resetIndividualTimeSelection();
+  renderIndividualDateStrip();
+  renderIndividualTimeSelectors();
+}
+
+function resetIndividualTimeSelection() {
+  const state = individualBookingState;
+  state.selectedStart = null;
+  state.selectedEnd = null;
+  state.selectedStartMinutes = null;
+  state.selectedEndMinutes = null;
+  state.selectedRangeForStart = null;
+  const startGrid = document.getElementById('individual-start-grid');
+  const endGrid = document.getElementById('individual-end-grid');
+  if (startGrid) startGrid.innerHTML = '<p class="small">Выберите дату и преподавателя</p>';
+  if (endGrid) endGrid.innerHTML = '<p class="small">Выберите начало</p>';
+  const durationDisplay = document.getElementById('individual-duration-display');
+  if (durationDisplay) durationDisplay.textContent = '';
+}
+
+function renderIndividualTimeSelectors() {
+  const state = individualBookingState;
+  const dateInfo = state.availabilityByDate[state.selectedDate];
+  const startGrid = document.getElementById('individual-start-grid');
+  const endGrid = document.getElementById('individual-end-grid');
+  const status = document.getElementById('individual-slot-status');
+  if (!state.selectedTeacherId) {
+    if (startGrid) startGrid.innerHTML = '<p class="small">Выберите преподавателя</p>';
+    if (endGrid) endGrid.innerHTML = '<p class="small">Выберите начало</p>';
+    if (status) status.textContent = '';
+    return;
+  }
+  if (!dateInfo) {
+    if (startGrid) startGrid.innerHTML = '<p class="small">Выберите дату</p>';
+    if (endGrid) endGrid.innerHTML = '<p class="small">Выберите начало</p>';
+    if (status) status.textContent = '';
+    return;
+  }
+  const startOptions = buildStartOptions(dateInfo);
+  if (startOptions.length === 0) {
+    if (startGrid) startGrid.innerHTML = '<p class="small">Нет свободных интервалов</p>';
+    if (status) status.textContent = 'Свободных интервалов нет';
+  } else {
+    if (startGrid) {
+      startGrid.innerHTML = startOptions.map(option => `
+        <div class="individual-slot-card ${state.selectedStart === option.time ? 'active' : ''}" onclick="selectIndividualStart('${option.time}', ${option.minutes}, ${option.rangeStart}, ${option.rangeEnd})">
+          <div>${option.time}</div>
+          <div class="small">до ${formatMinutes(option.rangeEnd)}</div>
+        </div>
+      `).join('');
+    }
+    if (status) status.textContent = '';
+  }
+  const endOptions = state.selectedStartMinutes && state.selectedRangeForStart
+    ? buildEndOptions(state.selectedRangeForStart, state.selectedStartMinutes)
+    : [];
+  if (!state.selectedStart) {
+    if (endGrid) endGrid.innerHTML = '<p class="small">Выберите начало</p>';
+  } else if (endOptions.length === 0) {
+    if (endGrid) endGrid.innerHTML = '<p class="small">Нет доступных окончаний</p>';
+    if (status) status.textContent = 'Выберите другой старт';
+  } else {
+    if (endGrid) {
+      endGrid.innerHTML = endOptions.map(option => `
+        <div class="individual-slot-card ${state.selectedEnd === option.time ? 'active' : ''}" onclick="selectIndividualEnd('${option.time}', ${option.minutes})">
+          <div>${option.time}</div>
+          <div class="small">${state.stepMinutes} мин</div>
+        </div>
+      `).join('');
+    }
+    if (status) status.textContent = '';
+  }
+  updateDurationDisplay();
+}
+
+function buildStartOptions(dateInfo) {
+  const state = individualBookingState;
+  const options = [];
+  (dateInfo.free_ranges || []).forEach(range => {
+    const rangeStart = range.from_minutes ?? timeStringToMinutes(range.from);
+    const rangeEnd = range.to_minutes ?? timeStringToMinutes(range.to);
+    const maxStart = rangeEnd - state.stepMinutes;
+    if (rangeStart >= maxStart) {
+      return;
+    }
+    for (let minutes = rangeStart; minutes <= maxStart; minutes += state.stepMinutes) {
+      options.push({
+        time: formatMinutes(minutes),
+        minutes,
+        rangeStart,
+        rangeEnd,
+      });
+    }
+  });
+  return options;
+}
+
+function buildEndOptions(range, startMinutes) {
+  const state = individualBookingState;
+  const options = [];
+  const first = startMinutes + state.stepMinutes;
+  for (let minutes = first; minutes <= range.rangeEnd; minutes += state.stepMinutes) {
+    options.push({
+      time: formatMinutes(minutes),
+      minutes,
+    });
+  }
+  return options;
+}
+
+function selectIndividualStart(timeStr, minutes, rangeStart, rangeEnd) {
+  const state = individualBookingState;
+  state.selectedStart = timeStr;
+  state.selectedStartMinutes = minutes;
+  state.selectedRangeForStart = { rangeStart, rangeEnd };
+  state.selectedEnd = null;
+  state.selectedEndMinutes = null;
+  setIndividualBookingMessage('');
+  renderIndividualTimeSelectors();
+}
+
+function selectIndividualEnd(timeStr, minutes) {
+  const state = individualBookingState;
+  if (!state.selectedStartMinutes || minutes <= state.selectedStartMinutes) {
+    setIndividualBookingMessage('Выберите окончание после начала', true);
+    return;
+  }
+  state.selectedEnd = timeStr;
+  state.selectedEndMinutes = minutes;
+  setIndividualBookingMessage('');
+  renderIndividualTimeSelectors();
+}
+
+function updateDurationDisplay() {
+  const state = individualBookingState;
+  const display = document.getElementById('individual-duration-display');
+  if (!display) return;
+  if (state.selectedStartMinutes && state.selectedEndMinutes) {
+    display.textContent = `Длительность: ${state.selectedEndMinutes - state.selectedStartMinutes} мин`;
+  } else {
+    display.textContent = '';
+  }
+}
+
+function setIndividualBookingMessage(text, isError) {
+  const msg = document.getElementById('individual-booking-msg');
+  if (!msg) return;
+  msg.style.color = isError ? '#c62828' : 'var(--text)';
+  msg.textContent = text;
+}
+
+function submitIndividualBooking() {
+  const state = individualBookingState;
+  if (!state.selectedTeacherId) {
+    setIndividualBookingMessage('Выберите преподавателя', true);
+    return;
+  }
+  if (!state.selectedDate) {
+    setIndividualBookingMessage('Выберите дату', true);
+    return;
+  }
+  if (!state.selectedStart || !state.selectedEnd) {
+    setIndividualBookingMessage('Выберите начало и окончание', true);
+    return;
+  }
+  const commentEl = document.getElementById('individual-booking-comment');
+  const comment = commentEl?.value?.trim() || '';
+  const payload = {
+    object_type: 'individual',
+    teacher_id: state.selectedTeacherId,
+    date: state.selectedDate,
+    time_from: state.selectedStart,
+    time_to: state.selectedEnd,
+    comment,
+  };
+  const submitButton = document.getElementById('individual-booking-submit');
+  if (!state.submitting) {
+    state.submitting = true;
+    if (submitButton) submitButton.disabled = true;
+    fetch('/api/booking-requests', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    })
+      .then(async res => {
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Не удалось отправить заявку');
+        }
+        return data;
+      })
+      .then(() => {
+        setIndividualBookingMessage('Заявка отправлена, админы свяжутся с вами.', false);
+        if (commentEl) commentEl.value = '';
+      })
+      .catch(err => {
+        setIndividualBookingMessage(err.message || 'Ошибка при отправке заявки', true);
+      })
+      .finally(() => {
+        state.submitting = false;
+        if (submitButton) submitButton.disabled = false;
+      });
+  }
+}
+
+function formatIndividualDateLabel(dateStr) {
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return { label: '', day: dateStr };
+  }
+  const label = INDIVIDUAL_WEEKDAY_LABELS[date.getDay()] || '';
+  return {
+    label,
+    day: date.getDate(),
+  };
+}
+
+function formatMinutes(minutes) {
+  const hrs = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}`;
+}
+
+function timeStringToMinutes(value) {
+  if (!value) return 0;
+  const [hours, mins] = String(value).split(':').map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(mins)) return 0;
+  return hours * 60 + mins;
 }
 
 async function openTeacherDetail(id) {
@@ -3522,7 +4845,30 @@ function openTeacherProfilePlaceholder() {
 let scheduleView = 'week';
 let scheduleFocusDate = new Date();
 let scheduleItems = [];
+let schedulePollTimer = null;
+const SCHEDULE_POLL_INTERVAL = 15000;
 let scheduleInitialized = false;
+let scheduleConfirmedFilter = false;
+const CONFIRMED_STATUS_SET = new Set(['scheduled', 'confirmed', 'approved', 'paid']);
+
+const SCHEDULE_TYPE_TITLES = {
+  group: 'Групповое занятие',
+  individual: 'Индивидуальное занятие',
+  rental: 'Аренда'
+};
+
+const SCHEDULE_STATUS_LABELS = {
+  scheduled: 'Запланировано',
+  pending: 'Ожидается подтверждение',
+  NEW: 'Новая заявка',
+  APPROVED: 'Подтверждено, но не оплачено',
+  PENDING: 'На рассмотрении',
+  AWAITING_PAYMENT: 'Ожидается оплата',
+  PAID: 'Оплачено',
+  CANCELLED: 'Отменено',
+  REJECTED: 'Отклонено',
+  PAYMENT_FAILED: 'Ошибка оплаты'
+};
 
 const WORK_START_HOUR = 9;
 const WORK_END_HOUR = 22;
@@ -3534,7 +4880,25 @@ function initScheduleControl() {
   }
   updateScheduleControlsUI();
   loadScheduleV2();
+  startSchedulePolling();
   initGroupScheduleForm();
+}
+
+function startSchedulePolling() {
+  stopSchedulePolling();
+  schedulePollTimer = setInterval(() => {
+    const schedulePage = document.getElementById('schedule-control');
+    if (schedulePage && schedulePage.classList.contains('active')) {
+      loadScheduleV2();
+    }
+  }, SCHEDULE_POLL_INTERVAL);
+}
+
+function stopSchedulePolling() {
+  if (schedulePollTimer) {
+    clearInterval(schedulePollTimer);
+    schedulePollTimer = null;
+  }
 }
 
 function setScheduleView(view) {
@@ -3557,6 +4921,10 @@ function updateScheduleControlsUI() {
     weekBtn.classList.toggle('active', scheduleView === 'week');
     dayBtn.classList.toggle('active', scheduleView === 'day');
   }
+  const filterBtn = document.getElementById('schedule-confirmed-toggle');
+  if (filterBtn) {
+    filterBtn.classList.toggle('active', scheduleConfirmedFilter);
+  }
 
   const label = document.getElementById('schedule-date-label');
   if (label) {
@@ -3568,6 +4936,25 @@ function updateScheduleControlsUI() {
       label.textContent = formatDateLong(scheduleFocusDate);
     }
   }
+}
+
+function toggleScheduleConfirmedFilter() {
+  scheduleConfirmedFilter = !scheduleConfirmedFilter;
+  const toggleBtn = document.getElementById('schedule-confirmed-toggle');
+  if (toggleBtn) {
+    toggleBtn.classList.toggle('active', scheduleConfirmedFilter);
+  }
+  renderScheduleGrid();
+}
+
+function getActiveScheduleItems() {
+  if (!scheduleConfirmedFilter) {
+    return scheduleItems;
+  }
+  return scheduleItems.filter(item => {
+    const status = (item.status || 'scheduled').toString().toLowerCase();
+    return CONFIRMED_STATUS_SET.has(status);
+  });
 }
 
 function getWeekStart(date) {
@@ -3641,6 +5028,7 @@ function loadScheduleV2() {
         container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка загрузки расписания</p>';
       }
     });
+
 }
 
 function renderScheduleGrid() {
@@ -3659,11 +5047,12 @@ function renderScheduleGrid() {
     for (const time of slots) {
       const timeClass = isHalfHour(time) ? 'schedule-cell time half' : 'schedule-cell time';
       html += `<div class="${timeClass}">${formatTimeLabel(time)}</div>`;
-      const busyInfo = getSlotInfo(dateStr, time);
-      html += renderSlotCell(dateStr, time, busyInfo);
+      const confirmedItem = getSlotInfo(dateStr, time);
+      html += renderSlotCell(dateStr, time, confirmedItem);
     }
     html += `</div>`;
     container.innerHTML = html;
+    bindSlotHoverGrouping(container);
   } else {
     const weekStart = getWeekStart(scheduleFocusDate);
     const days = [];
@@ -3682,19 +5071,21 @@ function renderScheduleGrid() {
       html += `<div class="${timeClass}">${formatTimeLabel(time)}</div>`;
       for (const d of days) {
         const dateStr = d.toISOString().slice(0, 10);
-        const busyInfo = getSlotInfo(dateStr, time);
-        html += renderSlotCell(dateStr, time, busyInfo);
+        const confirmedItem = getSlotInfo(dateStr, time);
+        html += renderSlotCell(dateStr, time, confirmedItem);
       }
     }
     html += `</div>`;
     container.innerHTML = html;
+    bindSlotHoverGrouping(container);
   }
 }
 
 function getSlotInfo(dateStr, timeStr) {
+  const activeItems = getActiveScheduleItems();
   const slotStart = timeToMinutes(timeStr);
   const slotEnd = slotStart + SLOT_MINUTES;
-  const item = scheduleItems.find(s => {
+  const item = activeItems.find(s => {
     if (s.date !== dateStr) return false;
     if (!s.time_from || !s.time_to) return false;
     const start = timeToMinutes(s.time_from);
@@ -3704,14 +5095,21 @@ function getSlotInfo(dateStr, timeStr) {
   return item || null;
 }
 
-function renderSlotCell(dateStr, timeStr, item) {
-  if (item) {
-    const info = getSlotRenderInfo(item, timeStr);
-    const labelHtml = info.showLabel ? `<div class="schedule-event">${getScheduleLabel(item)}</div>` : '';
-    const color = getScheduleColor(item);
-    return `<div class="schedule-cell schedule-slot busy ${item.object_type}" style="background: ${color};" onclick="openScheduleDetailById(${item.id})">${labelHtml}</div>`;
+function renderSlotCell(dateStr, timeStr, confirmedItem) {
+  if (confirmedItem) {
+    return renderConfirmedSlotCell(confirmedItem, timeStr);
   }
   return `<div class="schedule-cell schedule-slot" onclick="openScheduleForm('${dateStr}', '${timeStr}')"></div>`;
+}
+
+function renderConfirmedSlotCell(item, timeStr) {
+  const info = getSlotRenderInfo(item, timeStr);
+  const labelHtml = info.showLabel ? `<div class="schedule-event">${getScheduleLabel(item)}</div>` : '';
+  const color = getScheduleColor(item);
+  const stateClass = item.status && item.status !== 'scheduled' ? 'pending' : 'confirmed';
+  const groupKey = item.id ? `schedule-${item.id}` : '';
+  const dataAttr = groupKey ? ` data-slot-group="${groupKey}"` : '';
+  return `<div class="schedule-cell schedule-slot confirmed ${stateClass} ${item.object_type}" style="background: ${color};"${dataAttr} onclick="openScheduleDetailById(${item.id})">${labelHtml}</div>`;
 }
 
 function getScheduleLabel(item) {
@@ -3720,7 +5118,37 @@ function getScheduleLabel(item) {
     individual: 'Индив.',
     rental: 'Аренда'
   };
-  return `${typeMap[item.object_type] || 'Событие'} #${item.object_id}`;
+  const statusIcon = getScheduleStatusIcon(item.status);
+  return `${typeMap[item.object_type] || 'Событие'} #${item.object_id}${statusIcon ? ' ' + statusIcon : ''}`;
+}
+
+function getScheduleStatusIcon(status) {
+  switch (status) {
+    case 'AWAITING_PAYMENT':
+      return '💰';
+    case 'APPROVED':
+    case 'PENDING':
+      return '⏳';
+    default:
+      return '';
+  }
+}
+
+function formatScheduleStatusLabel(status) {
+  if (!status) return '—';
+  const normalized = String(status);
+  if (SCHEDULE_STATUS_LABELS[normalized]) {
+    return SCHEDULE_STATUS_LABELS[normalized];
+  }
+  const upper = normalized.toUpperCase();
+  if (SCHEDULE_STATUS_LABELS[upper]) {
+    return SCHEDULE_STATUS_LABELS[upper];
+  }
+  const lower = normalized.toLowerCase();
+  if (SCHEDULE_STATUS_LABELS[lower]) {
+    return SCHEDULE_STATUS_LABELS[lower];
+  }
+  return normalized;
 }
 
 function getSlotRenderInfo(item, timeStr) {
@@ -3732,6 +5160,75 @@ function getSlotRenderInfo(item, timeStr) {
   const slotIndex = Math.floor((slotStart - start) / SLOT_MINUTES);
   const midIndex = Math.floor((totalSlots - 1) / 2);
   return { showLabel: slotIndex === midIndex };
+}
+
+function bindSlotHoverGrouping(container) {
+  if (!container) return;
+  const groups = new Map();
+  container.querySelectorAll('[data-slot-group]').forEach(cell => {
+    const key = cell.dataset.slotGroup;
+    if (!key) return;
+    if (!groups.has(key)) {
+      groups.set(key, []);
+    }
+    groups.get(key).push(cell);
+  });
+
+  groups.forEach(group => {
+    // сбрасываем предыдущие роли
+    group.forEach(cell => cell.classList.remove('slot-group-start', 'slot-group-middle', 'slot-group-end', 'slot-grouped'));
+    // назначаем роли для визуального объединения
+    group.forEach((cell, index) => {
+      cell.classList.add('slot-grouped');
+      if (index === 0) cell.classList.add('slot-group-start');
+      if (index === group.length - 1) cell.classList.add('slot-group-end');
+      if (index > 0 && index < group.length - 1) cell.classList.add('slot-group-middle');
+    });
+
+    group.forEach(cell => {
+      cell.addEventListener('mouseenter', () => toggleSlotGroupHighlight(group, true, cell, container));
+      cell.addEventListener('mouseleave', () => toggleSlotGroupHighlight(group, false, null, container));
+    });
+  });
+}
+
+function toggleSlotGroupHighlight(group, highlight, hoveredCell, container) {
+  group.forEach(cell => {
+    cell.classList.remove('schedule-slot-highlighted-other', 'schedule-slot-highlighted-active');
+    if (!highlight) return;
+    if (cell === hoveredCell) {
+      cell.classList.add('schedule-slot-highlighted-active');
+    } else {
+      cell.classList.add('schedule-slot-highlighted-other');
+    }
+  });
+  const overlay = ensureScheduleGridHighlight(container);
+  if (!highlight) {
+    overlay.style.opacity = '0';
+    return;
+  }
+  const rects = group.map(cell => cell.getBoundingClientRect());
+  const containerRect = container.getBoundingClientRect();
+  const left = Math.min(...rects.map(r => r.left)) - containerRect.left;
+  const right = Math.max(...rects.map(r => r.right)) - containerRect.left;
+  const top = Math.min(...rects.map(r => r.top)) - containerRect.top;
+  const bottom = Math.max(...rects.map(r => r.bottom)) - containerRect.top;
+  overlay.style.left = `${left}px`;
+  overlay.style.top = `${top}px`;
+  overlay.style.width = `${right - left}px`;
+  overlay.style.height = `${bottom - top}px`;
+  overlay.style.opacity = '1';
+}
+
+function ensureScheduleGridHighlight(container) {
+  if (!container) return null;
+  let overlay = container.querySelector('.schedule-grid-block-highlight');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'schedule-grid-block-highlight';
+    container.appendChild(overlay);
+  }
+  return overlay;
 }
 
 function getScheduleColor(item) {
@@ -3766,11 +5263,7 @@ function openScheduleDetail(item) {
   const content = document.getElementById('schedule-detail-content');
   if (!card || !content || !overlay) return;
 
-  const typeMap = {
-    group: 'Групповое занятие',
-    individual: 'Индивидуальное занятие',
-    rental: 'Аренда'
-  };
+  const typeMap = SCHEDULE_TYPE_TITLES;
 
   const dateText = item.date ? new Date(item.date).toLocaleDateString('ru-RU') : '—';
   const timeText = item.time_from && item.time_to ? `${item.time_from} - ${item.time_to}` : '—';
@@ -3787,11 +5280,13 @@ function openScheduleDetail(item) {
   card.classList.add('show');
   overlay.classList.add('show');
 
+  const extra = document.getElementById('schedule-detail-extra');
   if (item.object_type === 'group') {
     loadGroupScheduleDetails(item.object_id);
-  } else {
-    const extra = document.getElementById('schedule-detail-extra');
-    if (extra) extra.innerHTML = '<div class="small">Нет дополнительных данных</div>';
+  } else if (item.object_type === 'individual') {
+    renderIndividualLessonDetails(item, extra);
+  } else if (extra) {
+    extra.innerHTML = '<div class="small">Нет дополнительных данных</div>';
   }
 }
 
@@ -3854,6 +5349,85 @@ function loadGroupScheduleDetails(groupId) {
     .catch(() => {
       extra.innerHTML = '<div class="small">❌ Не удалось загрузить детали группы</div>';
     });
+}
+
+function renderIndividualLessonDetails(item, extra) {
+  if (!extra) return;
+  extra.innerHTML = '<div class="small">⏳ Загрузка деталей индивидуального занятия...</div>';
+  if (!item.object_id) {
+    extra.innerHTML = '<div class="small">Идентификатор занятия не указан</div>';
+    return;
+  }
+
+  fetch(`/api/individual-lessons/${item.object_id}`, { headers: getAuthHeaders() })
+    .then(async res => {
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error((err && err.error) || 'Ошибка загрузки данных');
+      }
+      return res.json();
+    })
+    .then(detail => {
+      const teacherName = escapeHtml(detail.teacher?.name || '—');
+      const studentName = escapeHtml(detail.student?.name || '—');
+      const statusCode = detail.status || item.status;
+      const statusIcon = getScheduleStatusIcon(statusCode);
+      const statusText = formatScheduleStatusLabel(statusCode);
+      extra.innerHTML = `
+        <div class="schedule-detail-row">👩‍🏫 <strong>Преподаватель:</strong> ${teacherName}</div>
+        <div class="schedule-detail-row">🧑‍🎓 <strong>Ученик:</strong> ${studentName}</div>
+        <div class="schedule-detail-row">ℹ️ <strong>Статус:</strong> ${statusIcon ? statusIcon + ' ' : ''}${statusText}</div>
+      `;
+      const chatLink = buildStudentChatLink(detail.student);
+      appendScheduleDetailActionButton(extra, chatLink);
+    })
+    .catch(() => {
+      extra.innerHTML = '<div class="small">❌ Не удалось загрузить детали индивидуального занятия</div>';
+    });
+}
+
+function appendScheduleDetailActionButton(container, chatLink) {
+  if (!container || !chatLink) return;
+  const actions = document.createElement('div');
+  actions.className = 'schedule-detail-actions';
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'schedule-detail-client-btn';
+  btn.textContent = 'Открыть клиента';
+  btn.addEventListener('click', () => openClientChat(chatLink));
+  actions.appendChild(btn);
+  container.appendChild(actions);
+}
+
+function buildStudentChatLink(student) {
+  if (!student) return null;
+  const rawUsername = student.username ? String(student.username).trim() : '';
+  if (rawUsername) {
+    const normalizedUsername = rawUsername.startsWith('@') ? rawUsername.slice(1) : rawUsername;
+    if (normalizedUsername) {
+      return `https://t.me/${encodeURIComponent(normalizedUsername)}`;
+    }
+  }
+  if (student.telegram_id) {
+    return `tg://user?id=${student.telegram_id}`;
+  }
+  return null;
+}
+
+function openClientChat(link) {
+  if (!link) {
+    showNotification('Нет данных для этого клиента');
+    return;
+  }
+  try {
+    if (tg?.openLink) {
+      tg.openLink(link);
+    } else {
+      window.open(link, '_blank');
+    }
+  } catch (error) {
+    window.open(link, '_blank');
+  }
 }
 
 function openScheduleForm(dateStr, timeStr) {
@@ -7088,6 +8662,8 @@ window.showPage = function(pageId) {
   }
   if (pageId === 'schedule-control') {
     initScheduleControl();
+  } else {
+    stopSchedulePolling();
   }
   return originalShowPage(pageId);
 };

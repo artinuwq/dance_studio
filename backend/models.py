@@ -126,8 +126,9 @@ class IndividualLesson(Base):
     __tablename__ = "individual_lessons"
 
     id = Column(Integer, primary_key=True)
-    teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=False)  # ID ???????
-    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # ID ???????
+    teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=False)  # ID преподавателя
+    student_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # ID ученика
+    booking_id = Column(Integer, ForeignKey("booking_requests.id"), nullable=True)
     date = Column(Date, nullable=True)
     time_from = Column(Time, nullable=True)
     time_to = Column(Time, nullable=True)
@@ -140,6 +141,9 @@ class IndividualLesson(Base):
     duration_minutes = Column(Integer, nullable=True)
     comment = Column(Text, nullable=True)
     person_comment = Column(Text, nullable=True)
+    status = Column(String, default="pending", nullable=False)
+    status_updated_at = Column(DateTime, nullable=True)
+    status_updated_by_id = Column(Integer, ForeignKey("staff.id"), nullable=True)
 
     # ?????????
     teacher = relationship("Staff", foreign_keys=[teacher_id])
@@ -195,7 +199,9 @@ class BookingRequest(Base):
     status_updated_by_name = Column(String, nullable=True)
     status_updated_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
+    teacher_id = Column(Integer, ForeignKey("staff.id"), nullable=True)
 
+    teacher = relationship("Staff", foreign_keys=[teacher_id])
     group = relationship("Group", foreign_keys=[group_id])
 
 

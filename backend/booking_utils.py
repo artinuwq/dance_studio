@@ -172,6 +172,17 @@ def format_booking_message(booking, user=None) -> str:
         if lesson_lines:
             lesson_section = "🎯 О занятии:\n" + "\n".join(lesson_lines) + "\n\n"
 
+    elif booking.object_type == "individual":
+        teacher = getattr(booking, "teacher", None)
+        if teacher and teacher.name:
+            lesson_section = (
+                "🎯 Преподаватель:\n"
+                f"• {html.escape(teacher.name)}\n"
+            )
+            if teacher.specialization:
+                lesson_section += f"• {html.escape(teacher.specialization)}\n"
+            lesson_section += "\n"
+
     return (
         f"{header}\n\n"
         "👤 Клиент:\n"

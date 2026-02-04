@@ -23,6 +23,7 @@ def ensure_booking_request_columns():
     required_columns = {
         "group_id": "INTEGER",
         "lessons_count": "INTEGER",
+        "teacher_id": "INTEGER",
         "group_start_date": "DATE",
         "valid_until": "DATE",
     }
@@ -33,12 +34,28 @@ def ensure_booking_request_columns():
             if name not in existing:
                 conn.execute(text(f"ALTER TABLE booking_requests ADD COLUMN {name} {data_type}"))
 
+
+def ensure_individual_lesson_columns():
+    required_columns = {
+        "booking_id": "INTEGER",
+        "status": "TEXT",
+        "status_updated_at": "DATETIME",
+        "status_updated_by_id": "INTEGER",
+    }
+    with engine.connect() as conn:
+        result = conn.execute(text("PRAGMA table_info(individual_lessons)"))
+        existing = {row[1] for row in result}
+        for name, data_type in required_columns.items():
+            if name not in existing:
+                conn.execute(text(f"ALTER TABLE individual_lessons ADD COLUMN {name} {data_type}"))
+
 def init_db():
     # Создаем необходимые папки
     create_required_directories()
     # Создаем таблицы
     Base.metadata.create_all(engine)
     ensure_booking_request_columns()
+    ensure_individual_lesson_columns()
     # Инициализируем admin и owner
     init_admin_and_owner()
 
