@@ -1,0 +1,6 @@
+Flask
+flask-admin
+SQLAlchemy
+aiogram
+aiohttp
+requests

@@ -404,15 +404,15 @@ body.tg-mobile .header-back {
 }
 
 .section-icon--purple {
-  background: #5a55d6;
+  background: #fe5815;
 }
 
 .section-icon--blue {
-  background: #49b6e7;
+  background: #fe5815;
 }
 
 .section-icon--pink {
-  background: #ff3b6b;
+  background: #fe5815;
 }
 
 .section-item-text {
@@ -1192,6 +1192,7 @@ textarea.form-input {
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
+  color: var(--text);
 }
 
 .schedule-filter-toggle.active {
@@ -1208,6 +1209,7 @@ textarea.form-input {
   background: var(--card);
   cursor: pointer;
   font-size: 13px;
+  color: var(--text);
 }
 
 .schedule-toolbar .button.active {
@@ -1241,6 +1243,7 @@ textarea.form-input {
   flex: 1;
   text-align: center;
   font-weight: 600;
+  color: var(--text);
 }
 
 .schedule-grid {
@@ -1409,6 +1412,7 @@ textarea.form-input {
   margin-top: 12px;
   padding: 12px;
   background: var(--card);
+  color: var(--text);
   border-radius: 12px;
   display: none;
 }
@@ -1423,6 +1427,7 @@ textarea.form-input {
   right: 0;
   bottom: 0;
   background: var(--card);
+  color: var(--text);
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.15);
   padding: 16px;
@@ -1466,6 +1471,7 @@ textarea.form-input {
   right: 0;
   bottom: 0;
   background: var(--card);
+  color: var(--text);
   border-radius: 20px 20px 0 0;
   box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.15);
   padding: 16px;
@@ -2180,32 +2186,32 @@ textarea.form-input {
 </div>
 <div class="card studio-section">
 <h4>О студии</h4>
-<div class="section-item" onclick="showSection('info-about')">
+<div class="section-item" onclick="showSection('info-directions-sport')">
 <div class="section-item-left">
-<div class="section-item-icon section-icon--orange">☆</div>
+<div class="section-item-icon section-icon--blue">🏅</div>
 <div class="section-item-text">
-<h4 class="section-item-title">Информация</h4>
-<p class="section-item-desc">Инфо о нас, время работы</p>
+<h4 class="section-item-title">Спортивные направления</h4>
+<p class="section-item-desc">Силовые, фитнес и стретчинг</p>
+</div>
+</div>
+<div class="section-item-arrow">›</div>
+</div>
+<div class="section-item" onclick="showSection('info-directions-dance')">
+<div class="section-item-left">
+<div class="section-item-icon section-icon--purple">💃</div>
+<div class="section-item-text">
+<h4 class="section-item-title">Танцевальные направления</h4>
+<p class="section-item-desc">Все стили танцев</p>
 </div>
 </div>
 <div class="section-item-arrow">›</div>
 </div>
 <div class="section-item" onclick="showSection('info-teachers')">
 <div class="section-item-left">
-<div class="section-item-icon section-icon--purple">🎓</div>
+<div class="section-item-icon section-icon--orange">🎓</div>
 <div class="section-item-text">
-<h4 class="section-item-title">Преподаватели</h4>
-<p class="section-item-desc">Список всех преподавателей</p>
-</div>
-</div>
-<div class="section-item-arrow">›</div>
-</div>
-<div class="section-item" onclick="showSection('info-directions')">
-<div class="section-item-left">
-<div class="section-item-icon section-icon--blue">⏱</div>
-<div class="section-item-text">
-<h4 class="section-item-title">Направления</h4>
-<p class="section-item-desc">Виды танцев</p>
+<h4 class="section-item-title">Тренеры</h4>
+<p class="section-item-desc">Хореографы и наставники студии</p>
 </div>
 </div>
 <div class="section-item-arrow">›</div>
@@ -2226,6 +2232,16 @@ textarea.form-input {
 <div class="section-item-text">
 <h4 class="section-item-title">Аренда зала</h4>
 <p class="section-item-desc">Условия аренды и бронирование</p>
+</div>
+</div>
+<div class="section-item-arrow">›</div>
+</div>
+<div class="section-item" onclick="showSection('info-about')">
+<div class="section-item-left">
+<div class="section-item-icon section-icon--orange">☆</div>
+<div class="section-item-text">
+<h4 class="section-item-title">Информация</h4>
+<p class="section-item-desc">О нас, график работы и контакты</p>
 </div>
 </div>
 <div class="section-item-arrow">›</div>
@@ -2599,7 +2615,6 @@ textarea.form-input {
 <p class="small" id="profile-username">—</p>
 </div>
 <div class="menu-item" onclick="showPage('profile-info')">📋 Личная информация</div>
-<div class="menu-item" onclick="showPage('profile-transactions')">💳 Транзакции</div>
 <div class="menu-item" onclick="showPage('profile-abonements')">🎟️ Абонементы</div>
 <div class="menu-item" onclick="showPage('profile-groups')">👥 Группы</div>
 </div>
@@ -2632,11 +2647,6 @@ textarea.form-input {
 <h4>Информация об аккаунте</h4>
 <p class="small"><strong>Статус:</strong> <span id="profile-status">—</span></p>
 <p class="small"><strong>Дата регистрации:</strong> <span id="profile-registered">—</span></p>
-</div>
-</div>
-<div class="page" data-title="💳 Транзакции" id="profile-transactions">
-<div id="profile-transactions-container">
-<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>
 </div>
 </div>
 <div class="page" data-title="🎟️ Абонементы" id="profile-abonements">
@@ -2799,6 +2809,12 @@ textarea.form-input {
 <!-- Описание -->
 <label class="label" style="font-weight: 600;">Описание *</label>
 <textarea class="form-input" id="direction-description" placeholder="Опишите направление..." style="margin-bottom: 14px; min-height: 100px; resize: vertical;"></textarea>
+<!-- Тип -->
+<label class="label" style="font-weight: 600;">Тип направления *</label>
+<select class="form-input" id="direction-type" style="margin-bottom: 14px;">
+  <option value="dance">💃 Танцевальное</option>
+  <option value="sport">🏅 Спортивное</option>
+</select>
 <!-- Цена -->
 <label class="label" style="font-weight: 600;">Базовая цена (?) *</label>
 <input class="form-input" id="direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
@@ -2866,6 +2882,12 @@ textarea.form-input {
 <!-- Описание -->
 <label class="label" style="font-weight: 600;">Описание *</label>
 <textarea class="form-input direction-editable" id="edit-direction-description" placeholder="Опишите направление..." style="margin-bottom: 14px; min-height: 100px; resize: vertical;"></textarea>
+<!-- Тип -->
+<label class="label" style="font-weight: 600;">Тип направления *</label>
+<select class="form-input direction-editable" id="edit-direction-type" style="margin-bottom: 14px;">
+  <option value="dance">💃 Танцевальное</option>
+  <option value="sport">🏅 Спортивное</option>
+</select>
 <!-- Цена -->
 <label class="label" style="font-weight: 600;">Базовая цена (?) *</label>
 <input class="form-input direction-editable" id="edit-direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
@@ -3500,11 +3522,6 @@ function showPage(id) {
     setHeaderTitle('Личная информация');
   }
 
-  if (id === 'profile-transactions') {
-    setHeaderTitle('Транзакции');
-    loadProfileTransactions();
-  }
-
   if (id === 'profile-abonements') {
     setHeaderTitle('Абонементы');
     loadProfileAbonements();
@@ -3530,10 +3547,22 @@ function showSection(section) {
       showPage('info-about');
       setHeaderTitle('Информация');
       break;
+    case 'info-directions-sport':
+      showPage('info');
+      document.getElementById('info-title').innerText = 'Спортивные направления';
+      setHeaderTitle('Спортивные направления');
+      loadInfoDirections('sport');
+      break;
+    case 'info-directions-dance':
+      showPage('info');
+      document.getElementById('info-title').innerText = 'Танцевальные направления';
+      setHeaderTitle('Танцевальные направления');
+      loadInfoDirections('dance');
+      break;
     case 'info-teachers':
       showPage('info');
-      document.getElementById('info-title').innerText = 'Преподаватели';
-      setHeaderTitle('Преподаватели');
+      document.getElementById('info-title').innerText = 'Тренеры';
+      setHeaderTitle('Тренеры');
       resetInfoPage();
       loadInfoTeachers();
       break;
@@ -3851,7 +3880,7 @@ function renderHallOccupancy(_date, bookings) {
   });
 }
 
-function loadInfoDirections() {
+function loadInfoDirections(directionType = null) {
   const container = document.getElementById('info-section-content');
   const placeholder = document.getElementById('info-placeholder');
   if (!container) return;
@@ -3860,7 +3889,9 @@ function loadInfoDirections() {
 
   container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">⏳ Загрузка направлений...</p>';
 
-  fetch('/api/directions')
+  const url = directionType ? `/api/directions?direction_type=${directionType}` : '/api/directions';
+
+  fetch(url)
     .then(async res => {
       if (!res.ok) throw new Error('Не удалось загрузить направления');
       return res.json();
@@ -3871,6 +3902,8 @@ function loadInfoDirections() {
         return;
       }
       container.innerHTML = directions.map(d => {
+        const type = (directionType || d.direction_type || 'dance').toLowerCase();
+        const typeBadge = type === 'sport' ? '🏅 Спортивное' : '💃 Танцевальное';
         const imageHtml = d.image_path
           ? `<img src="${d.image_path}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin-bottom: 10px;">`
           : '';
@@ -3880,7 +3913,10 @@ function loadInfoDirections() {
         return `
           <div class="card" style="cursor: pointer;" onclick="openDirectionDetail(${d.direction_id})">
             ${imageHtml}
-            <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">${d.title || 'Направление'}</div>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;">
+              <div style="font-weight: 700; font-size: 16px;">${d.title || 'Направление'}</div>
+              <span class="small" style="padding:4px 8px; border-radius:10px; background: var(--accent-soft); color: var(--accent); white-space: nowrap;">${typeBadge}</span>
+            </div>
             <div class="small" style="margin-bottom: 8px;">${d.description || 'Описание отсутствует'}</div>
             ${metaLine ? `<div class="small">${metaLine}</div>` : ''}
           </div>
@@ -4497,6 +4533,9 @@ function openDirectionDetail(directionId) {
     .then(([d, groups]) => {
       const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
       const status = d.status === 'active' ? '✅ Активно' : '⏸️ Неактивно';
+      const type = (d.direction_type || 'dance').toLowerCase();
+      const typeLabel = type === 'sport' ? '🏅 Спортивное' : '💃 Танцевальное';
+      const metaLine = [typeLabel, status, price].filter(Boolean).join(' • ');
       const photoBlock = d.image_path
         ? `<div class="direction-detail-photo"><img src="${d.image_path}" alt="Направление"></div>`
         : '';
@@ -4534,7 +4573,7 @@ content.innerHTML = `
         ${photoBlock}
         <div class="direction-detail-content">
           <div style="font-weight: 700; font-size: 20px; margin-bottom: 6px;">${d.title || 'Направление'}</div>
-          <div class="small" style="margin-bottom: 8px;">${[status, price].filter(Boolean).join(' • ')}</div>
+          <div class="small" style="margin-bottom: 8px;">${metaLine}</div>
           <div class="small" style="margin-bottom: 10px;">${d.description || 'Описание отсутствует'}</div>
           <div style="font-weight: 700; font-size: 16px; margin: 12px 0 8px 0;">Группы</div>
           ${groupsHtml}
@@ -7124,41 +7163,6 @@ function getStatusText(status) {
   return statusMap[status] || status;
 }
 
-function loadProfileTransactions() {
-  const container = document.getElementById('profile-transactions-container');
-  if (!container) return;
-  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>';
-
-  fetch('/api/payment-transactions/my', { headers: getAuthHeaders() })
-    .then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Не удалось загрузить транзакции');
-      return data;
-    })
-    .then(items => {
-      if (!items.length) {
-        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Транзакций нет</p>';
-        return;
-      }
-      container.innerHTML = items.map(t => {
-        const amount = `${t.amount} ${t.currency || 'RUB'}`;
-        const status = formatPaymentStatus(t.status);
-        const created = t.created_at ? formatDate(t.created_at) : '?';
-        return `
-          <div class="card">
-            <div style="font-weight: 600; margin-bottom: 6px;">${amount}</div>
-            <div class="small" style="margin-bottom: 4px;">${status}</div>
-            <div class="small">${t.description || 'Платеж'}</div>
-            <div class="small" style="margin-top: 6px;">${created}</div>
-          </div>
-        `;
-      }).join('');
-    })
-    .catch(err => {
-      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">Ошибка: ${err.message}</p>`;
-    });
-}
-
 function loadProfileAbonements() {
   const container = document.getElementById('profile-abonements-container');
   if (!container) return;
@@ -8685,6 +8689,7 @@ async function generateDirectionUploadToken() {
   const title = document.getElementById('direction-title').value.trim();
   const description = document.getElementById('direction-description').value.trim();
   const price = document.getElementById('direction-price').value.trim();
+  const directionType = document.getElementById('direction-type').value;
   
   // Проверяем обязательные поля
   if (!title) {
@@ -8693,6 +8698,10 @@ async function generateDirectionUploadToken() {
   }
   if (!description) {
     showDirectionError('Введите описание направления');
+    return;
+  }
+  if (!directionType) {
+    showDirectionError('Выберите тип направления');
     return;
   }
   if (!price || isNaN(price) || parseInt(price) <= 0) {
@@ -8717,6 +8726,7 @@ async function generateDirectionUploadToken() {
       body: JSON.stringify({
         telegram_user_id: telegramUserId,
         title: title,
+        direction_type: directionType,
         description: description,
         base_price: parseInt(price)
       })
@@ -8810,9 +8820,14 @@ async function checkDirectionPhotoStatus(token) {
 
 async function createDirection() {
   const token = localStorage.getItem('direction_upload_token');
+  const directionType = document.getElementById('direction-type').value || 'dance';
   
   if (!token) {
     showDirectionError('Фотография не загружена. Пожалуйста, загрузите фотографию через бота.');
+    return;
+  }
+  if (!directionType) {
+    showDirectionError('Выберите тип направления');
     return;
   }
   
@@ -8824,6 +8839,7 @@ async function createDirection() {
       },
       body: JSON.stringify({
         session_token: token,
+        direction_type: directionType,
         is_popular: 0
       })
     });
@@ -8858,6 +8874,7 @@ function resetDirectionForm() {
   document.getElementById('direction-title').value = '';
   document.getElementById('direction-description').value = '';
   document.getElementById('direction-price').value = '';
+  document.getElementById('direction-type').value = 'dance';
   document.getElementById('direction-photo-status').innerHTML = 
     '<p style="margin: 0; color: var(--hint); font-size: 14px;">❌ Фотография не загружена</p>';
   document.getElementById('direction-create-btn').disabled = true;
@@ -8927,6 +8944,7 @@ function renderDirections(directions) {
     const statusColor = direction.status === 'active' ? '#4CAF50' : '#fe5815';
     const statusText = direction.status === 'active' ? '✅ Активное' : '⏸️ Неактивное';
     const popularBadge = direction.is_popular ? '? Популярное' : '';
+    const typeBadge = direction.direction_type === 'sport' ? '🏅 Спортивное' : '💃 Танцевальное';
     
     const imageHtml = direction.image_path 
       ? `<img src="${direction.image_path}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 12px;">`
@@ -8939,6 +8957,7 @@ function renderDirections(directions) {
         <p style="font-size: 13px; color: var(--hint); margin: 0 0 8px 0; line-height: 1.4;">${direction.description || 'Нет описания'}</p>
         
         <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+          <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${typeBadge}</span>
           <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">💰 ${direction.base_price} ₽</span>
           <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: ${statusColor};">${statusText}</span>
           ${popularBadge ? `<span style="background: var(--accent-soft); color: var(--accent); padding: 4px 8px; border-radius: 4px; font-size: 12px;">${popularBadge}</span>` : ''}
@@ -9032,6 +9051,7 @@ function editDirection(directionId) {
       document.getElementById('edit-direction-title').value = direction.title || '';
       document.getElementById('edit-direction-description').value = direction.description || '';
       document.getElementById('edit-direction-price').value = direction.base_price || '';
+      document.getElementById('edit-direction-type').value = direction.direction_type || 'dance';
       document.getElementById('edit-direction-status').value = direction.status || 'active';
       
       // Показываем фотографию если она есть
@@ -9467,9 +9487,10 @@ function saveDirectionChanges() {
   const title = document.getElementById('edit-direction-title').value.trim();
   const description = document.getElementById('edit-direction-description').value.trim();
   const price = document.getElementById('edit-direction-price').value;
+  const directionType = document.getElementById('edit-direction-type').value || 'dance';
   const status = document.getElementById('edit-direction-status').value;
   
-  if (!title || !description || !price) {
+  if (!title || !description || !price || !directionType) {
     alert('? Пожалуйста, заполните все поля');
     return;
   }
@@ -9481,6 +9502,7 @@ function saveDirectionChanges() {
       title,
       description,
       base_price: parseFloat(price),
+      direction_type: directionType,
       status
     })
   })

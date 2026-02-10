@@ -89,6 +89,7 @@ class Direction(Base):
 
     direction_id = Column(Integer, primary_key=True)
     title = Column(String, nullable=False)  # Название направления (Балет, Хип-хоп, и т.д.)
+    direction_type = Column(String, default="dance", nullable=False)  # dance | sport
     description = Column(Text, nullable=True)  # Описание направления
     base_price = Column(Integer, nullable=True)  # Базовая цена
     status = Column(String, default="active")  # active, inactive
@@ -238,6 +239,7 @@ class DirectionUploadSession(Base):
     admin_id = Column(Integer, ForeignKey("staff.id"), nullable=False)  # ID администратора
     telegram_user_id = Column(Integer, nullable=False)  # Telegram ID админа для связи с ботом
     title = Column(String, nullable=False)  # Название направления
+    direction_type = Column(String, default="dance", nullable=False)  # dance | sport
     description = Column(Text, nullable=True)  # Описание
     base_price = Column(Integer, nullable=True)  # Цена
     image_path = Column(String, nullable=True)  # Путь к загруженному изображению

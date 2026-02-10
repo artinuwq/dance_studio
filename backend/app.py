@@ -27,6 +27,7 @@ logging.getLogger('werkzeug').setLevel(logging.ERROR)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
 PROJECT_ROOT = os.path.dirname(BASE_DIR)
+ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
@@ -130,10 +131,10 @@ class ScheduleModelView(ModelView):
     column_filters = ['status', 'date']
 
 class DirectionModelView(ModelView):
-    column_list = ['direction_id', 'title', 'base_price', 'is_popular', 'status', 'created_at']
+    column_list = ['direction_id', 'title', 'direction_type', 'base_price', 'is_popular', 'status', 'created_at']
     column_searchable_list = ['title', 'description']
-    column_filters = ['status', 'is_popular', 'created_at']
-    form_columns = ['title', 'description', 'base_price', 'image_path', 'is_popular', 'status']
+    column_filters = ['direction_type', 'status', 'is_popular', 'created_at']
+    form_columns = ['title', 'direction_type', 'description', 'base_price', 'image_path', 'is_popular', 'status']
 
 class DirectionUploadSessionModelView(ModelView):
     column_list = ['session_id', 'admin_id', 'title', 'status', 'created_at']
@@ -2273,7 +2274,15 @@ def send_mailing_endpoint(mailing_id):
 def get_directions():
     """Получает все активные направления"""
     db = g.db
-    directions = db.query(Direction).filter_by(status="active").order_by(Direction.created_at.desc()).all()
+    direction_type = request.args.get("direction_type") or request.args.get("type")
+    query = db.query(Direction).filter_by(status="active")
+    if direction_type:
+        direction_type = direction_type.lower()
+        if direction_type not in ALLOWED_DIRECTION_TYPES:
+            return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
+        query = query.filter(Direction.direction_type == direction_type)
+
+    directions = query.order_by(Direction.created_at.desc()).all()
 
     #print(f"✓ Найдено {len(directions)} активных направлений")
     
@@ -2286,6 +2295,7 @@ def get_directions():
         
         result.append({
             "direction_id": d.direction_id,
+            "direction_type": d.direction_type or "dance",
             "title": d.title,
             "description": d.description,
             "base_price": d.base_price,
@@ -2302,7 +2312,15 @@ def get_directions():
 def get_directions_manage():
     """Получает все направления для управления (включая неактивные)"""
     db = g.db
-    directions = db.query(Direction).order_by(Direction.created_at.desc()).all()
+    direction_type = request.args.get("direction_type") or request.args.get("type")
+    query = db.query(Direction)
+    if direction_type:
+        direction_type = direction_type.lower()
+        if direction_type not in ALLOWED_DIRECTION_TYPES:
+            return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
+        query = query.filter(Direction.direction_type == direction_type)
+
+    directions = query.order_by(Direction.created_at.desc()).all()
     
     result = []
     for d in directions:
@@ -2313,6 +2331,7 @@ def get_directions_manage():
         
         result.append({
             "direction_id": d.direction_id,
+            "direction_type": d.direction_type or "dance",
             "title": d.title,
             "description": d.description,
             "base_price": d.base_price,
@@ -2341,6 +2360,7 @@ def get_direction(direction_id):
 
     return jsonify({
         "direction_id": direction.direction_id,
+        "direction_type": direction.direction_type or "dance",
         "title": direction.title,
         "description": direction.description,
         "base_price": direction.base_price,
@@ -2615,6 +2635,10 @@ def create_direction_upload_session():
     for field in required_fields:
         if not data.get(field):
             return {"error": f"{field} обязателен"}, 400
+
+    direction_type = (data.get("direction_type") or "dance").lower()
+    if direction_type not in ALLOWED_DIRECTION_TYPES:
+        return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
     
     # Создаем сессию
     session_token = str(uuid.uuid4())
@@ -2623,6 +2647,7 @@ def create_direction_upload_session():
         admin_id=admin.id,
         telegram_user_id=telegram_user_id,
         title=data["title"],
+        direction_type=direction_type,
         description=data["description"],
         base_price=data["base_price"],
         session_token=session_token,
@@ -2635,6 +2660,7 @@ def create_direction_upload_session():
     return {
         "session_id": session.session_id,
         "session_token": session_token,
+        "direction_type": direction_type,
         "message": "Сессия создана. Отправьте токен боту для загрузки фотографии."
     }, 201
 
@@ -2654,6 +2680,7 @@ def get_upload_session_status(token):
     return {
         "session_id": session.session_id,
         "status": session.status,
+        "direction_type": session.direction_type or "dance",
         "image_path": "/" + session.image_path.replace("\\", "/") if session.image_path else None,
         "title": session.title,
         "description": session.description,
@@ -2663,50 +2690,53 @@ def get_upload_session_status(token):
 
 @app.route("/api/directions", methods=["POST"])
 def create_direction():
-    """Создает новое направление после загрузки фотографии"""
+    """??????? ????? ??????????? ????? ???????? ??????????"""
     db = g.db
     data = request.json
-    
-    print(f"📝 Запрос на создание направления: {data}")
-    
+
+    print(f"[create_direction] request: {data}")
+
     session_token = data.get("session_token")
     if not session_token:
-        return {"error": "session_token обязателен"}, 400
-    
+        return {"error": "session_token ??????????"}, 400
+
     session = db.query(DirectionUploadSession).filter_by(session_token=session_token).first()
     if not session:
-        print(f"❌ Сессия не найдена: {session_token}")
-        return {"error": "Сессия не найдена"}, 404
-    
-    print(f"✓ Сессия найдена. Статус: {session.status}, фото: {session.image_path}")
-    
+        print(f"[create_direction] session not found: {session_token}")
+        return {"error": "?????? ?? ???????"}, 404
+
+    print(f"[create_direction] session found: status={session.status}, photo={session.image_path}")
+
     if session.status != "photo_received":
-        print(f"❌ Статус не готов. Ожидается 'photo_received', получено: {session.status}")
         return {"error": f"Сессия не готова. Статус: {session.status}"}, 400
-    
-    # Создаем направление
+
+    direction_type = (data.get("direction_type") or session.direction_type or "dance").lower()
+    if direction_type not in ALLOWED_DIRECTION_TYPES:
+        return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
+
     direction = Direction(
         title=session.title,
+        direction_type=direction_type,
         description=session.description,
         base_price=session.base_price,
         image_path=session.image_path,
         is_popular=data.get("is_popular", 0),
         status="active"
     )
-    
+
     db.add(direction)
     db.commit()
-    
-    # Обновляем статус сессии
+
     session.status = "completed"
     db.commit()
-    
-    print(f"✅ Направление создано: ID={direction.direction_id}, title={direction.title}")
-    
+
+    print(f"[create_direction] created id={direction.direction_id}, title={direction.title}, type={direction.direction_type}")
+
     return {
         "direction_id": direction.direction_id,
         "title": direction.title,
-        "message": "Направление успешно создано"
+        "direction_type": direction.direction_type,
+        "message": "??????????? ??????? ???????"
     }, 201
 
 
@@ -2727,6 +2757,11 @@ def update_direction(direction_id):
         direction.description = data["description"]
     if "base_price" in data:
         direction.base_price = data["base_price"]
+    if "direction_type" in data:
+        new_type = (data.get("direction_type") or "").lower()
+        if new_type not in ALLOWED_DIRECTION_TYPES:
+            return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
+        direction.direction_type = new_type
     if "status" in data:
         direction.status = data["status"]
     if "is_popular" in data:
@@ -2736,6 +2771,7 @@ def update_direction(direction_id):
     
     return {
         "direction_id": direction.direction_id,
+        "direction_type": direction.direction_type,
         "message": "Направление обновлено"
     }
 

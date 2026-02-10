@@ -49,6 +49,21 @@ def ensure_individual_lesson_columns():
             if name not in existing:
                 conn.execute(text(f"ALTER TABLE individual_lessons ADD COLUMN {name} {data_type}"))
 
+
+def ensure_direction_type_columns():
+    with engine.begin() as conn:
+        # directions.direction_type
+        directions_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(directions)"))}
+        if "direction_type" not in directions_cols:
+            conn.execute(text("ALTER TABLE directions ADD COLUMN direction_type TEXT DEFAULT 'dance'"))
+        conn.execute(text("UPDATE directions SET direction_type = 'dance' WHERE direction_type IS NULL OR direction_type = ''"))
+
+        # direction_upload_sessions.direction_type
+        upload_cols = {row[1] for row in conn.execute(text("PRAGMA table_info(direction_upload_sessions)"))}
+        if "direction_type" not in upload_cols:
+            conn.execute(text("ALTER TABLE direction_upload_sessions ADD COLUMN direction_type TEXT DEFAULT 'dance'"))
+        conn.execute(text("UPDATE direction_upload_sessions SET direction_type = 'dance' WHERE direction_type IS NULL OR direction_type = ''"))
+
 def init_db():
     # Создаем необходимые папки
     create_required_directories()
@@ -56,6 +71,7 @@ def init_db():
     Base.metadata.create_all(engine)
     ensure_booking_request_columns()
     ensure_individual_lesson_columns()
+    ensure_direction_type_columns()
     # Инициализируем admin и owner
     init_admin_and_owner()
 
