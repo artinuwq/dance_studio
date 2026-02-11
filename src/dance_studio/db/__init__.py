@@ -1,11 +1,13 @@
 import logging
+from pathlib import Path
 
-from sqlalchemy import create_engine, inspect
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from dance_studio.core.media_manager import create_required_directories
-from dance_studio.db.models import Base, Staff, User
-from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, ENV, AUTO_CREATE_SCHEMA, DATABASE_URL
+from dance_studio.db.models import Staff, User
+from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, DATABASE_URL, MIGRATE_ON_START
 
 logger = logging.getLogger(__name__)
 
@@ -22,41 +24,30 @@ engine = create_engine(
 
 Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
-REQUIRED_TABLES_DEV = {
-    'users',
-    'staff',
-    'schedule',
-    'news',
-    'directions',
-    'groups',
-}
+
+def _alembic_config() -> Config:
+    project_root = Path(__file__).resolve().parents[3]
+    alembic_ini = project_root / 'alembic.ini'
+    alembic_dir = project_root / 'alembic'
+
+    config = Config(str(alembic_ini))
+    config.set_main_option('script_location', str(alembic_dir))
+    return config
 
 
-def ensure_schema_dev() -> None:
-    """Auto-create schema in development for empty databases.
-
-    If schema exists but misses required core tables, fail fast with explicit error.
-    """
-    should_autocreate = ENV == 'dev' or AUTO_CREATE_SCHEMA
-    if not should_autocreate:
+def ensure_db_schema() -> None:
+    """Run Alembic migrations up to head when enabled by config."""
+    if not MIGRATE_ON_START:
         return
 
-    inspector = inspect(engine)
-    table_names = set(inspector.get_table_names())
-
-    if not table_names:
-        create_required_directories()
-        Base.metadata.create_all(engine)
-        logger.info('[db] Database schema created from SQLAlchemy metadata')
-        return
-
-    missing_tables = REQUIRED_TABLES_DEV - table_names
-    if missing_tables:
-        missing_list = ', '.join(sorted(missing_tables))
+    try:
+        command.upgrade(_alembic_config(), 'head')
+        logger.info('[db] Alembic migrations applied successfully')
+    except Exception as exc:
         raise RuntimeError(
-            f'Database schema is partially initialized. Missing required tables: {missing_list}. '
-            'For development, use an empty DB for auto-create or fix schema manually.'
-        )
+            'Failed to apply database migrations (alembic upgrade head). '
+            'Schema may be partial/corrupted. Check migration history and DB state.'
+        ) from exc
 
 
 def bootstrap_data() -> None:
@@ -136,7 +127,7 @@ def get_session():
 __all__ = [
     'engine',
     'Session',
-    'ensure_schema_dev',
+    'ensure_db_schema',
     'bootstrap_data',
     'get_session',
 ]

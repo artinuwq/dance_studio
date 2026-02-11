@@ -1,6 +1,5 @@
 from dance_studio.core.settings import (
     APP_SECRET_KEY,
-    AUTO_CREATE_SCHEMA,
     BETA_TEST_MODE,
     BOOKINGS_ADMIN_CHAT_ID,
     BOOKING_ADMIN_TOPIC_ID,
@@ -9,6 +8,7 @@ from dance_studio.core.settings import (
     BOT_USERNAME,
     DATABASE_URL,
     ENV,
+    MIGRATE_ON_START,
     OWNER_IDS,
     TECH_ABONEMENTS_TOPIC_ID,
     TECH_ADMIN_ID,
@@ -22,7 +22,6 @@ from dance_studio.core.settings import (
 
 __all__ = [
     'APP_SECRET_KEY',
-    'AUTO_CREATE_SCHEMA',
     'BETA_TEST_MODE',
     'BOOKINGS_ADMIN_CHAT_ID',
     'BOOKING_ADMIN_TOPIC_ID',
@@ -31,6 +30,7 @@ __all__ = [
     'BOT_USERNAME',
     'DATABASE_URL',
     'ENV',
+    'MIGRATE_ON_START',
     'OWNER_IDS',
     'TECH_ABONEMENTS_TOPIC_ID',
     'TECH_ADMIN_ID',
