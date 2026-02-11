@@ -12,6 +12,7 @@ if str(SRC_PATH) not in sys.path:
 from dance_studio.web.app import app
 from dance_studio.bot.bot import run_bot
 from dance_studio.db import ensure_schema_dev, bootstrap_data
+from dance_studio.core.config import BOOTSTRAP_ON_START
 
 logging.basicConfig(level=logging.INFO)
 
@@ -29,7 +30,8 @@ def run_flask():
 
 async def main():
     ensure_schema_dev()
-    bootstrap_data()
+    if BOOTSTRAP_ON_START:
+        bootstrap_data()
 
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()

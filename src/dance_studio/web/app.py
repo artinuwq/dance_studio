@@ -42,7 +42,7 @@ from dance_studio.core.booking_utils import (
     build_booking_keyboard_data,
 )
 from dance_studio.core.tg_auth import validate_init_data
-from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, BOT_TOKEN, APP_SECRET_KEY, DATABASE_URL
+from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, BOT_TOKEN, APP_SECRET_KEY
 
 # Flask-Admin
 from flask_admin import Admin, AdminIndexView
@@ -62,7 +62,6 @@ SESSION_TTL_SECONDS = 7 * 24 * 3600  # 7 days sliding
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.secret_key = APP_SECRET_KEY
 
 

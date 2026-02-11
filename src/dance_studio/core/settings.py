@@ -64,6 +64,7 @@ WEB_APP_URL = os.getenv('WEB_APP_URL', '')
 DATABASE_URL = os.getenv('DATABASE_URL')
 ENV = os.getenv('ENV', 'dev').strip().lower()
 AUTO_CREATE_SCHEMA = _parse_bool(os.getenv('AUTO_CREATE_SCHEMA', '0'), False)
+BOOTSTRAP_ON_START = _parse_bool(os.getenv('BOOTSTRAP_ON_START', '0'), False)
 
 APP_SECRET_KEY = os.getenv('APP_SECRET_KEY')
 if not APP_SECRET_KEY:
