@@ -5,8 +5,10 @@ __pycache__/
 *.pyd
 *.env
 
-# База данных
+# База данных и данные
+var/
 database/
+userbot.session
 
 # Логи
 logs/*.log

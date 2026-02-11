@@ -115,6 +115,8 @@ class Group(Base):
     max_students = Column(Integer, nullable=False)  # Максимальное кол-во учеников
     duration_minutes = Column(Integer, nullable=False)  # Обычная длительность в минутах
     lessons_per_week = Column(Integer, nullable=True)  # Кол-во занятий в неделю
+    chat_id = Column(Integer, nullable=True)  # ID чата Telegram (если создан)
+    chat_invite_link = Column(String, nullable=True)  # Инвайт ссылка на чат
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
     # Отношения

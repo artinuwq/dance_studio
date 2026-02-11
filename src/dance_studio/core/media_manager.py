@@ -5,12 +5,14 @@
 import os
 from pathlib import Path
 
-# Базовые пути
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MEDIA_DIR = os.path.join(BASE_DIR, "database", "media")
-USERS_MEDIA_DIR = os.path.join(MEDIA_DIR, "users")
-TEACHERS_MEDIA_DIR = os.path.join(MEDIA_DIR, "teachers")
-NEWS_MEDIA_DIR = os.path.join(MEDIA_DIR, "news")
+# Базовые пути: всё пользовательское в var/
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+BASE_DIR = PROJECT_ROOT
+VAR_ROOT = PROJECT_ROOT / "var"
+MEDIA_DIR = VAR_ROOT / "media"
+USERS_MEDIA_DIR = MEDIA_DIR / "users"
+TEACHERS_MEDIA_DIR = MEDIA_DIR / "teachers"
+NEWS_MEDIA_DIR = MEDIA_DIR / "news"
 
 
 def create_required_directories():
@@ -27,7 +29,7 @@ def create_required_directories():
     for directory in directories:
         try:
             os.makedirs(directory, exist_ok=True)
-            print(f"✓ Папка создана/проверена: {directory}")
+            print(f"[media] ensured dir: {directory}")
         except Exception as e:
             print(f"❌ Ошибка при создании папки {directory}: {e}")
 

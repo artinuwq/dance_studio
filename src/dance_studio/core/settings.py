@@ -54,11 +54,11 @@ def _parse_int(value: str, default: int | None) -> int | None:
         return default
 
 
-_ROOT = Path(__file__).resolve().parent
+_ROOT = Path(__file__).resolve().parents[3]
 _load_dotenv(_ROOT / '.env')
 
 BOT_TOKEN = os.getenv('BOT_TOKEN', '')
-DB_FILE = os.getenv('DB_FILE', 'database/files.db')
+DB_FILE = os.getenv('DB_FILE', 'var/db/dance.db')
 BOT_USERNAME = os.getenv('BOT_USERNAME', 'dance_studio_admin_bot')
 WEB_APP_URL = os.getenv('WEB_APP_URL', '')
 OWNER_IDS = _parse_int_list(os.getenv('OWNER_IDS', ''), [])

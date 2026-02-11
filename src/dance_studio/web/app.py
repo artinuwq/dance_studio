@@ -3,19 +3,46 @@ from datetime import date, time, datetime, timedelta
 import os
 import json
 import hashlib
+import hmac
+import base64
+import time as time_module
 from werkzeug.utils import secure_filename
 import logging
 import uuid
 import requests
+from pathlib import Path
 from sqlalchemy import or_, text
 from werkzeug.exceptions import HTTPException
 
-from backend.db import init_db, get_session, BASE_DIR, Session, engine
-from backend.models import Schedule, News, User, Staff, Mailing, Base, Direction, DirectionUploadSession, Group, IndividualLesson, HallRental, TeacherWorkingHours, TeacherTimeOff, GroupAbonement, PaymentTransaction, BookingRequest
-from backend.media_manager import save_user_photo, delete_user_photo
-from backend.permissions import has_permission
-from backend.tech_notifier import send_critical_sync
-from backend.booking_utils import BOOKING_STATUS_LABELS, format_booking_message, build_booking_keyboard_data
+from dance_studio.db import init_db, get_session, DB_PATH, Session, engine
+from dance_studio.db.models import (
+    Schedule,
+    News,
+    User,
+    Staff,
+    Mailing,
+    Base,
+    Direction,
+    DirectionUploadSession,
+    Group,
+    IndividualLesson,
+    HallRental,
+    TeacherWorkingHours,
+    TeacherTimeOff,
+    GroupAbonement,
+    PaymentTransaction,
+    BookingRequest,
+)
+from dance_studio.core.media_manager import save_user_photo, delete_user_photo
+from dance_studio.core.permissions import has_permission
+from dance_studio.core.tech_notifier import send_critical_sync
+from dance_studio.core.booking_utils import (
+    BOOKING_STATUS_LABELS,
+    format_booking_message,
+    build_booking_keyboard_data,
+)
+from dance_studio.core.tg_auth import validate_init_data
+from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, BOT_TOKEN
 
 # Flask-Admin
 from flask_admin import Admin, AdminIndexView
@@ -24,15 +51,19 @@ from flask_admin.contrib.sqla import ModelView
 # Отключаем SSL/TLS ошибки в логах werkzeug
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FRONTEND_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "frontend"))
-PROJECT_ROOT = os.path.dirname(BASE_DIR)
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+SRC_ROOT = Path(__file__).resolve().parents[2]
+FRONTEND_DIR = str(PROJECT_ROOT / "frontend")
+BASE_DIR = str(Path(__file__).resolve().parent)
+VAR_ROOT = PROJECT_ROOT / "var"
+MEDIA_ROOT = VAR_ROOT / "media"
 ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
+SESSION_TTL_SECONDS = 7 * 24 * 3600  # 7 days sliding
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{os.path.join(PROJECT_ROOT, "database", "dance.db")}'
-app.secret_key = 'dance-studio-secret-key-2026'  # Генерируется для сессий и flash сообщений
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+app.secret_key = os.getenv("APP_SECRET_KEY") or os.getenv("FLASK_SECRET_KEY") or 'dance-studio-secret-key-2026'  # предпочитайте APP_SECRET_KEY из окружения
 init_db()
 
 def ensure_groups_lessons_per_week_column():
@@ -46,6 +77,106 @@ def ensure_groups_lessons_per_week_column():
         print(f"⚠️ Не удалось проверить/добавить колонку lessons_per_week: {exc}")
 
 ensure_groups_lessons_per_week_column()
+def ensure_groups_chat_columns():
+    try:
+        with engine.begin() as conn:
+            columns = [row[1] for row in conn.execute(text("PRAGMA table_info(groups)")).fetchall()]
+            if "chat_id" not in columns:
+                conn.execute(text("ALTER TABLE groups ADD COLUMN chat_id INTEGER"))
+                print("✓ Добавлена колонка chat_id в таблицу groups")
+            if "chat_invite_link" not in columns:
+                conn.execute(text("ALTER TABLE groups ADD COLUMN chat_invite_link TEXT"))
+                print("✓ Добавлена колонка chat_invite_link в таблицу groups")
+    except Exception as exc:
+        print(f"⚠️ Не удалось добавить колонки чатов в groups: {exc}")
+
+ensure_groups_chat_columns()
+
+
+def _session_secret() -> bytes:
+    return (app.secret_key or "change-me").encode()
+
+
+def _b64(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
+
+def _b64decode(data: str) -> bytes:
+    pad = '=' * (-len(data) % 4)
+    return base64.urlsafe_b64decode(data + pad)
+
+
+def issue_session_token(user: dict, ttl_seconds: int = SESSION_TTL_SECONDS) -> str:
+    """Создает HMAC-подписанный токен с данными пользователя и exp."""
+    payload = {
+        "user": user,
+        "exp": int(time_module.time()) + ttl_seconds,
+    }
+    payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
+    sig = hmac.new(_session_secret(), payload_bytes, hashlib.sha256).hexdigest()
+    return f"tgs.{_b64(payload_bytes)}.{sig}"
+
+
+def validate_session_token(token: str):
+    """Проверяет подпись и срок действия; возвращает payload dict или None."""
+    if not token or not token.startswith("tgs."):
+        return None
+    try:
+        _, payload_b64, sig = token.split(".", 2)
+    except ValueError:
+        return None
+    try:
+        payload_bytes = _b64decode(payload_b64)
+    except Exception:
+        return None
+    expected_sig = hmac.new(_session_secret(), payload_bytes, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected_sig, sig):
+        return None
+    try:
+        payload = json.loads(payload_bytes.decode())
+    except Exception:
+        return None
+    if payload.get("exp") and int(time_module.time()) > int(payload["exp"]):
+        return None
+    return payload
+
+
+def _get_init_data_from_request():
+    """Extracts Telegram init_data from header, query or JSON body."""
+    header_value = request.headers.get("X-Telegram-Init-Data")
+    if header_value:
+        return header_value
+    if request.args.get("init_data"):
+        return request.args["init_data"]
+    if request.method in {"POST", "PUT", "PATCH"}:
+        payload = request.get_json(silent=True) or {}
+        if isinstance(payload, dict) and "init_data" in payload:
+            return payload.get("init_data")
+    return None
+
+
+def _get_session_token_from_request():
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:].strip()
+    cookie_token = request.cookies.get("tg_session")
+    if cookie_token:
+        return cookie_token
+    return None
+
+
+def get_telegram_user(optional: bool = True):
+    """
+    Validates Telegram WebApp init_data and returns user dict.
+    When optional=False returns error response tuple on failure.
+    """
+    init_data = _get_init_data_from_request()
+    if not init_data:
+        return ({"error": "init_data обязателен"}, 400) if not optional else None
+    user = validate_init_data(init_data)
+    if not user:
+        return ({"error": "init_data недействителен"}, 401) if not optional else None
+    return user
 
 # ====== Проверка прав по telegram_id ======
 def check_permission(telegram_id, permission):
@@ -63,6 +194,8 @@ def require_permission(permission, allow_self_staff_id=None):
     data = request.get_json(silent=True) if request.is_json else None
     if not telegram_id and data:
         telegram_id = data.get("actor_telegram_id")
+    if not telegram_id and getattr(g, "telegram_user", None):
+        telegram_id = g.telegram_user.get("id")
 
     if not telegram_id:
         return {"error": "telegram_id обязателен"}, 401
@@ -71,6 +204,12 @@ def require_permission(permission, allow_self_staff_id=None):
         telegram_id = int(telegram_id)
     except (TypeError, ValueError):
         return {"error": "Неверный telegram_id"}, 400
+
+    # bypass для владельцев / техадмина даже без записи в staff
+    if TECH_ADMIN_ID and telegram_id == TECH_ADMIN_ID:
+        return None
+    if telegram_id in OWNER_IDS:
+        return None
 
     if allow_self_staff_id is not None:
         db = g.db
@@ -154,12 +293,42 @@ admin.add_view(DirectionUploadSessionModelView(DirectionUploadSession, Session()
 @app.before_request
 def before_request():
     g.db = get_session()
+    g.telegram_user = None
+    # 1) проверяем сессионный токен
+    session_token = _get_session_token_from_request()
+    if session_token:
+        payload = validate_session_token(session_token)
+        if payload and payload.get("user"):
+            g.telegram_user = payload["user"]
+            g.new_session_token = issue_session_token(g.telegram_user)  # sliding refresh
+            return
+    # 2) fallback на init_data
+    init_data = _get_init_data_from_request()
+    if init_data:
+        user = validate_init_data(init_data)
+        if user:
+            g.telegram_user = user
+            g.new_session_token = issue_session_token(user)
 
 @app.teardown_request
 def teardown_request(exception):
     db = getattr(g, 'db', None)
     if db is not None:
         db.close()
+
+@app.after_request
+def refresh_session_cookie(response):
+    token = getattr(g, "new_session_token", None)
+    if token:
+        response.set_cookie(
+            "tg_session",
+            token,
+            max_age=SESSION_TTL_SECONDS,
+            httponly=True,
+            secure=False,
+            samesite="Lax",
+        )
+    return response
 
 
 def format_schedule(s):
@@ -220,10 +389,23 @@ def get_bot_username():
             return jsonify({"bot_username": BOT_USERNAME_GLOBAL})
         
         # Fallback на конфиг
-        from config import BOT_USERNAME
+        from dance_studio.core.config import BOT_USERNAME
         return jsonify({"bot_username": BOT_USERNAME})
     except:
         return jsonify({"bot_username": "dance_studio_admin_bot"})
+
+
+@app.route("/auth/telegram/validate", methods=["POST"])
+def auth_telegram_validate():
+    """Проверяет init_data от Telegram WebApp и возвращает данные пользователя."""
+    user = get_telegram_user(optional=False)
+    if isinstance(user, tuple):
+        # error tuple returned
+        return user
+    token = issue_session_token(user)
+    resp = jsonify({"ok": True, "user": user, "session_token": token})
+    resp.set_cookie("tg_session", token, max_age=SESSION_TTL_SECONDS, httponly=True, secure=False, samesite="Lax")
+    return resp
 
 
 @app.route("/schedule")
@@ -236,58 +418,103 @@ def schedule():
 @app.route("/schedule/public")
 def schedule_public():
     db = g.db
-    items = db.query(Schedule).filter(
-        Schedule.object_type == "group",
-        Schedule.status != "cancelled"
-    ).all()
+    mine_flag = request.args.get("mine")
+    user = get_current_user_from_request(db)
+    mine = str(mine_flag).lower() in {"1", "true", "yes", "y"} if mine_flag is not None else bool(user)
+
+    query = db.query(Schedule).outerjoin(IndividualLesson, Schedule.object_id == IndividualLesson.id)\
+                               .outerjoin(HallRental, Schedule.object_id == HallRental.id)
+
+    # базовый фильтр по статусу
+    query = query.filter(Schedule.status != "cancelled")
+
+    if mine and user:
+        query = query.filter(
+            or_(
+                Schedule.object_type == "group",
+                (Schedule.object_type == "individual") & (IndividualLesson.student_id == user.id),
+                (Schedule.object_type == "rental") & (HallRental.creator_type == "user") & (HallRental.creator_id == user.id),
+            )
+        )
+    else:
+        # публичная выдача только групп
+        query = query.filter(Schedule.object_type == "group")
+
+    items = query.all()
 
     result = []
     for s in items:
-        group = None
-        if s.group_id:
-            group = db.query(Group).filter_by(id=s.group_id).first()
-        elif s.object_id:
-            group = db.query(Group).filter_by(id=s.object_id).first()
-
-        direction_title = None
-        direction_description = None
-        direction_image = None
-        direction_id = None
-        teacher_name = None
-        lessons_per_week = None
-        age_group = None
-        if group:
-            if group.direction_id:
-                direction_id = group.direction_id
-                direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
-                if direction:
-                    direction_title = direction.title
-                    direction_description = direction.description
-                    if direction.image_path:
-                        direction_image = "/" + direction.image_path.replace("\\", "/")
-            if group.teacher_id:
-                teacher = db.query(Staff).filter_by(id=group.teacher_id).first()
-                teacher_name = teacher.name if teacher else None
-            lessons_per_week = group.lessons_per_week
-            age_group = group.age_group
-
         time_from = s.time_from or s.start_time
         time_to = s.time_to or s.end_time
 
-        result.append({
+        entry = {
             "id": s.id,
-            "title": group.name if group and group.name else s.title,
-            "direction": direction_title,
-            "direction_description": direction_description,
-            "direction_image": direction_image,
-            "direction_id": direction_id,
-            "teacher_name": teacher_name,
-            "lessons_per_week": lessons_per_week,
-            "age_group": age_group,
+            "object_type": s.object_type,
             "date": s.date.isoformat() if s.date else None,
             "start": str(time_from) if time_from else None,
-            "end": str(time_to) if time_to else None
-        })
+            "end": str(time_to) if time_to else None,
+        }
+
+        if s.object_type == "group":
+            group = None
+            if s.group_id:
+                group = db.query(Group).filter_by(id=s.group_id).first()
+            elif s.object_id:
+                group = db.query(Group).filter_by(id=s.object_id).first()
+
+            direction_title = None
+            direction_description = None
+            direction_image = None
+            direction_id = None
+            teacher_name = None
+            lessons_per_week = None
+            age_group = None
+            if group:
+                if group.direction_id:
+                    direction_id = group.direction_id
+                    direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
+                    if direction:
+                        direction_title = direction.title
+                        direction_description = direction.description
+                        if direction.image_path:
+                            direction_image = "/" + direction.image_path.replace("\\", "/")
+                if group.teacher_id:
+                    teacher = db.query(Staff).filter_by(id=group.teacher_id).first()
+                    teacher_name = teacher.name if teacher else None
+                lessons_per_week = group.lessons_per_week
+                age_group = group.age_group
+
+            entry.update({
+                "title": group.name if group and group.name else s.title,
+                "direction": direction_title,
+                "direction_description": direction_description,
+                "direction_image": direction_image,
+                "direction_id": direction_id,
+                "teacher_name": teacher_name,
+                "lessons_per_week": lessons_per_week,
+                "age_group": age_group,
+            })
+        elif s.object_type == "individual":
+            lesson = db.query(IndividualLesson).filter_by(id=s.object_id).first() if s.object_id else None
+            teacher = db.query(Staff).filter_by(id=s.teacher_id).first() if s.teacher_id else None
+            entry.update({
+                "title": s.title or "Индивидуальное занятие",
+                "teacher_name": teacher.name if teacher else None,
+                "student_id": lesson.student_id if lesson else None,
+                "status": s.status,
+            })
+        elif s.object_type == "rental":
+            rental = db.query(HallRental).filter_by(id=s.object_id).first() if s.object_id else None
+            entry.update({
+                "title": s.title or "Аренда зала",
+                "creator_id": rental.creator_id if rental else None,
+                "creator_type": rental.creator_type if rental else None,
+                "status": s.status,
+            })
+        else:
+            entry["title"] = s.title
+
+        result.append(entry)
 
     return jsonify(result)
 
@@ -303,6 +530,8 @@ def schedule_v2_list():
     object_type = request.args.get("object_type")
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
+    mine_flag = request.args.get("mine")
+    mine = str(mine_flag).lower() in {"1", "true", "yes", "y"} if mine_flag is not None else False
 
     if object_type:
         query = query.filter(Schedule.object_type == object_type)
@@ -318,6 +547,19 @@ def schedule_v2_list():
             query = query.filter(Schedule.date <= date_to_val)
         except ValueError:
             return {"error": "date_to должен быть в формате YYYY-MM-DD"}, 400
+
+    if mine:
+        user = get_current_user_from_request(db)
+        if not user:
+            return {"error": "Требуется авторизация Telegram (init_data или заголовок X-Telegram-Id)"}, 401
+        query = query.outerjoin(IndividualLesson, Schedule.object_id == IndividualLesson.id)\
+                     .outerjoin(HallRental, Schedule.object_id == HallRental.id)\
+                     .filter(
+                         or_(
+                             (Schedule.object_type == "individual") & (IndividualLesson.student_id == user.id),
+                             (Schedule.object_type == "rental") & (HallRental.creator_type == "user") & (HallRental.creator_id == user.id)
+                         )
+                     )
 
     data = query.all()
     return jsonify([format_schedule_v2(s) for s in data])
@@ -551,21 +793,6 @@ def delete_schedule_v2(schedule_id):
     return {"ok": True, "message": "Занятие отменено"}
 
 
-@app.route("/seed")
-def seed():
-    db = g.db
-    lesson = Schedule(
-        title="Балет",
-        teacher="Мария",
-        date=date.today(),
-        start_time=time(18, 0),
-        end_time=time(19, 0)
-    )
-    db.add(lesson)
-    db.commit()
-    return {"ok": True}
-
-
 @app.route("/news/manage")
 def get_all_news():
     """Получает все новости для управления (включая активные и архивированные)"""
@@ -696,7 +923,7 @@ def upload_news_photo(news_id):
         file_data = file.read()
         filename = "photo." + file.filename.rsplit('.', 1)[1].lower()
         
-        from backend.media_manager import MEDIA_DIR
+        from dance_studio.core.media_manager import MEDIA_DIR
         news_dir = os.path.join(MEDIA_DIR, "news", str(news_id))
         os.makedirs(news_dir, exist_ok=True)
         
@@ -704,8 +931,8 @@ def upload_news_photo(news_id):
         with open(file_path, 'wb') as f:
             f.write(file_data)
         
-        # Формируем путь: database/media/news/{id}/photo.ext
-        photo_path = f"database/media/news/{news_id}/{filename}"
+        # Формируем путь: var/media/news/{id}/photo.ext
+        photo_path = f"var/media/news/{news_id}/{filename}"
         print(f"📸 Фото сохранено в: {file_path}")
         print(f"📸 Путь в БД: {photo_path}")
         
@@ -840,6 +1067,9 @@ def get_user(telegram_id):
 
 @app.route("/users/list/all")
 def list_all_users():
+    perm_error = require_permission("view_all_users")
+    if perm_error:
+        return perm_error
     db = g.db
     users = db.query(User).order_by(User.registered_at.desc()).all()
     
@@ -862,6 +1092,9 @@ def list_all_users():
 
 @app.route("/users/<int:telegram_id>", methods=["PUT"])
 def update_user(telegram_id):
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
     db = g.db
     user = db.query(User).filter_by(telegram_id=telegram_id).first()
     
@@ -998,19 +1231,33 @@ def delete_user_photo_endpoint(telegram_id):
 @app.route("/media/<path:filename>")
 def serve_media(filename):
     """
-    Служит медиа файлы из папки database/media
+    Служит медиа файлы из var/media; fallback на старый database/media
     """
-    media_dir = os.path.join(PROJECT_ROOT, "database", "media")
-    return send_from_directory(media_dir, filename)
+    var_path = MEDIA_ROOT / filename
+    legacy_dir = PROJECT_ROOT / "database" / "media"
+    legacy_path = legacy_dir / filename
+
+    if var_path.exists():
+        return send_from_directory(var_path.parent, var_path.name)
+    if legacy_path.exists():
+        return send_from_directory(legacy_dir, filename)
+    return {"error": "file not found"}, 404
 
 
 @app.route("/database/media/<path:filename>")
 def serve_media_full(filename):
     """
-    Альтернативный маршрут для полного пути database/media
+    Альтернативный маршрут; поддерживает и var/media, и старый путь
     """
-    base_dir = PROJECT_ROOT
-    return send_from_directory(base_dir, "database/media/" + filename)
+    var_path = MEDIA_ROOT / filename
+    legacy_dir = PROJECT_ROOT / "database" / "media"
+    legacy_path = legacy_dir / filename
+
+    if var_path.exists():
+        return send_from_directory(var_path.parent, var_path.name)
+    if legacy_path.exists():
+        return send_from_directory(legacy_dir, filename)
+    return {"error": "file not found"}, 404
 
 
 @app.route("/staff")
@@ -1018,6 +1265,9 @@ def get_all_staff():
     """
     Получить всех сотрудников
     """
+    perm_error = require_permission("view_all_users")
+    if perm_error:
+        return perm_error
     db = g.db
     staff = db.query(Staff).filter_by(status="active").order_by(Staff.created_at.desc()).all()
     
@@ -1176,7 +1426,7 @@ def create_staff():
                 if data.get("telegram_id") and notify_user:
                     try:
                         import requests
-                        from config import BOT_TOKEN
+                        from dance_studio.core.config import BOT_TOKEN
 
                         position_display = {
                             "учитель": "👩‍🏫 Учитель",
@@ -1235,7 +1485,7 @@ def create_staff():
     if data.get("telegram_id") and notify_user:
         try:
             import requests
-            from config import BOT_TOKEN
+            from dance_studio.core.config import BOT_TOKEN
             
             position_display = {
                 "учитель": "👩‍🏫 Учитель",
@@ -1568,7 +1818,7 @@ def delete_staff(staff_id):
     if telegram_id and notify_user:
         try:
             import requests
-            from config import BOT_TOKEN
+            from dance_studio.core.config import BOT_TOKEN
             
             message_text = (
                 f"😢 К сожалению...\n\n"
@@ -1633,7 +1883,7 @@ def upload_staff_photo(staff_id):
         file_data = file.read()
         filename = "photo." + file.filename.rsplit('.', 1)[1].lower()
         
-        from backend.media_manager import TEACHERS_MEDIA_DIR
+        from dance_studio.core.media_manager import TEACHERS_MEDIA_DIR
         staff_dir = os.path.join(TEACHERS_MEDIA_DIR, str(staff_id))
         os.makedirs(staff_dir, exist_ok=True)
         
@@ -1866,6 +2116,9 @@ def list_all_staff():
     """
     Возвращает список всего персонала для администраторов
     """
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
     db = g.db
     staff = db.query(Staff).filter(Staff.status != "dismissed").all()
     
@@ -2311,6 +2564,9 @@ def get_directions():
 @app.route("/api/directions/manage", methods=["GET"])
 def get_directions_manage():
     """Получает все направления для управления (включая неактивные)"""
+    perm_error = require_permission("create_direction")
+    if perm_error:
+        return perm_error
     db = g.db
     direction_type = request.args.get("direction_type") or request.args.get("type")
     query = db.query(Direction)
@@ -2408,6 +2664,9 @@ def get_direction_groups(direction_id):
 @app.route("/api/directions/<int:direction_id>/groups", methods=["POST"])
 def create_direction_group(direction_id):
     """Создает группу внутри направления"""
+    perm_error = require_permission("create_group")
+    if perm_error:
+        return perm_error
     db = g.db
     data = request.json or {}
 
@@ -2456,6 +2715,48 @@ def create_direction_group(direction_id):
     db.add(group)
     db.commit()
 
+    # Создаем чат Telegram через userbot и добавляем преподавателя
+    if teacher.telegram_id:
+        try:
+            from dance_studio.bot.telegram_userbot import create_group_chat_sync
+
+            teacher_user = db.query(User).filter_by(telegram_id=teacher.telegram_id).first()
+            chat_info = create_group_chat_sync(
+                name,
+                [{
+                    "id": teacher.telegram_id,
+                    "username": getattr(teacher_user, "username", None),
+                    "phone": teacher.phone,
+                    "name": teacher.name,
+                }],
+            )
+        except Exception as e:
+            print(f"[create_direction_group] Telegram chat creation failed: {e}")
+            chat_info = None
+        if chat_info:
+            group.chat_id = chat_info.get("chat_id")
+            group.chat_invite_link = chat_info.get("invite_link")
+            failed = chat_info.get("failed_user_ids") or []
+
+            # Всегда шлём ссылку преподавателю, даже если invite сработал — на случай приватности.
+            target_ids = {teacher.telegram_id} | {uid for uid in failed if uid}
+            for uid in target_ids:
+                try:
+                    resp = requests.post(
+                        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                        json={
+                            "chat_id": int(uid),
+                            "text": f"Присоединиться к чату группы \"{name}\" можно по ссылке: {group.chat_invite_link}",
+                            "disable_web_page_preview": True,
+                        },
+                        timeout=10,
+                    )
+                    if resp.status_code != 200:
+                        print(f"[create_direction_group] sendMessage to {uid} failed: {resp.status_code} {resp.text}")
+                except Exception as send_err:
+                    print(f"[create_direction_group] Не удалось отправить ссылку пользователю {uid}: {send_err}")
+            db.commit()
+
     return {
         "id": group.id,
         "direction_id": group.direction_id,
@@ -2467,6 +2768,8 @@ def create_direction_group(direction_id):
         "max_students": group.max_students,
         "duration_minutes": group.duration_minutes,
         "lessons_per_week": group.lessons_per_week,
+        "chat_id": group.chat_id,
+        "chat_invite_link": group.chat_invite_link,
         "created_at": group.created_at.isoformat()
     }, 201
 
@@ -2498,6 +2801,9 @@ def get_group(group_id):
 @app.route("/api/groups/<int:group_id>", methods=["PUT"])
 def update_group(group_id):
     """Обновляет группу"""
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
     db = g.db
     data = request.json or {}
     group = db.query(Group).filter_by(id=group_id).first()
@@ -2561,7 +2867,7 @@ def normalize_teaches(value):
 def try_fetch_telegram_avatar(telegram_id, db, staff_obj=None):
     """Пробует скачать аватар пользователя из Telegram и сохранить в БД"""
     try:
-        from config import BOT_TOKEN
+        from dance_studio.core.config import BOT_TOKEN
     except Exception:
         return
 
@@ -2617,15 +2923,34 @@ def create_direction_upload_session():
     Создает сессию загрузки направления.
     Администратор заполняет форму и получает токен для бота.
     """
+    perm_error = require_permission("create_direction")
+    if perm_error:
+        return perm_error
     db = g.db
-    data = request.json
+    data = request.json or {}
     
-    # Получаем информацию администратора из Telegram
-    telegram_user_id = data.get("telegram_user_id")
-    if not telegram_user_id:
-        return {"error": "telegram_user_id обязателен"}, 400
-    
-    # Проверяем, что админ - действительно администратор
+    telegram_user = getattr(g, "telegram_user", None)
+    telegram_user_id = None
+    if isinstance(telegram_user, dict) and telegram_user.get("id"):
+        telegram_user_id = telegram_user["id"]
+    else:
+        allow_dev = os.getenv("ALLOW_DEV_TELEGRAM_ID_AUTH", "").strip().lower() in (
+            "1",
+            "true",
+            "yes",
+            "y",
+            "on",
+        )
+        if allow_dev:
+            telegram_user_id = request.headers.get("X-Telegram-Id") or data.get("telegram_user_id")
+        if not telegram_user_id:
+            return {"error": "init_data требуется для аутентификации"}, 401
+
+    try:
+        telegram_user_id = int(telegram_user_id)
+    except (TypeError, ValueError):
+        return {"error": "Неверный telegram_id"}, 400
+
     admin = db.query(Staff).filter_by(telegram_id=telegram_user_id).first()
     if not admin or admin.position not in ["администратор", "владелец", "тех. админ"]:
         return {"error": "У вас нет прав администратора"}, 403
@@ -2690,7 +3015,10 @@ def get_upload_session_status(token):
 
 @app.route("/api/directions", methods=["POST"])
 def create_direction():
-    """??????? ????? ??????????? ????? ???????? ??????????"""
+    """Создает направление после загрузки фото ботом"""
+    perm_error = require_permission("create_direction")
+    if perm_error:
+        return perm_error
     db = g.db
     data = request.json
 
@@ -2743,6 +3071,9 @@ def create_direction():
 @app.route("/api/directions/<int:direction_id>", methods=["PUT"])
 def update_direction(direction_id):
     """Обновляет информацию о направлении"""
+    perm_error = require_permission("create_direction")
+    if perm_error:
+        return perm_error
     db = g.db
     data = request.json
     
@@ -2779,6 +3110,9 @@ def update_direction(direction_id):
 @app.route("/api/directions/<int:direction_id>", methods=["DELETE"])
 def delete_direction(direction_id):
     """Удаляет направление"""
+    perm_error = require_permission("create_direction")
+    if perm_error:
+        return perm_error
     db = g.db
     
     direction = db.query(Direction).filter_by(direction_id=direction_id).first()
@@ -2824,8 +3158,22 @@ def upload_direction_photo(token):
         
         print(f"✓ Директория создана: {directions_dir}")
         
-        # Сохраняем файл
-        filename = secure_filename(f"photo_{session.session_id}.jpg")
+        # Сохраняем файл (расширение берем из mimetype/имени файла)
+        mime = (getattr(file, "mimetype", "") or "").lower()
+        orig_ext = os.path.splitext(file.filename or "")[1].lower()
+        ext = orig_ext
+        if mime in ("image/jpeg", "image/jpg"):
+            ext = ".jpg"
+        elif mime == "image/png":
+            ext = ".png"
+        elif mime == "image/webp":
+            ext = ".webp"
+        if ext == ".jpeg":
+            ext = ".jpg"
+        if ext not in {".jpg", ".png", ".webp"}:
+            return {"error": "Поддерживаются только JPG/PNG/WEBP"}, 400
+
+        filename = secure_filename(f"photo_{session.session_id}{ext}")
         filepath = os.path.join(directions_dir, filename)
         file.save(filepath)
         
@@ -2842,7 +3190,8 @@ def upload_direction_photo(token):
         return {
             "message": "Фотография загружена",
             "session_id": session.session_id,
-            "status": "photo_received"
+            "status": "photo_received",
+            "image_path": "/" + session.image_path.replace("\\", "/") if session.image_path else None,
         }, 200
     
     except Exception as e:
@@ -2852,6 +3201,12 @@ def upload_direction_photo(token):
 
 # ======================== ГРУППОВЫЕ АБОНЕМЕНТЫ / ОПЛАТЫ (ЗАГЛУШКА) ========================
 def get_current_user_from_request(db):
+    if getattr(g, "telegram_user", None) and g.telegram_user.get("id"):
+        try:
+            telegram_id = int(g.telegram_user["id"])
+            return db.query(User).filter_by(telegram_id=telegram_id).first()
+        except (TypeError, ValueError):
+            return None
     telegram_id = request.headers.get("X-Telegram-Id") or request.args.get("telegram_id")
     if not telegram_id:
         return None
@@ -3008,7 +3363,7 @@ def _collect_busy_intervals(db, teacher_id: int, target_date: date) -> list[tupl
 
 def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
     try:
-        from config import BOT_TOKEN, BOOKINGS_ADMIN_CHAT_ID
+        from dance_studio.core.config import BOT_TOKEN, BOOKINGS_ADMIN_CHAT_ID
     except Exception:
         return
 
@@ -3470,6 +3825,48 @@ def pay_transaction(payment_id):
     return {"status": "paid"}
 
 
+@app.route("/api/admin/group-abonements/<int:abonement_id>/activate", methods=["POST"])
+def admin_activate_abonement(abonement_id):
+    """
+    Активация абонемента админом (например, после оплаты в Telegram).
+    Меняет статус абонемента на active и, если есть связанная транзакция, ставит её в paid.
+    """
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
+    if not abonement:
+        return {"error": "Абонемент не найден"}, 404
+
+    # Ищем связанную оплату
+    payment = None
+    if abonement.id:
+        payment = (
+            db.query(PaymentTransaction)
+            .filter(
+                PaymentTransaction.user_id == abonement.user_id,
+                PaymentTransaction.meta.ilike(f"%\"abonement_id\": {abonement.id}%"),
+            )
+            .order_by(PaymentTransaction.created_at.desc())
+            .first()
+        )
+
+    if payment and payment.status != "paid":
+        payment.status = "paid"
+        payment.paid_at = datetime.now()
+
+    abonement.status = "active"
+    db.commit()
+
+    return {
+        "status": "active",
+        "abonement_id": abonement.id,
+        "payment_id": payment.id if payment else None,
+    }
+
+
 @app.route("/api/payment-transactions/my", methods=["GET"])
 def get_my_transactions():
     db = g.db
@@ -3544,3 +3941,4 @@ def get_my_groups():
         })
 
     return jsonify(result)
+

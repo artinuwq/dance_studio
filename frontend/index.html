@@ -1628,6 +1628,27 @@ textarea.form-input {
   gap: 12px;
   margin-bottom: 12px;
 }
+.public-type-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 4px;
+}
+.public-type-tab {
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.public-type-tab.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+}
 
 .public-schedule-title {
   display: inline-flex;
@@ -2285,13 +2306,19 @@ textarea.form-input {
 </div>
 <!-- ====== РАСПИСАНИЕ ====== -->
 <div class="page" data-title="🗓 Расписание" id="schedule">
-<div class="public-schedule-header">
-  <div class="public-schedule-title"><span>☆</span>Расписание</div>
-  <div class="public-schedule-action">Фильтр</div>
-</div>
-<div class="public-schedule-month" id="public-schedule-month">—</div>
-<div class="public-schedule-strip" id="public-schedule-strip"></div>
-<div class="public-schedule-list" id="schedule-container">
+  <div class="public-schedule-header">
+    <div class="public-schedule-title"><span>☆</span>Расписание</div>
+    <div class="public-schedule-action">Фильтр</div>
+  </div>
+  <div class="public-type-tabs">
+    <div class="public-type-tab active" data-type="all" onclick="setPublicScheduleType('all')">Все</div>
+    <div class="public-type-tab" data-type="group" onclick="setPublicScheduleType('group')">Групповые</div>
+    <div class="public-type-tab" data-type="individual" onclick="setPublicScheduleType('individual')">Индивидуальные</div>
+    <div class="public-type-tab" data-type="rental" onclick="setPublicScheduleType('rental')">Аренда</div>
+  </div>
+  <div class="public-schedule-month" id="public-schedule-month">—</div>
+  <div class="public-schedule-strip" id="public-schedule-strip"></div>
+  <div class="public-schedule-list" id="schedule-container">
   <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>
 </div>
 </div>
@@ -2828,12 +2855,18 @@ textarea.form-input {
 <div id="direction-photo-status" style="padding: 12px; background: #1f1f1f; border-radius: 8px; margin-bottom: 12px; text-align: center;">
 <p style="margin: 0; color: var(--hint); font-size: 14px;">❌ Фотография не загружена</p>
 </div>
-<!-- Кнопка для получения токена -->
-<button class="save-btn" id="direction-upload-btn" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: var(--accent);">
+<!-- Скрытый file picker -->
+<input id="direction-photo-file" type="file" accept="image/jpeg,image/png,image/webp" style="display: none;" onchange="onDirectionPhotoFileSelected(event)">
+<!-- Загрузка из галереи -->
+<button class="save-btn" id="direction-upload-gallery-btn" onclick="startDirectionGalleryUpload()" style="width: 100%; margin-bottom: 8px; background: var(--accent);">
+      🖼️ Загрузить фото из галереи
+    </button>
+<!-- Альтернатива: загрузка через бота -->
+<button class="save-btn" id="direction-upload-btn" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: #111;">
       📱 Загрузить фото через бот
     </button>
 <p style="font-size: 12px; color: var(--hint); margin: 0; line-height: 1.5;">
-      💡 Нажмите кнопку, скопируйте токен, отправьте его боту и загрузите фотографию. После этого кнопка активируется.
+      💡 Можно загрузить фото из галереи или через бота. После загрузки фото кнопка “Создать направление” станет активной.
     </p>
 </div>
 <button class="save-btn" id="direction-create-btn" onclick="createDirection()" style="width: 100%; margin-bottom: 8px; background: #4CAF50;">
@@ -3312,12 +3345,35 @@ if (tg && typeof tg.ready === 'function') {
 }
 
 function getAuthHeaders(extraHeaders = {}) {
-  const telegramId = tg.initDataUnsafe?.user?.id;
+  const debugTelegramId =
+    (typeof localStorage !== 'undefined' && localStorage.getItem('debug_telegram_id')) || '';
+  const telegramId = tg?.initDataUnsafe?.user?.id || debugTelegramId;
   const headers = { ...extraHeaders };
   if (telegramId) {
     headers['X-Telegram-Id'] = telegramId;
   }
+  if (tg?.initData) {
+    headers['X-Telegram-Init-Data'] = tg.initData;
+  }
   return headers;
+}
+
+function _toPlainHeaders(headers) {
+  if (!headers) return {};
+  if (headers instanceof Headers) {
+    const out = {};
+    headers.forEach((value, key) => {
+      out[key] = value;
+    });
+    return out;
+  }
+  return headers;
+}
+
+function authFetch(url, options = {}) {
+  const extraHeaders = _toPlainHeaders(options.headers);
+  const mergedHeaders = getAuthHeaders(extraHeaders);
+  return fetch(url, { ...options, headers: mergedHeaders });
 }
 
 function updateSafeAreaVars() {
@@ -4898,6 +4954,7 @@ function openTeacherProfilePlaceholder() {
 let scheduleView = 'week';
 let scheduleFocusDate = new Date();
 let scheduleItems = [];
+window.publicScheduleType = 'all';
 let schedulePollTimer = null;
 const SCHEDULE_POLL_INTERVAL = 15000;
 let scheduleInitialized = false;
@@ -6605,6 +6662,19 @@ function displayStaffSchedules(schedules) {
   `).join('');
 }
 
+function setPublicScheduleType(type) {
+  window.publicScheduleType = type || 'all';
+  updatePublicTypeTabs();
+  renderPublicScheduleList();
+}
+
+function updatePublicTypeTabs() {
+  document.querySelectorAll('.public-type-tab').forEach(el => {
+    const t = el.dataset.type || 'all';
+    el.classList.toggle('active', t === (window.publicScheduleType || 'all'));
+  });
+}
+
 async function loadPublicSchedule() {
   try {
     const container = document.getElementById('schedule-container');
@@ -6612,7 +6682,7 @@ async function loadPublicSchedule() {
       container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
     }
     
-    const response = await fetch('/schedule/public');
+    const response = await fetch('/schedule/public', { headers: getAuthHeaders() });
     
     if (!response.ok) {
       if (container) {
@@ -6623,9 +6693,11 @@ async function loadPublicSchedule() {
     
     const schedules = await response.json();
     window.publicScheduleItems = Array.isArray(schedules) ? schedules : [];
+    if (!window.publicScheduleType) window.publicScheduleType = 'all';
     
     preloadPublicDirections().then(() => {
       initPublicScheduleStrip();
+      updatePublicTypeTabs();
       renderPublicScheduleList();
     });
   } catch (error) {
@@ -6712,7 +6784,9 @@ function renderPublicScheduleList() {
   if (!container) return;
   const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
   const selected = window.publicScheduleDate;
-  const filtered = selected ? items.filter(s => s.date === selected) : items;
+  const filteredByDate = selected ? items.filter(s => s.date === selected) : items;
+  const type = window.publicScheduleType || 'all';
+  const filtered = type === 'all' ? filteredByDate : filteredByDate.filter(s => (s.object_type || 'group') === type);
 
   if (!filtered.length) {
     container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 На этот день занятий нет</p>';
@@ -6722,7 +6796,9 @@ function renderPublicScheduleList() {
   const sorted = filtered.slice().sort((a, b) => (a.start || '').localeCompare(b.start || ''));
   container.innerHTML = sorted.map(s => {
     const teacherName = s.teacher_name || (s.teacher && s.teacher.name ? s.teacher.name : '—');
-    const directionTitle = s.direction || '—';
+    const isIndividual = s.object_type === 'individual';
+    const isRental = s.object_type === 'rental';
+    const directionTitle = isIndividual || isRental ? '' : (s.direction || '—');
     const startTime = formatTimeShort(s.start);
     const endTime = formatTimeShort(s.end);
     const duration = getDurationMinutes(startTime, endTime);
@@ -6736,8 +6812,8 @@ function renderPublicScheduleList() {
         </div>
         <div>
           <div class="public-info-title">${s.title || 'Занятие'}</div>
-          <div class="public-info-sub">${directionTitle}</div>
-          <div class="public-info-sub">Групповое занятие</div>
+          ${directionTitle ? `<div class="public-info-sub">${directionTitle}</div>` : ''}
+          <div class="public-info-sub">${isRental ? 'Аренда зала' : isIndividual ? 'Индивидуальное занятие' : 'Групповое занятие'}</div>
           <div class="public-info-teacher">${teacherName}</div>
         </div>
         <div class="public-chevron">›</div>
@@ -6805,7 +6881,7 @@ function openPublicScheduleDetail(id) {
 
 async function loadTeachers() {
   try {
-    const response = await fetch('/staff/list/teachers');
+    const response = await fetch('/api/teachers');
     if (!response.ok) return [];
     return await response.json();
   } catch (error) {
@@ -8684,7 +8760,7 @@ window.showPage = function(pageId) {
 
 /* ====== УПРАВЛЕНИЕ НАПРАВЛЕНИЯМИ ====== */
 
-async function generateDirectionUploadToken() {
+async function createDirectionUploadSessionFromForm() {
   // Получаем данные из формы
   const title = document.getElementById('direction-title').value.trim();
   const description = document.getElementById('direction-description').value.trim();
@@ -8710,71 +8786,176 @@ async function generateDirectionUploadToken() {
   }
   
   // Получаем Telegram ID админа
-  const telegramUserId = tg.initDataUnsafe?.user?.id;
+  const telegramUserId =
+    tg?.initDataUnsafe?.user?.id ||
+    ((typeof localStorage !== 'undefined' && localStorage.getItem('debug_telegram_id')) || '');
   if (!telegramUserId) {
-    showDirectionError('Ошибка: не удалось получить ID из Telegram');
-    return;
+    showDirectionError('Не удалось получить telegram_id (откройте WebApp в Telegram или задайте debug_telegram_id)');
+    return null;
   }
   
   try {
     // Создаем сессию на сервере
-    const response = await fetch('/api/directions/create-session', {
+    const response = await authFetch('/api/directions/create-session', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         telegram_user_id: telegramUserId,
         title: title,
         direction_type: directionType,
         description: description,
-        base_price: parseInt(price)
+        base_price: parseInt(price, 10)
       })
     });
     
-    const data = await response.json();
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
     
     if (!response.ok) {
-      showDirectionError(data.error || 'Ошибка при создании сессии');
-      return;
+      showDirectionError((data && data.error) ? data.error : 'Ошибка при создании сессии');
+      return null;
     }
     
     // Сохраняем токен в localStorage
     localStorage.setItem('direction_session_token', data.session_token);
     localStorage.setItem('direction_session_id', data.session_id);
     
-    const token = data.session_token;
-    
-    // Сохраняем токен в буфер обмена для удобства
-    navigator.clipboard.writeText(token).catch(() => {
-      // Если копирование не сработало - ничего страшного
-    });
-    
-    // Открываем бота с параметром session_token
-    // Используем обычную https ссылку, которую tg.openLink откроет в Telegram приложении
-    const botUsername = 'dance_studio_tester_bot';
-    const botLink = `https://t.me/${botUsername}?start=upload_${token}`;
-    
-    console.log('Открываем бота с ссылкой:', botLink);
-    
-    // Открываем через Telegram Web App API
-    // tg.openLink() автоматически откроет приложение Telegram если оно установлено
-    try {
-      tg.openLink(botLink);
-      
-      // Показываем уведомление
-      showDirectionSuccess('? Бот открыт! Загрузите фотографию.');
-      
-      // Обновляем статус загрузки
-      checkDirectionPhotoStatus(token);
-    } catch (err) {
-      console.error('Ошибка при открытии бота:', err);
-      showDirectionError('Не удалось открыть бота. Попробуйте еще раз.');
-    }
-    
+    return { token: data.session_token, sessionId: data.session_id };
   } catch (error) {
     console.error('Ошибка:', error);
     showDirectionError('Ошибка сети: ' + error.message);
+    return null;
+  }
+}
+
+async function startDirectionGalleryUpload() {
+  const session = await createDirectionUploadSessionFromForm();
+  if (!session) return;
+
+  window.pendingDirectionPhotoToken = session.token;
+
+  const input = document.getElementById('direction-photo-file');
+  if (!input) {
+    showDirectionError('Не найден input для загрузки фото');
+    return;
+  }
+
+  try {
+    input.value = '';
+    input.click();
+  } catch (err) {
+    console.error('Не удалось открыть file picker:', err);
+    showDirectionError('Не удалось открыть галерею. Попробуйте еще раз.');
+  }
+}
+
+async function onDirectionPhotoFileSelected(event) {
+  const input = event?.target;
+  const file = input?.files?.[0];
+  if (!file) return;
+
+  const token =
+    window.pendingDirectionPhotoToken ||
+    (typeof localStorage !== 'undefined' && localStorage.getItem('direction_session_token')) ||
+    '';
+
+  if (!token) {
+    showDirectionError('Сначала создайте сессию загрузки');
+    return;
+  }
+
+  const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+  if (file.type && !allowedTypes.has(file.type)) {
+    showDirectionError('Поддерживаются только JPG/PNG/WEBP');
+    return;
+  }
+
+  const status = document.getElementById('direction-photo-status');
+  if (status) {
+    status.innerHTML = '<p style="margin: 0; color: var(--hint); font-size: 14px;">⏳ Загружаем фотографию...</p>';
+  }
+
+  try {
+    const formData = new FormData();
+    formData.append('photo', file, file.name || 'photo');
+
+    const response = await authFetch(`/api/directions/photo/${token}`, {
+      method: 'POST',
+      body: formData
+    });
+
+    let data = null;
+    try {
+      data = await response.json();
+    } catch {
+      data = null;
+    }
+
+    if (!response.ok) {
+      showDirectionError((data && data.error) ? data.error : 'Ошибка при загрузке фото');
+      if (status) {
+        status.innerHTML = '<p style="margin: 0; color: var(--hint); font-size: 14px;">❌ Фотография не загружена</p>';
+      }
+      return;
+    }
+
+    // Обновляем UI сразу, без polling
+    if (status) {
+      status.innerHTML = '<p style="margin: 0; color: #4CAF50; font-size: 14px;">✅ Фотография загружена</p>';
+    }
+
+    const createBtn = document.getElementById('direction-create-btn');
+    if (createBtn) {
+      createBtn.style.opacity = '1';
+      createBtn.disabled = false;
+    }
+
+    localStorage.setItem('direction_upload_token', token);
+    window.pendingDirectionPhotoToken = null;
+
+    showDirectionSuccess('Фотография успешно загружена! Теперь нажмите "Создать направление"');
+  } catch (error) {
+    console.error('Ошибка при загрузке фото:', error);
+    showDirectionError('Ошибка сети: ' + error.message);
+    if (status) {
+      status.innerHTML = '<p style="margin: 0; color: var(--hint); font-size: 14px;">❌ Фотография не загружена</p>';
+    }
+  }
+}
+
+async function generateDirectionUploadToken() {
+  const session = await createDirectionUploadSessionFromForm();
+  if (!session) return;
+
+  const token = session.token;
+
+  // Сохраняем токен в буфер обмена для удобства
+  navigator.clipboard.writeText(token).catch(() => {
+    // ignore clipboard errors
+  });
+
+  // Открываем бота с параметром session_token
+  const botUsername = 'dance_studio_tester_bot';
+  const botLink = `https://t.me/${botUsername}?start=upload_${token}`;
+
+  console.log('Открываем бота с ссылкой:', botLink);
+
+  try {
+    if (tg?.openLink) {
+      tg.openLink(botLink);
+    } else {
+      window.open(botLink, '_blank');
+    }
+
+    showDirectionSuccess('? Бот открыт! Загрузите фотографию.');
+    checkDirectionPhotoStatus(token);
+  } catch (err) {
+    console.error('Ошибка при открытии бота:', err);
+    showDirectionError('Не удалось открыть бота. Попробуйте еще раз.');
   }
 }
 
@@ -8834,9 +9015,7 @@ async function createDirection() {
   try {
     const response = await fetch('/api/directions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         session_token: token,
         direction_type: directionType,
@@ -8882,6 +9061,11 @@ function resetDirectionForm() {
   document.getElementById('direction-error-msg').style.display = 'none';
   document.getElementById('direction-success-msg').style.display = 'none';
   localStorage.removeItem('direction_upload_token');
+  localStorage.removeItem('direction_session_token');
+  localStorage.removeItem('direction_session_id');
+  window.pendingDirectionPhotoToken = null;
+  const fileInput = document.getElementById('direction-photo-file');
+  if (fileInput) fileInput.value = '';
 }
 
 function showDirectionError(message) {
@@ -8911,21 +9095,35 @@ function showDirectionSuccess(message) {
 let currentDirectionTab = 'active'; // Текущая активная вкладка
 
 async function loadDirections() {
+  const container = document.getElementById('directions-groups-container');
   try {
-    const response = await fetch('/api/directions/manage');
-    const directions = await response.json();
-    
-    // Разделяем активные и архивные направления
+    const response = await authFetch('/api/directions/manage');
+    let payload = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+
+    if (!response.ok) {
+      const message = (payload && payload.error) ? payload.error : 'Ошибка загрузки направлений';
+      if (container) {
+        container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ ${escapeHtml(String(message))}</p>`;
+      }
+      return;
+    }
+
+    const directions = Array.isArray(payload) ? payload : [];
     const activeDirections = directions.filter(d => d.status === 'active');
     const archivedDirections = directions.filter(d => d.status !== 'active');
-    
-    // Отображаем текущую вкладку
+
     renderDirections(currentDirectionTab === 'active' ? activeDirections : archivedDirections);
-    
   } catch (error) {
     console.error('Ошибка при загрузке направлений:', error);
-    const container = document.getElementById('directions-groups-container');
-    container.innerHTML = '<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ Ошибка при загрузке</p>';
+    const message = error && error.message ? error.message : 'Ошибка сети';
+    if (container) {
+      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ ${escapeHtml(String(message))}</p>`;
+    }
   }
 }
 
@@ -9125,7 +9323,7 @@ function loadGroupTeachers() {
 
   results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Загрузка преподавателей...</p>`;
 
-  fetch('/staff/list/teachers')
+  fetch('/api/teachers')
     .then(async res => {
       if (!res.ok) {
         const err = await res.json();
@@ -9246,7 +9444,7 @@ function createDirectionGroup() {
     return;
   }
 
-  fetch(`/api/directions/${directionId}/groups`, {
+  authFetch(`/api/directions/${directionId}/groups`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -9302,7 +9500,7 @@ function loadEditGroupTeachers() {
 
   results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Загрузка преподавателей...</p>`;
 
-  fetch('/staff/list/teachers')
+  fetch('/api/teachers')
     .then(async res => {
       if (!res.ok) {
         const err = await res.json();
@@ -9442,7 +9640,7 @@ function saveGroupChanges() {
     return;
   }
 
-  fetch(`/api/groups/${groupId}`, {
+  authFetch(`/api/groups/${groupId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -9497,7 +9695,7 @@ function saveDirectionChanges() {
   
   fetch(`/api/directions/${directionId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       title,
       description,
@@ -9517,7 +9715,7 @@ function saveDirectionChanges() {
 
 function archiveDirection(directionId) {
   if (confirm('Архивировать это направление?')) {
-    fetch(`/api/directions/${directionId}`, { method: 'DELETE' })
+    fetch(`/api/directions/${directionId}`, { method: 'DELETE', headers: getAuthHeaders() })
       .then(r => r.json())
       .then(data => {
         alert('? Направление архивировано');

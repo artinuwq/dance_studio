@@ -1,9 +1,16 @@
 import asyncio
 import threading
 import logging
+import sys
+from pathlib import Path
 
-from backend.app import app
-from bot.bot import run_bot
+ROOT = Path(__file__).resolve().parents[1]
+SRC_PATH = ROOT / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
+
+from dance_studio.web.app import app
+from dance_studio.bot.bot import run_bot
 
 logging.basicConfig(level=logging.INFO)
 

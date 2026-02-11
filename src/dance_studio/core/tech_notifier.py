@@ -3,11 +3,17 @@ from pathlib import Path
 from typing import Optional
 import requests
 
-from settings import BOT_TOKEN, TECH_LOGS_CHAT_ID, TECH_BACKUPS_TOPIC_ID, TECH_CRITICAL_TOPIC_ID
+from dance_studio.core.config import (
+    BOT_TOKEN,
+    TECH_LOGS_CHAT_ID,
+    TECH_BACKUPS_TOPIC_ID,
+    TECH_CRITICAL_TOPIC_ID,
+)
 
 
 def _env_file_path() -> Path:
-    return Path(__file__).resolve().parent.parent / ".env"
+    # .env лежит в корне проекта
+    return Path(__file__).resolve().parents[3] / ".env"
 
 
 def _upsert_env_value(key: str, value: int) -> None:

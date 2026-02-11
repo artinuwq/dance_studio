@@ -9,7 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
-from config import (
+from dance_studio.core.config import (
     BOT_TOKEN,
     WEB_APP_URL,
     TECH_LOGS_CHAT_ID,
@@ -21,10 +21,10 @@ from config import (
     TECH_ADMIN_ID,
     BOOKINGS_ADMIN_CHAT_ID,
 )
-from backend.db import get_session
-from backend.permissions import has_permission
-from backend.models import News, User, Mailing, Group, DirectionUploadSession, Staff, BookingRequest, Schedule, IndividualLesson
-from backend.booking_utils import format_booking_message, build_booking_keyboard_data
+from dance_studio.db import get_session
+from dance_studio.core.permissions import has_permission
+from dance_studio.db.models import News, User, Mailing, Group, DirectionUploadSession, Staff, BookingRequest, Schedule, IndividualLesson, GroupAbonement
+from dance_studio.core.booking_utils import format_booking_message, build_booking_keyboard_data
 from sqlalchemy import or_
 from datetime import datetime, time as dt_time, timedelta
 import os
@@ -44,13 +44,14 @@ TECH_STATUS_MESSAGE_ID_RUNTIME = TECH_STATUS_MESSAGE_ID
 
 BACKUP_KEEP_COUNT = 3
 BACKUP_LOCK = asyncio.Lock()
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-BACKUP_SOURCE_DIR = PROJECT_ROOT / "database"
-BACKUP_DIR = BACKUP_SOURCE_DIR / "backups"
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+VAR_ROOT = PROJECT_ROOT / "var"
+BACKUP_SOURCE_DIR = VAR_ROOT / "db"
+BACKUP_DIR = VAR_ROOT / "backups"
 
 
 def _env_file_path() -> Path:
-    return Path(__file__).resolve().parent.parent / ".env"
+    return Path(__file__).resolve().parents[3] / ".env"
 
 
 def _upsert_env_value(key: str, value: int) -> None:
@@ -409,7 +410,7 @@ async def start(message, state: FSMContext):
         menu_button=MenuButtonWebApp(
             text="🩰 LISSA DANCE",
             web_app=WebAppInfo(
-                url=(WEB_APP_URL or "https://lumica.duckdns.org/")
+                url=(WEB_APP_URL)
             )
         )
     )
@@ -698,7 +699,7 @@ async def handle_news_confirmation(message, state: FSMContext):
                     photo_bytes = b64.b64decode(base64_str)
                     
                     # Сохраняем фото
-                    from backend.media_manager import MEDIA_DIR
+                    from dance_studio.core.media_manager import MEDIA_DIR
                     import os
                     news_dir = os.path.join(MEDIA_DIR, "news", str(news.id))
                     os.makedirs(news_dir, exist_ok=True)
@@ -708,7 +709,7 @@ async def handle_news_confirmation(message, state: FSMContext):
                         f.write(photo_bytes)
                     
                     # Сохраняем путь в БД
-                    photo_path = f"database/media/news/{news.id}/photo.jpg"
+                    photo_path = f"var/media/news/{news.id}/photo.jpg"
                     news.photo_path = photo_path
                     db.commit()
                 except Exception as e:
@@ -913,12 +914,12 @@ async def run_bot():
     try:
         me = await bot.get_me()
         bot_username = me.username
-        print(f"✅ Бот запущен: @{bot_username}")
+        print(f"[bot] started: @{bot_username}")
         # Сохраняем в глобальную переменную
         global BOT_USERNAME_GLOBAL
         BOT_USERNAME_GLOBAL = bot_username
     except Exception as e:
-        print(f"⚠️ Не удалось получить информацию о боте: {e}")
+        print(f"[bot] failed to get bot info: {e}")
     
     # Запускаем обработку очереди рассылок в фоне
     backup_task = None
@@ -1042,6 +1043,46 @@ def _sync_booking_status_to_schedule(db, booking: BookingRequest, staff: Staff |
             lesson.status_updated_by_id = staff.id if staff else None
 
 
+def _activate_group_abonement_from_booking(db, booking: BookingRequest) -> GroupAbonement | None:
+    if booking.object_type != "group":
+        return None
+    if not booking.user_id or not booking.group_id:
+        return None
+
+    lessons = booking.lessons_count or 0
+    if lessons <= 0:
+        lessons = 4  # базовый фолбэк, если количество не задано
+
+    valid_from = datetime.combine(booking.group_start_date, time.min) if booking.group_start_date else datetime.now()
+    valid_to = booking.valid_until or (valid_from + timedelta(days=30))
+
+    abonement = (
+        db.query(GroupAbonement)
+        .filter_by(user_id=booking.user_id, group_id=booking.group_id, status="pending_activation")
+        .order_by(GroupAbonement.created_at.desc())
+        .first()
+    )
+    if not abonement:
+        abonement = GroupAbonement(
+            user_id=booking.user_id,
+            group_id=booking.group_id,
+            balance_credits=lessons,
+            status="active",
+            valid_from=valid_from,
+            valid_to=valid_to,
+        )
+        db.add(abonement)
+    else:
+        abonement.status = "active"
+        if lessons:
+            abonement.balance_credits = lessons
+        if abonement.valid_from is None:
+            abonement.valid_from = valid_from
+        if abonement.valid_to is None:
+            abonement.valid_to = valid_to
+    return abonement
+
+
 @dp.callback_query(F.data.startswith("booking"))
 async def handle_booking_action(callback: CallbackQuery):
     if not callback.data or not callback.message:
@@ -1150,6 +1191,9 @@ async def handle_booking_action(callback: CallbackQuery):
 
         _sync_booking_status_to_schedule(db, booking, staff, next_status)
 
+        if next_status == "PAID" and booking.object_type == "group":
+            _activate_group_abonement_from_booking(db, booking)
+
         db.commit()
 
         user = db.query(User).filter_by(id=booking.user_id).first()
@@ -1200,7 +1244,7 @@ async def start_direction_upload(message, state: FSMContext):
     # Проверяем, что это администратор
     db = get_session()
     try:
-        from backend.models import Staff
+        from dance_studio.db.models import Staff
         admin = db.query(Staff).filter_by(telegram_id=user_id).first()
         
         if not admin or admin.position not in ["администратор", "владелец", "тех. админ"]:

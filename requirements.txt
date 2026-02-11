@@ -4,3 +4,4 @@ SQLAlchemy
 aiogram
 aiohttp
 requests
+telethon
