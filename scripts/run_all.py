@@ -11,20 +11,26 @@ if str(SRC_PATH) not in sys.path:
 
 from dance_studio.web.app import app
 from dance_studio.bot.bot import run_bot
+from dance_studio.db import ensure_schema_dev, bootstrap_data
 
 logging.basicConfig(level=logging.INFO)
 
+
 def run_flask():
     try:
-        app.run(host="127.0.0.1", 
-                port=3000, 
-                debug=False, 
+        app.run(host="127.0.0.1",
+                port=3000,
+                debug=False,
                 use_reloader=False)
-        
+
     except Exception:
         logging.exception("Flask crashed")
 
+
 async def main():
+    ensure_schema_dev()
+    bootstrap_data()
+
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
 
@@ -33,6 +39,7 @@ async def main():
     except Exception:
         logging.exception("Bot crashed")
         raise
+
 
 if __name__ == "__main__":
     asyncio.run(main())

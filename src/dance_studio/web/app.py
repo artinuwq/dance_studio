@@ -11,10 +11,10 @@ import logging
 import uuid
 import requests
 from pathlib import Path
-from sqlalchemy import or_, text
+from sqlalchemy import or_
 from werkzeug.exceptions import HTTPException
 
-from dance_studio.db import init_db, get_session, DB_PATH, Session, engine
+from dance_studio.db import get_session, Session
 from dance_studio.db.models import (
     Schedule,
     News,
@@ -42,7 +42,7 @@ from dance_studio.core.booking_utils import (
     build_booking_keyboard_data,
 )
 from dance_studio.core.tg_auth import validate_init_data
-from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, BOT_TOKEN
+from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, BOT_TOKEN, APP_SECRET_KEY, DATABASE_URL
 
 # Flask-Admin
 from flask_admin import Admin, AdminIndexView
@@ -62,35 +62,8 @@ SESSION_TTL_SECONDS = 7 * 24 * 3600  # 7 days sliding
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
-app.secret_key = os.getenv("APP_SECRET_KEY") or os.getenv("FLASK_SECRET_KEY") or 'dance-studio-secret-key-2026'  # предпочитайте APP_SECRET_KEY из окружения
-init_db()
-
-def ensure_groups_lessons_per_week_column():
-    try:
-        with engine.begin() as conn:
-            columns = [row[1] for row in conn.execute(text("PRAGMA table_info(groups)")).fetchall()]
-            if "lessons_per_week" not in columns:
-                conn.execute(text("ALTER TABLE groups ADD COLUMN lessons_per_week INTEGER"))
-                print("✅ Добавлена колонка lessons_per_week в таблицу groups")
-    except Exception as exc:
-        print(f"⚠️ Не удалось проверить/добавить колонку lessons_per_week: {exc}")
-
-ensure_groups_lessons_per_week_column()
-def ensure_groups_chat_columns():
-    try:
-        with engine.begin() as conn:
-            columns = [row[1] for row in conn.execute(text("PRAGMA table_info(groups)")).fetchall()]
-            if "chat_id" not in columns:
-                conn.execute(text("ALTER TABLE groups ADD COLUMN chat_id INTEGER"))
-                print("✓ Добавлена колонка chat_id в таблицу groups")
-            if "chat_invite_link" not in columns:
-                conn.execute(text("ALTER TABLE groups ADD COLUMN chat_invite_link TEXT"))
-                print("✓ Добавлена колонка chat_invite_link в таблицу groups")
-    except Exception as exc:
-        print(f"⚠️ Не удалось добавить колонки чатов в groups: {exc}")
-
-ensure_groups_chat_columns()
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
+app.secret_key = APP_SECRET_KEY
 
 
 def _session_secret() -> bytes:

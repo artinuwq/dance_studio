@@ -58,9 +58,17 @@ _ROOT = Path(__file__).resolve().parents[3]
 _load_dotenv(_ROOT / '.env')
 
 BOT_TOKEN = os.getenv('BOT_TOKEN', '')
-DB_FILE = os.getenv('DB_FILE', 'var/db/dance.db')
 BOT_USERNAME = os.getenv('BOT_USERNAME', 'dance_studio_admin_bot')
 WEB_APP_URL = os.getenv('WEB_APP_URL', '')
+
+DATABASE_URL = os.getenv('DATABASE_URL')
+ENV = os.getenv('ENV', 'dev').strip().lower()
+AUTO_CREATE_SCHEMA = _parse_bool(os.getenv('AUTO_CREATE_SCHEMA', '0'), False)
+
+APP_SECRET_KEY = os.getenv('APP_SECRET_KEY')
+if not APP_SECRET_KEY:
+    raise RuntimeError('APP_SECRET_KEY environment variable is required')
+
 OWNER_IDS = _parse_int_list(os.getenv('OWNER_IDS', ''), [])
 TECH_ADMIN_ID = _parse_int(os.getenv('TECH_ADMIN_ID', ''), None)
 BETA_TEST_MODE = _parse_bool(os.getenv('BETA_TEST_MODE', ''), True)
