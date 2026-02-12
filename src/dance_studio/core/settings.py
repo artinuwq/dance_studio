@@ -75,6 +75,10 @@ APP_SECRET_KEY = os.getenv('APP_SECRET_KEY')
 if not APP_SECRET_KEY:
     raise RuntimeError('APP_SECRET_KEY environment variable is required')
 
+SESSION_PEPPER = os.getenv('SESSION_PEPPER') or APP_SECRET_KEY
+COOKIE_SECURE = _parse_bool(os.getenv('COOKIE_SECURE', '1' if ENV != 'dev' else '0'), ENV != 'dev')
+COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'None' if COOKIE_SECURE else 'Lax')
+
 OWNER_IDS = _parse_int_list(os.getenv('OWNER_IDS', ''), [])
 TECH_ADMIN_ID = _parse_int(os.getenv('TECH_ADMIN_ID', ''), None)
 BETA_TEST_MODE = _parse_bool(os.getenv('BETA_TEST_MODE', ''), True)

@@ -9,6 +9,7 @@ import logging
 import uuid
 import requests
 from pathlib import Path
+from urllib.parse import urlparse
 from sqlalchemy import or_
 from werkzeug.exceptions import HTTPException
 
@@ -49,6 +50,11 @@ from dance_studio.core.config import (
     SESSION_TTL_DAYS,
     MAX_SESSIONS_PER_USER,
     ROTATE_IF_DAYS_LEFT,
+    ENV,
+    WEB_APP_URL,
+    COOKIE_SECURE,
+    COOKIE_SAMESITE,
+    SESSION_PEPPER,
 )
 
 # Flask-Admin
@@ -66,6 +72,8 @@ VAR_ROOT = PROJECT_ROOT / "var"
 MEDIA_ROOT = VAR_ROOT / "media"
 ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
 SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 3600
+STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+CSRF_EXEMPT_PATHS = {"/auth/telegram", "/health"}
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
@@ -78,8 +86,22 @@ def _hash_user_agent(user_agent: str | None) -> str | None:
     return hashlib.sha256(user_agent.encode("utf-8")).hexdigest()
 
 
-def _delete_expired_sessions(db) -> None:
-    db.query(SessionRecord).filter(SessionRecord.expires_at < datetime.utcnow()).delete(synchronize_session=False)
+def _sid_hash(sid: str) -> str:
+    return hashlib.sha256(f"{sid}:{SESSION_PEPPER}".encode("utf-8")).hexdigest()
+
+
+def _origin_from_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def _is_same_origin(value: str | None, allowed_origins: set[str]) -> bool:
+    origin = _origin_from_url(value)
+    return bool(origin and origin in allowed_origins)
 
 
 def _delete_expired_sessions_for_user(db, telegram_id: int) -> None:
@@ -104,8 +126,8 @@ def _set_sid_cookie(response, sid: str) -> None:
         sid,
         max_age=SESSION_TTL_SECONDS,
         httponly=True,
-        secure=True,
-        samesite="None",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         path="/",
     )
 
@@ -116,8 +138,8 @@ def _clear_sid_cookie(response) -> None:
         "",
         max_age=0,
         httponly=True,
-        secure=True,
-        samesite="None",
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
         path="/",
     )
 
@@ -155,7 +177,8 @@ def auth_telegram():
     try:
         _delete_expired_sessions_for_user(db, telegram_id)
         db.add(SessionRecord(
-            id=sid,
+            id=secrets.token_hex(32),
+            sid_hash=_sid_hash(sid),
             telegram_id=telegram_id,
             user_agent_hash=user_agent_hash,
             created_at=now,
@@ -180,7 +203,7 @@ def auth_logout():
     sid = request.cookies.get("sid")
     if sid:
         try:
-            db.query(SessionRecord).filter(SessionRecord.id == sid).delete(synchronize_session=False)
+            db.query(SessionRecord).filter(SessionRecord.sid_hash == _sid_hash(sid)).delete(synchronize_session=False)
             db.commit()
         except Exception:
             db.rollback()
@@ -312,29 +335,39 @@ def before_request():
     g.rotate_sid = None
     g.clear_sid_cookie = False
 
+    if request.method in STATE_CHANGING_METHODS and request.path not in CSRF_EXEMPT_PATHS:
+        allowed_origins = {_origin_from_url(request.host_url)}
+        web_origin = _origin_from_url(WEB_APP_URL)
+        if web_origin:
+            allowed_origins.add(web_origin)
+        origin_ok = _is_same_origin(request.headers.get("Origin"), allowed_origins)
+        referer_ok = _is_same_origin(request.headers.get("Referer"), allowed_origins)
+        if not (origin_ok or referer_ok):
+            return {"error": "CSRF validation failed"}, 403
+
     sid = request.cookies.get("sid")
     if not sid:
         return
 
     db = g.db
-    session = db.query(SessionRecord).filter_by(id=sid).first()
+    session = db.query(SessionRecord).filter_by(sid_hash=_sid_hash(sid)).first()
     if not session:
         g.clear_sid_cookie = True
-        return {"error": "Сессия не найдена"}, 401
+        return
 
     now = datetime.utcnow()
     if session.expires_at <= now:
         db.delete(session)
         db.commit()
         g.clear_sid_cookie = True
-        return {"error": "Сессия истекла"}, 401
+        return
 
     expected_hash = _hash_user_agent(request.headers.get("User-Agent"))
     if session.user_agent_hash != expected_hash:
         db.delete(session)
         db.commit()
         g.clear_sid_cookie = True
-        return {"error": "Недействительная сессия"}, 401
+        return
 
     g.telegram_id = session.telegram_id
     g.telegram_user = {"id": session.telegram_id}
@@ -343,7 +376,8 @@ def before_request():
         new_sid = secrets.token_hex(32)
         new_expires_at = now + timedelta(days=SESSION_TTL_DAYS)
         db.add(SessionRecord(
-            id=new_sid,
+            id=secrets.token_hex(32),
+            sid_hash=_sid_hash(new_sid),
             telegram_id=session.telegram_id,
             user_agent_hash=session.user_agent_hash,
             created_at=now,

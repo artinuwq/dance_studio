@@ -29,7 +29,8 @@ class SessionRecord(Base):
     id = Column(String(64), primary_key=True)
     telegram_id = Column(Integer, nullable=False)
     user_agent_hash = Column(String(64), nullable=True)
-    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    sid_hash = Column(String(64), unique=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False)
 
     __table_args__ = (
