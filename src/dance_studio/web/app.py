@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from sqlalchemy import or_
 from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dance_studio.db import get_session, Session
 from dance_studio.db.models import (
@@ -76,6 +77,7 @@ STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 CSRF_EXEMPT_PATHS = {"/auth/telegram", "/health"}
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.logger.setLevel(logging.INFO)
 app.secret_key = APP_SECRET_KEY
 
@@ -102,6 +104,41 @@ def _origin_from_url(url: str | None) -> str | None:
 def _is_same_origin(value: str | None, allowed_origins: set[str]) -> bool:
     origin = _origin_from_url(value)
     return bool(origin and origin in allowed_origins)
+
+
+def _build_csrf_trusted_origins() -> set[str]:
+    trusted: set[str] = set()
+
+    web_origin = _origin_from_url(WEB_APP_URL)
+    if web_origin:
+        trusted.add(web_origin)
+
+    host = request.headers.get("Host")
+    if host:
+        scheme = (request.headers.get("X-Forwarded-Proto") or request.scheme or "https").split(",", 1)[0].strip()
+        trusted.add(f"{scheme}://{host}")
+
+    csrf_env = os.getenv("CSRF_TRUSTED_ORIGINS", "")
+    for origin in csrf_env.split(","):
+        origin = origin.strip()
+        if origin:
+            trusted.add(origin)
+
+    return trusted
+
+
+def _is_csrf_valid() -> bool:
+    trusted = _build_csrf_trusted_origins()
+    if not trusted:
+        return False
+
+    origin = request.headers.get("Origin", "")
+    referer = request.headers.get("Referer", "")
+
+    for allowed in trusted:
+        if origin.startswith(allowed) or referer.startswith(allowed):
+            return True
+    return False
 
 
 def _delete_expired_sessions_for_user(db, telegram_id: int) -> None:
@@ -336,58 +373,58 @@ def before_request():
     g.clear_sid_cookie = False
 
     if request.method in STATE_CHANGING_METHODS and request.path not in CSRF_EXEMPT_PATHS:
-        allowed_origins = {_origin_from_url(request.host_url)}
-        web_origin = _origin_from_url(WEB_APP_URL)
-        if web_origin:
-            allowed_origins.add(web_origin)
-        origin_ok = _is_same_origin(request.headers.get("Origin"), allowed_origins)
-        referer_ok = _is_same_origin(request.headers.get("Referer"), allowed_origins)
-        if not (origin_ok or referer_ok):
+        if not _is_csrf_valid():
             return {"error": "CSRF validation failed"}, 403
 
     sid = request.cookies.get("sid")
     if not sid:
         return
 
-    db = g.db
-    session = db.query(SessionRecord).filter_by(sid_hash=_sid_hash(sid)).first()
-    if not session:
+    try:
+        db = g.db
+        session = db.query(SessionRecord).filter_by(sid_hash=_sid_hash(sid)).first()
+        if not session:
+            g.clear_sid_cookie = True
+            return
+
+        now = datetime.utcnow()
+        if session.expires_at <= now:
+            db.delete(session)
+            db.commit()
+            g.clear_sid_cookie = True
+            return
+
+        expected_hash = _hash_user_agent(request.headers.get("User-Agent"))
+        if session.user_agent_hash != expected_hash:
+            db.delete(session)
+            db.commit()
+            g.clear_sid_cookie = True
+            return
+
+        g.telegram_id = session.telegram_id
+        g.telegram_user = {"id": session.telegram_id}
+
+        if session.expires_at - now < timedelta(days=ROTATE_IF_DAYS_LEFT):
+            new_sid = secrets.token_hex(32)
+            new_expires_at = now + timedelta(days=SESSION_TTL_DAYS)
+            db.add(SessionRecord(
+                id=secrets.token_hex(32),
+                sid_hash=_sid_hash(new_sid),
+                telegram_id=session.telegram_id,
+                user_agent_hash=session.user_agent_hash,
+                created_at=now,
+                expires_at=new_expires_at,
+            ))
+            db.delete(session)
+            db.flush()
+            _enforce_session_limit(db, session.telegram_id)
+            db.commit()
+            g.rotate_sid = new_sid
+    except Exception:
+        g.db.rollback()
+        app.logger.exception("Session validation failed")
         g.clear_sid_cookie = True
         return
-
-    now = datetime.utcnow()
-    if session.expires_at <= now:
-        db.delete(session)
-        db.commit()
-        g.clear_sid_cookie = True
-        return
-
-    expected_hash = _hash_user_agent(request.headers.get("User-Agent"))
-    if session.user_agent_hash != expected_hash:
-        db.delete(session)
-        db.commit()
-        g.clear_sid_cookie = True
-        return
-
-    g.telegram_id = session.telegram_id
-    g.telegram_user = {"id": session.telegram_id}
-
-    if session.expires_at - now < timedelta(days=ROTATE_IF_DAYS_LEFT):
-        new_sid = secrets.token_hex(32)
-        new_expires_at = now + timedelta(days=SESSION_TTL_DAYS)
-        db.add(SessionRecord(
-            id=secrets.token_hex(32),
-            sid_hash=_sid_hash(new_sid),
-            telegram_id=session.telegram_id,
-            user_agent_hash=session.user_agent_hash,
-            created_at=now,
-            expires_at=new_expires_at,
-        ))
-        db.delete(session)
-        db.flush()
-        _enforce_session_limit(db, session.telegram_id)
-        db.commit()
-        g.rotate_sid = new_sid
 
 
 @app.teardown_request
