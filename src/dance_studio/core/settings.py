@@ -68,6 +68,8 @@ _migrate_default = '1' if ENV == 'dev' else '0'
 MIGRATE_ON_START = _parse_bool(os.getenv('MIGRATE_ON_START', _migrate_default), ENV == 'dev')
 BOOTSTRAP_ON_START = _parse_bool(os.getenv('BOOTSTRAP_ON_START', '0'), False)
 SESSION_TTL_DAYS = _parse_int(os.getenv('SESSION_TTL_DAYS', '60'), 60) or 60
+MAX_SESSIONS_PER_USER = _parse_int(os.getenv('MAX_SESSIONS_PER_USER', '5'), 5) or 5
+ROTATE_IF_DAYS_LEFT = _parse_int(os.getenv('ROTATE_IF_DAYS_LEFT', '7'), 7) or 7
 
 APP_SECRET_KEY = os.getenv('APP_SECRET_KEY')
 if not APP_SECRET_KEY:

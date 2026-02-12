@@ -34,6 +34,7 @@ class SessionRecord(Base):
 
     __table_args__ = (
         Index("ix_sessions_expires_at", "expires_at"),
+        Index("ix_sessions_telegram_id", "telegram_id"),
     )
 
 

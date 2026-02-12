@@ -41,7 +41,15 @@ from dance_studio.core.booking_utils import (
     build_booking_keyboard_data,
 )
 from dance_studio.core.tg_auth import validate_init_data
-from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, BOT_TOKEN, APP_SECRET_KEY, SESSION_TTL_DAYS
+from dance_studio.core.config import (
+    OWNER_IDS,
+    TECH_ADMIN_ID,
+    BOT_TOKEN,
+    APP_SECRET_KEY,
+    SESSION_TTL_DAYS,
+    MAX_SESSIONS_PER_USER,
+    ROTATE_IF_DAYS_LEFT,
+)
 
 # Flask-Admin
 from flask_admin import Admin, AdminIndexView
@@ -74,6 +82,22 @@ def _delete_expired_sessions(db) -> None:
     db.query(SessionRecord).filter(SessionRecord.expires_at < datetime.utcnow()).delete(synchronize_session=False)
 
 
+def _delete_expired_sessions_for_user(db, telegram_id: int) -> None:
+    db.query(SessionRecord).filter(
+        SessionRecord.telegram_id == telegram_id,
+        SessionRecord.expires_at < datetime.utcnow(),
+    ).delete(synchronize_session=False)
+
+
+def _enforce_session_limit(db, telegram_id: int) -> None:
+    sessions = db.query(SessionRecord).filter(
+        SessionRecord.telegram_id == telegram_id
+    ).order_by(SessionRecord.created_at.desc()).all()
+    stale = sessions[MAX_SESSIONS_PER_USER:]
+    for rec in stale:
+        db.delete(rec)
+
+
 def _set_sid_cookie(response, sid: str) -> None:
     response.set_cookie(
         "sid",
@@ -82,6 +106,7 @@ def _set_sid_cookie(response, sid: str) -> None:
         httponly=True,
         secure=True,
         samesite="None",
+        path="/",
     )
 
 
@@ -93,6 +118,7 @@ def _clear_sid_cookie(response) -> None:
         httponly=True,
         secure=True,
         samesite="None",
+        path="/",
     )
 
 
@@ -127,8 +153,7 @@ def auth_telegram():
     user_agent_hash = _hash_user_agent(request.headers.get("User-Agent"))
 
     try:
-        _delete_expired_sessions(db)
-        db.query(SessionRecord).filter(SessionRecord.telegram_id == telegram_id).delete(synchronize_session=False)
+        _delete_expired_sessions_for_user(db, telegram_id)
         db.add(SessionRecord(
             id=sid,
             telegram_id=telegram_id,
@@ -136,6 +161,8 @@ def auth_telegram():
             created_at=now,
             expires_at=expires_at,
         ))
+        db.flush()
+        _enforce_session_limit(db, telegram_id)
         db.commit()
     except Exception:
         db.rollback()
@@ -282,6 +309,8 @@ def before_request():
     g.db = get_session()
     g.telegram_user = None
     g.telegram_id = None
+    g.rotate_sid = None
+    g.clear_sid_cookie = False
 
     sid = request.cookies.get("sid")
     if not sid:
@@ -290,21 +319,41 @@ def before_request():
     db = g.db
     session = db.query(SessionRecord).filter_by(id=sid).first()
     if not session:
+        g.clear_sid_cookie = True
         return {"error": "Сессия не найдена"}, 401
 
-    if session.expires_at <= datetime.utcnow():
+    now = datetime.utcnow()
+    if session.expires_at <= now:
         db.delete(session)
         db.commit()
+        g.clear_sid_cookie = True
         return {"error": "Сессия истекла"}, 401
 
     expected_hash = _hash_user_agent(request.headers.get("User-Agent"))
     if session.user_agent_hash != expected_hash:
         db.delete(session)
         db.commit()
+        g.clear_sid_cookie = True
         return {"error": "Недействительная сессия"}, 401
 
     g.telegram_id = session.telegram_id
     g.telegram_user = {"id": session.telegram_id}
+
+    if session.expires_at - now < timedelta(days=ROTATE_IF_DAYS_LEFT):
+        new_sid = secrets.token_hex(32)
+        new_expires_at = now + timedelta(days=SESSION_TTL_DAYS)
+        db.add(SessionRecord(
+            id=new_sid,
+            telegram_id=session.telegram_id,
+            user_agent_hash=session.user_agent_hash,
+            created_at=now,
+            expires_at=new_expires_at,
+        ))
+        db.delete(session)
+        db.flush()
+        _enforce_session_limit(db, session.telegram_id)
+        db.commit()
+        g.rotate_sid = new_sid
 
 
 @app.teardown_request
@@ -312,6 +361,16 @@ def teardown_request(exception):
     db = getattr(g, 'db', None)
     if db is not None:
         db.close()
+
+
+@app.after_request
+def refresh_sid_cookie(response):
+    if getattr(g, "clear_sid_cookie", False):
+        _clear_sid_cookie(response)
+    rotate_sid = getattr(g, "rotate_sid", None)
+    if rotate_sid:
+        _set_sid_cookie(response, rotate_sid)
+    return response
 
 
 def format_schedule(s):
