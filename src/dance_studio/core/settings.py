@@ -67,6 +67,7 @@ ENV = os.getenv('ENV', 'dev').strip().lower()
 _migrate_default = '1' if ENV == 'dev' else '0'
 MIGRATE_ON_START = _parse_bool(os.getenv('MIGRATE_ON_START', _migrate_default), ENV == 'dev')
 BOOTSTRAP_ON_START = _parse_bool(os.getenv('BOOTSTRAP_ON_START', '0'), False)
+SESSION_TTL_DAYS = _parse_int(os.getenv('SESSION_TTL_DAYS', '60'), 60) or 60
 
 APP_SECRET_KEY = os.getenv('APP_SECRET_KEY')
 if not APP_SECRET_KEY:

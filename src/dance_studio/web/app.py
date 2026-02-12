@@ -3,9 +3,7 @@ from datetime import date, time, datetime, timedelta
 import os
 import json
 import hashlib
-import hmac
-import base64
-import time as time_module
+import secrets
 from werkzeug.utils import secure_filename
 import logging
 import uuid
@@ -32,6 +30,7 @@ from dance_studio.db.models import (
     GroupAbonement,
     PaymentTransaction,
     BookingRequest,
+    SessionRecord,
 )
 from dance_studio.core.media_manager import save_user_photo, delete_user_photo
 from dance_studio.core.permissions import has_permission
@@ -42,7 +41,7 @@ from dance_studio.core.booking_utils import (
     build_booking_keyboard_data,
 )
 from dance_studio.core.tg_auth import validate_init_data
-from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, BOT_TOKEN, APP_SECRET_KEY
+from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, BOT_TOKEN, APP_SECRET_KEY, SESSION_TTL_DAYS
 
 # Flask-Admin
 from flask_admin import Admin, AdminIndexView
@@ -58,97 +57,119 @@ BASE_DIR = str(Path(__file__).resolve().parent)
 VAR_ROOT = PROJECT_ROOT / "var"
 MEDIA_ROOT = VAR_ROOT / "media"
 ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
-SESSION_TTL_SECONDS = 7 * 24 * 3600  # 7 days sliding
+SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 3600
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
 app.secret_key = APP_SECRET_KEY
 
 
-def _session_secret() -> bytes:
-    return (app.secret_key or "change-me").encode()
-
-
-def _b64(data: bytes) -> str:
-    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
-
-
-def _b64decode(data: str) -> bytes:
-    pad = '=' * (-len(data) % 4)
-    return base64.urlsafe_b64decode(data + pad)
-
-
-def issue_session_token(user: dict, ttl_seconds: int = SESSION_TTL_SECONDS) -> str:
-    """Создает HMAC-подписанный токен с данными пользователя и exp."""
-    payload = {
-        "user": user,
-        "exp": int(time_module.time()) + ttl_seconds,
-    }
-    payload_bytes = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
-    sig = hmac.new(_session_secret(), payload_bytes, hashlib.sha256).hexdigest()
-    return f"tgs.{_b64(payload_bytes)}.{sig}"
-
-
-def validate_session_token(token: str):
-    """Проверяет подпись и срок действия; возвращает payload dict или None."""
-    if not token or not token.startswith("tgs."):
+def _hash_user_agent(user_agent: str | None) -> str | None:
+    if not user_agent:
         return None
-    try:
-        _, payload_b64, sig = token.split(".", 2)
-    except ValueError:
-        return None
-    try:
-        payload_bytes = _b64decode(payload_b64)
-    except Exception:
-        return None
-    expected_sig = hmac.new(_session_secret(), payload_bytes, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected_sig, sig):
-        return None
-    try:
-        payload = json.loads(payload_bytes.decode())
-    except Exception:
-        return None
-    if payload.get("exp") and int(time_module.time()) > int(payload["exp"]):
-        return None
-    return payload
+    return hashlib.sha256(user_agent.encode("utf-8")).hexdigest()
 
 
-def _get_init_data_from_request():
-    """Extracts Telegram init_data from header, query or JSON body."""
-    header_value = request.headers.get("X-Telegram-Init-Data")
-    if header_value:
-        return header_value
-    if request.args.get("init_data"):
-        return request.args["init_data"]
-    if request.method in {"POST", "PUT", "PATCH"}:
-        payload = request.get_json(silent=True) or {}
-        if isinstance(payload, dict) and "init_data" in payload:
-            return payload.get("init_data")
-    return None
+def _delete_expired_sessions(db) -> None:
+    db.query(SessionRecord).filter(SessionRecord.expires_at < datetime.utcnow()).delete(synchronize_session=False)
 
 
-def _get_session_token_from_request():
-    auth_header = request.headers.get("Authorization", "")
+def _set_sid_cookie(response, sid: str) -> None:
+    response.set_cookie(
+        "sid",
+        sid,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=True,
+        samesite="None",
+    )
+
+
+def _clear_sid_cookie(response) -> None:
+    response.set_cookie(
+        "sid",
+        "",
+        max_age=0,
+        httponly=True,
+        secure=True,
+        samesite="None",
+    )
+
+
+def _get_init_data_from_auth_header() -> str | None:
+    auth_header = request.headers.get("Authorization", "").strip()
+    if not auth_header:
+        return None
     if auth_header.startswith("Bearer "):
         return auth_header[7:].strip()
-    cookie_token = request.cookies.get("tg_session")
-    if cookie_token:
-        return cookie_token
-    return None
+    return auth_header
+
+
+@app.route("/auth/telegram", methods=["POST"])
+def auth_telegram():
+    db = g.db
+    init_data = _get_init_data_from_auth_header()
+    if not init_data:
+        return {"error": "Authorization initData is required"}, 400
+
+    user = validate_init_data(init_data)
+    if not user or not user.get("id"):
+        return {"error": "init_data недействителен"}, 401
+
+    try:
+        telegram_id = int(user["id"])
+    except (TypeError, ValueError):
+        return {"error": "Некорректный telegram_id"}, 400
+
+    sid = secrets.token_hex(32)
+    now = datetime.utcnow()
+    expires_at = now + timedelta(days=SESSION_TTL_DAYS)
+    user_agent_hash = _hash_user_agent(request.headers.get("User-Agent"))
+
+    try:
+        _delete_expired_sessions(db)
+        db.query(SessionRecord).filter(SessionRecord.telegram_id == telegram_id).delete(synchronize_session=False)
+        db.add(SessionRecord(
+            id=sid,
+            telegram_id=telegram_id,
+            user_agent_hash=user_agent_hash,
+            created_at=now,
+            expires_at=expires_at,
+        ))
+        db.commit()
+    except Exception:
+        db.rollback()
+        app.logger.exception("Failed to create telegram auth session")
+        return {"error": "Не удалось создать сессию"}, 500
+
+    response = jsonify({"ok": True, "telegram_id": telegram_id})
+    _set_sid_cookie(response, sid)
+    return response
+
+
+@app.route("/auth/logout", methods=["POST"])
+def auth_logout():
+    db = g.db
+    sid = request.cookies.get("sid")
+    if sid:
+        try:
+            db.query(SessionRecord).filter(SessionRecord.id == sid).delete(synchronize_session=False)
+            db.commit()
+        except Exception:
+            db.rollback()
+            app.logger.exception("Failed to logout session")
+            return {"error": "Не удалось завершить сессию"}, 500
+
+    response = jsonify({"ok": True})
+    _clear_sid_cookie(response)
+    return response
 
 
 def get_telegram_user(optional: bool = True):
-    """
-    Validates Telegram WebApp init_data and returns user dict.
-    When optional=False returns error response tuple on failure.
-    """
-    init_data = _get_init_data_from_request()
-    if not init_data:
-        return ({"error": "init_data обязателен"}, 400) if not optional else None
-    user = validate_init_data(init_data)
-    if not user:
-        return ({"error": "init_data недействителен"}, 401) if not optional else None
-    return user
+    telegram_id = getattr(g, "telegram_id", None)
+    if not telegram_id:
+        return ({"error": "auth required"}, 401) if not optional else None
+    return {"id": telegram_id}
 
 # ====== Проверка прав по telegram_id ======
 def check_permission(telegram_id, permission):
@@ -161,16 +182,10 @@ def check_permission(telegram_id, permission):
 
 
 def require_permission(permission, allow_self_staff_id=None):
-    telegram_id = None
-    telegram_id = request.headers.get("X-Telegram-Id") or request.args.get("telegram_id")
-    data = request.get_json(silent=True) if request.is_json else None
-    if not telegram_id and data:
-        telegram_id = data.get("actor_telegram_id")
-    if not telegram_id and getattr(g, "telegram_user", None):
-        telegram_id = g.telegram_user.get("id")
+    telegram_id = getattr(g, "telegram_id", None)
 
     if not telegram_id:
-        return {"error": "telegram_id обязателен"}, 401
+        return {"error": "Требуется аутентификация"}, 401
 
     try:
         telegram_id = int(telegram_id)
@@ -266,41 +281,37 @@ admin.add_view(DirectionUploadSessionModelView(DirectionUploadSession, Session()
 def before_request():
     g.db = get_session()
     g.telegram_user = None
-    # 1) проверяем сессионный токен
-    session_token = _get_session_token_from_request()
-    if session_token:
-        payload = validate_session_token(session_token)
-        if payload and payload.get("user"):
-            g.telegram_user = payload["user"]
-            g.new_session_token = issue_session_token(g.telegram_user)  # sliding refresh
-            return
-    # 2) fallback на init_data
-    init_data = _get_init_data_from_request()
-    if init_data:
-        user = validate_init_data(init_data)
-        if user:
-            g.telegram_user = user
-            g.new_session_token = issue_session_token(user)
+    g.telegram_id = None
+
+    sid = request.cookies.get("sid")
+    if not sid:
+        return
+
+    db = g.db
+    session = db.query(SessionRecord).filter_by(id=sid).first()
+    if not session:
+        return {"error": "Сессия не найдена"}, 401
+
+    if session.expires_at <= datetime.utcnow():
+        db.delete(session)
+        db.commit()
+        return {"error": "Сессия истекла"}, 401
+
+    expected_hash = _hash_user_agent(request.headers.get("User-Agent"))
+    if session.user_agent_hash != expected_hash:
+        db.delete(session)
+        db.commit()
+        return {"error": "Недействительная сессия"}, 401
+
+    g.telegram_id = session.telegram_id
+    g.telegram_user = {"id": session.telegram_id}
+
 
 @app.teardown_request
 def teardown_request(exception):
     db = getattr(g, 'db', None)
     if db is not None:
         db.close()
-
-@app.after_request
-def refresh_session_cookie(response):
-    token = getattr(g, "new_session_token", None)
-    if token:
-        response.set_cookie(
-            "tg_session",
-            token,
-            max_age=SESSION_TTL_SECONDS,
-            httponly=True,
-            secure=False,
-            samesite="Lax",
-        )
-    return response
 
 
 def format_schedule(s):
@@ -366,18 +377,6 @@ def get_bot_username():
     except:
         return jsonify({"bot_username": "dance_studio_admin_bot"})
 
-
-@app.route("/auth/telegram/validate", methods=["POST"])
-def auth_telegram_validate():
-    """Проверяет init_data от Telegram WebApp и возвращает данные пользователя."""
-    user = get_telegram_user(optional=False)
-    if isinstance(user, tuple):
-        # error tuple returned
-        return user
-    token = issue_session_token(user)
-    resp = jsonify({"ok": True, "user": user, "session_token": token})
-    resp.set_cookie("tg_session", token, max_age=SESSION_TTL_SECONDS, httponly=True, secure=False, samesite="Lax")
-    return resp
 
 
 @app.route("/schedule")
@@ -523,7 +522,7 @@ def schedule_v2_list():
     if mine:
         user = get_current_user_from_request(db)
         if not user:
-            return {"error": "Требуется авторизация Telegram (init_data или заголовок X-Telegram-Id)"}, 401
+            return {"error": "Требуется авторизация"}, 401
         query = query.outerjoin(IndividualLesson, Schedule.object_id == IndividualLesson.id)\
                      .outerjoin(HallRental, Schedule.object_id == HallRental.id)\
                      .filter(
@@ -1609,9 +1608,7 @@ def update_staff(staff_id):
     if "bio" in data:
         staff.bio = data["bio"]
     if "teaches" in data:
-        actor_telegram_id = request.headers.get("X-Telegram-Id") or request.args.get("telegram_id")
-        if not actor_telegram_id and data:
-            actor_telegram_id = data.get("actor_telegram_id")
+        actor_telegram_id = getattr(g, "telegram_id", None)
         try:
             actor_telegram_id = int(actor_telegram_id) if actor_telegram_id is not None else None
         except (TypeError, ValueError):
@@ -2901,22 +2898,9 @@ def create_direction_upload_session():
     db = g.db
     data = request.json or {}
     
-    telegram_user = getattr(g, "telegram_user", None)
-    telegram_user_id = None
-    if isinstance(telegram_user, dict) and telegram_user.get("id"):
-        telegram_user_id = telegram_user["id"]
-    else:
-        allow_dev = os.getenv("ALLOW_DEV_TELEGRAM_ID_AUTH", "").strip().lower() in (
-            "1",
-            "true",
-            "yes",
-            "y",
-            "on",
-        )
-        if allow_dev:
-            telegram_user_id = request.headers.get("X-Telegram-Id") or data.get("telegram_user_id")
-        if not telegram_user_id:
-            return {"error": "init_data требуется для аутентификации"}, 401
+    telegram_user_id = getattr(g, "telegram_id", None)
+    if not telegram_user_id:
+        return {"error": "Требуется авторизация"}, 401
 
     try:
         telegram_user_id = int(telegram_user_id)
@@ -3173,13 +3157,7 @@ def upload_direction_photo(token):
 
 # ======================== ГРУППОВЫЕ АБОНЕМЕНТЫ / ОПЛАТЫ (ЗАГЛУШКА) ========================
 def get_current_user_from_request(db):
-    if getattr(g, "telegram_user", None) and g.telegram_user.get("id"):
-        try:
-            telegram_id = int(g.telegram_user["id"])
-            return db.query(User).filter_by(telegram_id=telegram_id).first()
-        except (TypeError, ValueError):
-            return None
-    telegram_id = request.headers.get("X-Telegram-Id") or request.args.get("telegram_id")
+    telegram_id = getattr(g, "telegram_id", None)
     if not telegram_id:
         return None
     try:
