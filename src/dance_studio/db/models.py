@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint
+from sqlalchemy import Column, Integer, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 
@@ -30,12 +30,28 @@ class SessionRecord(Base):
     telegram_id = Column(Integer, nullable=False)
     user_agent_hash = Column(String(64), nullable=True)
     sid_hash = Column(String(64), unique=True, nullable=False)
+    ip_prefix = Column(String(64), nullable=True)
+    need_reauth = Column(Boolean, nullable=False, default=False)
+    reauth_reason = Column(String(255), nullable=True)
+    last_seen = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False)
 
     __table_args__ = (
         Index("ix_sessions_expires_at", "expires_at"),
         Index("ix_sessions_telegram_id", "telegram_id"),
+        Index("ix_sessions_last_seen", "last_seen"),
+    )
+
+
+class UsedInitData(Base):
+    __tablename__ = "used_init_data"
+
+    key_hash = Column(String(64), primary_key=True)
+    expires_at = Column(DateTime, nullable=False)
+
+    __table_args__ = (
+        Index("ix_used_init_data_expires_at", "expires_at"),
     )
 
 
