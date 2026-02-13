@@ -282,7 +282,7 @@ def auth_telegram():
     try:
         replay_ttl = TG_INIT_DATA_MAX_AGE_SECONDS + 60
         if not store_used_init_data(db, verified.replay_key, replay_ttl):
-            return {"error": "init_data уже использован"}, 401
+            return {"error": "replay detected", "code": "replay_detected"}, 401
 
         _delete_expired_sessions_for_user(db, telegram_id)
         _create_session(db, telegram_id, sid, now, expires_at, user_agent_hash, ip_prefix)
@@ -484,7 +484,7 @@ def before_request():
 
             replay_ttl = TG_INIT_DATA_MAX_AGE_SECONDS + 60
             if not store_used_init_data(db, verified.replay_key, replay_ttl):
-                return {"error": "need_reauth", "code": "need_reauth"}, 401
+                return {"error": "replay detected", "code": "replay_detected"}, 401
 
             new_sid = secrets.token_hex(32)
             new_expires_at = now + timedelta(days=SESSION_TTL_DAYS)

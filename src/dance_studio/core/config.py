@@ -26,7 +26,6 @@ from dance_studio.core.settings import (
     TECH_STATUS_TOPIC_ID,
     WEB_APP_URL,
     TG_INIT_DATA_MAX_AGE_SECONDS,
-    TG_INIT_REPLAY_REDIS_URL,
     SESSION_REAUTH_IDLE_SECONDS,
 )
 
@@ -58,6 +57,5 @@ __all__ = [
     'TECH_STATUS_TOPIC_ID',
     'WEB_APP_URL',
     'TG_INIT_DATA_MAX_AGE_SECONDS',
-    'TG_INIT_REPLAY_REDIS_URL',
     'SESSION_REAUTH_IDLE_SECONDS',
 ]

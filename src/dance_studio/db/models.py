@@ -47,10 +47,12 @@ class SessionRecord(Base):
 class UsedInitData(Base):
     __tablename__ = "used_init_data"
 
-    key_hash = Column(String(64), primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key_hash = Column(String(64), nullable=False, unique=True)
     expires_at = Column(DateTime, nullable=False)
 
     __table_args__ = (
+        Index("ix_used_init_data_key_hash", "key_hash", unique=True),
         Index("ix_used_init_data_expires_at", "expires_at"),
     )
 

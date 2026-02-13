@@ -32,15 +32,18 @@ def upgrade() -> None:
 
     op.create_table(
         'used_init_data',
+        sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('key_hash', sa.String(length=64), nullable=False),
         sa.Column('expires_at', sa.DateTime(), nullable=False),
-        sa.PrimaryKeyConstraint('key_hash')
+        sa.PrimaryKeyConstraint('id'),
     )
+    op.create_index('ix_used_init_data_key_hash', 'used_init_data', ['key_hash'], unique=True)
     op.create_index('ix_used_init_data_expires_at', 'used_init_data', ['expires_at'])
 
 
 def downgrade() -> None:
     op.drop_index('ix_used_init_data_expires_at', table_name='used_init_data')
+    op.drop_index('ix_used_init_data_key_hash', table_name='used_init_data')
     op.drop_table('used_init_data')
 
     op.drop_index('ix_sessions_last_seen', table_name='sessions')
