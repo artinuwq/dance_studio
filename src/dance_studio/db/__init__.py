@@ -1,31 +1,16 @@
 import logging
 from pathlib import Path
 
-from alembic import command
-from alembic.config import Config
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
 from dance_studio.db.models import Staff, User
-from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, DATABASE_URL, MIGRATE_ON_START
+from dance_studio.db.session import Session, engine, get_session
+from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, MIGRATE_ON_START
 
 logger = logging.getLogger(__name__)
 
-if not DATABASE_URL:
-    raise RuntimeError('DATABASE_URL environment variable is required')
 
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    future=True,
-    pool_size=5,
-    max_overflow=10,
-)
+def _alembic_config():
+    from alembic.config import Config
 
-Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
-
-
-def _alembic_config() -> Config:
     project_root = Path(__file__).resolve().parents[3]
     alembic_ini = project_root / 'alembic.ini'
     alembic_dir = project_root / 'alembic'
@@ -39,6 +24,8 @@ def ensure_db_schema() -> None:
     """Run Alembic migrations up to head when enabled by config."""
     if not MIGRATE_ON_START:
         return
+
+    from alembic import command
 
     try:
         command.upgrade(_alembic_config(), 'head')
@@ -118,10 +105,6 @@ def bootstrap_data() -> None:
         raise
     finally:
         db.close()
-
-
-def get_session():
-    return Session()
 
 
 __all__ = [

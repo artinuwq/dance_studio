@@ -7,7 +7,7 @@ SRC_PATH = ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from dance_studio.db import get_session
+from dance_studio.db.session import get_session
 from dance_studio.core.tg_replay import cleanup_expired_init_data
 
 logging.basicConfig(level=logging.INFO)
