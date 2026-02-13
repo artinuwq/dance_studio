@@ -51,11 +51,11 @@ from dance_studio.core.config import (
     SESSION_TTL_DAYS,
     MAX_SESSIONS_PER_USER,
     ROTATE_IF_DAYS_LEFT,
-    ENV,
     WEB_APP_URL,
     COOKIE_SECURE,
     COOKIE_SAMESITE,
     SESSION_PEPPER,
+    CSRF_TRUSTED_ORIGINS,
 )
 
 # Flask-Admin
@@ -74,7 +74,7 @@ MEDIA_ROOT = VAR_ROOT / "media"
 ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
 SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 3600
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-CSRF_EXEMPT_PATHS = {"/auth/telegram", "/health"}
+CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/logout", "/health"}
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -106,6 +106,22 @@ def _is_same_origin(value: str | None, allowed_origins: set[str]) -> bool:
     return bool(origin and origin in allowed_origins)
 
 
+def _normalize_origin(value: str | None) -> str | None:
+    if not value:
+        return None
+    value = value.strip()
+    if not value or '/' in value.replace('://', '', 1):
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in {'http', 'https'}:
+        return None
+    if not parsed.netloc:
+        return None
+    if parsed.path or parsed.params or parsed.query or parsed.fragment:
+        return None
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 def _build_csrf_trusted_origins() -> set[str]:
     trusted: set[str] = set()
 
@@ -113,16 +129,13 @@ def _build_csrf_trusted_origins() -> set[str]:
     if web_origin:
         trusted.add(web_origin)
 
-    host = request.headers.get("Host")
-    if host:
-        scheme = (request.headers.get("X-Forwarded-Proto") or request.scheme or "https").split(",", 1)[0].strip()
-        trusted.add(f"{scheme}://{host}")
+    if request.scheme and request.host:
+        trusted.add(f"{request.scheme}://{request.host}")
 
-    csrf_env = os.getenv("CSRF_TRUSTED_ORIGINS", "")
-    for origin in csrf_env.split(","):
-        origin = origin.strip()
-        if origin:
-            trusted.add(origin)
+    for origin in CSRF_TRUSTED_ORIGINS.split(','):
+        normalized = _normalize_origin(origin)
+        if normalized:
+            trusted.add(normalized)
 
     return trusted
 

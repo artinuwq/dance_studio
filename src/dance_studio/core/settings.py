@@ -78,6 +78,7 @@ if not APP_SECRET_KEY:
 SESSION_PEPPER = os.getenv('SESSION_PEPPER') or APP_SECRET_KEY
 COOKIE_SECURE = _parse_bool(os.getenv('COOKIE_SECURE', '1' if ENV != 'dev' else '0'), ENV != 'dev')
 COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'None' if COOKIE_SECURE else 'Lax')
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '')
 
 OWNER_IDS = _parse_int_list(os.getenv('OWNER_IDS', ''), [])
 TECH_ADMIN_ID = _parse_int(os.getenv('TECH_ADMIN_ID', ''), None)
