@@ -2,6 +2,7 @@ import asyncio
 import aiohttp
 import time
 import zipfile
+import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import MenuButtonWebApp, WebAppInfo, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import CommandStart, Command, StateFilter
@@ -21,10 +22,11 @@ from dance_studio.core.config import (
     TECH_ADMIN_ID,
     BOOKINGS_ADMIN_CHAT_ID,
 )
-from dance_studio.db import get_session
+from dance_studio.db.session import get_session
 from dance_studio.core.permissions import has_permission
 from dance_studio.db.models import News, User, Mailing, Group, DirectionUploadSession, Staff, BookingRequest, Schedule, IndividualLesson, GroupAbonement
 from dance_studio.core.booking_utils import format_booking_message, build_booking_keyboard_data
+from dance_studio.core.tg_replay import cleanup_expired_init_data
 from sqlalchemy import or_
 from datetime import datetime, time as dt_time, timedelta
 import os
@@ -48,6 +50,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 VAR_ROOT = PROJECT_ROOT / "var"
 BACKUP_SOURCE_DIR = VAR_ROOT / "db"
 BACKUP_DIR = VAR_ROOT / "backups"
+
+_logger = logging.getLogger(__name__)
 
 
 def _env_file_path() -> Path:
@@ -312,6 +316,7 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
             archive_path = await asyncio.to_thread(_create_backup_archive)
             _cleanup_old_backups()
             topic_id = await _ensure_backup_topic()
+            backup_sent = False
             if topic_id:
                 caption = f"🗄 Бэкап ({reason}) {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"
                 try:
@@ -321,6 +326,7 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                         document=FSInputFile(str(archive_path)),
                         caption=caption
                     )
+                    backup_sent = True
                 except Exception as e:
                     if "message thread not found" in str(e).lower():
                         global TECH_BACKUPS_TOPIC_ID_RUNTIME
@@ -333,6 +339,29 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                                 document=FSInputFile(str(archive_path)),
                                 caption=caption
                             )
+                            backup_sent = True
+
+            if backup_sent and reason == "scheduled" and datetime.now().hour == 12:
+                def _run_cleanup_sync() -> None:
+                    db = get_session()
+                    try:
+                        deleted = cleanup_expired_init_data(db)
+                        db.commit()
+                        _logger.info("used_init_data cleanup completed, deleted=%d", deleted)
+                    except Exception:
+                        try:
+                            db.rollback()
+                        except Exception:
+                            _logger.exception("used_init_data cleanup rollback failed")
+                        _logger.exception("used_init_data cleanup failed")
+                    finally:
+                        db.close()
+
+                try:
+                    await asyncio.to_thread(_run_cleanup_sync)
+                except Exception:
+                    _logger.exception("Cleanup after backup encountered an error")
+
             if notify_user_id:
                 await bot.send_message(
                     chat_id=notify_user_id,
@@ -342,7 +371,7 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
             try:
                 await send_tech_critical(f"? ?????? ??????: {type(e).__name__}: {e}")
             except Exception:
-                pass
+                _logger.exception("Failed to send tech critical backup error")
             if notify_user_id:
                 await bot.send_message(
                     chat_id=notify_user_id,

@@ -25,6 +25,8 @@ from dance_studio.core.settings import (
     TECH_STATUS_MESSAGE_ID,
     TECH_STATUS_TOPIC_ID,
     WEB_APP_URL,
+    TG_INIT_DATA_MAX_AGE_SECONDS,
+    SESSION_REAUTH_IDLE_SECONDS,
 )
 
 __all__ = [
@@ -54,4 +56,6 @@ __all__ = [
     'TECH_STATUS_MESSAGE_ID',
     'TECH_STATUS_TOPIC_ID',
     'WEB_APP_URL',
+    'TG_INIT_DATA_MAX_AGE_SECONDS',
+    'SESSION_REAUTH_IDLE_SECONDS',
 ]

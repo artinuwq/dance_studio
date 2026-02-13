@@ -2,12 +2,21 @@ import hashlib
 import hmac
 import json
 import time
+from dataclasses import dataclass
 from urllib.parse import parse_qsl
 
-from dance_studio.core.config import BOT_TOKEN
+from dance_studio.core.config import BOT_TOKEN, TG_INIT_DATA_MAX_AGE_SECONDS
 
 
-def validate_init_data(init_data: str):
+@dataclass(slots=True)
+class InitDataValidationResult:
+    user_id: int
+    username: str | None
+    first_name: str | None
+    replay_key: str
+
+
+def validate_init_data(init_data: str) -> InitDataValidationResult | None:
     if not BOT_TOKEN:
         raise RuntimeError("BOT_TOKEN not configured")
 
@@ -15,11 +24,14 @@ def validate_init_data(init_data: str):
         return None
 
     data = dict(parse_qsl(init_data, keep_blank_values=True))
-    got_hash = data.pop("hash", None)
+    got_hash = data.get("hash")
     if not got_hash:
         return None
 
-    data_check_string = "\n".join(f"{k}={data[k]}" for k in sorted(data.keys()))
+    payload = dict(data)
+    payload.pop("hash", None)
+
+    data_check_string = "\n".join(f"{k}={payload[k]}" for k in sorted(payload.keys()))
 
     secret_key = hmac.new(
         b"WebAppData",
@@ -36,8 +48,12 @@ def validate_init_data(init_data: str):
     if not hmac.compare_digest(calc_hash, got_hash):
         return None
 
-    auth_date = int(data.get("auth_date", 0))
-    if abs(time.time() - auth_date) > 86400:
+    try:
+        auth_date = int(data.get("auth_date", "0"))
+    except ValueError:
+        return None
+
+    if abs(time.time() - auth_date) > TG_INIT_DATA_MAX_AGE_SECONDS:
         return None
 
     user_json = data.get("user")
@@ -49,7 +65,17 @@ def validate_init_data(init_data: str):
     except json.JSONDecodeError:
         return None
 
-    if "id" not in user:
+    try:
+        user_id = int(user["id"])
+    except (KeyError, TypeError, ValueError):
         return None
 
-    return user
+    query_id = data.get("query_id", "").strip()
+    replay_key = query_id or got_hash
+
+    return InitDataValidationResult(
+        user_id=user_id,
+        username=user.get("username"),
+        first_name=user.get("first_name"),
+        replay_key=replay_key,
+    )

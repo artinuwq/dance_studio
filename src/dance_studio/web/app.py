@@ -43,6 +43,7 @@ from dance_studio.core.booking_utils import (
     build_booking_keyboard_data,
 )
 from dance_studio.core.tg_auth import validate_init_data
+from dance_studio.core.tg_replay import store_used_init_data
 from dance_studio.core.config import (
     OWNER_IDS,
     TECH_ADMIN_ID,
@@ -56,6 +57,8 @@ from dance_studio.core.config import (
     COOKIE_SAMESITE,
     SESSION_PEPPER,
     CSRF_TRUSTED_ORIGINS,
+    TG_INIT_DATA_MAX_AGE_SECONDS,
+    SESSION_REAUTH_IDLE_SECONDS,
 )
 
 # Flask-Admin
@@ -75,6 +78,7 @@ ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
 SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 3600
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/logout", "/health"}
+SENSITIVE_PATH_PREFIXES = ("/schedule", "/api/bookings", "/api/payments", "/mailings", "/news")
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -86,6 +90,55 @@ def _hash_user_agent(user_agent: str | None) -> str | None:
     if not user_agent:
         return None
     return hashlib.sha256(user_agent.encode("utf-8")).hexdigest()
+
+
+def _extract_ip_prefix() -> str | None:
+    ip = (request.headers.get("X-Forwarded-For", "").split(",")[0].strip() or request.remote_addr or "").strip()
+    if not ip:
+        return None
+    if "." in ip:
+        parts = ip.split(".")
+        if len(parts) == 4:
+            return ".".join(parts[:3])
+    if ":" in ip:
+        return ":".join(ip.split(":")[:4])
+    return ip
+
+
+def _is_sensitive_endpoint() -> bool:
+    return request.path.startswith(SENSITIVE_PATH_PREFIXES)
+
+
+def _extract_init_data_from_request() -> str | None:
+    header_data = request.headers.get("X-TG-Init-Data", "").strip()
+    if header_data:
+        return header_data
+
+    auth_data = _get_init_data_from_auth_header()
+    if auth_data:
+        return auth_data
+
+    payload = request.get_json(silent=True)
+    if isinstance(payload, dict):
+        body_data = payload.get("init_data") or payload.get("initData")
+        if isinstance(body_data, str) and body_data.strip():
+            return body_data.strip()
+    return None
+
+
+def _create_session(db, telegram_id: int, sid: str, now: datetime, expires_at: datetime, user_agent_hash: str | None, ip_prefix: str | None) -> None:
+    db.add(SessionRecord(
+        id=secrets.token_hex(32),
+        sid_hash=_sid_hash(sid),
+        telegram_id=telegram_id,
+        user_agent_hash=user_agent_hash,
+        ip_prefix=ip_prefix,
+        need_reauth=False,
+        reauth_reason=None,
+        created_at=now,
+        last_seen=now,
+        expires_at=expires_at,
+    ))
 
 
 def _sid_hash(sid: str) -> str:
@@ -210,34 +263,29 @@ def _get_init_data_from_auth_header() -> str | None:
 @app.route("/auth/telegram", methods=["POST"])
 def auth_telegram():
     db = g.db
-    init_data = _get_init_data_from_auth_header()
+    init_data = _extract_init_data_from_request()
     if not init_data:
         return {"error": "Authorization initData is required"}, 400
 
-    user = validate_init_data(init_data)
-    if not user or not user.get("id"):
+    verified = validate_init_data(init_data)
+    if not verified:
         return {"error": "init_data недействителен"}, 401
 
-    try:
-        telegram_id = int(user["id"])
-    except (TypeError, ValueError):
-        return {"error": "Некорректный telegram_id"}, 400
+    telegram_id = verified.user_id
 
     sid = secrets.token_hex(32)
     now = datetime.utcnow()
     expires_at = now + timedelta(days=SESSION_TTL_DAYS)
     user_agent_hash = _hash_user_agent(request.headers.get("User-Agent"))
+    ip_prefix = _extract_ip_prefix()
 
     try:
+        replay_ttl = TG_INIT_DATA_MAX_AGE_SECONDS + 60
+        if not store_used_init_data(db, verified.replay_key, replay_ttl):
+            return {"error": "replay detected", "code": "replay_detected"}, 401
+
         _delete_expired_sessions_for_user(db, telegram_id)
-        db.add(SessionRecord(
-            id=secrets.token_hex(32),
-            sid_hash=_sid_hash(sid),
-            telegram_id=telegram_id,
-            user_agent_hash=user_agent_hash,
-            created_at=now,
-            expires_at=expires_at,
-        ))
+        _create_session(db, telegram_id, sid, now, expires_at, user_agent_hash, ip_prefix)
         db.flush()
         _enforce_session_limit(db, telegram_id)
         db.commit()
@@ -326,8 +374,8 @@ def handle_unhandled_exception(error):
         return error
     try:
         send_critical_sync(f"? Flask error: {type(error).__name__}: {error}")
-    except Exception:
-        pass
+    except (RuntimeError, ValueError, requests.RequestException):
+        app.logger.exception("Failed to send critical error notification")
     return jsonify({"error": "Internal server error"}), 500
 
 # Добавляем модели в админ-панель
@@ -388,6 +436,7 @@ def before_request():
     g.telegram_id = None
     g.rotate_sid = None
     g.clear_sid_cookie = False
+    g.need_reauth = False
 
     if request.method in STATE_CHANGING_METHODS and request.path not in CSRF_EXEMPT_PATHS:
         if not _is_csrf_valid():
@@ -411,32 +460,64 @@ def before_request():
             g.clear_sid_cookie = True
             return
 
-        expected_hash = _hash_user_agent(request.headers.get("User-Agent"))
-        if session.user_agent_hash != expected_hash:
-            db.delete(session)
-            db.commit()
-            g.clear_sid_cookie = True
-            return
+        ip_prefix = _extract_ip_prefix()
+        should_commit = False
 
-        g.telegram_id = session.telegram_id
-        g.telegram_user = {"id": session.telegram_id}
+        if session.ip_prefix and ip_prefix and session.ip_prefix != ip_prefix:
+            session.need_reauth = True
+            session.reauth_reason = "ip_prefix_changed"
+            should_commit = True
+
+        if session.last_seen and (now - session.last_seen).total_seconds() > SESSION_REAUTH_IDLE_SECONDS:
+            session.need_reauth = True
+            session.reauth_reason = session.reauth_reason or "idle_timeout"
+            should_commit = True
+
+        if session.need_reauth and _is_sensitive_endpoint():
+            init_data = _extract_init_data_from_request()
+            if not init_data:
+                return {"error": "need_reauth", "code": "need_reauth"}, 401
+
+            verified = validate_init_data(init_data)
+            if not verified or verified.user_id != session.telegram_id:
+                return {"error": "need_reauth", "code": "need_reauth"}, 401
+
+            replay_ttl = TG_INIT_DATA_MAX_AGE_SECONDS + 60
+            if not store_used_init_data(db, verified.replay_key, replay_ttl):
+                return {"error": "replay detected", "code": "replay_detected"}, 401
+
+            new_sid = secrets.token_hex(32)
+            new_expires_at = now + timedelta(days=SESSION_TTL_DAYS)
+            _create_session(db, session.telegram_id, new_sid, now, new_expires_at, session.user_agent_hash, ip_prefix)
+            db.delete(session)
+            db.flush()
+            _enforce_session_limit(db, session.telegram_id)
+            g.rotate_sid = new_sid
+            should_commit = True
+
+            session = db.query(SessionRecord).filter_by(sid_hash=_sid_hash(new_sid)).first()
+
+        telegram_id = session.telegram_id
+        session.last_seen = now
+        session.ip_prefix = ip_prefix or session.ip_prefix
 
         if session.expires_at - now < timedelta(days=ROTATE_IF_DAYS_LEFT):
             new_sid = secrets.token_hex(32)
             new_expires_at = now + timedelta(days=SESSION_TTL_DAYS)
-            db.add(SessionRecord(
-                id=secrets.token_hex(32),
-                sid_hash=_sid_hash(new_sid),
-                telegram_id=session.telegram_id,
-                user_agent_hash=session.user_agent_hash,
-                created_at=now,
-                expires_at=new_expires_at,
-            ))
+            _create_session(db, session.telegram_id, new_sid, now, new_expires_at, session.user_agent_hash, session.ip_prefix)
             db.delete(session)
             db.flush()
             _enforce_session_limit(db, session.telegram_id)
-            db.commit()
             g.rotate_sid = new_sid
+            should_commit = True
+        else:
+            should_commit = True
+
+        if should_commit:
+            db.commit()
+
+        g.telegram_id = telegram_id
+        g.telegram_user = {"id": telegram_id}
     except Exception:
         g.db.rollback()
         app.logger.exception("Session validation failed")
@@ -517,11 +598,12 @@ def get_bot_username():
         from bot.bot import BOT_USERNAME_GLOBAL
         if BOT_USERNAME_GLOBAL:
             return jsonify({"bot_username": BOT_USERNAME_GLOBAL})
-        
+
         # Fallback на конфиг
         from dance_studio.core.config import BOT_USERNAME
         return jsonify({"bot_username": BOT_USERNAME})
-    except:
+    except (ImportError, AttributeError):
+        app.logger.exception("Failed to resolve bot username")
         return jsonify({"bot_username": "dance_studio_admin_bot"})
 
 
@@ -888,10 +970,11 @@ def delete_schedule(schedule_id):
     if not schedule:
         return {"error": "Занятие не найдено"}, 404
     
-    schedule.status = "deleted"
+    schedule.status = "cancelled"
+    schedule.status_comment = schedule.status_comment or "Отменено"
     db.commit()
-    
-    return {"ok": True, "message": "Занятие удалено"}
+
+    return {"ok": True, "message": "Занятие отменено"}
 
 
 @app.route("/schedule/v2/<int:schedule_id>", methods=["DELETE"])
