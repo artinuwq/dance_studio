@@ -1,6 +1,8 @@
 Flask
 flask-admin
 SQLAlchemy
+alembic
+psycopg[binary]
 aiogram
 aiohttp
 requests

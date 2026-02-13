@@ -58,9 +58,28 @@ _ROOT = Path(__file__).resolve().parents[3]
 _load_dotenv(_ROOT / '.env')
 
 BOT_TOKEN = os.getenv('BOT_TOKEN', '')
-DB_FILE = os.getenv('DB_FILE', 'var/db/dance.db')
 BOT_USERNAME = os.getenv('BOT_USERNAME', 'dance_studio_admin_bot')
 WEB_APP_URL = os.getenv('WEB_APP_URL', '')
+
+DATABASE_URL = os.getenv('DATABASE_URL')
+ENV = os.getenv('ENV', 'dev').strip().lower()
+
+_migrate_default = '1' if ENV == 'dev' else '0'
+MIGRATE_ON_START = _parse_bool(os.getenv('MIGRATE_ON_START', _migrate_default), ENV == 'dev')
+BOOTSTRAP_ON_START = _parse_bool(os.getenv('BOOTSTRAP_ON_START', '0'), False)
+SESSION_TTL_DAYS = _parse_int(os.getenv('SESSION_TTL_DAYS', '60'), 60) or 60
+MAX_SESSIONS_PER_USER = _parse_int(os.getenv('MAX_SESSIONS_PER_USER', '5'), 5) or 5
+ROTATE_IF_DAYS_LEFT = _parse_int(os.getenv('ROTATE_IF_DAYS_LEFT', '7'), 7) or 7
+
+APP_SECRET_KEY = os.getenv('APP_SECRET_KEY')
+if not APP_SECRET_KEY:
+    raise RuntimeError('APP_SECRET_KEY environment variable is required')
+
+SESSION_PEPPER = os.getenv('SESSION_PEPPER') or APP_SECRET_KEY
+COOKIE_SECURE = _parse_bool(os.getenv('COOKIE_SECURE', '1' if ENV != 'dev' else '0'), ENV != 'dev')
+COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'None' if COOKIE_SECURE else 'Lax')
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+
 OWNER_IDS = _parse_int_list(os.getenv('OWNER_IDS', ''), [])
 TECH_ADMIN_ID = _parse_int(os.getenv('TECH_ADMIN_ID', ''), None)
 BETA_TEST_MODE = _parse_bool(os.getenv('BETA_TEST_MODE', ''), True)
