@@ -2,6 +2,7 @@ import asyncio
 import aiohttp
 import time
 import zipfile
+import logging
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import MenuButtonWebApp, WebAppInfo, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import CommandStart, Command, StateFilter
@@ -21,12 +22,14 @@ from dance_studio.core.config import (
     TECH_ADMIN_ID,
     BOOKINGS_ADMIN_CHAT_ID,
 )
-from dance_studio.db import get_session
+from dance_studio.db.session import get_session
 from dance_studio.core.permissions import has_permission
 from dance_studio.db.models import News, User, Mailing, Group, DirectionUploadSession, Staff, BookingRequest, Schedule, IndividualLesson, GroupAbonement
 from dance_studio.core.booking_utils import format_booking_message, build_booking_keyboard_data
+from dance_studio.core.tg_replay import cleanup_expired_init_data
 from sqlalchemy import or_
 from datetime import datetime, time as dt_time, timedelta
+from zoneinfo import ZoneInfo
 import os
 import tempfile
 import base64
@@ -48,6 +51,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 VAR_ROOT = PROJECT_ROOT / "var"
 BACKUP_SOURCE_DIR = VAR_ROOT / "db"
 BACKUP_DIR = VAR_ROOT / "backups"
+
+_logger = logging.getLogger(__name__)
+TZ_MSK = ZoneInfo("Europe/Moscow")
 
 
 def _env_file_path() -> Path:
@@ -186,7 +192,7 @@ async def _send_tech_message(
                     )
                     return topic_id
                 except Exception:
-                    pass
+                    _logger.exception("Failed to resend bot status message")
         print(f"⚠️ Не удалось отправить техсообщение: {e}")
         return topic_id
 
@@ -258,7 +264,7 @@ async def update_bot_status(text: str) -> None:
                     _upsert_env_value("TECH_STATUS_MESSAGE_ID", msg.message_id)
                     return
                 except Exception:
-                    pass
+                    _logger.exception("Failed to resend bot status message")
         print(f"⚠️ Не удалось отправить статус бота: {e}")
 
 
@@ -294,7 +300,7 @@ def _cleanup_old_backups() -> None:
         try:
             old_backup.unlink()
         except Exception:
-            pass
+            _logger.exception("Failed to remove old backup archive")
 
 
 async def _ensure_backup_topic() -> int | None:
@@ -312,6 +318,7 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
             archive_path = await asyncio.to_thread(_create_backup_archive)
             _cleanup_old_backups()
             topic_id = await _ensure_backup_topic()
+            backup_sent = False
             if topic_id:
                 caption = f"🗄 Бэкап ({reason}) {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"
                 try:
@@ -321,6 +328,7 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                         document=FSInputFile(str(archive_path)),
                         caption=caption
                     )
+                    backup_sent = True
                 except Exception as e:
                     if "message thread not found" in str(e).lower():
                         global TECH_BACKUPS_TOPIC_ID_RUNTIME
@@ -333,6 +341,31 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                                 document=FSInputFile(str(archive_path)),
                                 caption=caption
                             )
+                            backup_sent = True
+
+            if backup_sent and reason == "scheduled":
+                now_msk = datetime.now(TZ_MSK)
+                if now_msk.hour == 12:
+                    def _run_cleanup_sync() -> None:
+                        db = get_session()
+                        try:
+                            deleted = cleanup_expired_init_data(db)
+                            db.commit()
+                            _logger.info("used_init_data cleanup completed, deleted=%d", deleted)
+                        except Exception:
+                            try:
+                                db.rollback()
+                            except Exception:
+                                _logger.exception("used_init_data cleanup rollback failed")
+                            _logger.exception("used_init_data cleanup failed")
+                        finally:
+                            db.close()
+
+                    try:
+                        await asyncio.to_thread(_run_cleanup_sync)
+                    except Exception:
+                        _logger.exception("Cleanup after backup encountered an error")
+
             if notify_user_id:
                 await bot.send_message(
                     chat_id=notify_user_id,
@@ -342,7 +375,7 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
             try:
                 await send_tech_critical(f"? ?????? ??????: {type(e).__name__}: {e}")
             except Exception:
-                pass
+                _logger.exception("Failed to send tech critical backup error")
             if notify_user_id:
                 await bot.send_message(
                     chat_id=notify_user_id,
@@ -351,15 +384,16 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
 
 
 async def _backup_scheduler() -> None:
+    tz = TZ_MSK
     while True:
-        now = datetime.now()
+        now = datetime.now(tz)
         today = now.date()
-        candidate_midnight = datetime.combine(today, dt_time(0, 0))
-        candidate_noon = datetime.combine(today, dt_time(12, 0))
+        candidate_midnight = datetime.combine(today, dt_time(0, 0), tzinfo=tz)
+        candidate_noon = datetime.combine(today, dt_time(12, 0), tzinfo=tz)
         if now < candidate_noon:
             next_run = candidate_midnight if now < candidate_midnight else candidate_noon
         else:
-            next_run = datetime.combine(today + timedelta(days=1), dt_time(0, 0))
+            next_run = datetime.combine(today + timedelta(days=1), dt_time(0, 0), tzinfo=tz)
 
         sleep_seconds = max((next_run - now).total_seconds(), 1)
         await asyncio.sleep(sleep_seconds)
@@ -897,8 +931,8 @@ async def send_mailing_async(mailing_id):
         try:
             mailing.status = "failed"
             db.commit()
-        except:
-            pass
+        except Exception:
+            _logger.exception("Failed to mark mailing as failed")
         return False
     finally:
         db.close()
@@ -936,13 +970,13 @@ async def run_bot():
         try:
             await send_tech_critical(f"❌ Bot polling error: {type(e).__name__}: {e}")
         except Exception:
-            pass
+            _logger.exception("Failed to send critical message for polling error")
         raise
     finally:
         try:
             await update_bot_status(f"⛔ Бот остановлен {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
         except Exception:
-            pass
+            _logger.exception("Failed to update bot status on shutdown")
         if backup_task:
             backup_task.cancel()
         if queue_task:
@@ -1228,7 +1262,7 @@ async def _notify_user_on_status_change(user: User | None, booking: BookingReque
     try:
         await bot.send_message(chat_id=telegram_id, text=message_text)
     except Exception:
-        pass
+        _logger.exception("Failed to notify user on booking status change")
 
 
 # ======================== СИСТЕМА ЗАГРУЗКИ ФОТОГРАФИЙ НАПРАВЛЕНИЙ ========================

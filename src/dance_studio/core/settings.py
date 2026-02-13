@@ -70,6 +70,8 @@ BOOTSTRAP_ON_START = _parse_bool(os.getenv('BOOTSTRAP_ON_START', '0'), False)
 SESSION_TTL_DAYS = _parse_int(os.getenv('SESSION_TTL_DAYS', '60'), 60) or 60
 MAX_SESSIONS_PER_USER = _parse_int(os.getenv('MAX_SESSIONS_PER_USER', '5'), 5) or 5
 ROTATE_IF_DAYS_LEFT = _parse_int(os.getenv('ROTATE_IF_DAYS_LEFT', '7'), 7) or 7
+TG_INIT_DATA_MAX_AGE_SECONDS = _parse_int(os.getenv('TG_INIT_DATA_MAX_AGE_SECONDS', '600'), 600) or 600
+SESSION_REAUTH_IDLE_SECONDS = _parse_int(os.getenv('SESSION_REAUTH_IDLE_SECONDS', '86400'), 86400) or 86400
 
 APP_SECRET_KEY = os.getenv('APP_SECRET_KEY')
 if not APP_SECRET_KEY:
