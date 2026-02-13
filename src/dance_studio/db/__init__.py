@@ -3,9 +3,14 @@ from pathlib import Path
 
 from dance_studio.db.models import Staff, User
 from dance_studio.db.session import Session, engine, get_session
-from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, MIGRATE_ON_START
 
 logger = logging.getLogger(__name__)
+
+
+def _runtime_config():
+    from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID, MIGRATE_ON_START
+
+    return OWNER_IDS, TECH_ADMIN_ID, MIGRATE_ON_START
 
 
 def _alembic_config():
@@ -22,7 +27,8 @@ def _alembic_config():
 
 def ensure_db_schema() -> None:
     """Run Alembic migrations up to head when enabled by config."""
-    if not MIGRATE_ON_START:
+    _, _, migrate_on_start = _runtime_config()
+    if not migrate_on_start:
         return
 
     from alembic import command
@@ -42,14 +48,15 @@ def bootstrap_data() -> None:
     Ensures technical admin and owners exist in the DB.
     If absent — creates; if present — updates positions/names from user profiles.
     """
+    owner_ids, tech_admin_id, _ = _runtime_config()
     db = Session()
 
     try:
-        if TECH_ADMIN_ID:
-            tech_admin = db.query(Staff).filter_by(telegram_id=TECH_ADMIN_ID).first()
+        if tech_admin_id:
+            tech_admin = db.query(Staff).filter_by(telegram_id=tech_admin_id).first()
             tech_admin_name = 'Технический админ'
 
-            user = db.query(User).filter_by(telegram_id=TECH_ADMIN_ID).first()
+            user = db.query(User).filter_by(telegram_id=tech_admin_id).first()
             if user and user.name:
                 tech_admin_name = user.name
 
@@ -57,12 +64,12 @@ def bootstrap_data() -> None:
                 tech_admin = Staff(
                     name=tech_admin_name,
                     phone=None,
-                    telegram_id=TECH_ADMIN_ID,
+                    telegram_id=tech_admin_id,
                     position='тех. админ',
                     status='active',
                 )
                 db.add(tech_admin)
-                logger.info('[db] Created technical admin (ID: %s, name: %s)', TECH_ADMIN_ID, tech_admin_name)
+                logger.info('[db] Created technical admin (ID: %s, name: %s)', tech_admin_id, tech_admin_name)
             else:
                 if tech_admin.position != 'тех. админ':
                     tech_admin.position = 'тех. админ'
@@ -71,9 +78,9 @@ def bootstrap_data() -> None:
                     tech_admin.name = tech_admin_name
                     logger.info('[db] Filled technical admin name from profile')
 
-        for idx, owner_id in enumerate(OWNER_IDS, 1):
+        for idx, owner_id in enumerate(owner_ids, 1):
             owner = db.query(Staff).filter_by(telegram_id=owner_id).first()
-            owner_name = f'Владелец {idx}' if len(OWNER_IDS) > 1 else 'Владелец'
+            owner_name = f'Владелец {idx}' if len(owner_ids) > 1 else 'Владелец'
 
             user = db.query(User).filter_by(telegram_id=owner_id).first()
             if user and user.name:
