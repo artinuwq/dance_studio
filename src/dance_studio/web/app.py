@@ -109,16 +109,20 @@ def _is_same_origin(value: str | None, allowed_origins: set[str]) -> bool:
 def _normalize_origin(value: str | None) -> str | None:
     if not value:
         return None
-    value = value.strip()
-    if not value or '/' in value.replace('://', '', 1):
+
+    value = value.strip().rstrip("/")
+    if not value:
         return None
+
     parsed = urlparse(value)
-    if parsed.scheme not in {'http', 'https'}:
+
+    if parsed.scheme not in {"http", "https"}:
         return None
     if not parsed.netloc:
         return None
     if parsed.path or parsed.params or parsed.query or parsed.fragment:
         return None
+
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
