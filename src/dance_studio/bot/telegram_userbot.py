@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from pathlib import Path
 from typing import Sequence, Optional, Any
@@ -33,6 +34,7 @@ API_HASH = os.getenv("TELEGRAM_API_HASH") or os.getenv("TG_API_HASH")
 SESSION_PATH = os.getenv("TELEGRAM_SESSION") or os.getenv("TG_SESSION") or str(SESSION_DIR / "userbot.session")
 
 _lock = asyncio.Lock()
+_logger = logging.getLogger(__name__)
 
 
 async def _get_client() -> TelegramClient:
@@ -87,7 +89,7 @@ async def _resolve_user_entity(client: TelegramClient, user: Any):
         try:
             return await client.get_input_entity(f"@{username}")
         except Exception:
-            pass
+            _logger.exception("Failed to resolve user entity by username")
 
     # 2) phone number: import contact to get access hash
     if phone:
@@ -102,14 +104,14 @@ async def _resolve_user_entity(client: TelegramClient, user: Any):
             if res.users:
                 return await client.get_input_entity(res.users[0])
         except Exception:
-            pass
+            _logger.exception("Failed to resolve user entity by phone")
 
     # 3) raw id (works only if userbot уже видел пользователя и имеет access_hash)
     if uid:
         try:
             return await client.get_input_entity(types.PeerUser(int(uid)))
         except Exception:
-            pass
+            _logger.exception("Failed to resolve user entity by id")
 
     raise RuntimeError(f"Не могу получить entity для пользователя (id={uid}, username={username}, phone={phone}) — попросите его написать userbot'у или укажите username/phone")
 
@@ -187,7 +189,7 @@ async def create_group_chat(title: str, users: Sequence[Any]) -> dict:
             try:
                 await client.disconnect()
             except Exception:
-                pass
+                _logger.exception("Failed to disconnect Telegram client")
 
 
 def create_group_chat_sync(title: str, users: Sequence[Any]) -> dict | None:

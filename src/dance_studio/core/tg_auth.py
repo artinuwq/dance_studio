@@ -71,7 +71,7 @@ def validate_init_data(init_data: str) -> InitDataValidationResult | None:
         return None
 
     query_id = data.get("query_id", "").strip()
-    replay_key = query_id or got_hash
+    replay_key = query_id or got_hash  # replay_key MUST NOT be logged
 
     return InitDataValidationResult(
         user_id=user_id,
