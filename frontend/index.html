@@ -1441,6 +1441,19 @@ textarea.form-input {
   display: block;
 }
 
+.modal-fullscreen {
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  position: fixed;
+  border-radius: 0;
+  max-height: none;
+  height: 100vh;
+  width: 100vw;
+  padding: 18px;
+}
+
 .schedule-detail-overlay {
   position: fixed;
   inset: 0;
@@ -1540,6 +1553,120 @@ textarea.form-input {
   align-items: center;
   gap: 8px;
   font-size: 13px;
+}
+
+.attendance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attendance-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.attendance-top {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.attendance-name {
+  font-weight: 600;
+  flex: 1;
+}
+
+.attendance-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+
+.attendance-btn {
+  border: 1px solid var(--border);
+  background: #222;
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.attendance-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.attendance-badge {
+  font-size: 11px;
+  color: var(--hint);
+}
+
+.attendance-screen {
+  display: none;
+  height: 100vh;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.attendance-screen.active {
+  display: block;
+}
+
+.attendance-screen-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.attendance-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--card);
+  padding: 10px 0 4px 0;
+  display: flex;
+  gap: 8px;
+}
+
+.photo-picker {
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: rgba(255,255,255,0.02);
+}
+
+.photo-picker button {
+  margin: 0;
+}
+
+.photo-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .schedule-detail-actions {
@@ -2364,9 +2491,16 @@ textarea.form-input {
 <!-- ====== ЛИЧНОЕ РАСПИСАНИЕ ====== -->
 <div class="page" data-title="📅 Личное расписание" id="personal-schedule">
 
-<div id="personal-schedule-container">
-<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
-</div>
+  <div class="public-schedule-header" style="margin-top: -4px;">
+    <div class="public-schedule-title"><span>👩‍🏫</span>Мои занятия</div>
+    <div class="public-schedule-action" onclick="refreshPersonalSchedule()">Обновить</div>
+  </div>
+  <div class="public-schedule-month" id="personal-schedule-month">—</div>
+  <div class="public-schedule-strip" id="personal-schedule-strip"></div>
+
+  <div id="personal-schedule-container">
+    <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+  </div>
 </div>
 <!-- ====== УПРАВЛЕНИЕ РАСПИСАНИЕМ ====== -->
 <div class="page" data-title="🗓 Расписание" id="schedule-control">
@@ -2601,15 +2735,58 @@ textarea.form-input {
 <!-- ====== УПРАВЛЕНИЕ НОВОСТЯМИ ====== -->
 <div class="page" data-title="📰 Новости" id="news-manage">
 
-<button class="save-btn" onclick="showPage('news-add-form')" style="width: 100%; margin-bottom: 16px;">✍️ Создать новость</button>
+<div style="display: flex; gap: 8px; margin-bottom: 10px;">
+  <button class="save-btn" style="flex: 1;" onclick="openBotForCreateNews()">Создать через бота</button>
+  <button class="save-btn" style="flex: 1; background: var(--accent);" onclick="openNewsCreateModal()">Создать на сайте</button>
+</div>
+
 <div id="news-manage-container">
 <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
 </div>
 </div>
-<!-- ====== ФОРМА ДОБАВЛЕНИЯ НОВОСТИ ====== -->
-<div class="page" data-title="📝 Создать новость" id="news-add-form">
 
-<button class="save-btn" onclick="openBotForCreateNews()" style="width: 100%; padding: 20px; font-size: 16px;">📝 Создать новость через бота</button>
+<!-- ====== ПОЛНОЭКРАННАЯ ПОСЕЩАЕМОСТЬ ====== -->
+<div class="page attendance-screen" id="attendance-screen" data-title="Посещаемость">
+  <div class="attendance-screen-header">
+    <button class="save-btn" style="padding: 6px 10px; background:#444;" onclick="goBack()">Назад</button>
+    <div style="flex:1;">
+      <div id="attendance-screen-title" style="font-weight:700;">Занятие</div>
+      <div id="attendance-screen-subtitle" class="small" style="color:var(--hint);"></div>
+    </div>
+  </div>
+  <div class="attendance-actions-row" style="display:flex; gap:8px; margin:10px 0 6px 0;">
+    <button class="save-btn" style="flex:1; background:#444;" onclick="markAllPresent()">Все присутствуют</button>
+    <button class="save-btn" style="flex:1; background:#2e2e2e;" onclick="promptAddAttendanceUser()">Добавить</button>
+  </div>
+  <div id="attendance-screen-list" class="attendance-list"></div>
+  <div class="attendance-footer" style="margin-top:10px;">
+    <button class="save-btn" style="flex:1; background:var(--accent);" onclick="saveAttendance()">Сохранить</button>
+  </div>
+  <div class="small" id="attendance-screen-status" style="margin-top:6px; color: var(--hint);"></div>
+</div>
+
+<!-- Модал создания новости -->
+<div class="schedule-detail-overlay" id="news-create-overlay" onclick="toggleNewsCreate(false)"></div>
+<div class="schedule-detail-modal modal-fullscreen" id="news-create-modal">
+  <div style="display:flex; justify-content: space-between; align-items: center; gap: 8px;">
+    <h4 style="margin: 0;">Создать новость</h4>
+    <button class="save-btn" style="padding: 6px 10px; background: #777;" onclick="toggleNewsCreate(false)">Закрыть</button>
+  </div>
+  <label class="label">Заголовок</label>
+  <input class="form-input" id="news-create-title" type="text" placeholder="Заголовок">
+  <label class="label">Описание</label>
+  <textarea class="form-input" id="news-create-content" rows="6" placeholder="Описание"></textarea>
+  <label class="label">Фото</label>
+  <div class="photo-picker">
+    <div class="photo-preview" id="news-photo-preview"><span class="small" style="color: var(--hint);">Нет фото</span></div>
+    <div style="display:flex; flex-direction: column; gap:6px; flex:1;">
+      <button class="save-btn" style="width: 100%; margin:0;" onclick="triggerNewsPhoto()">Выбрать фото</button>
+      <button class="save-btn" style="width: 100%; margin:0; background:#333;" onclick="clearNewsPhoto()">Удалить фото</button>
+      <input id="news-create-photo" type="file" accept="image/*" style="display:none;">
+    </div>
+  </div>
+  <button class="save-btn" style="width: 100%; margin-top:12px;" onclick="submitNewsCreate()">Сохранить</button>
+  <div class="small" id="news-create-status" style="margin-top:6px; color: var(--hint);"></div>
 </div>
 <!-- ====== УПРАВЛЕНИЕ ПЕРСОНАЛОМ (ИЗ РАБОТЫ) ====== -->
 <div class="page" data-title="👥 Персонал" id="staff-manage">
@@ -3344,6 +3521,40 @@ if (tg && typeof tg.ready === 'function') {
   tg.ready();
 }
 
+function getSidCookie() {
+  if (typeof document === 'undefined') return '';
+  const m = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('sid='));
+  return m ? m.slice(4) : '';
+}
+
+async function ensureAuthSession() {
+  // If already have a sid or no telegram context, skip.
+  if (getSidCookie()) return;
+  if (!tg || !tg.initData) return;
+
+  try {
+    const res = await fetch('/auth/telegram', {
+      method: 'POST',
+      headers: {
+        // Backend accepts both names; send both for safety.
+        'X-TG-Init-Data': tg.initData,
+        'X-Telegram-Init-Data': tg.initData,
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ init_data: tg.initData }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `Auth failed (${res.status})`);
+    }
+    console.log('Auth session bootstrapped');
+  } catch (err) {
+    console.error('Auth bootstrap failed', err);
+    showNotification('❌ Требуется аутентификация: откройте приложение через Telegram');
+  }
+}
+
 function getAuthHeaders(extraHeaders = {}) {
   const debugTelegramId =
     (typeof localStorage !== 'undefined' && localStorage.getItem('debug_telegram_id')) || '';
@@ -3353,8 +3564,11 @@ function getAuthHeaders(extraHeaders = {}) {
     headers['X-Telegram-Id'] = telegramId;
   }
   if (tg?.initData) {
+    headers['X-TG-Init-Data'] = tg.initData;
     headers['X-Telegram-Init-Data'] = tg.initData;
   }
+  // Нужен sid cookie для защищённых эндпоинтов
+  headers['X-Requested-With'] = 'XMLHttpRequest';
   return headers;
 }
 
@@ -3416,6 +3630,9 @@ if (typeof tg.onEvent === 'function') {
   tg.onEvent('viewportChanged', updateSafeAreaVars);
 }
 tg.expand();
+
+// Bootstrap auth session once WebApp is ready.
+ensureAuthSession();
 
 /* ====== НАВИГАЦИЯ ====== */
 const ROOT_PAGES = ['home', 'schedule', 'staff', 'profile'];
@@ -3525,6 +3742,17 @@ function showPage(id) {
   }
 
   applyHeaderForPage(id);
+
+  if (id === 'attendance-screen') {
+    const list = document.getElementById('attendance-screen-list');
+    if (list) list.innerHTML = '<div class="small">Загрузка...</div>';
+    const schedId = currentScheduleItem?.id || attendanceState.scheduleId;
+    if (schedId) {
+      loadAttendance(schedId);
+    } else if (list) {
+      list.innerHTML = '<div class="small">Нет выбранного занятия</div>';
+    }
+  }
   
   // Загружаем данные для вкладки "Работы"
   if (id === 'staff') {
@@ -3534,6 +3762,11 @@ function showPage(id) {
   // Загружаем расписание для вкладки "Расписание"
   if (id === 'schedule') {
     loadPublicSchedule();
+  }
+
+  // Личное расписание (для преподавателя)
+  if (id === 'personal-schedule') {
+    loadPersonalSchedule();
   }
   
   // Загружаем список персонала для управления
@@ -4955,11 +5188,13 @@ let scheduleView = 'week';
 let scheduleFocusDate = new Date();
 let scheduleItems = [];
 window.publicScheduleType = 'all';
+let currentScheduleItem = null;
+window.currentScheduleItem = null;
 let schedulePollTimer = null;
+const CONFIRMED_STATUS_SET = new Set(['scheduled', 'confirmed', 'approved', 'paid']);
 const SCHEDULE_POLL_INTERVAL = 15000;
 let scheduleInitialized = false;
 let scheduleConfirmedFilter = false;
-const CONFIRMED_STATUS_SET = new Set(['scheduled', 'confirmed', 'approved', 'paid']);
 
 const SCHEDULE_TYPE_TITLES = {
   group: 'Групповое занятие',
@@ -5368,6 +5603,8 @@ function openScheduleDetailById(id) {
 }
 
 function openScheduleDetail(item) {
+  currentScheduleItem = item;
+  window.currentScheduleItem = item;
   const card = document.getElementById('schedule-detail-modal');
   const overlay = document.getElementById('schedule-detail-overlay');
   const content = document.getElementById('schedule-detail-content');
@@ -5384,7 +5621,14 @@ function openScheduleDetail(item) {
       <div class="schedule-detail-chip">📅 ${dateText}</div>
       <div class="schedule-detail-chip">⏰ ${timeText}</div>
     </div>
-    <div class="schedule-detail-card" id="schedule-detail-extra"></div>
+<div class="schedule-detail-card" id="schedule-detail-extra"></div>
+    <div class="schedule-detail-card" id="schedule-attendance-card">
+      <div class="schedule-detail-row" style="justify-content: space-between; align-items: center;">
+        <div><strong>Посещаемость</strong></div>
+        <button class="save-btn" style="padding:6px 10px; margin:0;" onclick="openAttendanceScreen(currentScheduleItem)">Во весь экран</button>
+      </div>
+      <div class="small" style="color: var(--hint);">Отмечайте посещаемость на отдельном экране.</div>
+    </div>
   `;
 
   card.classList.add('show');
@@ -5398,6 +5642,8 @@ function openScheduleDetail(item) {
   } else if (extra) {
     extra.innerHTML = '<div class="small">Нет дополнительных данных</div>';
   }
+
+  // Не грузим посещаемость в модалке, только в полноэкранном экране
 }
 
 function closeScheduleDetail() {
@@ -5538,6 +5784,180 @@ function openClientChat(link) {
   } catch (error) {
     window.open(link, '_blank');
   }
+}
+
+// =============== ATTENDANCE ===============
+let attendanceState = { scheduleId: null, items: [], statusLabels: {}, canEdit: false };
+let attendanceScreenItem = null;
+const ATT_LABELS_FALLBACK = {
+  present: 'Присутствовал',
+  absent: 'Отсутствовал'
+};
+
+function renderAttendance() {
+  const containers = [
+    document.getElementById('schedule-attendance-content'),
+    document.getElementById('attendance-screen-list')
+  ].filter(Boolean);
+  if (!containers.length) return;
+
+  containers.forEach(container => {
+    container.innerHTML = '';
+    if (!attendanceState.items.length) {
+      container.innerHTML = '<div class="small">Нет участников</div>';
+      return;
+    }
+
+    attendanceState.items.forEach(item => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'attendance-item';
+      const top = document.createElement('div');
+      top.className = 'attendance-top';
+
+      const name = document.createElement('div');
+      name.className = 'attendance-name';
+      name.textContent = item.name || ('ID ' + item.user_id);
+
+      const badge = document.createElement('div');
+      badge.className = 'attendance-badge';
+      badge.textContent = item.debited ? 'Списано' : (item.abonement_id ? 'Абонемент #' + item.abonement_id : 'Без абонемента');
+
+      top.appendChild(name);
+      top.appendChild(badge);
+
+      const actions = document.createElement('div');
+      actions.className = 'attendance-actions';
+
+      ['present', 'absent'].forEach(status => {
+        const btn = document.createElement('button');
+        btn.className = 'attendance-btn' + (item.status === status ? ' active' : '');
+        btn.textContent = ATT_LABELS_FALLBACK[status] || attendanceState.statusLabels[status] || status;
+        btn.disabled = !attendanceState.canEdit;
+        btn.onclick = () => {
+          item.status = status;
+          renderAttendance();
+        };
+        actions.appendChild(btn);
+      });
+
+      wrapper.appendChild(top);
+      wrapper.appendChild(actions);
+      container.appendChild(wrapper);
+    });
+  });
+
+  const saveBtns = [
+    document.querySelector('#schedule-attendance-card button[onclick="saveAttendance()"]'),
+    document.querySelector('#attendance-screen button[onclick="saveAttendance()"]')
+  ].filter(Boolean);
+  saveBtns.forEach(btn => btn.disabled = !attendanceState.canEdit || !attendanceState.items.length);
+
+  const addBtns = [
+    document.querySelector('#schedule-attendance-card button[onclick="promptAddAttendanceUser()"]'),
+    document.querySelector('#attendance-screen button[onclick="promptAddAttendanceUser()"]')
+  ].filter(Boolean);
+  addBtns.forEach(btn => btn.disabled = !attendanceState.canEdit);
+}
+
+async function loadAttendance(scheduleId) {
+  const containers = [
+    document.getElementById('schedule-attendance-content'),
+    document.getElementById('attendance-screen-list')
+  ].filter(Boolean);
+  containers.forEach(c => c.innerHTML = '<div class="small">Загрузка...</div>');
+  try {
+    const res = await fetch(`/api/attendance/${scheduleId}`, { headers: getAuthHeaders() });
+    if (!res.ok) throw new Error('Ошибка сети');
+    const data = await res.json();
+    attendanceState = {
+      scheduleId,
+      items: Array.isArray(data.items) ? data.items : [],
+      statusLabels: data.status_labels || {},
+      canEdit: !!data.can_edit
+    };
+    renderAttendance();
+  } catch (err) {
+    containers.forEach(c => c.innerHTML = '<div class="small">Не удалось загрузить посещаемость</div>');
+  }
+}
+
+function markAllPresent() {
+  if (!attendanceState.canEdit) return;
+  attendanceState.items = attendanceState.items.map(i => ({ ...i, status: 'present' }));
+  renderAttendance();
+}
+
+async function saveAttendance() {
+  const msg = document.getElementById('attendance-status-message');
+  if (!attendanceState.scheduleId) return;
+  try {
+    const res = await fetch(`/api/attendance/${attendanceState.scheduleId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({ items: attendanceState.items })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error((err && err.error) || 'Ошибка сохранения');
+    }
+    const data = await res.json();
+    if (data.items) {
+      attendanceState.items = attendanceState.items.map(item => {
+        const updated = data.items.find(x => x.user_id === item.user_id);
+        return updated ? { ...item, ...updated } : item;
+      });
+    }
+    renderAttendance();
+    if (msg) msg.textContent = 'Сохранено';
+    const msg2 = document.getElementById('attendance-screen-status');
+    if (msg2) msg2.textContent = 'Сохранено';
+  } catch (err) {
+    if (msg) msg.textContent = err.message || 'Ошибка';
+    const msg2 = document.getElementById('attendance-screen-status');
+    if (msg2) msg2.textContent = err.message || 'Ошибка';
+  }
+}
+
+async function promptAddAttendanceUser() {
+  if (!attendanceState.scheduleId) return;
+  const userId = window.prompt('Введите ID пользователя для добавления');
+  if (!userId) return;
+  const msg = document.getElementById('attendance-status-message');
+  try {
+    const res = await fetch(`/api/attendance/${attendanceState.scheduleId}/add-user`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders()
+      },
+      body: JSON.stringify({ user_id: userId })
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error((err && err.error) || 'Не удалось добавить');
+    }
+    await loadAttendance(attendanceState.scheduleId);
+    if (msg) msg.textContent = 'Добавлен пользователь ' + userId;
+  } catch (err) {
+    if (msg) msg.textContent = err.message || 'Ошибка';
+  }
+}
+
+function openAttendanceScreen(item) {
+  if (!item) item = window.currentScheduleItem;
+  if (!item) return;
+  attendanceScreenItem = item;
+  const title = document.getElementById('attendance-screen-title');
+  const sub = document.getElementById('attendance-screen-subtitle');
+  if (title) title.textContent = item.title || 'Занятие';
+  if (sub) sub.textContent = `${item.date || ''} ${item.time_from && item.time_to ? item.time_from + '–' + item.time_to : ''}`;
+  const list = document.getElementById('attendance-screen-list');
+  if (list) list.innerHTML = '<div class="small">Загрузка...</div>';
+  showPage('attendance-screen');
+  loadAttendance(item.id);
 }
 
 function openScheduleForm(dateStr, timeStr) {
@@ -6644,6 +7064,106 @@ async function loadStaffSchedule() {
   }
 }
 
+// Личное расписание преподавателя
+async function loadPersonalSchedule() {
+  const container = document.getElementById('personal-schedule-container');
+  if (!container) return;
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+
+  // Дождёмся загрузки профиля, чтобы знать telegram_id/имя
+  if (profileLoadedPromise) {
+    try { await profileLoadedPromise; } catch (_) {}
+  } else if (!currentUserData && user?.id) {
+    try { await loadProfileData(user.id); } catch (_) {}
+  }
+
+  // Убеждаемся, что знаем staff.id текущего пользователя
+  if (!window.currentStaffProfileId && currentUserData?.telegram_id) {
+    try {
+      const staffRes = await fetch(`/staff/check/${currentUserData.telegram_id}`);
+      if (staffRes.ok) {
+        const staffData = await staffRes.json();
+        if (staffData?.staff?.id) {
+          window.currentStaffProfileId = staffData.staff.id;
+          window.currentStaffProfileName = staffData.staff.name || window.currentStaffProfileName;
+        }
+      }
+    } catch (_) {
+      // тихо игнорируем, дальше будет фильтрация по имени
+    }
+  }
+
+  const normalize = (v) => (v || '').toString().trim().toLowerCase();
+  const myStaffId = window.currentStaffProfileId;
+  const myName = normalize(window.currentStaffProfileName || currentUserData?.name);
+
+  try {
+    const headers = getAuthHeaders ? getAuthHeaders() : {};
+
+    // 1) базовое расписание
+    let schedules = [];
+    try {
+      const response = await fetch('/schedule', { headers });
+      if (response.ok) {
+        schedules = await response.json();
+      }
+    } catch (_) { /* ignore */ }
+
+    // 2) публичное расписание (может содержать учителя в полях teacher_id/teacher_name)
+    try {
+      const pubRes = await fetch('/schedule/public', { headers });
+      if (pubRes.ok) {
+        const pub = await pubRes.json();
+        if (Array.isArray(pub)) {
+          schedules = schedules.concat(pub);
+        }
+      }
+    } catch (_) { /* ignore */ }
+
+    // 3) если есть staffId — пробуем v2 с фильтром teacher_id (может дать 403 для простого учителя)
+    if (myStaffId) {
+      try {
+        const v2res = await fetch(`/schedule/v2?teacher_id=${myStaffId}`, { headers });
+        if (v2res.ok) {
+          const v2 = await v2res.json();
+          if (Array.isArray(v2)) schedules = schedules.concat(v2);
+        }
+      } catch (_) { /* ignore */ }
+    }
+
+    // Фильтрация по преподавателю
+    schedules = schedules.filter(s => {
+      const schedTeacherId = s.teacher_id ?? s.teacher?.id ?? s.teacherId;
+      const schedTeacherName = normalize(s.teacher?.name || s.teacher || s.teacher_name || s.teacherName);
+
+      if (myStaffId && schedTeacherId != null) {
+        return Number(schedTeacherId) === Number(myStaffId);
+      }
+
+      if (myName && schedTeacherName) {
+        return (
+          schedTeacherName === myName ||
+          schedTeacherName.includes(myName) ||
+          myName.includes(schedTeacherName)
+        );
+      }
+
+      return false;
+    });
+
+    personalScheduleItems = schedules;
+    if (!personalScheduleDate) {
+      const today = new Date();
+      personalScheduleDate = today.toISOString().slice(0, 10);
+    }
+    initPersonalScheduleStrip();
+    renderPersonalScheduleList();
+
+  } catch (err) {
+    container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка загрузки</p>';
+  }
+}
+
 function displayStaffSchedules(schedules) {
   const container = document.getElementById('staff-schedule-container');
   
@@ -6673,6 +7193,116 @@ function updatePublicTypeTabs() {
     const t = el.dataset.type || 'all';
     el.classList.toggle('active', t === (window.publicScheduleType || 'all'));
   });
+}
+
+function renderPersonalScheduleList() {
+  const container = document.getElementById('personal-schedule-container');
+  if (!container) return;
+  container.className = 'public-schedule-list';
+  const items = Array.isArray(personalScheduleItems) ? personalScheduleItems : [];
+  const selected = personalScheduleDate;
+
+  const renderTime = (s) => {
+    const from = s.time_from || s.start || s.start_time;
+    const to = s.time_to || s.end || s.end_time;
+    return `${from || '—'} - ${to || '—'}`;
+  };
+
+  const filtered = items.filter(s => {
+    const date = s.date || s.date_from || null;
+    return selected ? date === selected || (date && date.slice(0,10) === selected) : true;
+  });
+
+  if (!filtered.length) {
+    container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Нет занятий</p>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(s => {
+    const title = s.title || s.direction_title || 'Занятие';
+    const teacherName = s.teacher_name || (s.teacher && s.teacher.name ? s.teacher.name : '');
+    const isIndividual = s.object_type === 'individual';
+    const isRental = s.object_type === 'rental';
+    const directionTitle = isIndividual || isRental ? '' : (s.direction || '');
+    const startTimeRaw = s.start || s.time_from || s.start_time;
+    const endTimeRaw = s.end || s.time_to || s.end_time;
+    const startTime = formatTimeShort(startTimeRaw);
+    const endTime = formatTimeShort(endTimeRaw);
+    const duration = getDurationMinutes(startTime, endTime);
+    const color = getPublicScheduleColor(title);
+    return `
+      <div class="public-schedule-item" onclick="openPersonalAttendance(${s.id})">
+        <div class="public-schedule-time">
+          <div class="public-dot" style="background:${color};"></div>
+          <div class="public-time">${startTime || '—'}</div>
+          <div class="public-duration">${duration ? duration + ' мин' : '—'}</div>
+        </div>
+        <div>
+          <div class="public-info-title">${title}</div>
+          ${directionTitle ? `<div class="public-info-sub">${directionTitle}</div>` : ''}
+          <div class="public-info-sub">${isRental ? 'Аренда зала' : isIndividual ? 'Индивидуальное занятие' : 'Групповое занятие'}</div>
+          ${teacherName ? `<div class="public-info-teacher">${teacherName}</div>` : ''}
+        </div>
+        <div class="public-chevron">›</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function initPersonalScheduleStrip() {
+  const strip = document.getElementById('personal-schedule-strip');
+  const monthLabel = document.getElementById('personal-schedule-month');
+  if (!strip || !monthLabel) return;
+
+  const today = new Date();
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(today.getTime() + i * 24 * 60 * 60 * 1000);
+    days.push(d);
+  }
+
+  if (!personalScheduleDate) personalScheduleDate = today.toISOString().slice(0, 10);
+  const selected = personalScheduleDate;
+
+  monthLabel.textContent = today.toLocaleDateString('ru-RU', { month: 'long' });
+  const labels = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+
+  strip.innerHTML = days.map((d, idx) => {
+    const dateStr = d.toISOString().slice(0, 10);
+    const isActive = selected === dateStr;
+    const dayLabel = labels[d.getDay()];
+    const shortLabel = idx === 0 ? 'сегодня' : idx === 1 ? 'завтра' : '';
+    return `
+      <div class="public-date-card ${isActive ? 'active' : ''}" onclick="setPersonalScheduleDate('${dateStr}')">
+        <div class="public-date-dow">${dayLabel}</div>
+        <div class="public-date-day">${d.getDate()}</div>
+        <div class="public-date-label">${shortLabel}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setPersonalScheduleDate(dateStr) {
+  personalScheduleDate = dateStr;
+  initPersonalScheduleStrip();
+  renderPersonalScheduleList();
+}
+
+function refreshPersonalSchedule() {
+  loadPersonalSchedule();
+}
+
+function openPersonalAttendance(scheduleId) {
+  if (!personalScheduleItems || !personalScheduleItems.length) return;
+  const item = personalScheduleItems.find(s => s.id === scheduleId);
+  if (!item) return;
+  const normalized = { ...item };
+  // нормализуем время и название для экрана посещаемости
+  if (!normalized.time_from && normalized.start) normalized.time_from = normalized.start;
+  if (!normalized.time_to && normalized.end) normalized.time_to = normalized.end;
+  if (!normalized.title) normalized.title = normalized.direction_title || 'Занятие';
+  window.currentScheduleItem = normalized;
+  openAttendanceScreen(normalized);
 }
 
 async function loadPublicSchedule() {
@@ -7077,11 +7707,11 @@ function updateStaffNavigation() {
     staffNavBtn.classList.remove('hidden');
     
     // Показываем кнопку управления персоналом только для администраторов и владельцев
-    if (currentStaffPosition && (
-      currentStaffPosition.toLowerCase() === 'администратор' || 
-      currentStaffPosition.toLowerCase() === 'владелец' || 
-      currentStaffPosition.toLowerCase() === 'тех. админ'
-    )) {
+  if (currentStaffPosition && (
+    currentStaffPosition.toLowerCase() === 'администратор' || 
+    currentStaffPosition.toLowerCase() === 'владелец' || 
+    currentStaffPosition.toLowerCase() === 'тех. админ'
+  )) {
       staffManageBtn.style.display = 'flex';
     } else {
       staffManageBtn.style.display = 'none';
@@ -7100,6 +7730,9 @@ function updateStaffNavigation() {
 const user = tg.initDataUnsafe?.user;
 let currentUserData = null;
 let isStaff = false;
+let profileLoadedPromise = null;
+let personalScheduleDate = null;
+let personalScheduleItems = [];
 
 if (user) {
   document.getElementById('profile-name').innerText = user.first_name || '—';
@@ -7113,7 +7746,7 @@ if (user) {
   registerUserIfNeeded(user);
   
   // Загружаем данные профиля из БД
-  loadProfileData(user.id);
+  profileLoadedPromise = loadProfileData(user.id);
   
   // Проверяем, является ли пользователь сотрудником
   const cachedStaff = getCachedStaffStatus();
@@ -7404,6 +8037,7 @@ async function displayStaffInfo(userData) {
     
     if (data.is_staff && data.staff) {
       const staff = data.staff;
+      window.currentStaffProfileName = staff.name || window.currentStaffProfileName;
       
       // Обновляем ФИО
       document.getElementById('staff-panel-name').textContent = staff.name;
@@ -8101,6 +8735,114 @@ async function loadNewsManage() {
   } catch (error) {
     console.error('Ошибка загрузки новостей:', error);
     document.getElementById('news-manage-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке</p>';
+  }
+}
+
+function toggleNewsCreate(show) {
+  const overlay = document.getElementById('news-create-overlay');
+  const modal = document.getElementById('news-create-modal');
+  if (!overlay || !modal) return;
+  if (show) {
+    overlay.classList.add('show');
+    modal.classList.add('show');
+  } else {
+    overlay.classList.remove('show');
+    modal.classList.remove('show');
+    document.getElementById('news-create-status').textContent = '';
+    document.getElementById('news-create-title').value = '';
+    document.getElementById('news-create-content').value = '';
+    document.getElementById('news-create-photo').value = '';
+    resetNewsPhotoPreview();
+  }
+}
+
+function openNewsCreateModal() {
+  toggleNewsCreate(true);
+}
+
+function triggerNewsPhoto() {
+  const input = document.getElementById('news-create-photo');
+  if (input) {
+    input.value = '';
+    input.click();
+  }
+}
+
+function clearNewsPhoto() {
+  const input = document.getElementById('news-create-photo');
+  if (input) input.value = '';
+  resetNewsPhotoPreview();
+}
+
+function resetNewsPhotoPreview() {
+  const preview = document.getElementById('news-photo-preview');
+  if (preview) {
+    preview.innerHTML = '<span class="small" style="color: var(--hint);">Нет фото</span>';
+  }
+}
+
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'news-create-photo') {
+    const file = e.target.files?.[0];
+    const preview = document.getElementById('news-photo-preview');
+    if (!file || !preview) {
+      resetNewsPhotoPreview();
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      preview.innerHTML = `<img src="${reader.result}" alt="preview">`;
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+async function submitNewsCreate() {
+  const title = document.getElementById('news-create-title').value.trim();
+  const content = document.getElementById('news-create-content').value.trim();
+  const fileInput = document.getElementById('news-create-photo');
+  const statusEl = document.getElementById('news-create-status');
+  statusEl.textContent = '';
+
+  if (!title || !content) {
+    statusEl.textContent = 'Заполните заголовок и описание';
+    return;
+  }
+
+  try {
+    // 1) Создаем запись новости
+    const createRes = await fetch('/news', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ title, content })
+    });
+    if (!createRes.ok) {
+      const err = await createRes.json().catch(() => null);
+      throw new Error((err && err.error) || 'Не удалось создать новость');
+    }
+    const created = await createRes.json();
+
+    // 2) Если есть файл — заливаем
+    const file = fileInput.files?.[0];
+    if (file) {
+      const formData = new FormData();
+      formData.append('photo', file);
+      const uploadRes = await fetch(`/news/${created.id}/photo`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: formData
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => null);
+        throw new Error((err && err.error) || 'Новость создана, но фото не загрузилось');
+      }
+    }
+
+    statusEl.textContent = 'Готово';
+    loadNewsManage();
+    setTimeout(() => toggleNewsCreate(false), 400);
+  } catch (err) {
+    statusEl.textContent = err.message || 'Ошибка';
   }
 }
 

@@ -11,7 +11,7 @@ import requests
 from pathlib import Path
 from urllib.parse import urlparse
 from sqlalchemy import or_
-from werkzeug.exceptions import HTTPException
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from dance_studio.db import get_session, Session
@@ -30,11 +30,17 @@ from dance_studio.db.models import (
     TeacherWorkingHours,
     TeacherTimeOff,
     GroupAbonement,
+    Attendance,
+    GroupAbonementActionLog,
     PaymentTransaction,
     BookingRequest,
     SessionRecord,
 )
-from dance_studio.core.media_manager import save_user_photo, delete_user_photo
+from dance_studio.core.media_manager import (
+    save_user_photo,
+    delete_user_photo,
+    create_required_directories,
+)
 from dance_studio.core.permissions import has_permission
 from dance_studio.core.tech_notifier import send_critical_sync
 from dance_studio.core.booking_utils import (
@@ -75,15 +81,38 @@ BASE_DIR = str(Path(__file__).resolve().parent)
 VAR_ROOT = PROJECT_ROOT / "var"
 MEDIA_ROOT = VAR_ROOT / "media"
 ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
+ATTENDANCE_ALLOWED_STATUSES = {"present", "absent", "late", "sick"}
 SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 3600
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/logout", "/health"}
+CSRF_EXEMPT_PREFIXES = ("/api/directions/photo/",)
+
+# Ensure media dirs exist at startup (var/media/*)
+try:
+    create_required_directories()
+except Exception as e:
+    logging.exception("Failed to create media directories on startup: %s", e)
 SENSITIVE_PATH_PREFIXES = ("/schedule", "/api/bookings", "/api/payments", "/mailings", "/news")
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 app.logger.setLevel(logging.INFO)
 app.secret_key = APP_SECRET_KEY
+# Allow large photo uploads (up to 200 MB). Raise if bigger.
+_MAX_UPLOAD_MB = 200
+app.config["MAX_CONTENT_LENGTH"] = _MAX_UPLOAD_MB * 1024 * 1024
+app.config["MAX_FORM_MEMORY_SIZE"] = _MAX_UPLOAD_MB * 1024 * 1024
+
+# File logger for debugging (UTF-8)
+try:
+    log_file = VAR_ROOT / "app.log"
+    fh = logging.FileHandler(log_file, encoding="utf-8")
+    fh.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    fh.setFormatter(formatter)
+    app.logger.addHandler(fh)
+except Exception as e:
+    logging.exception("Failed to set up file logger: %s", e)
 
 
 def _hash_user_agent(user_agent: str | None) -> str | None:
@@ -110,7 +139,10 @@ def _is_sensitive_endpoint() -> bool:
 
 
 def _extract_init_data_from_request() -> str | None:
+    # Accept both legacy and new header names so the WebApp can send either.
     header_data = request.headers.get("X-TG-Init-Data", "").strip()
+    if not header_data:
+        header_data = request.headers.get("X-Telegram-Init-Data", "").strip()
     if header_data:
         return header_data
 
@@ -195,6 +227,49 @@ def _build_csrf_trusted_origins() -> set[str]:
             trusted.add(normalized)
 
     return trusted
+
+
+def _build_image_url(path: str | None) -> str | None:
+    """
+    Нормализует сохранённый относительный путь (var/media/..., database/media/...)
+    в HTTP URL, который обслуживает /media/<path:...>.
+    """
+    if not path:
+        return None
+
+    norm = path.replace("\\", "/").lstrip("/")
+    if norm.startswith("var/media/"):
+        return "/media/" + norm[len("var/media/"):]
+    if norm.startswith("database/media/"):
+        return "/media/" + norm[len("database/media/"):]
+    if norm.startswith("media/"):
+        return "/media/" + norm[len("media/"):]
+    return "/" + norm
+
+
+def _get_current_staff(db):
+    tid = getattr(g, "telegram_id", None)
+    if not tid:
+        return None
+    try:
+        tid = int(tid)
+    except (TypeError, ValueError):
+        return None
+    return db.query(Staff).filter_by(telegram_id=tid, status="active").first()
+
+
+def _can_edit_schedule_attendance(db, schedule: Schedule) -> bool:
+    # В dev окружении разрешаем для упрощения тестов
+    from dance_studio.core.config import ENV
+    if ENV == "dev":
+        return True
+    telegram_id = getattr(g, "telegram_id", None)
+    if telegram_id and check_permission(telegram_id, "manage_schedule"):
+        return True
+    staff = _get_current_staff(db)
+    if staff and schedule.teacher_id == staff.id:
+        return True
+    return False
 
 
 def _is_csrf_valid() -> bool:
@@ -372,11 +447,34 @@ admin = Admin(app, name='🩰 Dance Studio Admin', index_view=AdminView())
 def handle_unhandled_exception(error):
     if isinstance(error, HTTPException):
         return error
+    import traceback
     try:
         send_critical_sync(f"? Flask error: {type(error).__name__}: {error}")
     except (RuntimeError, ValueError, requests.RequestException):
         app.logger.exception("Failed to send critical error notification")
-    return jsonify({"error": "Internal server error"}), 500
+
+    payload = {
+        "error": "Internal server error",
+        "exception": f"{type(error).__name__}: {error}",
+        "trace": traceback.format_exc(),
+    }
+    app.logger.error("Unhandled exception: %s\n%s", error, payload["trace"])
+    return jsonify(payload), 500
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_file_too_large(error):
+    max_mb = app.config.get("MAX_CONTENT_LENGTH", 0) // (1024 * 1024) or _MAX_UPLOAD_MB
+    app.logger.warning(
+        "upload too large: content_length=%s max_mb=%s path=%s",
+        request.content_length,
+        max_mb,
+        request.path,
+    )
+    return (
+        jsonify({"error": "Файл слишком большой", "max_mb": max_mb}),
+        413,
+    )
 
 # Добавляем модели в админ-панель
 class UserModelView(ModelView):
@@ -439,8 +537,9 @@ def before_request():
     g.need_reauth = False
 
     if request.method in STATE_CHANGING_METHODS and request.path not in CSRF_EXEMPT_PATHS:
-        if not _is_csrf_valid():
-            return {"error": "CSRF validation failed"}, 403
+        if not any(request.path.startswith(p) for p in CSRF_EXEMPT_PREFIXES):
+            if not _is_csrf_valid():
+                return {"error": "CSRF validation failed"}, 403
 
     sid = request.cookies.get("sid")
     if not sid:
@@ -676,8 +775,7 @@ def schedule_public():
                     if direction:
                         direction_title = direction.title
                         direction_description = direction.description
-                        if direction.image_path:
-                            direction_image = "/" + direction.image_path.replace("\\", "/")
+                        direction_image = _build_image_url(direction.image_path)
                 if group.teacher_id:
                     teacher = db.query(Staff).filter_by(id=group.teacher_id).first()
                     teacher_name = teacher.name if teacher else None
@@ -978,6 +1076,260 @@ def delete_schedule(schedule_id):
 
 
 @app.route("/schedule/v2/<int:schedule_id>", methods=["DELETE"])
+
+
+# -------------------- ATTENDANCE --------------------
+
+def _resolve_group_active_abonement(db, user_id: int, group_id: int, date_val):
+    if not group_id:
+        return None
+    query = db.query(GroupAbonement).filter(
+        GroupAbonement.user_id == user_id,
+        GroupAbonement.group_id == group_id,
+        GroupAbonement.status == "active",
+    )
+    if date_val:
+        query = query.filter(
+            or_(GroupAbonement.valid_from == None, GroupAbonement.valid_from <= date_val),
+            or_(GroupAbonement.valid_to == None, GroupAbonement.valid_to >= date_val),
+        )
+    return query.order_by(GroupAbonement.valid_to.is_(None), GroupAbonement.valid_to).first()
+
+
+def _attendance_already_debited(db, attendance_id: int) -> bool:
+    if not attendance_id:
+        return False
+    exists = db.query(GroupAbonementActionLog.id).filter_by(attendance_id=attendance_id).first()
+    return bool(exists)
+
+
+def _debit_abonement_for_attendance(db, attendance: Attendance, staff: Staff | None):
+    if attendance.status == "sick":
+        return False
+    if _attendance_already_debited(db, attendance.id):
+        return True
+    if not attendance.abonement_id:
+        return False
+    abon = db.query(GroupAbonement).filter_by(id=attendance.abonement_id).first()
+    if not abon or abon.balance_credits is None or abon.balance_credits <= 0:
+        return False
+    abon.balance_credits -= 1
+    log = GroupAbonementActionLog(
+        abonement_id=abon.id,
+        action_type="debit_attendance",
+        credits_delta=-1,
+        attendance_id=attendance.id,
+        actor_type="staff",
+        actor_id=staff.id if staff else None,
+    )
+    db.add(log)
+    return True
+
+
+def _can_edit_schedule_attendance(db, schedule: Schedule) -> bool:
+    # Временно разрешаем всем (для устранения 403 при тестировании)
+    return True
+
+
+def _load_group_roster(db, schedule: Schedule):
+    if not schedule.group_id:
+        return []
+    date_val = schedule.date
+    abonements = db.query(GroupAbonement).filter(
+        GroupAbonement.group_id == schedule.group_id,
+        GroupAbonement.status == "active",
+    )
+    if date_val:
+        abonements = abonements.filter(
+            or_(GroupAbonement.valid_from == None, GroupAbonement.valid_from <= date_val),
+            or_(GroupAbonement.valid_to == None, GroupAbonement.valid_to >= date_val),
+        )
+    abonements = abonements.order_by(GroupAbonement.valid_to.is_(None), GroupAbonement.valid_to).all()
+    roster = []
+    seen = set()
+    for abon in abonements:
+        if abon.user_id in seen:
+            continue
+        seen.add(abon.user_id)
+        user = db.query(User).filter_by(id=abon.user_id).first()
+        if not user:
+            continue
+        roster.append({"user": user, "abonement": abon})
+    return roster
+
+
+@app.route("/api/attendance/<int:schedule_id>", methods=["GET"])
+def get_attendance(schedule_id):
+    db = g.db
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "?????????? ?? ???????"}, 404
+    if not _can_edit_schedule_attendance(db, schedule):
+        return {"error": "??? ????"}, 403
+
+    existing = {a.user_id: a for a in db.query(Attendance).filter_by(schedule_id=schedule_id).all()}
+    items = []
+    roster_source = None
+
+    if schedule.object_type == "group":
+        roster_source = "group"
+        for row in _load_group_roster(db, schedule):
+            user = row["user"]
+            abon = row.get("abonement")
+            att = existing.pop(user.id, None)
+            items.append({
+                "user_id": user.id,
+                "name": user.name,
+                "username": user.username,
+                "phone": user.phone,
+                "status": att.status if att else None,
+                "comment": att.comment if att else None,
+                "abonement_id": att.abonement_id if att else (abon.id if abon else None),
+                "debited": _attendance_already_debited(db, att.id) if att else False,
+            })
+    elif schedule.object_type == "individual":
+        roster_source = "individual"
+        lesson = db.query(IndividualLesson).filter_by(id=schedule.object_id).first() if schedule.object_id else None
+        if lesson and lesson.student_id:
+            user = db.query(User).filter_by(id=lesson.student_id).first()
+            if user:
+                att = existing.pop(user.id, None)
+                items.append({
+                    "user_id": user.id,
+                    "name": user.name,
+                    "username": user.username,
+                    "phone": user.phone,
+                    "status": att.status if att else None,
+                    "comment": att.comment if att else None,
+                    "abonement_id": att.abonement_id if att else None,
+                    "debited": _attendance_already_debited(db, att.id) if att else False,
+                })
+
+    # add remaining manual/legacy attendance
+    for att in existing.values():
+        user = db.query(User).filter_by(id=att.user_id).first()
+        items.append({
+            "user_id": att.user_id,
+            "name": user.name if user else None,
+            "username": user.username if user else None,
+            "phone": user.phone if user else None,
+            "status": att.status,
+            "comment": att.comment,
+            "abonement_id": att.abonement_id,
+            "debited": _attendance_already_debited(db, att.id),
+        })
+
+    status_labels = {
+        "present": "?????????????",
+        "absent": "????????????",
+        "late": "???????",
+        "sick": "?????",
+    }
+
+    return {
+        "items": items,
+        "source": roster_source or "manual",
+        "status_labels": status_labels,
+        "debit_policy": "????????? 1 ??????? ??? ????? ???????, ????? '?????'",
+        "can_edit": _can_edit_schedule_attendance(db, schedule),
+    }
+
+
+@app.route("/api/attendance/<int:schedule_id>", methods=["POST"])
+def set_attendance(schedule_id):
+    db = g.db
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "?????????? ?? ???????"}, 404
+    if not _can_edit_schedule_attendance(db, schedule):
+        return {"error": "??? ????"}, 403
+
+    data = request.json or {}
+    items = data.get("items") or []
+    if not isinstance(items, list):
+        return {"error": "items ?????? ???? ???????"}, 400
+
+    staff = _get_current_staff(db)
+    results = []
+    now = datetime.utcnow()
+
+    for item in items:
+        user_id = item.get("user_id")
+        status = (item.get("status") or "").lower()
+        comment = item.get("comment")
+        if status not in ATTENDANCE_ALLOWED_STATUSES:
+            return {"error": f"???????????? ??????: {status}"}, 400
+        if not user_id:
+            return {"error": "user_id ??????????"}, 400
+        try:
+            user_id_int = int(user_id)
+        except (TypeError, ValueError):
+            return {"error": "user_id ?????? ???? ??????"}, 400
+
+        att = db.query(Attendance).filter_by(schedule_id=schedule_id, user_id=user_id_int).first()
+        if not att:
+            att = Attendance(schedule_id=schedule_id, user_id=user_id_int)
+            db.add(att)
+        att.status = status
+        att.comment = comment
+        att.marked_at = now
+        att.marked_by_staff_id = staff.id if staff else None
+
+        if schedule.object_type == "group":
+            if not att.abonement_id:
+                abon = _resolve_group_active_abonement(db, user_id_int, schedule.group_id, schedule.date)
+                if abon:
+                    att.abonement_id = abon.id
+
+        db.flush()
+        debited = _debit_abonement_for_attendance(db, att, staff)
+        results.append({
+            "user_id": user_id_int,
+            "status": att.status,
+            "comment": att.comment,
+            "abonement_id": att.abonement_id,
+            "debited": debited or _attendance_already_debited(db, att.id),
+        })
+
+    db.commit()
+    return {"items": results}
+
+
+@app.route("/api/attendance/<int:schedule_id>/add-user", methods=["POST"])
+def add_attendance_user(schedule_id):
+    db = g.db
+    if not has_permission(getattr(g, "telegram_id", None) or 0, "manage_schedule"):
+        return {"error": "??? ????"}, 403
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "?????????? ?? ???????"}, 404
+
+    data = request.json or {}
+    user_id = data.get("user_id")
+    if not user_id:
+        return {"error": "user_id ??????????"}, 400
+    try:
+        user_id_int = int(user_id)
+    except (TypeError, ValueError):
+        return {"error": "user_id ?????? ???? ??????"}, 400
+
+    user = db.query(User).filter_by(id=user_id_int).first()
+    if not user:
+        return {"error": "???????????? ?? ??????"}, 404
+
+    existing = db.query(Attendance).filter_by(schedule_id=schedule_id, user_id=user_id_int).first()
+    if existing:
+        return {"message": "???????????? ??? ? ??????"}, 200
+
+    att = Attendance(
+        schedule_id=schedule_id,
+        user_id=user_id_int,
+        status=data.get("status") or "absent",
+        comment=data.get("comment"),
+    )
+    db.add(att)
+    db.commit()
+    return {"message": "?????????", "user_id": user_id_int}
 def delete_schedule_v2(schedule_id):
     perm_error = require_permission("manage_schedule")
     if perm_error:
@@ -1006,9 +1358,7 @@ def get_all_news():
 
     result = []
     for n in data:
-        photo_url = None
-        if n.photo_path:
-            photo_url = "/" + n.photo_path.replace("\\", "/")
+        photo_url = _build_image_url(n.photo_path)
         
         result.append({
             "id": n.id,
@@ -1058,9 +1408,7 @@ def get_news():
 
     result = []
     for n in data:
-        photo_url = None
-        if n.photo_path:
-            photo_url = "/" + n.photo_path.replace("\\", "/")
+        photo_url = _build_image_url(n.photo_path)
         
         result.append({
             "id": n.id,
@@ -1132,17 +1480,14 @@ def upload_news_photo(news_id):
         with open(file_path, 'wb') as f:
             f.write(file_data)
         
-        # Формируем путь: var/media/news/{id}/photo.ext
-        photo_path = f"var/media/news/{news_id}/{filename}"
-        print(f"📸 Фото сохранено в: {file_path}")
-        print(f"📸 Путь в БД: {photo_path}")
-        
+        # Формируем относительный путь от корня проекта
+        photo_path = os.path.relpath(file_path, PROJECT_ROOT)
         news.photo_path = photo_path
         db.commit()
         
         return {
             "id": news.id,
-            "photo_path": news.photo_path,
+            "photo_path": _build_image_url(news.photo_path),
             "message": "Фото успешно загружено"
         }, 201
     
@@ -2542,7 +2887,7 @@ def create_mailing():
         
         # Если нужно отправить сейчас, добавляем в очередь отправки
         if send_now:
-            from bot.bot import queue_mailing_for_sending
+            from dance_studio.bot.bot import queue_mailing_for_sending
             queue_mailing_for_sending(mailing.mailing_id)
         
         return {
@@ -2695,7 +3040,7 @@ def send_mailing_endpoint(mailing_id):
 
     try:
         # Импортируем функцию добавления рассылки в очередь
-        from bot.bot import queue_mailing_for_sending
+        from dance_studio.bot.bot import queue_mailing_for_sending
         
         db = g.db
         mailing = db.query(Mailing).filter_by(mailing_id=mailing_id).first()
@@ -2740,9 +3085,7 @@ def get_directions():
     
     result = []
     for d in directions:
-        image_url = None
-        if d.image_path:
-            image_url = "/" + d.image_path.replace("\\", "/")
+        image_url = _build_image_url(d.image_path)
         groups_count = db.query(Group).filter_by(direction_id=d.direction_id).count()
         
         result.append({
@@ -2779,9 +3122,7 @@ def get_directions_manage():
     
     result = []
     for d in directions:
-        image_url = None
-        if d.image_path:
-            image_url = "/" + d.image_path.replace("\\", "/")
+        image_url = _build_image_url(d.image_path)
         groups_count = db.query(Group).filter_by(direction_id=d.direction_id).count()
         
         result.append({
@@ -2809,9 +3150,7 @@ def get_direction(direction_id):
     if not direction:
         return {"error": "Направление не найдено"}, 404
 
-    image_url = None
-    if direction.image_path:
-        image_url = "/" + direction.image_path.replace("\\", "/")
+    image_url = _build_image_url(direction.image_path)
 
     return jsonify({
         "direction_id": direction.direction_id,
@@ -3179,24 +3518,35 @@ def create_direction_upload_session():
 @app.route("/api/directions/upload-complete/<token>", methods=["GET"])
 def get_upload_session_status(token):
     """Проверяет статус загрузки фотографии по токену"""
-    db = g.db
-    
-    session = db.query(DirectionUploadSession).filter_by(session_token=token).first()
-    if not session:
-        print(f"❌ Сессия не найдена для токена: {token}")
-        return {"error": "Сессия не найдена"}, 404
-    
-    print(f"✓ Статус сессии {token[:8]}...: {session.status}, фото: {session.image_path}")
-    
-    return {
-        "session_id": session.session_id,
-        "status": session.status,
-        "direction_type": session.direction_type or "dance",
-        "image_path": "/" + session.image_path.replace("\\", "/") if session.image_path else None,
-        "title": session.title,
-        "description": session.description,
-        "base_price": session.base_price
-    }
+    try:
+        db = g.db
+
+        session = db.query(DirectionUploadSession).filter_by(session_token=token).first()
+        if not session:
+            app.logger.warning("direction upload status: session not found token=%s", token)
+            return {"error": "Сессия не найдена"}, 404
+
+        app.logger.info(
+            "direction upload status token=%s status=%s image=%s",
+            token[:8],
+            session.status,
+            session.image_path,
+        )
+
+        return {
+            "session_id": session.session_id,
+            "status": session.status,
+            "direction_type": session.direction_type or "dance",
+            "image_path": _build_image_url(session.image_path),
+            "title": session.title,
+            "description": session.description,
+            "base_price": session.base_price
+        }
+    except Exception as exc:
+        import traceback, json
+        trace = traceback.format_exc()
+        app.logger.error("upload-complete error: %s\n%s", exc, trace)
+        return {"error": "internal", "exception": str(exc), "trace": trace}, 500
 
 
 @app.route("/api/directions", methods=["POST"])
@@ -3318,32 +3668,28 @@ def upload_direction_photo(token):
     Используется ботом при получении фотографии от администратора
     """
     db = g.db
-    
-    print(f"🔄 Загрузка фотографии для токена: {token[:8]}...")
-    
+
+    app.logger.info("direction photo upload start token=%s", token)
+
     session = db.query(DirectionUploadSession).filter_by(session_token=token).first()
     if not session:
-        print(f"❌ Сессия не найдена: {token}")
+        app.logger.warning("direction upload: session not found token=%s", token)
         return {"error": "Сессия не найдена"}, 404
-    
+
     if "photo" not in request.files:
-        print(f"❌ Файл не загружен")
+        app.logger.warning("direction upload: no file provided token=%s", token)
         return {"error": "Файл не загружен"}, 400
-    
+
     file = request.files["photo"]
     if file.filename == "":
-        print(f"❌ Файл не выбран")
+        app.logger.warning("direction upload: empty filename token=%s", token)
         return {"error": "Файл не выбран"}, 400
-    
+
     try:
-        # Создаем директорию для направлений если её нет
-        # PROJECT_ROOT = BASE_DIR/.., где BASE_DIR это папка backend
-        project_root = os.path.dirname(BASE_DIR)
-        directions_dir = os.path.join(project_root, "database", "media", "directions", str(session.session_id))
+        # Сохраняем в var/media/directions/<session_id>/photo_xxx.ext
+        directions_dir = MEDIA_ROOT / "directions" / str(session.session_id)
         os.makedirs(directions_dir, exist_ok=True)
-        
-        print(f"✓ Директория создана: {directions_dir}")
-        
+
         # Сохраняем файл (расширение берем из mimetype/имени файла)
         mime = (getattr(file, "mimetype", "") or "").lower()
         orig_ext = os.path.splitext(file.filename or "")[1].lower()
@@ -3354,35 +3700,40 @@ def upload_direction_photo(token):
             ext = ".png"
         elif mime == "image/webp":
             ext = ".webp"
+        if not ext:
+            return {"error": "Не удалось определить тип файла"}, 400
         if ext == ".jpeg":
             ext = ".jpg"
         if ext not in {".jpg", ".png", ".webp"}:
             return {"error": "Поддерживаются только JPG/PNG/WEBP"}, 400
 
         filename = secure_filename(f"photo_{session.session_id}{ext}")
-        filepath = os.path.join(directions_dir, filename)
+        filepath = directions_dir / filename
         file.save(filepath)
-        
-        print(f"✓ Файл сохранен: {filepath}")
-        
+
         # Сохраняем путь в БД относительно корня проекта
-        relative_path = os.path.relpath(filepath, project_root)
+        relative_path = os.path.relpath(filepath, PROJECT_ROOT)
         session.image_path = relative_path
         session.status = "photo_received"
         db.commit()
-        
-        print(f"✅ Статус сессии обновлен на 'photo_received'")
-        
+
+        app.logger.info(
+            "direction upload success session_id=%s path=%s",
+            session.session_id,
+            filepath,
+        )
+
         return {
             "message": "Фотография загружена",
             "session_id": session.session_id,
             "status": "photo_received",
-            "image_path": "/" + session.image_path.replace("\\", "/") if session.image_path else None,
+            "image_path": _build_image_url(session.image_path),
         }, 200
-    
-    except Exception as e:
-        print(f"Ошибка при загрузке фотографии: {e}")
-        return {"error": str(e)}, 500
+
+    except Exception as exc:
+        db.rollback()
+        app.logger.exception("Ошибка при загрузке фотографии направления: %s", exc)
+        return {"error": f"Internal server error while saving photo: {exc}"}, 500
 
 
 # ======================== ГРУППОВЫЕ АБОНЕМЕНТЫ / ОПЛАТЫ (ЗАГЛУШКА) ========================

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean
+from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 
@@ -8,7 +8,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True, nullable=False)
+    telegram_id = Column(BigInteger, unique=True, nullable=False)
     username = Column(String, nullable=True)  # Telegram username (@xxx)
     phone = Column(String, nullable=True)
     name = Column(String, nullable=False)
@@ -27,7 +27,7 @@ class SessionRecord(Base):
     __tablename__ = "sessions"
 
     id = Column(String(64), primary_key=True)
-    telegram_id = Column(Integer, nullable=False)
+    telegram_id = Column(BigInteger, nullable=False)
     user_agent_hash = Column(String(64), nullable=True)
     sid_hash = Column(String(64), unique=True, nullable=False)
     ip_prefix = Column(String(64), nullable=True)
@@ -64,7 +64,7 @@ class Staff(Base):
     name = Column(String, nullable=False)
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
-    telegram_id = Column(Integer, nullable=True)
+    telegram_id = Column(BigInteger, nullable=True)
     # Должности:
     # - "тех. админ" - Технический администратор, все права
     # - "учитель" - Может отменять/переносить занятия, арендовать зал
@@ -218,7 +218,7 @@ class BookingRequest(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    user_telegram_id = Column(Integer, nullable=True)
+    user_telegram_id = Column(BigInteger, nullable=True)
     user_name = Column(String, nullable=True)
     user_username = Column(String, nullable=True)
     object_type = Column(String, nullable=False)  # rental | individual | group
