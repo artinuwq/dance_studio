@@ -1997,7 +1997,7 @@ def create_staff():
                         }
                         requests.post(telegram_api_url, json=payload, timeout=5)
                     except Exception:
-                        pass
+                        app.logger.exception("Failed to mark mailing as failed")
 
                 return {
                     "message": "Персонал восстановлен",
@@ -3916,7 +3916,7 @@ def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
     try:
         requests.post(telegram_api_url, json=payload, timeout=5)
     except Exception:
-        pass
+        app.logger.exception("Failed to send booking request notification")
 
 
 @app.route("/api/booking-requests", methods=["GET"])

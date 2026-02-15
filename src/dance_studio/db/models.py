@@ -48,7 +48,7 @@ class UsedInitData(Base):
     __tablename__ = "used_init_data"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    key_hash = Column(String(64), nullable=False, unique=True)
+    key_hash = Column(String(64), nullable=False)  # uniqueness ensured by index
     expires_at = Column(DateTime, nullable=False)
 
     __table_args__ = (
