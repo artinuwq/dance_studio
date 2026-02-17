@@ -5,8 +5,9 @@ import zipfile
 import logging
 import subprocess
 import shutil
+import hashlib
 from aiogram import Bot, Dispatcher, F
-from aiogram.types import MenuButtonWebApp, WebAppInfo, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import MenuButtonWebApp, WebAppInfo, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InputMediaDocument
 from aiogram.filters import CommandStart, Command, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -383,6 +384,29 @@ def _cleanup_old_backups() -> None:
                 pass
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _format_size(size_bytes: int) -> str:
+    units = ["B", "KB", "MB", "GB", "TB"]
+    value = float(size_bytes)
+    for unit in units:
+        if value < 1024 or unit == units[-1]:
+            if unit == "B":
+                return f"{int(value)} {unit}"
+            return f"{value:.2f} {unit}"
+        value /= 1024
+    return f"{size_bytes} B"
+
+
 async def _ensure_backup_topic() -> int | None:
     global TECH_BACKUPS_TOPIC_ID_RUNTIME
     if not TECH_BACKUPS_TOPIC_ID_RUNTIME:
@@ -402,18 +426,31 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
             backup_sent = False
             if topic_id:
                 now_human = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                db_sha = await asyncio.to_thread(_file_sha256, db_dump_path)
+                media_sha = await asyncio.to_thread(_file_sha256, media_archive_path)
+                db_size = _format_size(db_dump_path.stat().st_size)
+                media_size = _format_size(media_archive_path.stat().st_size)
+                caption = (
+                    f"Backup ({reason})\n"
+                    f"Date/time: {now_human}\n"
+                    f"DB: {db_dump_path.name} ({db_size})\n"
+                    f"DB SHA256: {db_sha}\n"
+                    f"Media: {media_archive_path.name} ({media_size})\n"
+                    f"Media SHA256: {media_sha}"
+                )
                 try:
-                    await bot.send_document(
+                    await bot.send_media_group(
                         chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
                         message_thread_id=topic_id,
-                        document=FSInputFile(str(db_dump_path)),
-                        caption=f"DB backup ({reason}) {now_human}"
-                    )
-                    await bot.send_document(
-                        chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
-                        message_thread_id=topic_id,
-                        document=FSInputFile(str(media_archive_path)),
-                        caption=f"Media backup ({reason}) {now_human}"
+                        media=[
+                            InputMediaDocument(
+                                media=FSInputFile(str(db_dump_path)),
+                                caption=caption
+                            ),
+                            InputMediaDocument(
+                                media=FSInputFile(str(media_archive_path))
+                            ),
+                        ],
                     )
                     backup_sent = True
                 except Exception as e:
@@ -422,21 +459,37 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                         TECH_BACKUPS_TOPIC_ID_RUNTIME = None
                         topic_id = await _ensure_backup_topic()
                         if topic_id:
+                            await bot.send_media_group(
+                                chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                                message_thread_id=topic_id,
+                                media=[
+                                    InputMediaDocument(
+                                        media=FSInputFile(str(db_dump_path)),
+                                        caption=caption
+                                    ),
+                                    InputMediaDocument(
+                                        media=FSInputFile(str(media_archive_path))
+                                    ),
+                                ],
+                            )
+                            backup_sent = True
+                    else:
+                        try:
                             await bot.send_document(
                                 chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
                                 message_thread_id=topic_id,
                                 document=FSInputFile(str(db_dump_path)),
-                                caption=f"DB backup ({reason}) {now_human}"
+                                caption=caption
                             )
                             await bot.send_document(
                                 chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
                                 message_thread_id=topic_id,
                                 document=FSInputFile(str(media_archive_path)),
-                                caption=f"Media backup ({reason}) {now_human}"
+                                caption="Media backup file"
                             )
                             backup_sent = True
-                    else:
-                        raise
+                        except Exception:
+                            raise
 
             if backup_sent and reason == "scheduled" and datetime.now().hour == 12:
                 def _run_cleanup_sync() -> None:
