@@ -31,6 +31,7 @@ from dance_studio.db.models import (
     TeacherTimeOff,
     GroupAbonement,
     Attendance,
+    AttendanceIntention,
     GroupAbonementActionLog,
     PaymentTransaction,
     BookingRequest,
@@ -82,6 +83,10 @@ VAR_ROOT = PROJECT_ROOT / "var"
 MEDIA_ROOT = VAR_ROOT / "media"
 ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
 ATTENDANCE_ALLOWED_STATUSES = {"present", "absent", "late", "sick"}
+ATTENDANCE_INTENTION_STATUS_WILL_MISS = "will_miss"
+ATTENDANCE_INTENTION_LOCK_DELTA = timedelta(hours=2, minutes=30)
+ATTENDANCE_INTENTION_LOCKED_MESSAGE = "Прием отметок закрыт. Напишите админу в случае чего-либо."
+ATTENDANCE_MARKING_WINDOW_HOURS = 2
 SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 3600
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/logout", "/health"}
@@ -1127,8 +1132,8 @@ def _debit_abonement_for_attendance(db, attendance: Attendance, staff: Staff | N
 
 
 def _can_edit_schedule_attendance(db, schedule: Schedule) -> bool:
-    # Временно разрешаем всем (для устранения 403 при тестировании)
-    return True
+    window = _attendance_marking_window_info(schedule)
+    return bool(window["is_open"])
 
 
 def _load_group_roster(db, schedule: Schedule):
@@ -1158,6 +1163,99 @@ def _load_group_roster(db, schedule: Schedule):
     return roster
 
 
+def _schedule_group_id(schedule: Schedule) -> int | None:
+    if schedule.group_id:
+        return schedule.group_id
+    if schedule.object_type == "group" and schedule.object_id:
+        return schedule.object_id
+    return None
+
+
+def _can_user_set_absence_for_schedule(db, user: User, schedule: Schedule) -> bool:
+    if schedule.status in {"cancelled", "deleted"}:
+        return False
+
+    if schedule.object_type == "group":
+        group_id = _schedule_group_id(schedule)
+        if not group_id:
+            return False
+        abon = _resolve_group_active_abonement(db, user.id, group_id, schedule.date)
+        return bool(abon)
+
+    if schedule.object_type == "individual":
+        if not schedule.object_id:
+            return False
+        lesson = db.query(IndividualLesson).filter_by(id=schedule.object_id).first()
+        return bool(lesson and lesson.student_id == user.id)
+
+    return False
+
+
+def _schedule_start_datetime(schedule: Schedule) -> datetime | None:
+    if not schedule.date:
+        return None
+    start_time = schedule.time_from or schedule.start_time
+    if not start_time:
+        return None
+    return datetime.combine(schedule.date, start_time)
+
+
+def _attendance_intention_lock_info(schedule: Schedule) -> dict:
+    start_at = _schedule_start_datetime(schedule)
+    if not start_at:
+        return {
+            "is_locked": False,
+            "cutoff_at": None,
+            "starts_at": None,
+            "lock_message": None,
+        }
+    cutoff_at = start_at - ATTENDANCE_INTENTION_LOCK_DELTA
+    is_locked = datetime.now() >= cutoff_at
+    return {
+        "is_locked": is_locked,
+        "cutoff_at": cutoff_at.isoformat(),
+        "starts_at": start_at.isoformat(),
+        "lock_message": ATTENDANCE_INTENTION_LOCKED_MESSAGE if is_locked else None,
+    }
+
+
+def _attendance_marking_window_info(schedule: Schedule) -> dict:
+    start_at = _schedule_start_datetime(schedule)
+    if not start_at:
+        return {
+            "is_open": False,
+            "phase": "unknown",
+            "starts_at": None,
+            "ends_at": None,
+            "message": "Время занятия не задано.",
+        }
+    ends_at = start_at + timedelta(hours=ATTENDANCE_MARKING_WINDOW_HOURS)
+    now = datetime.now()
+    if now < start_at:
+        return {
+            "is_open": False,
+            "phase": "before_start",
+            "starts_at": start_at.isoformat(),
+            "ends_at": ends_at.isoformat(),
+            "message": "До начала занятия показывается предварительная отметка: кто придет и кто не придет.",
+        }
+    if now <= ends_at:
+        return {
+            "is_open": True,
+            "phase": "marking_open",
+            "starts_at": start_at.isoformat(),
+            "ends_at": ends_at.isoformat(),
+            "message": f"Можно отмечать фактическую посещаемость до {ends_at.strftime('%d.%m.%Y %H:%M')}.",
+        }
+    return {
+        "is_open": False,
+        "phase": "marking_closed",
+        "starts_at": start_at.isoformat(),
+        "ends_at": ends_at.isoformat(),
+        "message": f"Окно отметки закрыто. Напишите админу в случае чего-либо.",
+    }
+
+
 @app.route("/api/attendance/<int:schedule_id>", methods=["GET"])
 def get_attendance(schedule_id):
     db = g.db
@@ -1168,6 +1266,11 @@ def get_attendance(schedule_id):
         return {"error": "??? ????"}, 403
 
     existing = {a.user_id: a for a in db.query(Attendance).filter_by(schedule_id=schedule_id).all()}
+    intentions = {
+        row.user_id: row
+        for row in db.query(AttendanceIntention).filter_by(schedule_id=schedule_id).all()
+    }
+    window = _attendance_marking_window_info(schedule)
     items = []
     roster_source = None
 
@@ -1177,6 +1280,8 @@ def get_attendance(schedule_id):
             user = row["user"]
             abon = row.get("abonement")
             att = existing.pop(user.id, None)
+            planned = intentions.pop(user.id, None)
+            planned_status = "will_miss" if (planned and planned.status == ATTENDANCE_INTENTION_STATUS_WILL_MISS) else "will_come"
             items.append({
                 "user_id": user.id,
                 "name": user.name,
@@ -1186,6 +1291,9 @@ def get_attendance(schedule_id):
                 "comment": att.comment if att else None,
                 "abonement_id": att.abonement_id if att else (abon.id if abon else None),
                 "debited": _attendance_already_debited(db, att.id) if att else False,
+                "planned_absence": bool(planned and planned.status == ATTENDANCE_INTENTION_STATUS_WILL_MISS),
+                "planned_absence_reason": planned.reason if planned else None,
+                "planned_status": planned_status,
             })
     elif schedule.object_type == "individual":
         roster_source = "individual"
@@ -1194,6 +1302,8 @@ def get_attendance(schedule_id):
             user = db.query(User).filter_by(id=lesson.student_id).first()
             if user:
                 att = existing.pop(user.id, None)
+                planned = intentions.pop(user.id, None)
+                planned_status = "will_miss" if (planned and planned.status == ATTENDANCE_INTENTION_STATUS_WILL_MISS) else "will_come"
                 items.append({
                     "user_id": user.id,
                     "name": user.name,
@@ -1203,11 +1313,16 @@ def get_attendance(schedule_id):
                     "comment": att.comment if att else None,
                     "abonement_id": att.abonement_id if att else None,
                     "debited": _attendance_already_debited(db, att.id) if att else False,
+                    "planned_absence": bool(planned and planned.status == ATTENDANCE_INTENTION_STATUS_WILL_MISS),
+                    "planned_absence_reason": planned.reason if planned else None,
+                    "planned_status": planned_status,
                 })
 
     # add remaining manual/legacy attendance
     for att in existing.values():
         user = db.query(User).filter_by(id=att.user_id).first()
+        planned = intentions.pop(att.user_id, None)
+        planned_status = "will_miss" if (planned and planned.status == ATTENDANCE_INTENTION_STATUS_WILL_MISS) else "will_come"
         items.append({
             "user_id": att.user_id,
             "name": user.name if user else None,
@@ -1217,6 +1332,25 @@ def get_attendance(schedule_id):
             "comment": att.comment,
             "abonement_id": att.abonement_id,
             "debited": _attendance_already_debited(db, att.id),
+            "planned_absence": bool(planned and planned.status == ATTENDANCE_INTENTION_STATUS_WILL_MISS),
+            "planned_absence_reason": planned.reason if planned else None,
+            "planned_status": planned_status,
+        })
+
+    for planned in intentions.values():
+        user = db.query(User).filter_by(id=planned.user_id).first()
+        items.append({
+            "user_id": planned.user_id,
+            "name": user.name if user else None,
+            "username": user.username if user else None,
+            "phone": user.phone if user else None,
+            "status": None,
+            "comment": None,
+            "abonement_id": None,
+            "debited": False,
+            "planned_absence": planned.status == ATTENDANCE_INTENTION_STATUS_WILL_MISS,
+            "planned_absence_reason": planned.reason,
+            "planned_status": "will_miss",
         })
 
     status_labels = {
@@ -1231,7 +1365,15 @@ def get_attendance(schedule_id):
         "source": roster_source or "manual",
         "status_labels": status_labels,
         "debit_policy": "????????? 1 ??????? ??? ????? ???????, ????? '?????'",
-        "can_edit": _can_edit_schedule_attendance(db, schedule),
+        "can_edit": bool(window["is_open"]),
+        "attendance_phase": window["phase"],
+        "attendance_phase_message": window["message"],
+        "attendance_starts_at": window["starts_at"],
+        "attendance_mark_until": window["ends_at"],
+        "planned_summary": {
+            "will_come": sum(1 for i in items if i.get("planned_status") == "will_come"),
+            "will_miss": sum(1 for i in items if i.get("planned_status") == "will_miss"),
+        },
     }
 
 
@@ -1241,8 +1383,15 @@ def set_attendance(schedule_id):
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
         return {"error": "?????????? ?? ???????"}, 404
-    if not _can_edit_schedule_attendance(db, schedule):
-        return {"error": "??? ????"}, 403
+    window = _attendance_marking_window_info(schedule)
+    if not window["is_open"]:
+        return {
+            "error": "   .",
+            "attendance_phase": window["phase"],
+            "attendance_phase_message": window["message"],
+            "attendance_starts_at": window["starts_at"],
+            "attendance_mark_until": window["ends_at"],
+        }, 403
 
     data = request.json or {}
     items = data.get("items") or []
@@ -1303,6 +1452,15 @@ def add_attendance_user(schedule_id):
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
         return {"error": "?????????? ?? ???????"}, 404
+    window = _attendance_marking_window_info(schedule)
+    if not window["is_open"]:
+        return {
+            "error": "   .",
+            "attendance_phase": window["phase"],
+            "attendance_phase_message": window["message"],
+            "attendance_starts_at": window["starts_at"],
+            "attendance_mark_until": window["ends_at"],
+        }, 403
 
     data = request.json or {}
     user_id = data.get("user_id")
@@ -1330,6 +1488,135 @@ def add_attendance_user(schedule_id):
     db.add(att)
     db.commit()
     return {"message": "?????????", "user_id": user_id_int}
+
+
+def _serialize_attendance_intention(row: AttendanceIntention | None) -> dict:
+    if not row:
+        return {
+            "has_intention": False,
+            "status": None,
+            "reason": None,
+            "updated_at": None,
+        }
+    return {
+        "has_intention": True,
+        "status": row.status,
+        "reason": row.reason,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
+
+
+def _serialize_attendance_intention_with_lock(row: AttendanceIntention | None, lock_info: dict) -> dict:
+    payload = _serialize_attendance_intention(row)
+    payload.update(lock_info)
+    if lock_info.get("is_locked"):
+        payload["banner"] = ATTENDANCE_INTENTION_LOCKED_MESSAGE
+    else:
+        payload["banner"] = None
+    return payload
+
+
+@app.route("/api/attendance-intentions/<int:schedule_id>/my", methods=["GET"])
+def get_my_attendance_intention(schedule_id):
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+
+    if not _can_user_set_absence_for_schedule(db, user, schedule):
+        return {"error": "РќРµР»СЊР·СЏ РѕС‚РРµС‚РёС‚СЊСЃСЏ РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РЅСЏС‚РёСЏ"}, 403
+
+    lock_info = _attendance_intention_lock_info(schedule)
+    row = db.query(AttendanceIntention).filter_by(schedule_id=schedule_id, user_id=user.id).first()
+    return _serialize_attendance_intention_with_lock(row, lock_info), 200
+
+
+@app.route("/api/attendance-intentions/<int:schedule_id>/my", methods=["POST"])
+def set_my_attendance_intention(schedule_id):
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+
+    if not _can_user_set_absence_for_schedule(db, user, schedule):
+        return {"error": "РќРµР»СЊР·СЏ РѕС‚РРµС‚РёС‚СЊСЃСЏ РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РЅСЏС‚РёСЏ"}, 403
+
+    lock_info = _attendance_intention_lock_info(schedule)
+    if lock_info["is_locked"]:
+        return {"error": ATTENDANCE_INTENTION_LOCKED_MESSAGE, "lock": lock_info}, 403
+
+    payload = request.json or {}
+    will_miss = payload.get("will_miss")
+    if will_miss is None:
+        will_miss = True
+    else:
+        will_miss = bool(will_miss)
+
+    row = db.query(AttendanceIntention).filter_by(schedule_id=schedule_id, user_id=user.id).first()
+
+    if not will_miss:
+        if row:
+            db.delete(row)
+            db.commit()
+        return _serialize_attendance_intention_with_lock(None, lock_info), 200
+
+    reason = payload.get("reason")
+    if isinstance(reason, str):
+        reason = reason.strip() or None
+    else:
+        reason = None
+
+    if not row:
+        row = AttendanceIntention(
+            schedule_id=schedule_id,
+            user_id=user.id,
+            status=ATTENDANCE_INTENTION_STATUS_WILL_MISS,
+            source="user_web",
+        )
+        db.add(row)
+
+    row.status = ATTENDANCE_INTENTION_STATUS_WILL_MISS
+    row.reason = reason
+    row.source = "user_web"
+
+    db.commit()
+    db.refresh(row)
+    return _serialize_attendance_intention_with_lock(row, lock_info), 200
+
+
+@app.route("/api/attendance-intentions/<int:schedule_id>/my", methods=["DELETE"])
+def delete_my_attendance_intention(schedule_id):
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+
+    if not _can_user_set_absence_for_schedule(db, user, schedule):
+        return {"error": "РќРµР»СЊР·СЏ РѕС‚РРµС‚РёС‚СЊСЃСЏ РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РЅСЏС‚РёСЏ"}, 403
+
+    lock_info = _attendance_intention_lock_info(schedule)
+    if lock_info["is_locked"]:
+        return {"error": ATTENDANCE_INTENTION_LOCKED_MESSAGE, "lock": lock_info}, 403
+
+    row = db.query(AttendanceIntention).filter_by(schedule_id=schedule_id, user_id=user.id).first()
+    if row:
+        db.delete(row)
+        db.commit()
+    return _serialize_attendance_intention_with_lock(None, lock_info), 200
+
+
 def delete_schedule_v2(schedule_id):
     perm_error = require_permission("manage_schedule")
     if perm_error:
@@ -2144,7 +2431,7 @@ def update_staff_from_telegram(telegram_id):
         "id": staff.id,
         "name": staff.name,
         "position": staff.position,
-        "message": "Имя обновлено из Telegram"
+        "message": "мя обновлено из Telegram"
     }
 
 
@@ -2246,6 +2533,69 @@ def get_teacher_working_hours(teacher_id):
         for i in items
     ]
 
+
+@app.route("/api/stats/teacher", methods=["GET"])
+def get_teacher_stats():
+    perm_error = require_permission("view_stats")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    try:
+        teacher_id = int(request.args.get("teacher_id", 0))
+    except (TypeError, ValueError):
+        return {"error": "teacher_id должен быть числом"}, 400
+    if not teacher_id:
+        return {"error": "teacher_id обязателен"}, 400
+
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    try:
+        date_from_val = datetime.strptime(date_from, "%Y-%m-%d").date() if date_from else None
+        date_to_val = datetime.strptime(date_to, "%Y-%m-%d").date() if date_to else None
+    except ValueError:
+        return {"error": "Неверный формат даты, используйте YYYY-MM-DD"}, 400
+
+    schedules_q = db.query(Schedule).filter(
+        Schedule.teacher_id == teacher_id,
+        Schedule.status != "cancelled"
+    )
+    if date_from_val:
+        schedules_q = schedules_q.filter(Schedule.date >= date_from_val)
+    if date_to_val:
+        schedules_q = schedules_q.filter(Schedule.date <= date_to_val)
+
+    schedules = schedules_q.all()
+    schedule_ids = [s.id for s in schedules]
+
+    stats = {
+        "teacher_id": teacher_id,
+        "date_from": date_from,
+        "date_to": date_to,
+        "lessons_count": len(schedules),
+        "students_total": 0,
+        "present": 0,
+        "absent": 0,
+        "late": 0,
+        "sick": 0,
+    }
+
+    if schedule_ids:
+        attendance_rows = db.query(Attendance).filter(Attendance.schedule_id.in_(schedule_ids)).all()
+        for row in attendance_rows:
+            status = row.status or "absent"
+            if status == "sick":
+                stats["sick"] += 1
+                continue
+            stats["students_total"] += 1
+            if status == "present":
+                stats["present"] += 1
+            elif status == "late":
+                stats["late"] += 1
+            else:
+                stats["absent"] += 1
+
+    return jsonify(stats)
 
 @app.route("/teacher-working-hours/<int:teacher_id>", methods=["PUT"])
 def put_teacher_working_hours(teacher_id):
@@ -2365,7 +2715,7 @@ def delete_staff(staff_id):
             from dance_studio.core.config import BOT_TOKEN
             
             message_text = (
-                f"😢 К сожалению...\n\n"
+                f" К сожалению...\n\n"
                 f"Вы удалены из персонала студии танца LISSA DANCE.\n\n"
                 f"Спасибо за сотрудничество!"
             )
@@ -2706,7 +3056,7 @@ def search_staff():
         search_query = request.args.get('q', '').strip().lower()
         by_username = request.args.get('by_username', 'false').lower() == 'true'
         
-        # Ищем среди пользователей (Users), а не среди персонала (Staff)
+        # щем среди пользователей (Users), а не среди персонала (Staff)
         users = db.query(User).all()
         result = []
         
@@ -2760,7 +3110,7 @@ def search_staff():
         return jsonify({"error": str(e)}), 500
 
 
-# ======================== СИСТЕМА РАССЫЛОК ========================
+# ======================== ССТЕМА РАССЫЛОК ========================
 
 @app.route("/search-users")
 def search_users():
@@ -3033,13 +3383,13 @@ def delete_mailing(mailing_id):
 
 @app.route("/mailings/<int:mailing_id>/send", methods=["POST"])
 def send_mailing_endpoint(mailing_id):
-    """Инициирует отправку рассылки"""
+    """нициирует отправку рассылки"""
     perm_error = require_permission("manage_mailings")
     if perm_error:
         return perm_error
 
     try:
-        # Импортируем функцию добавления рассылки в очередь
+        # мпортируем функцию добавления рассылки в очередь
         from dance_studio.bot.bot import queue_mailing_for_sending
         
         db = g.db
@@ -3065,7 +3415,7 @@ def send_mailing_endpoint(mailing_id):
         return {"error": str(e)}, 500
 
 
-# ======================== СИСТЕМА УПРАВЛЕНИЯ НАПРАВЛЕНИЯМИ ========================
+# ======================== ССТЕМА УПРАВЛЕНЯ НАПРАВЛЕНЯМ ========================
 
 @app.route("/api/directions", methods=["GET"])
 def get_directions():
@@ -3665,7 +4015,7 @@ def delete_direction(direction_id):
 def upload_direction_photo(token):
     """
     API для загрузки фотографии направления
-    Используется ботом при получении фотографии от администратора
+    спользуется ботом при получении фотографии от администратора
     """
     db = g.db
 
@@ -3800,7 +4150,7 @@ def _find_booking_overlaps(db, date_val, time_from, time_to) -> list[dict]:
                 "date": date_val.strftime("%d.%m.%Y"),
                 "time_from": item.time_from.strftime("%H:%M"),
                 "time_to": item.time_to.strftime("%H:%M"),
-                "title": "Индивидуальное занятие"
+                "title": "ндивидуальное занятие"
             })
 
     return overlaps
@@ -4117,7 +4467,7 @@ def create_booking_request():
             time_from=time_from_val,
             time_to=time_to_val,
             status=status,
-            title="Индивидуальное занятие",
+            title="ндивидуальное занятие",
             start_time=time_from_val,
             end_time=time_to_val,
             teacher_id=teacher_id_val,
@@ -4209,7 +4559,7 @@ def get_individual_lesson(lesson_id):
     db = g.db
     lesson = db.query(IndividualLesson).filter_by(id=lesson_id).first()
     if not lesson:
-        return {"error": "Индивидуальное занятие не найдено"}, 404
+        return {"error": "ндивидуальное занятие не найдено"}, 404
 
     teacher = db.query(Staff).filter_by(id=lesson.teacher_id).first()
     student = db.query(User).filter_by(id=lesson.student_id).first()
@@ -4371,7 +4721,7 @@ def admin_activate_abonement(abonement_id):
     if not abonement:
         return {"error": "Абонемент не найден"}, 404
 
-    # Ищем связанную оплату
+    # щем связанную оплату
     payment = None
     if abonement.id:
         payment = (

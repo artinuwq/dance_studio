@@ -1621,6 +1621,32 @@ textarea.form-input {
   display: block;
 }
 
+.stats-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.stats-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.3);
+}
+
+.stats-label {
+  font-size: 12px;
+  color: var(--hint);
+  margin-bottom: 4px;
+}
+
+.stats-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
 .attendance-screen-header {
   display: flex;
   justify-content: space-between;
@@ -2482,6 +2508,10 @@ textarea.form-input {
 <button class="save-btn" onclick="showPage('mailings')" style="width: 100%; margin-bottom: 8px;">📧 Рассылки</button>
 <button class="save-btn" onclick="showPage('news-manage')" style="width: 100%; margin-bottom: 8px;">📰 Новости</button>
 </div>
+<div class="card work-section" style="margin-bottom: 12px;">
+<h4 style="margin-bottom: 10px;">Статистика</h4>
+<button class="save-btn" id="stats-btn" onclick="showPage('stats')" style="width: 100%; margin-bottom: 8px; display: none;">📊 Статистика</button>
+</div>
 <div class="card work-section">
 <h4 style="margin-bottom: 10px;">Работа с людьми</h4>
 <button class="save-btn" id="staff-manage-btn-work" onclick="showPage('staff-manage')" style="width: 100%; margin-bottom: 8px; display: none; text-align: center;">👥 Персонал</button>
@@ -2498,8 +2528,30 @@ textarea.form-input {
   <div class="public-schedule-month" id="personal-schedule-month">—</div>
   <div class="public-schedule-strip" id="personal-schedule-strip"></div>
 
-  <div id="personal-schedule-container">
-    <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+<div id="personal-schedule-container">
+  <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+</div>
+<!-- ====== СТАТИСТИКА ====== -->
+<div class="page" data-title="📊 Статистика" id="stats">
+  <div class="card" style="margin-bottom: 12px;">
+    <h4 style="margin: 0 0 8px;">Статистика по преподавателю</h4>
+    <label class="label" style="margin-bottom:6px;">Преподаватель</label>
+    <select class="form-input" id="stats-teacher-select"></select>
+    <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:180px;">
+        <label class="label">С даты</label>
+        <input class="form-input" id="stats-date-from" type="date">
+      </div>
+      <div style="flex:1; min-width:180px;">
+        <label class="label">По дату</label>
+        <input class="form-input" id="stats-date-to" type="date">
+      </div>
+    </div>
+    <button class="save-btn" style="width:100%; margin-top:12px;" onclick="loadTeacherStats()">Показать статистику</button>
+  </div>
+  <div class="card" id="stats-result">
+    <p class="small" style="color: var(--hint); margin:0;">Выберите преподавателя и период, чтобы увидеть статистику.</p>
   </div>
 </div>
 <!-- ====== УПРАВЛЕНИЕ РАСПИСАНИЕМ ====== -->
@@ -3742,6 +3794,11 @@ function showPage(id) {
   }
 
   applyHeaderForPage(id);
+
+  if (id === 'stats') {
+    initStatsPageDefaults();
+    loadStatsTeachers();
+  }
 
   if (id === 'attendance-screen') {
     const list = document.getElementById('attendance-screen-list');
@@ -5787,11 +5844,23 @@ function openClientChat(link) {
 }
 
 // =============== ATTENDANCE ===============
-let attendanceState = { scheduleId: null, items: [], statusLabels: {}, canEdit: false };
+let attendanceState = {
+  scheduleId: null,
+  items: [],
+  statusLabels: {},
+  canEdit: false,
+  attendancePhase: null,
+  attendancePhaseMessage: '',
+  plannedSummary: null
+};
 let attendanceScreenItem = null;
 const ATT_LABELS_FALLBACK = {
   present: 'Присутствовал',
   absent: 'Отсутствовал'
+};
+const ATT_PLAN_LABELS = {
+  will_come: 'Придет',
+  will_miss: 'Не придет'
 };
 
 function renderAttendance() {
@@ -5820,7 +5889,9 @@ function renderAttendance() {
 
       const badge = document.createElement('div');
       badge.className = 'attendance-badge';
-      badge.textContent = item.debited ? 'Списано' : (item.abonement_id ? 'Абонемент #' + item.abonement_id : 'Без абонемента');
+      const plannedStatus = item.planned_status || (item.planned_absence ? 'will_miss' : 'will_come');
+      const plannedLabel = ATT_PLAN_LABELS[plannedStatus] || 'Придет';
+      badge.textContent = `${plannedLabel} • ${item.debited ? 'Списано' : (item.abonement_id ? 'Абонемент #' + item.abonement_id : 'Без абонемента')}`;
 
       top.appendChild(name);
       top.appendChild(badge);
@@ -5841,6 +5912,14 @@ function renderAttendance() {
       });
 
       wrapper.appendChild(top);
+      if (item.planned_absence_reason) {
+        const reason = document.createElement('div');
+        reason.className = 'small';
+        reason.style.color = 'var(--hint)';
+        reason.style.marginTop = '4px';
+        reason.textContent = 'Причина: ' + item.planned_absence_reason;
+        wrapper.appendChild(reason);
+      }
       wrapper.appendChild(actions);
       container.appendChild(wrapper);
     });
@@ -5857,6 +5936,21 @@ function renderAttendance() {
     document.querySelector('#attendance-screen button[onclick="promptAddAttendanceUser()"]')
   ].filter(Boolean);
   addBtns.forEach(btn => btn.disabled = !attendanceState.canEdit);
+
+  const phaseParts = [];
+  if (attendanceState.plannedSummary) {
+    const come = attendanceState.plannedSummary.will_come || 0;
+    const miss = attendanceState.plannedSummary.will_miss || 0;
+    phaseParts.push(`План: придут ${come}, не придут ${miss}`);
+  }
+  if (attendanceState.attendancePhaseMessage) {
+    phaseParts.push(attendanceState.attendancePhaseMessage);
+  }
+  const phaseText = phaseParts.join(' • ');
+  const statusPrimary = document.getElementById('attendance-status-message');
+  if (statusPrimary && phaseText) statusPrimary.textContent = phaseText;
+  const statusSecondary = document.getElementById('attendance-screen-status');
+  if (statusSecondary && phaseText) statusSecondary.textContent = phaseText;
 }
 
 async function loadAttendance(scheduleId) {
@@ -5873,7 +5967,10 @@ async function loadAttendance(scheduleId) {
       scheduleId,
       items: Array.isArray(data.items) ? data.items : [],
       statusLabels: data.status_labels || {},
-      canEdit: !!data.can_edit
+      canEdit: !!data.can_edit,
+      attendancePhase: data.attendance_phase || null,
+      attendancePhaseMessage: data.attendance_phase_message || '',
+      plannedSummary: data.planned_summary || null
     };
     renderAttendance();
   } catch (err) {
@@ -7305,6 +7402,64 @@ function openPersonalAttendance(scheduleId) {
   openAttendanceScreen(normalized);
 }
 
+/* ====== СТАТИСТИКА ====== */
+async function initStatsPageDefaults() {
+  const from = document.getElementById('stats-date-from');
+  const to = document.getElementById('stats-date-to');
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0,10);
+  const end = today.toISOString().slice(0,10);
+  if (from) from.value = start;
+  if (to) to.value = end;
+}
+
+async function loadStatsTeachers() {
+  const select = document.getElementById('stats-teacher-select');
+  if (!select) return;
+  select.innerHTML = '<option value=\"\">⏳ Загрузка...</option>';
+  try {
+    const res = await fetch('/api/teachers');
+    if (!res.ok) throw new Error('network');
+    const data = await res.json();
+    select.innerHTML = '<option value=\"\">Выберите преподавателя</option>' + (data || []).map(t => `<option value=\"${t.id}\">${t.name || 'ID ' + t.id}</option>`).join('');
+  } catch (err) {
+    select.innerHTML = '<option value=\"\">❌ Не удалось загрузить</option>';
+  }
+}
+
+async function loadTeacherStats() {
+  const teacherId = document.getElementById('stats-teacher-select')?.value;
+  const dateFrom = document.getElementById('stats-date-from')?.value;
+  const dateTo = document.getElementById('stats-date-to')?.value;
+  const result = document.getElementById('stats-result');
+  if (!teacherId) {
+    if (result) result.innerHTML = '<p class=\"small\" style=\"color:var(--hint); margin:0;\">Выберите преподавателя</p>';
+    return;
+  }
+  if (result) result.innerHTML = '<p class=\"small\" style=\"color:var(--hint); margin:0;\">⏳ Считаем...</p>';
+  try {
+    const params = new URLSearchParams({ teacher_id: teacherId });
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    const res = await fetch(`/api/stats/teacher?${params.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Ошибка');
+    const period = `${data.date_from || '—'} — ${data.date_to || '—'}`;
+    result.innerHTML = `
+      <div class=\"stats-grid\">
+        <div class=\"stats-card\"><div class=\"stats-label\">Период</div><div class=\"stats-value\">${period}</div></div>
+        <div class=\"stats-card\"><div class=\"stats-label\">Занятий</div><div class=\"stats-value\">${data.lessons_count}</div></div>
+        <div class=\"stats-card\"><div class=\"stats-label\">Ученики (учтено)</div><div class=\"stats-value\">${data.students_total}</div></div>
+        <div class=\"stats-card\"><div class=\"stats-label\">Присутствовали</div><div class=\"stats-value\">${data.present}</div></div>
+        <div class=\"stats-card\"><div class=\"stats-label\">Отсутствовали</div><div class=\"stats-value\">${data.absent}</div></div>
+        <div class=\"stats-card\"><div class=\"stats-label\">Опоздали</div><div class=\"stats-value\">${data.late}</div></div>
+      </div>
+    `;
+  } catch (err) {
+    if (result) result.innerHTML = `<p class=\"small\" style=\"color:var(--hint); margin:0;\">❌ ${err.message}</p>`;
+  }
+}
+
 async function loadPublicSchedule() {
   try {
     const container = document.getElementById('schedule-container');
@@ -7702,6 +7857,7 @@ async function checkStaffStatus(telegramId) {
 function updateStaffNavigation() {
   const staffNavBtn = document.getElementById('staff-nav-btn');
   const staffManageBtn = document.getElementById('staff-manage-btn-work');
+  const statsBtn = document.getElementById('stats-btn');
   
   if (isStaff) {
     staffNavBtn.classList.remove('hidden');
@@ -7716,9 +7872,18 @@ function updateStaffNavigation() {
     } else {
       staffManageBtn.style.display = 'none';
     }
+    if (statsBtn) {
+      const allowed = currentStaffPosition && (
+        currentStaffPosition.toLowerCase() === 'администратор' ||
+        currentStaffPosition.toLowerCase() === 'владелец' ||
+        currentStaffPosition.toLowerCase() === 'тех. админ'
+      );
+      statsBtn.style.display = allowed ? 'flex' : 'none';
+    }
   } else {
     staffNavBtn.classList.add('hidden');
     staffManageBtn.style.display = 'none';
+    if (statsBtn) statsBtn.style.display = 'none';
     // Если персонал пытается перейти на скрытую страницу, показываем главную
     if (document.getElementById('staff').classList.contains('active')) {
       showPage('home');

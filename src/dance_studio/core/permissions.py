@@ -21,6 +21,7 @@ ROLES = {
             "manage_staff",
             "manage_permissions",
             "manage_mailings",
+            "view_stats",
             "system_settings",
             "manage_backups",
             "full_system_access",  # Полный доступ к системе
@@ -45,6 +46,7 @@ ROLES = {
             "verify_certificate",      # Проверка справки/продление абонемента
             "view_all_users",          # Просмотр всех пользователей
             "manage_mailings",         # Управление рассылками
+            "view_stats",              # Просмотр статистики/отчётов
         ]
     },
     "владелец": {
@@ -64,6 +66,7 @@ ROLES = {
             "system_settings",         # Системные настройки
             "manage_backups",         # ???????????????????? ????????????????
             "manage_mailings",         # Управление рассылками
+            "view_stats",              # Просмотр статистики/отчётов
         ]
     }
 }

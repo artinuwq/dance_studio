@@ -3,6 +3,8 @@ import aiohttp
 import time
 import zipfile
 import logging
+import subprocess
+import shutil
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import MenuButtonWebApp, WebAppInfo, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import CommandStart, Command, StateFilter
@@ -24,15 +26,30 @@ from dance_studio.core.config import (
 )
 from dance_studio.db.session import get_session
 from dance_studio.core.permissions import has_permission
-from dance_studio.db.models import News, User, Mailing, Group, DirectionUploadSession, Staff, BookingRequest, Schedule, IndividualLesson, GroupAbonement
+from dance_studio.db.models import (
+    News,
+    User,
+    Mailing,
+    Group,
+    DirectionUploadSession,
+    Staff,
+    BookingRequest,
+    Schedule,
+    IndividualLesson,
+    GroupAbonement,
+    AttendanceIntention,
+    AttendanceReminder,
+)
 from dance_studio.core.booking_utils import format_booking_message, build_booking_keyboard_data
 from dance_studio.core.tg_replay import cleanup_expired_init_data
 from sqlalchemy import or_
+from sqlalchemy.engine import make_url
 from datetime import datetime, time as dt_time, timedelta
 import os
 import tempfile
 import base64
 from pathlib import Path
+from dance_studio.core.settings import DATABASE_URL
 
 bot = Bot(token=BOT_TOKEN)
 storage = MemoryStorage()
@@ -48,10 +65,15 @@ BACKUP_KEEP_COUNT = 3
 BACKUP_LOCK = asyncio.Lock()
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 VAR_ROOT = PROJECT_ROOT / "var"
-BACKUP_SOURCE_DIR = VAR_ROOT / "db"
+MEDIA_SOURCE_DIR = VAR_ROOT / "media"
 BACKUP_DIR = VAR_ROOT / "backups"
 
 _logger = logging.getLogger(__name__)
+ATTENDANCE_REMINDER_WINDOW_HOURS = 24
+ATTENDANCE_REMINDER_POLL_SECONDS = 60
+ATTENDANCE_WILL_MISS_STATUS = "will_miss"
+ATTENDANCE_LOCK_DELTA = timedelta(hours=2, minutes=30)
+ATTENDANCE_LOCKED_MESSAGE = "Отметка закрыта. Напишите админу в случае чего-либо."
 
 
 def _env_file_path() -> Path:
@@ -268,37 +290,97 @@ async def update_bot_status(text: str) -> None:
 
 
 
-def _create_backup_archive() -> Path:
+def _backup_timestamp() -> str:
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
+
+def _create_db_backup_dump() -> Path:
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is empty")
+
+    pg_dump_path = shutil.which("pg_dump")
+    if not pg_dump_path:
+        raise RuntimeError("pg_dump not found in PATH")
+
+    url = make_url(DATABASE_URL)
+    if not url.drivername.startswith("postgresql"):
+        raise RuntimeError(f"Unsupported DB for pg_dump: {url.drivername}")
+    if not url.database:
+        raise RuntimeError("DATABASE_URL has no database name")
+
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    archive_path = BACKUP_DIR / f"database_backup_{timestamp}.zip"
+    dump_path = BACKUP_DIR / f"db_backup_{_backup_timestamp()}.dump"
+
+    cmd = [
+        pg_dump_path,
+        "--format=custom",
+        "--no-owner",
+        "--no-privileges",
+        "--file",
+        str(dump_path),
+        "--dbname",
+        str(url.database),
+    ]
+    if url.host:
+        cmd.extend(["--host", str(url.host)])
+    if url.port:
+        cmd.extend(["--port", str(url.port)])
+    if url.username:
+        cmd.extend(["--username", str(url.username)])
+    sslmode = (url.query or {}).get("sslmode")
+    if sslmode:
+        cmd.extend(["--sslmode", str(sslmode)])
+
+    env = os.environ.copy()
+    if url.password:
+        env["PGPASSWORD"] = str(url.password)
+
+    result = subprocess.run(
+        cmd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        raise RuntimeError(f"pg_dump failed: {stderr or 'unknown error'}")
+    return dump_path
+
+
+def _create_media_backup_archive() -> Path:
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    archive_path = BACKUP_DIR / f"media_backup_{_backup_timestamp()}.zip"
 
     with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(BACKUP_SOURCE_DIR):
+        if not MEDIA_SOURCE_DIR.exists():
+            return archive_path
+        for root, _, files in os.walk(MEDIA_SOURCE_DIR):
             root_path = Path(root)
             if str(root_path.resolve()).startswith(str(BACKUP_DIR.resolve())):
                 continue
             for filename in files:
                 file_path = root_path / filename
-                arcname = file_path.relative_to(BACKUP_SOURCE_DIR)
+                arcname = file_path.relative_to(MEDIA_SOURCE_DIR)
                 zf.write(file_path, arcname.as_posix())
-
     return archive_path
 
 
 def _cleanup_old_backups() -> None:
     if not BACKUP_DIR.exists():
         return
-    backups = sorted(
-        BACKUP_DIR.glob("database_backup_*.zip"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True
-    )
-    for old_backup in backups[BACKUP_KEEP_COUNT:]:
-        try:
-            old_backup.unlink()
-        except Exception:
-            pass
+    patterns = ["db_backup_*.dump", "media_backup_*.zip"]
+    for pattern in patterns:
+        backups = sorted(
+            BACKUP_DIR.glob(pattern),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True
+        )
+        for old_backup in backups[BACKUP_KEEP_COUNT:]:
+            try:
+                old_backup.unlink()
+            except Exception:
+                pass
 
 
 async def _ensure_backup_topic() -> int | None:
@@ -313,18 +395,25 @@ async def _ensure_backup_topic() -> int | None:
 async def create_and_send_backup(reason: str, notify_user_id: int | None = None) -> None:
     async with BACKUP_LOCK:
         try:
-            archive_path = await asyncio.to_thread(_create_backup_archive)
+            db_dump_path = await asyncio.to_thread(_create_db_backup_dump)
+            media_archive_path = await asyncio.to_thread(_create_media_backup_archive)
             _cleanup_old_backups()
             topic_id = await _ensure_backup_topic()
             backup_sent = False
             if topic_id:
-                caption = f"🗄 Бэкап ({reason}) {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"
+                now_human = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
                 try:
                     await bot.send_document(
                         chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
                         message_thread_id=topic_id,
-                        document=FSInputFile(str(archive_path)),
-                        caption=caption
+                        document=FSInputFile(str(db_dump_path)),
+                        caption=f"DB backup ({reason}) {now_human}"
+                    )
+                    await bot.send_document(
+                        chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                        message_thread_id=topic_id,
+                        document=FSInputFile(str(media_archive_path)),
+                        caption=f"Media backup ({reason}) {now_human}"
                     )
                     backup_sent = True
                 except Exception as e:
@@ -336,10 +425,18 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                             await bot.send_document(
                                 chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
                                 message_thread_id=topic_id,
-                                document=FSInputFile(str(archive_path)),
-                                caption=caption
+                                document=FSInputFile(str(db_dump_path)),
+                                caption=f"DB backup ({reason}) {now_human}"
+                            )
+                            await bot.send_document(
+                                chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                                message_thread_id=topic_id,
+                                document=FSInputFile(str(media_archive_path)),
+                                caption=f"Media backup ({reason}) {now_human}"
                             )
                             backup_sent = True
+                    else:
+                        raise
 
             if backup_sent and reason == "scheduled" and datetime.now().hour == 12:
                 def _run_cleanup_sync() -> None:
@@ -365,17 +462,17 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
             if notify_user_id:
                 await bot.send_message(
                     chat_id=notify_user_id,
-                    text="✅ Бэкап создан и отправлен в супергруппу."
+                    text="Backup (DB + media) created and sent."
                 )
         except Exception as e:
             try:
-                await send_tech_critical(f"? ?????? ??????: {type(e).__name__}: {e}")
+                await send_tech_critical(f"Backup failed: {type(e).__name__}: {e}")
             except Exception:
                 _logger.exception("Failed to send tech critical backup error")
             if notify_user_id:
                 await bot.send_message(
                     chat_id=notify_user_id,
-                    text="❌ Не удалось создать бэкап."
+                    text="Backup failed."
                 )
 
 
@@ -938,6 +1035,235 @@ async def send_mailing(mailing_id):
     return await send_mailing_async(mailing_id)
 
 
+def _schedule_start_dt(schedule: Schedule) -> datetime | None:
+    if not schedule.date:
+        return None
+    start_time = schedule.time_from or schedule.start_time or dt_time(hour=12, minute=0)
+    return datetime.combine(schedule.date, start_time)
+
+
+def _attendance_lock_cutoff(schedule: Schedule) -> datetime | None:
+    start_at = _schedule_start_dt(schedule)
+    if not start_at:
+        return None
+    return start_at - ATTENDANCE_LOCK_DELTA
+
+
+def _is_attendance_locked(schedule: Schedule) -> bool:
+    cutoff = _attendance_lock_cutoff(schedule)
+    if not cutoff:
+        return False
+    return datetime.now() >= cutoff
+
+
+def _schedule_group_id(schedule: Schedule) -> int | None:
+    if schedule.group_id:
+        return schedule.group_id
+    if schedule.object_type == "group" and schedule.object_id:
+        return schedule.object_id
+    return None
+
+
+def _reminder_message_text(schedule: Schedule) -> str:
+    date_str = schedule.date.strftime("%d.%m.%Y") if schedule.date else "—"
+    tf = schedule.time_from or schedule.start_time
+    tt = schedule.time_to or schedule.end_time
+    time_str = "—"
+    if tf and tt:
+        time_str = f"{tf.strftime('%H:%M')}–{tt.strftime('%H:%M')}"
+    elif tf:
+        time_str = tf.strftime("%H:%M")
+    title = schedule.title or "Занятие"
+    return (
+        f"Напоминание о занятии\n\n"
+        f"{title}\n"
+        f"Дата: {date_str}\n"
+        f"Время: {time_str}\n\n"
+        f"Если не сможете прийти, нажмите кнопку ниже."
+    )
+
+
+def _reminder_markup(schedule_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Не приду",
+                    callback_data=f"attmiss:{schedule_id}",
+                )
+            ]
+        ]
+    )
+
+
+def _load_group_participants(db, schedule: Schedule) -> list[User]:
+    group_id = _schedule_group_id(schedule)
+    if not group_id:
+        return []
+    query = db.query(GroupAbonement).filter(
+        GroupAbonement.group_id == group_id,
+        GroupAbonement.status == "active",
+    )
+    if schedule.date:
+        schedule_day_start = datetime.combine(schedule.date, dt_time.min)
+        schedule_day_end = datetime.combine(schedule.date, dt_time.max)
+        query = query.filter(
+            or_(GroupAbonement.valid_from == None, GroupAbonement.valid_from <= schedule_day_end),
+            or_(GroupAbonement.valid_to == None, GroupAbonement.valid_to >= schedule_day_start),
+        )
+    rows = query.order_by(GroupAbonement.created_at.desc()).all()
+    users: list[User] = []
+    seen: set[int] = set()
+    for row in rows:
+        if row.user_id in seen:
+            continue
+        seen.add(row.user_id)
+        user = db.query(User).filter_by(id=row.user_id).first()
+        if user:
+            users.append(user)
+    return users
+
+
+def _load_individual_participant(db, schedule: Schedule) -> list[User]:
+    if not schedule.object_id:
+        return []
+    lesson = db.query(IndividualLesson).filter_by(id=schedule.object_id).first()
+    if not lesson or not lesson.student_id:
+        return []
+    user = db.query(User).filter_by(id=lesson.student_id).first()
+    return [user] if user else []
+
+
+def _load_schedule_participants(db, schedule: Schedule) -> list[User]:
+    if schedule.object_type == "group":
+        return _load_group_participants(db, schedule)
+    if schedule.object_type == "individual":
+        return _load_individual_participant(db, schedule)
+    return []
+
+
+def _is_user_participant_of_schedule(db, schedule: Schedule, user_id: int) -> bool:
+    users = _load_schedule_participants(db, schedule)
+    return any(u.id == user_id for u in users)
+
+
+async def _send_attendance_reminder_to_user(db, schedule: Schedule, user: User) -> None:
+    now = datetime.now()
+    row = db.query(AttendanceReminder).filter_by(schedule_id=schedule.id, user_id=user.id).first()
+    if row and row.send_status in {"sent", "failed"}:
+        return
+    if not row:
+        row = AttendanceReminder(
+            schedule_id=schedule.id,
+            user_id=user.id,
+            send_status="pending",
+        )
+        db.add(row)
+        db.flush()
+
+    row.attempted_at = now
+    row.send_error = None
+
+    if not user.telegram_id:
+        row.send_status = "failed"
+        row.send_error = "missing_telegram_id"
+        db.commit()
+        return
+
+    try:
+        msg = await bot.send_message(
+            chat_id=user.telegram_id,
+            text=_reminder_message_text(schedule),
+            reply_markup=_reminder_markup(schedule.id),
+        )
+        row.send_status = "sent"
+        row.sent_at = now
+        row.telegram_chat_id = user.telegram_id
+        row.telegram_message_id = msg.message_id
+        row.send_error = None
+    except Exception as e:
+        row.send_status = "failed"
+        row.send_error = str(e)[:1000]
+    db.commit()
+
+
+async def send_due_attendance_reminders() -> None:
+    db = get_session()
+    try:
+        now = datetime.now()
+        future_limit = now + timedelta(hours=ATTENDANCE_REMINDER_WINDOW_HOURS)
+        schedules = db.query(Schedule).filter(
+            Schedule.object_type.in_(["group", "individual"]),
+            Schedule.status.notin_(["cancelled", "deleted"]),
+            Schedule.date.isnot(None),
+        ).all()
+        for schedule in schedules:
+            start_at = _schedule_start_dt(schedule)
+            if not start_at:
+                continue
+            if not (now < start_at <= future_limit):
+                continue
+            if _is_attendance_locked(schedule):
+                continue
+            users = _load_schedule_participants(db, schedule)
+            for user in users:
+                await _send_attendance_reminder_to_user(db, schedule, user)
+    except Exception as e:
+        print(f"⚠️ attendance reminder sender failed: {e}")
+    finally:
+        db.close()
+
+
+async def close_locked_attendance_reminders() -> None:
+    db = get_session()
+    try:
+        rows = (
+            db.query(AttendanceReminder)
+            .filter(
+                AttendanceReminder.send_status == "sent",
+                AttendanceReminder.button_closed_at == None,
+            )
+            .all()
+        )
+        now = datetime.now()
+        for row in rows:
+            schedule = db.query(Schedule).filter_by(id=row.schedule_id).first()
+            if not schedule:
+                row.button_closed_at = now
+                row.send_error = "schedule_not_found_on_close"
+                continue
+
+            if not _is_attendance_locked(schedule):
+                continue
+
+            if row.telegram_chat_id and row.telegram_message_id:
+                try:
+                    await bot.edit_message_reply_markup(
+                        chat_id=row.telegram_chat_id,
+                        message_id=int(row.telegram_message_id),
+                        reply_markup=None,
+                    )
+                except Exception as e:
+                    row.send_error = str(e)[:1000]
+
+            row.button_closed_at = now
+            if not row.responded_at and not row.response_action:
+                row.response_action = "will_attend_auto"
+                row.responded_at = now
+        db.commit()
+    except Exception as e:
+        print(f"⚠️ attendance reminder close failed: {e}")
+    finally:
+        db.close()
+
+
+async def process_attendance_reminders() -> None:
+    while True:
+        await close_locked_attendance_reminders()
+        await send_due_attendance_reminders()
+        await asyncio.sleep(ATTENDANCE_REMINDER_POLL_SECONDS)
+
+
 async def run_bot():
     # Получаем информацию о боте при старте
     try:
@@ -953,11 +1279,13 @@ async def run_bot():
     # Запускаем обработку очереди рассылок в фоне
     backup_task = None
     queue_task = None
+    reminder_task = None
     await ensure_tech_topics()
     await update_bot_status(f"✅ Бот запущен {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
     await create_and_send_backup("startup")
     backup_task = asyncio.create_task(_backup_scheduler())
     queue_task = asyncio.create_task(process_mailing_queue())
+    reminder_task = asyncio.create_task(process_attendance_reminders())
     
     try:
         await dp.start_polling(bot)
@@ -976,6 +1304,8 @@ async def run_bot():
             backup_task.cancel()
         if queue_task:
             queue_task.cancel()
+        if reminder_task:
+            reminder_task.cancel()
 
 
 def _build_booking_keyboard_markup(status: str, object_type: str, booking_id: int) -> InlineKeyboardMarkup | None:
@@ -1110,6 +1440,96 @@ def _activate_group_abonement_from_booking(db, booking: BookingRequest) -> Group
         if abonement.valid_to is None:
             abonement.valid_to = valid_to
     return abonement
+
+
+@dp.callback_query(F.data.startswith("attmiss:"))
+async def handle_attendance_absence_callback(callback: CallbackQuery):
+    if not callback.data:
+        return
+
+    parts = callback.data.split(":", 1)
+    if len(parts) != 2:
+        await callback.answer("Некорректная кнопка", show_alert=True)
+        return
+
+    try:
+        schedule_id = int(parts[1])
+    except ValueError:
+        await callback.answer("Некорректный идентификатор занятия", show_alert=True)
+        return
+
+    db = get_session()
+    try:
+        telegram_id = callback.from_user.id if callback.from_user else None
+        if not telegram_id:
+            await callback.answer("Пользователь не найден", show_alert=True)
+            return
+
+        user = db.query(User).filter_by(telegram_id=telegram_id).first()
+        if not user:
+            await callback.answer("Профиль пользователя не найден", show_alert=True)
+            return
+
+        schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+        if not schedule:
+            await callback.answer("Занятие не найдено", show_alert=True)
+            return
+        if schedule.status in {"cancelled", "deleted"}:
+            await callback.answer("Занятие отменено", show_alert=True)
+            return
+        if _is_attendance_locked(schedule):
+            if callback.message:
+                try:
+                    await callback.message.edit_reply_markup(reply_markup=None)
+                except Exception:
+                    pass
+            await callback.answer(ATTENDANCE_LOCKED_MESSAGE, show_alert=True)
+            return
+        if not _is_user_participant_of_schedule(db, schedule, user.id):
+            await callback.answer("Вы не записаны на это занятие", show_alert=True)
+            return
+
+        now = datetime.now()
+        intention = db.query(AttendanceIntention).filter_by(schedule_id=schedule_id, user_id=user.id).first()
+        if not intention:
+            intention = AttendanceIntention(
+                schedule_id=schedule_id,
+                user_id=user.id,
+                status=ATTENDANCE_WILL_MISS_STATUS,
+                source="telegram_bot",
+            )
+            db.add(intention)
+        else:
+            intention.status = ATTENDANCE_WILL_MISS_STATUS
+            intention.source = "telegram_bot"
+
+        reminder = db.query(AttendanceReminder).filter_by(schedule_id=schedule_id, user_id=user.id).first()
+        if not reminder:
+            reminder = AttendanceReminder(
+                schedule_id=schedule_id,
+                user_id=user.id,
+                send_status="sent",
+            )
+            db.add(reminder)
+
+        reminder.responded_at = now
+        reminder.response_action = ATTENDANCE_WILL_MISS_STATUS
+        reminder.button_closed_at = now
+        if callback.message:
+            reminder.telegram_chat_id = callback.message.chat.id
+            reminder.telegram_message_id = callback.message.message_id
+
+        db.commit()
+
+        if callback.message:
+            try:
+                await callback.message.edit_reply_markup(reply_markup=None)
+            except Exception:
+                pass
+
+        await callback.answer("Отметили: не приду")
+    finally:
+        db.close()
 
 
 @dp.callback_query(F.data.startswith("booking"))

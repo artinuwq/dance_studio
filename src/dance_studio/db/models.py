@@ -389,6 +389,57 @@ class Attendance(Base):
     marked_by_staff = relationship("Staff", foreign_keys=[marked_by_staff_id])
 
 
+class AttendanceIntention(Base):
+    __tablename__ = "attendance_intentions"
+
+    id = Column(Integer, primary_key=True)
+    schedule_id = Column(Integer, ForeignKey("schedule.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String, nullable=False, default="will_miss")
+    reason = Column(Text, nullable=True)
+    source = Column(String, nullable=False, default="user_web")
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    schedule = relationship("Schedule", foreign_keys=[schedule_id])
+    user = relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        Index("ix_attendance_intentions_schedule_id", "schedule_id"),
+        Index("ix_attendance_intentions_user_id", "user_id"),
+        Index("ix_attendance_intentions_schedule_user", "schedule_id", "user_id", unique=True),
+    )
+
+
+class AttendanceReminder(Base):
+    __tablename__ = "attendance_reminders"
+
+    id = Column(Integer, primary_key=True)
+    schedule_id = Column(Integer, ForeignKey("schedule.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    send_status = Column(String, nullable=False, default="pending")  # pending | sent | failed
+    send_error = Column(Text, nullable=True)
+    attempted_at = Column(DateTime, nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+    telegram_chat_id = Column(BigInteger, nullable=True)
+    telegram_message_id = Column(BigInteger, nullable=True)
+    responded_at = Column(DateTime, nullable=True)
+    response_action = Column(String, nullable=True)  # will_miss | will_attend
+    button_closed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    schedule = relationship("Schedule", foreign_keys=[schedule_id])
+    user = relationship("User", foreign_keys=[user_id])
+
+    __table_args__ = (
+        Index("ix_attendance_reminders_schedule_id", "schedule_id"),
+        Index("ix_attendance_reminders_user_id", "user_id"),
+        Index("ix_attendance_reminders_send_status", "send_status"),
+        Index("ix_attendance_reminders_schedule_user", "schedule_id", "user_id", unique=True),
+    )
+
+
 class PaymentTransaction(Base):
     __tablename__ = "payment_transactions"
 
