@@ -431,12 +431,12 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                 db_size = _format_size(db_dump_path.stat().st_size)
                 media_size = _format_size(media_archive_path.stat().st_size)
                 caption = (
-                    f"Backup ({reason})\n"
-                    f"Date/time: {now_human}\n"
-                    f"DB: {db_dump_path.name} ({db_size})\n"
-                    f"DB SHA256: {db_sha}\n"
-                    f"Media: {media_archive_path.name} ({media_size})\n"
-                    f"Media SHA256: {media_sha}"
+                    f"📦 Backup ({reason})\n"
+                    f"🗓 Date/time: {now_human}\n"
+                    f"🗄 DB: {db_dump_path.name} ({db_size})\n"
+                    f"🔐 DB SHA256: {db_sha}\n"
+                    f"🖼 Media: {media_archive_path.name} ({media_size})\n"
+                    f"🔐 Media SHA256: {media_sha}"
                 )
                 try:
                     await bot.send_media_group(
@@ -444,11 +444,11 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                         message_thread_id=topic_id,
                         media=[
                             InputMediaDocument(
-                                media=FSInputFile(str(db_dump_path)),
-                                caption=caption
+                                media=FSInputFile(str(db_dump_path))
                             ),
                             InputMediaDocument(
-                                media=FSInputFile(str(media_archive_path))
+                                media=FSInputFile(str(media_archive_path)),
+                                caption=caption
                             ),
                         ],
                     )
@@ -464,11 +464,11 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                                 message_thread_id=topic_id,
                                 media=[
                                     InputMediaDocument(
-                                        media=FSInputFile(str(db_dump_path)),
-                                        caption=caption
+                                        media=FSInputFile(str(db_dump_path))
                                     ),
                                     InputMediaDocument(
-                                        media=FSInputFile(str(media_archive_path))
+                                        media=FSInputFile(str(media_archive_path)),
+                                        caption=caption
                                     ),
                                 ],
                             )
@@ -485,7 +485,7 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
                                 chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
                                 message_thread_id=topic_id,
                                 document=FSInputFile(str(media_archive_path)),
-                                caption="Media backup file"
+                                caption=caption
                             )
                             backup_sent = True
                         except Exception:
@@ -697,6 +697,47 @@ async def start(message, state: FSMContext):
         print(f"DEBUG: Стандартный старт без параметров")
 
 
+
+
+@dp.message(F.contact)
+async def handle_contact_share(message):
+    contact = message.contact
+    if not contact:
+        return
+    if contact.user_id and message.from_user and contact.user_id != message.from_user.id:
+        await message.answer("Пожалуйста, отправьте ваш собственный номер.")
+        return
+
+    phone_number = (contact.phone_number or "").strip()
+    if not phone_number:
+        await message.answer("Не удалось получить номер телефона.")
+        return
+
+    db = get_session()
+    try:
+        user = db.query(User).filter_by(telegram_id=message.from_user.id).first()
+        if not user:
+            user = User(
+                telegram_id=message.from_user.id,
+                username=message.from_user.username,
+                name=message.from_user.first_name or "Пользователь",
+                phone=phone_number,
+                status="active",
+            )
+            db.add(user)
+        else:
+            user.phone = phone_number
+            if message.from_user.username:
+                user.username = message.from_user.username
+            if not user.name:
+                user.name = message.from_user.first_name or "Пользователь"
+        db.commit()
+        await message.answer("Номер телефона сохранен.")
+    except Exception:
+        db.rollback()
+        await message.answer("Не удалось сохранить номер. Попробуйте еще раз.")
+    finally:
+        db.close()
 
 
 @dp.message(Command("backup"))
@@ -1136,6 +1177,10 @@ def _reminder_message_text(schedule: Schedule) -> str:
     )
 
 
+def _reminder_closed_message_text(schedule: Schedule) -> str:
+    return _reminder_message_text(schedule) + "\n\nПрием отметок закрыт."
+
+
 def _reminder_markup(schedule_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -1291,13 +1336,23 @@ async def close_locked_attendance_reminders() -> None:
 
             if row.telegram_chat_id and row.telegram_message_id:
                 try:
-                    await bot.edit_message_reply_markup(
+                    await bot.edit_message_text(
                         chat_id=row.telegram_chat_id,
                         message_id=int(row.telegram_message_id),
+                        text=_reminder_closed_message_text(schedule),
                         reply_markup=None,
                     )
                 except Exception as e:
-                    row.send_error = str(e)[:1000]
+                    try:
+                        await bot.edit_message_reply_markup(
+                            chat_id=row.telegram_chat_id,
+                            message_id=int(row.telegram_message_id),
+                            reply_markup=None,
+                        )
+                    except Exception as e2:
+                        row.send_error = str(e2)[:1000]
+                    else:
+                        row.send_error = str(e)[:1000]
 
             row.button_closed_at = now
             if not row.responded_at and not row.response_action:
@@ -1533,9 +1588,15 @@ async def handle_attendance_absence_callback(callback: CallbackQuery):
         if _is_attendance_locked(schedule):
             if callback.message:
                 try:
-                    await callback.message.edit_reply_markup(reply_markup=None)
+                    await callback.message.edit_text(
+                        _reminder_closed_message_text(schedule),
+                        reply_markup=None,
+                    )
                 except Exception:
-                    pass
+                    try:
+                        await callback.message.edit_reply_markup(reply_markup=None)
+                    except Exception:
+                        pass
             await callback.answer(ATTENDANCE_LOCKED_MESSAGE, show_alert=True)
             return
         if not _is_user_participant_of_schedule(db, schedule, user.id):

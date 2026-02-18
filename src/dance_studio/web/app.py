@@ -2868,6 +2868,29 @@ def get_public_teacher(teacher_id):
     )
     if not teacher:
         return {"error": "Преподаватель не найден"}, 404
+    groups = (
+        db.query(Group)
+        .filter(Group.teacher_id == teacher.id)
+        .order_by(Group.created_at.desc())
+        .all()
+    )
+    group_items = []
+    for group in groups:
+        direction = db.query(Direction).filter(Direction.direction_id == group.direction_id).first()
+        group_items.append({
+            "id": group.id,
+            "name": group.name,
+            "description": group.description,
+            "age_group": group.age_group,
+            "duration_minutes": group.duration_minutes,
+            "lessons_per_week": group.lessons_per_week,
+            "max_students": group.max_students,
+            "direction_id": direction.direction_id if direction else group.direction_id,
+            "direction_title": direction.title if direction else None,
+            "direction_type": direction.direction_type if direction else None,
+            "direction_status": direction.status if direction else None,
+            "direction_image": _build_image_url(direction.image_path) if direction else None,
+        })
     return {
         "id": teacher.id,
         "name": teacher.name,
@@ -2875,6 +2898,7 @@ def get_public_teacher(teacher_id):
         "specialization": teacher.specialization,
         "bio": teacher.bio,
         "photo": teacher.photo_path,
+        "groups": group_items,
     }
 
 

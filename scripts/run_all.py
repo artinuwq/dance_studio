@@ -27,7 +27,7 @@ def run_flask():
     except Exception:
         logging.exception("Flask crashed")
 
-
+    
 async def main():
     ensure_db_schema()
     if BOOTSTRAP_ON_START:

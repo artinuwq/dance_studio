@@ -2883,11 +2883,11 @@ textarea.form-input {
 </div>
 <div class="form-group">
 <label>Телефон</label>
-<input class="form-input" id="profile-input-phone" placeholder="+7 800 555 35 35" type="tel"/>
+<div style="display: flex; gap: 8px; align-items: center;">
+<input class="form-input" id="profile-input-phone" placeholder="+7 800 555 35 35" type="tel" style="flex: 1;"/>
+<button class="save-btn" id="profile-request-phone-btn" onclick="requestPhoneFromTelegram()" style="width: auto; padding: 10px 12px; white-space: nowrap;">Запросить в TG</button>
 </div>
-<div class="form-group">
-<label>Email</label>
-<input class="form-input" id="profile-input-email" placeholder="example@mail.com" type="email"/>
+<p class="small" id="profile-request-phone-status" style="margin-top: 6px; color: var(--hint);"></p>
 </div>
 <div class="form-group">
 <label>Дата рождения</label>
@@ -3369,6 +3369,15 @@ textarea.form-input {
     <p class="teacher-detail-label">График работы</p>
     <div id="teacher-profile-schedule" class="teacher-detail-schedule">
       <p class="small">График загружается…</p>
+    </div>
+    <button class="save-btn" id="teacher-profile-individual-btn" onclick="openIndividualBookingForTeacher()" style="width: 100%; margin-top: 14px; margin-bottom: 8px;">
+      Запись на индивидуальное занятие
+    </button>
+    <button class="save-btn" id="teacher-profile-groups-toggle-btn" onclick="toggleTeacherGroupsVisibility()" style="width: 100%; margin-bottom: 8px; background: #111;">
+      Просмотр групп
+    </button>
+    <div id="teacher-profile-groups" class="teacher-detail-schedule" style="display: none;">
+      <p class="small">Группы загружаются…</p>
     </div>
   </div>
 </div>
@@ -4358,7 +4367,10 @@ const rentalBookingState = {
   submitting: false
 };
 
-function openIndividualBookingPage() {
+function openIndividualBookingPage(preselectedTeacherId = null) {
+  if (Number.isFinite(Number(preselectedTeacherId))) {
+    individualBookingState.selectedTeacherId = Number(preselectedTeacherId);
+  }
   const startGrid = document.getElementById('individual-start-grid');
   const endGrid = document.getElementById('individual-end-grid');
   if (startGrid) startGrid.innerHTML = '<p class="small">Выберите преподавателя...</p>';
@@ -4567,8 +4579,8 @@ function renderIndividualDateStrip() {
     const slotCount = item.free_ranges?.length || 0;
     const isActive = individualBookingState.selectedDate === item.date;
     const badge = slotCount
-      ? `<div class="small">${slotCount} диапазон${slotCount === 1 ? '' : 'ов'}</div>`
-      : '<div class="small">нет интервалов</div>';
+      ? `<div class="small">${slotCount} слот${slotCount === 1 ? '' : 'ов'}</div>`
+      : '<div class="small">Нету слотов</div>';
     return `
       <div class="individual-date-card ${isActive ? 'active' : ''}" onclick="setIndividualSelectedDate('${item.date}')">
         <div class="individual-date-day">${label.day}</div>
@@ -4625,8 +4637,8 @@ function renderIndividualTimeSelectors() {
   }
   const startOptions = buildStartOptions(dateInfo);
   if (startOptions.length === 0) {
-    if (startGrid) startGrid.innerHTML = '<p class="small">Нет свободных интервалов</p>';
-    if (status) status.textContent = 'Свободных интервалов нет';
+    if (startGrid) startGrid.innerHTML = '<p class="small">Нету слотов</p>';
+    if (status) status.textContent = 'Нету слотов';
   } else {
     if (startGrid) {
       startGrid.innerHTML = startOptions.map(option => `
@@ -4818,27 +4830,41 @@ function timeStringToMinutes(value) {
 async function openTeacherDetail(id) {
   showPage('teacher-profile-page');
   setHeaderTitle('Преподаватель');
+  window.currentTeacherProfileId = id;
   document.getElementById('teacher-profile-name').textContent = 'Загрузка...';
   document.getElementById('teacher-profile-specialization').textContent = '';
   document.getElementById('teacher-profile-bio').textContent = '';
+  document.getElementById('teacher-profile-groups').innerHTML = '<p class="small">Группы загружаются...</p>';
+  document.getElementById('teacher-profile-groups').style.display = 'none';
+  const groupsToggleBtn = document.getElementById('teacher-profile-groups-toggle-btn');
+  if (groupsToggleBtn) {
+    groupsToggleBtn.disabled = true;
+    groupsToggleBtn.textContent = 'Просмотр групп';
+  }
   document.getElementById('teacher-profile-schedule').innerHTML = '<p class="small">График загружается...</p>';
+  const individualBtn = document.getElementById('teacher-profile-individual-btn');
+  if (individualBtn) individualBtn.disabled = true;
 
   try {
     const [detail, schedule] = await Promise.all([
       fetch(`/api/teachers/${id}`).then(res => res.ok ? res.json() : Promise.reject(new Error('Не удалось загрузить информацию'))),
       fetch(`/api/teachers/${id}/schedule`).then(res => res.ok ? res.json() : []),
     ]);
+    window.currentTeacherProfileId = detail.id || id;
     document.getElementById('teacher-profile-name').textContent = detail.name || '—';
     const specialization = detail.specialization || detail.position || '—';
     document.getElementById('teacher-profile-specialization').textContent = specialization;
     document.getElementById('teacher-profile-bio').textContent = detail.bio || 'Информация о биографии отсутствует.';
+    document.getElementById('teacher-profile-groups').innerHTML = renderTeacherGroups(detail.groups || []);
+    if (groupsToggleBtn) groupsToggleBtn.disabled = false;
     document.getElementById('teacher-profile-schedule').innerHTML = renderTeacherSchedule(schedule);
     const photoContainer = document.getElementById('teacher-profile-photo');
     if (photoContainer) {
       photoContainer.innerHTML = '';
-      if (detail.photo) {
+      const photoUrl = buildMediaUrl(detail.photo);
+      if (photoUrl) {
         const img = document.createElement('img');
-        img.src = detail.photo;
+        img.src = photoUrl;
         img.alt = detail.name || 'Преподаватель';
         photoContainer.appendChild(img);
         photoContainer.style.display = 'flex';
@@ -4846,17 +4872,65 @@ async function openTeacherDetail(id) {
         photoContainer.style.display = 'none';
       }
     }
+    if (individualBtn) individualBtn.disabled = false;
   } catch (err) {
     document.getElementById('teacher-profile-name').textContent = 'Ошибка загрузки';
     document.getElementById('teacher-profile-specialization').textContent = '';
     document.getElementById('teacher-profile-bio').textContent = err.message;
+    document.getElementById('teacher-profile-groups').innerHTML = '<p class="small">Не удалось загрузить группы</p>';
+    if (groupsToggleBtn) groupsToggleBtn.disabled = false;
     document.getElementById('teacher-profile-schedule').innerHTML = '<p class="small">Не удалось загрузить график</p>';
     const photoContainer = document.getElementById('teacher-profile-photo');
     if (photoContainer) {
       photoContainer.innerHTML = '';
       photoContainer.style.display = 'none';
     }
+    if (individualBtn) individualBtn.disabled = true;
   }
+}
+
+function toggleTeacherGroupsVisibility() {
+  const groupsEl = document.getElementById('teacher-profile-groups');
+  const btn = document.getElementById('teacher-profile-groups-toggle-btn');
+  if (!groupsEl || !btn) return;
+  const isHidden = groupsEl.style.display === 'none';
+  groupsEl.style.display = isHidden ? 'block' : 'none';
+  btn.textContent = isHidden ? 'Скрыть группы' : 'Просмотр групп';
+}
+
+function renderTeacherGroups(groups) {
+  if (!Array.isArray(groups) || !groups.length) {
+    return '<p class="small">У этого преподавателя пока нет групп</p>';
+  }
+  return groups.map(group => {
+    const directionTitle = escapeHtml(group.direction_title || '—');
+    const lessonsText = group.lessons_per_week ? `${group.lessons_per_week} в неделю` : '—';
+    return `
+      <div class="card" style="margin-bottom: 8px; border: 1px solid var(--border);">
+        <div style="font-weight: 700; font-size: 15px; margin-bottom: 4px;">${escapeHtml(group.name || 'Группа')}</div>
+        <div class="small" style="margin-bottom: 6px;">Направление: <b>${directionTitle}</b></div>
+        <div class="small" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+          <span>👶 ${escapeHtml(group.age_group || '—')}</span>
+          <span>⏱️ ${group.duration_minutes ? `${group.duration_minutes} мин` : '—'}</span>
+          <span>📆 ${lessonsText}</span>
+        </div>
+        <button
+          class="save-btn"
+          style="width: 100%;"
+          ${group.direction_id ? `onclick="openDirectionDetail(${group.direction_id})"` : 'disabled'}
+        >Открыть направление и записаться</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function openIndividualBookingForTeacher(teacherId = null) {
+  const targetTeacherId = Number(teacherId || window.currentTeacherProfileId);
+  if (!Number.isFinite(targetTeacherId) || targetTeacherId <= 0) {
+    showNotification('Не удалось определить преподавателя');
+    return;
+  }
+  openIndividualBookingPage(targetTeacherId);
 }
 
 function closeTeacherDetail() {
@@ -4960,7 +5034,7 @@ function toggleGroupInlineDetails(groupId) {
 
     details.innerHTML = `
       <div style="font-weight: 700; font-size: 15px;">${title}</div>
-      <div class="group-teacher-link" onclick="openTeacherProfilePlaceholder()">
+      <div class="group-teacher-link" onclick="openTeacherProfilePlaceholder(${Number(data?.teacher_id) || 0})">
         <div class="group-teacher-label">Профиль преподавателя</div>
         <div class="group-teacher-row">
           <div class="group-teacher-avatar">
@@ -5235,8 +5309,10 @@ async function submitGroupBookingForm() {
   }
 }
 
-function openTeacherProfilePlaceholder() {
-  return;
+function openTeacherProfilePlaceholder(teacherId) {
+  const id = Number(teacherId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  openTeacherDetail(id);
 }
 
 
@@ -7946,7 +8022,6 @@ async function loadProfileData(telegramId) {
     // Заполняем форму данными
     document.getElementById('profile-input-name').value = data.name || '';
     document.getElementById('profile-input-phone').value = data.phone || '';
-    document.getElementById('profile-input-email').value = data.email || '';
     document.getElementById('profile-input-birth-date').value = data.birth_date || '';
     document.getElementById('profile-input-user-notes').value = data.user_notes || '';
     document.getElementById('profile-status').innerText = getStatusText(data.status);
@@ -7980,7 +8055,6 @@ async function saveProfileChanges() {
   const updatedData = {
     name: document.getElementById('profile-input-name').value.trim(),
     phone: document.getElementById('profile-input-phone').value.trim(),
-    email: document.getElementById('profile-input-email').value.trim() || null,
     birth_date: document.getElementById('profile-input-birth-date').value || null,
     user_notes: document.getElementById('profile-input-user-notes').value.trim() || null
   };
@@ -8024,6 +8098,78 @@ async function saveProfileChanges() {
   } catch (error) {
     console.error('Ошибка при сохранении профиля:', error);
     showNotification('? Ошибка при сохранении профиля');
+  }
+}
+
+function setProfilePhoneRequestStatus(text, isError = false) {
+  const statusEl = document.getElementById('profile-request-phone-status');
+  if (!statusEl) return;
+  statusEl.textContent = text || '';
+  statusEl.style.color = isError ? '#ffb3b3' : 'var(--hint)';
+}
+
+async function requestPhoneFromTelegram() {
+  const phoneBtn = document.getElementById('profile-request-phone-btn');
+  const userId = currentUserData?.telegram_id || tg?.initDataUnsafe?.user?.id;
+  if (!tg || typeof tg.requestContact !== 'function') {
+    setProfilePhoneRequestStatus('Эта функция работает только внутри Telegram Mini App', true);
+    return;
+  }
+  if (phoneBtn) phoneBtn.disabled = true;
+  setProfilePhoneRequestStatus('Подтвердите отправку номера в Telegram');
+
+  let settled = false;
+  const finish = async (sent) => {
+    if (settled) return;
+    settled = true;
+    if (sent) {
+      setProfilePhoneRequestStatus('Спасибо! Номер отправлен, обновляем профиль...');
+      if (userId) {
+        try {
+          await loadProfileData(userId);
+          const phoneValue = document.getElementById('profile-input-phone')?.value?.trim();
+          setProfilePhoneRequestStatus(phoneValue ? 'Готово! Номер в профиле обновлен' : 'Номер отправлен. Обновим профиль, как только Telegram передаст контакт.');
+        } catch (_) {
+          setProfilePhoneRequestStatus('Номер отправлен. Обновим профиль, как только Telegram передаст контакт.');
+        }
+      } else {
+        setProfilePhoneRequestStatus('Номер отправлен. Обновим профиль, как только Telegram передаст контакт.');
+      }
+    } else {
+      setProfilePhoneRequestStatus('Вы отменили отправку номера. Можно попробовать снова', true);
+    }
+    if (phoneBtn) phoneBtn.disabled = false;
+  };
+
+  const onContactRequested = (eventData) => {
+    const status = (eventData && eventData.status ? String(eventData.status) : '').toLowerCase();
+    if (status === 'sent') finish(true);
+    else if (status === 'cancelled' || status === 'canceled') finish(false);
+  };
+
+  try {
+    if (typeof tg.onEvent === 'function') {
+      tg.onEvent('contactRequested', onContactRequested);
+    }
+    tg.requestContact((result) => {
+      if (typeof result === 'boolean') {
+        finish(result);
+        return;
+      }
+      const normalized = String(result || '').toLowerCase();
+      if (normalized === 'sent') finish(true);
+      else if (normalized === 'cancelled' || normalized === 'canceled' || normalized === 'false' || normalized === 'denied') finish(false);
+    });
+    setTimeout(() => {
+      if (!settled) finish(false);
+    }, 15000);
+  } catch (err) {
+    if (phoneBtn) phoneBtn.disabled = false;
+    setProfilePhoneRequestStatus('Не получилось запросить номер. Попробуйте еще раз чуть позже', true);
+  } finally {
+    if (typeof tg.offEvent === 'function') {
+      setTimeout(() => tg.offEvent('contactRequested', onContactRequested), 0);
+    }
   }
 }
 
