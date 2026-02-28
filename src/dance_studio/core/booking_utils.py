@@ -31,6 +31,29 @@ def parse_overlaps(overlaps_json: str | None) -> list[dict]:
     return [item for item in data if isinstance(item, dict)]
 
 
+def parse_bundle_group_ids(bundle_group_ids_json: str | None) -> list[int]:
+    if not bundle_group_ids_json:
+        return []
+    try:
+        payload = json.loads(bundle_group_ids_json)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(payload, list):
+        return []
+    result: list[int] = []
+    seen: set[int] = set()
+    for item in payload:
+        try:
+            group_id = int(item)
+        except (TypeError, ValueError):
+            continue
+        if group_id <= 0 or group_id in seen:
+            continue
+        seen.add(group_id)
+        result.append(group_id)
+    return result
+
+
 def _format_date(value) -> str:
     if not value:
         return "—"
@@ -149,6 +172,19 @@ def format_booking_message(booking, user=None) -> str:
     lesson_section = ""
     if booking.object_type == "group":
         lesson_lines = []
+        abonement_type_labels = {
+            "single": "Разовое",
+            "multi": "Многоразовое",
+            "trial": "Пробное",
+        }
+        abonement_type = str(getattr(booking, "abonement_type", "") or "").strip().lower()
+        if abonement_type:
+            lesson_lines.append(f"• Тип абонемента: {abonement_type_labels.get(abonement_type, abonement_type)}")
+
+        bundle_group_ids = parse_bundle_group_ids(getattr(booking, "bundle_group_ids_json", None))
+        if bundle_group_ids:
+            lesson_lines.append(f"• Размер пакета: {len(bundle_group_ids)}")
+            lesson_lines.append(f"• Группы пакета (ID): {', '.join(map(str, bundle_group_ids))}")
         group = getattr(booking, "group", None)
         if group and group.name:
             lesson_lines.append(f"• Группа: {html.escape(group.name)}")
@@ -169,6 +205,9 @@ def format_booking_message(booking, user=None) -> str:
             lesson_lines.append(f"• Следующее занятие: {_format_date(booking.group_start_date)}")
         if booking.valid_until:
             lesson_lines.append(f"• Абонемент действует до: {_format_date(booking.valid_until)}")
+        if getattr(booking, "requested_amount", None) is not None:
+            currency = getattr(booking, "requested_currency", None) or "RUB"
+            lesson_lines.append(f"• К оплате: {booking.requested_amount} {currency}")
         if lesson_lines:
             lesson_section = "🎯 О занятии:\n" + "\n".join(lesson_lines) + "\n\n"
 
@@ -200,20 +239,53 @@ def format_booking_message(booking, user=None) -> str:
     )
 
 
-def build_booking_keyboard_data(status: str, object_type: str, booking_id: int) -> list[list[dict]]:
+def build_booking_keyboard_data(
+    status: str,
+    object_type: str,
+    booking_id: int,
+    *,
+    is_free_group_trial: bool = False,
+) -> list[list[dict]]:
     if object_type == "group":
-        if status in {"AWAITING_PAYMENT", "NEW"}:
+        if status == "NEW":
+            if is_free_group_trial:
+                return [
+                    [
+                        {
+                            "text": "\u2705 \u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044c",
+                            "callback_data": f"booking:{booking_id}:approve",
+                        },
+                        {
+                            "text": "\u274c \u041e\u0442\u043a\u0430\u0437\u0430\u0442\u044c",
+                            "callback_data": f"booking:{booking_id}:reject",
+                        },
+                    ]
+                ]
             return [
                 [
-                    {"text": "✅ Подтвердить бронь", "callback_data": f"booking:{booking_id}:approve"},
-                    {"text": "❌ Отказать", "callback_data": f"booking:{booking_id}:reject"},
+                    {
+                        "text": "\u2705 \u0417\u0430\u043f\u0440\u043e\u0441\u0438\u0442\u044c \u043e\u043f\u043b\u0430\u0442\u0443",
+                        "callback_data": f"booking:{booking_id}:request_payment",
+                    },
+                    {
+                        "text": "\u274c \u041e\u0442\u043a\u0430\u0437\u0430\u0442\u044c",
+                        "callback_data": f"booking:{booking_id}:reject",
+                    },
                 ]
             ]
-        if status == "APPROVED":
+        if status == "APPROVED" and is_free_group_trial:
+            return []
+        if status in {"AWAITING_PAYMENT", "APPROVED"}:
             return [
                 [
-                    {"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"},
-                    {"text": "❌ Отказать", "callback_data": f"booking:{booking_id}:payment_failed"},
+                    {
+                        "text": "\u2705 \u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044c \u043e\u043f\u043b\u0430\u0442\u0443",
+                        "callback_data": f"booking:{booking_id}:confirm_payment",
+                    },
+                    {
+                        "text": "\u274c \u041d\u0435 \u043e\u043f\u043b\u0430\u0442\u0438\u043b",
+                        "callback_data": f"booking:{booking_id}:payment_failed",
+                    },
                 ]
             ]
         return []
@@ -240,3 +312,5 @@ def build_booking_keyboard_data(status: str, object_type: str, booking_id: int) 
             ]
         ]
     return []
+
+

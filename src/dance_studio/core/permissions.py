@@ -49,6 +49,26 @@ ROLES = {
             "view_stats",              # Просмотр статистики/отчётов
         ]
     },
+    "старший админ": {
+        "name": "Старший админ",
+        "permissions": [
+            # Все права администратора
+            "create_news",
+            "manage_schedule",
+            "create_direction",
+            "create_group",
+            "assign_lesson",
+            "verify_certificate",
+            "view_all_users",
+            # Дополнительные права, как у владельца
+            "manage_staff",
+            "manage_permissions",
+            "system_settings",
+            "manage_backups",
+            "manage_mailings",
+            "view_stats",
+        ]
+    },
     "владелец": {
         "name": "Владелец",
         "permissions": [
@@ -77,7 +97,7 @@ def has_permission(staff_position: str, permission: str) -> bool:
     Проверяет, есть ли у пользователя определенное разрешение
     
     Args:
-        staff_position: Должность сотрудника ('учитель', 'администратор', 'владелец')
+        staff_position: Должность сотрудника ('учитель', 'администратор', 'старший админ', 'владелец')
         permission: Требуемое разрешение
     
     Returns:

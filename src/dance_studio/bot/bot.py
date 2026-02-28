@@ -32,23 +32,36 @@ from dance_studio.db.models import (
     User,
     Mailing,
     Group,
+    Direction,
+    PaymentProfile,
     DirectionUploadSession,
     Staff,
     BookingRequest,
     Schedule,
     IndividualLesson,
+    HallRental,
     GroupAbonement,
     AttendanceIntention,
     AttendanceReminder,
 )
 from dance_studio.core.booking_utils import format_booking_message, build_booking_keyboard_data
 from dance_studio.core.tg_replay import cleanup_expired_init_data
+from dance_studio.core.abonement_pricing import (
+    ABONEMENT_TYPE_SINGLE,
+    ABONEMENT_TYPE_MULTI,
+    ABONEMENT_TYPE_TRIAL,
+    is_free_trial_booking,
+    parse_booking_bundle_group_ids,
+)
+from dance_studio.core.system_settings_service import update_setting
+from dance_studio.bot.telegram_userbot import send_private_message
 from sqlalchemy import or_
 from sqlalchemy.engine import make_url
 from datetime import datetime, time as dt_time, timedelta
 import os
 import tempfile
 import base64
+import uuid
 from pathlib import Path
 from dance_studio.core.settings import DATABASE_URL
 
@@ -75,6 +88,21 @@ ATTENDANCE_REMINDER_POLL_SECONDS = 60
 ATTENDANCE_WILL_MISS_STATUS = "will_miss"
 ATTENDANCE_LOCK_DELTA = timedelta(hours=2, minutes=30)
 ATTENDANCE_LOCKED_MESSAGE = "Отметка закрыта. Напишите админу в случае чего-либо."
+BOT_USERNAME_GLOBAL: str | None = None
+
+
+PAYMENT_ADMIN_CONTACT_URL = "https://t.me/ShebaSport_LissaDance"
+INACTIVE_SCHEDULE_STATUSES = {
+    "cancelled",
+    "deleted",
+    "rejected",
+    "payment_failed",
+    "CANCELLED",
+    "DELETED",
+    "REJECTED",
+    "PAYMENT_FAILED",
+}
+RENTAL_CREATE_SCHEDULE_STATUSES = {"APPROVED", "AWAITING_PAYMENT", "PAID"}
 
 
 def _env_file_path() -> Path:
@@ -105,6 +133,29 @@ def _upsert_env_value(key: str, value: int) -> None:
     if not updated:
         new_lines.append(f"{key}={value}")
     env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+
+
+def _sync_bot_username_setting(bot_username: str) -> None:
+    normalized = (bot_username or "").strip().lstrip("@")
+    if not normalized:
+        return
+
+    db = get_session()
+    try:
+        update_setting(
+            db,
+            key="contacts.bot_username",
+            raw_value=f"@{normalized}",
+            changed_by_staff_id=None,
+            reason="Auto-synced from bot runtime get_me()",
+            source="bot_runtime",
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        _logger.exception("Failed to sync contacts.bot_username from bot runtime")
+    finally:
+        db.close()
 
 
 async def _ensure_forum_topic(name: str, current_id: int | None, env_key: str) -> int | None:
@@ -973,7 +1024,7 @@ async def check_scheduled_mailings():
         now = datetime.now()
         
         # Ищем все рассылки которые должны быть отправлены
-        # scheduled_at <= текущее время И статус == 'scheduled'
+        # scheduled_at <= текущее время и статус == 'scheduled'
         scheduled_mailings = db.query(Mailing).filter(
             Mailing.status == 'scheduled',
             Mailing.scheduled_at <= now
@@ -1292,7 +1343,7 @@ async def send_due_attendance_reminders() -> None:
         future_limit = now + timedelta(hours=ATTENDANCE_REMINDER_WINDOW_HOURS)
         schedules = db.query(Schedule).filter(
             Schedule.object_type.in_(["group", "individual"]),
-            Schedule.status.notin_(["cancelled", "deleted"]),
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
             Schedule.date.isnot(None),
         ).all()
         for schedule in schedules:
@@ -1381,6 +1432,7 @@ async def run_bot():
         # Сохраняем в глобальную переменную
         global BOT_USERNAME_GLOBAL
         BOT_USERNAME_GLOBAL = bot_username
+        _sync_bot_username_setting(bot_username)
     except Exception as e:
         print(f"[bot] failed to get bot info: {e}")
     
@@ -1416,8 +1468,18 @@ async def run_bot():
             reminder_task.cancel()
 
 
-def _build_booking_keyboard_markup(status: str, object_type: str, booking_id: int) -> InlineKeyboardMarkup | None:
-    keyboard_data = build_booking_keyboard_data(status, object_type, booking_id)
+def _build_booking_keyboard_markup(
+    status: str,
+    object_type: str,
+    booking_id: int,
+    booking: BookingRequest | None = None,
+) -> InlineKeyboardMarkup | None:
+    keyboard_data = build_booking_keyboard_data(
+        status,
+        object_type,
+        booking_id,
+        is_free_group_trial=is_free_trial_booking(booking) if booking else False,
+    )
     if not keyboard_data:
         return None
     rows = []
@@ -1460,8 +1522,178 @@ def _create_schedule_from_lesson(
     return schedule
 
 
+def _normalized_booking_status(status: str | None) -> str:
+    return (status or "").upper()
+
+
+def _map_booking_status_to_rental_states(status: str) -> tuple[str, str, str]:
+    normalized_status = _normalized_booking_status(status)
+    if normalized_status == "PAID":
+        return "approved", "paid", "active"
+    if normalized_status in {"APPROVED", "AWAITING_PAYMENT"}:
+        return "approved", "pending", "active"
+    if normalized_status == "REJECTED":
+        return "rejected", "rejected", "cancelled"
+    if normalized_status in {"CANCELLED", "PAYMENT_FAILED"}:
+        return "approved", "rejected", "cancelled"
+    return "pending", "pending", "pending"
+
+
+def _find_rental_for_booking(db, booking: BookingRequest) -> HallRental | None:
+    if not booking.user_id:
+        return None
+    if not booking.date or not booking.time_from or not booking.time_to:
+        return None
+    return (
+        db.query(HallRental)
+        .filter(
+            HallRental.creator_type == "user",
+            HallRental.creator_id == booking.user_id,
+            HallRental.date == booking.date,
+            HallRental.time_from == booking.time_from,
+            HallRental.time_to == booking.time_to,
+        )
+        .order_by(HallRental.id.desc())
+        .first()
+    )
+
+
+def _ensure_rental_for_booking(db, booking: BookingRequest, status: str) -> HallRental | None:
+    if not booking.date or not booking.time_from or not booking.time_to:
+        return None
+
+    review_status, payment_status, activity_status = _map_booking_status_to_rental_states(status)
+    rental = _find_rental_for_booking(db, booking)
+    if not rental:
+        start_dt = datetime.combine(booking.date, booking.time_from)
+        end_dt = datetime.combine(booking.date, booking.time_to)
+        rental = HallRental(
+            creator_id=booking.user_id or 0,
+            creator_type="user",
+            date=booking.date,
+            time_from=booking.time_from,
+            time_to=booking.time_to,
+            purpose=booking.comment,
+            comment=booking.comment,
+            review_status=review_status,
+            payment_status=payment_status,
+            activity_status=activity_status,
+            start_time=start_dt,
+            end_time=end_dt,
+            duration_minutes=booking.duration_minutes,
+            status=status,
+        )
+        db.add(rental)
+        db.flush()
+        return rental
+
+    if booking.comment and not rental.comment:
+        rental.comment = booking.comment
+    if booking.comment and not rental.purpose:
+        rental.purpose = booking.comment
+    if booking.duration_minutes and not rental.duration_minutes:
+        rental.duration_minutes = booking.duration_minutes
+    rental.review_status = review_status
+    rental.payment_status = payment_status
+    rental.activity_status = activity_status
+    rental.status = status
+    return rental
+
+
+def _sync_rental_booking_status_to_schedule(
+    db,
+    booking: BookingRequest,
+    staff: Staff | None,
+    status: str,
+) -> None:
+    if not booking.date or not booking.time_from or not booking.time_to:
+        return
+
+    normalized_status = _normalized_booking_status(status)
+    booking_tag = f"#{booking.id}"
+    schedule = (
+        db.query(Schedule)
+        .filter(
+            Schedule.object_type == "rental",
+            Schedule.status_comment.isnot(None),
+            Schedule.status_comment.contains(booking_tag),
+        )
+        .order_by(Schedule.id.desc())
+        .first()
+    )
+
+    rental = None
+    if schedule and schedule.object_id:
+        rental = db.query(HallRental).filter_by(id=schedule.object_id).first()
+    if not rental:
+        rental = _find_rental_for_booking(db, booking)
+    if rental or normalized_status in RENTAL_CREATE_SCHEDULE_STATUSES:
+        rental = _ensure_rental_for_booking(db, booking, status)
+
+    if not schedule and rental:
+        schedule = (
+            db.query(Schedule)
+            .filter(
+                Schedule.object_type == "rental",
+                Schedule.object_id == rental.id,
+            )
+            .order_by(Schedule.id.desc())
+            .first()
+        )
+    if not schedule:
+        schedule = (
+            db.query(Schedule)
+            .filter(
+                Schedule.object_type == "rental",
+                Schedule.date == booking.date,
+                Schedule.time_from == booking.time_from,
+                Schedule.time_to == booking.time_to,
+            )
+            .order_by(Schedule.id.desc())
+            .first()
+        )
+        if schedule and rental and not schedule.object_id:
+            schedule.object_id = rental.id
+
+    if not schedule and normalized_status in RENTAL_CREATE_SCHEDULE_STATUSES:
+        schedule = Schedule(
+            object_type="rental",
+            object_id=(rental.id if rental else None),
+            date=booking.date,
+            time_from=booking.time_from,
+            time_to=booking.time_to,
+            status=status,
+            status_comment=f"Синхронизировано с заявкой #{booking.id}",
+            title="Аренда зала",
+            start_time=booking.time_from,
+            end_time=booking.time_to,
+        )
+        db.add(schedule)
+        db.flush()
+
+    if not schedule:
+        return
+
+    schedule.date = booking.date
+    schedule.time_from = booking.time_from
+    schedule.time_to = booking.time_to
+    schedule.start_time = booking.time_from
+    schedule.end_time = booking.time_to
+    if not schedule.title:
+        schedule.title = "Аренда зала"
+    if rental and not schedule.object_id:
+        schedule.object_id = rental.id
+    schedule.status = status
+    schedule.status_comment = f"Синхронизировано с заявкой #{booking.id}"
+    if staff:
+        schedule.updated_by = staff.id
+
+
 def _sync_booking_status_to_schedule(db, booking: BookingRequest, staff: Staff | None, status: str) -> None:
     if not booking.object_type:
+        return
+    if booking.object_type == "rental":
+        _sync_rental_booking_status_to_schedule(db, booking, staff, status)
         return
 
     filters = [Schedule.object_type == booking.object_type]
@@ -1516,38 +1748,104 @@ def _activate_group_abonement_from_booking(db, booking: BookingRequest) -> Group
     if not booking.user_id or not booking.group_id:
         return None
 
-    lessons = booking.lessons_count or 0
-    if lessons <= 0:
-        lessons = 4  # базовый фолбэк, если количество не задано
+    bundle_group_ids = parse_booking_bundle_group_ids(booking)
+    if not bundle_group_ids:
+        bundle_group_ids = [int(booking.group_id)]
+    if int(booking.group_id) not in bundle_group_ids:
+        bundle_group_ids.insert(0, int(booking.group_id))
+    bundle_size = max(1, min(3, len(bundle_group_ids)))
+    bundle_group_ids = bundle_group_ids[:bundle_size]
 
-    valid_from = datetime.combine(booking.group_start_date, time.min) if booking.group_start_date else datetime.now()
-    valid_to = booking.valid_until or (valid_from + timedelta(days=30))
+    abonement_type = (booking.abonement_type or ABONEMENT_TYPE_MULTI).strip().lower()
+    if abonement_type not in {ABONEMENT_TYPE_SINGLE, ABONEMENT_TYPE_MULTI, ABONEMENT_TYPE_TRIAL}:
+        abonement_type = ABONEMENT_TYPE_MULTI
 
-    abonement = (
+    total_lessons = 0
+    try:
+        total_lessons = int(booking.lessons_count or 0)
+    except (TypeError, ValueError):
+        total_lessons = 0
+
+    if abonement_type in {ABONEMENT_TYPE_SINGLE, ABONEMENT_TYPE_TRIAL}:
+        lessons_per_group = 1
+    elif total_lessons > 0 and total_lessons % bundle_size == 0:
+        lessons_per_group = max(1, total_lessons // bundle_size)
+    else:
+        base_group = db.query(Group).filter_by(id=int(booking.group_id)).first()
+        fallback_per_week = 1
+        if base_group and base_group.lessons_per_week not in (None, ""):
+            try:
+                fallback_per_week = max(1, int(base_group.lessons_per_week))
+            except (TypeError, ValueError):
+                fallback_per_week = 1
+        lessons_per_group = fallback_per_week * 4
+
+    if booking.group_start_date:
+        valid_from = datetime.combine(booking.group_start_date, dt_time.min)
+    else:
+        valid_from = datetime.now()
+
+    if booking.valid_until:
+        valid_to = datetime.combine(booking.valid_until, dt_time.max)
+    elif abonement_type in {ABONEMENT_TYPE_SINGLE, ABONEMENT_TYPE_TRIAL}:
+        valid_to = datetime.combine(valid_from.date(), dt_time.max)
+    else:
+        valid_to = valid_from + timedelta(days=28)
+
+    existing_rows = (
         db.query(GroupAbonement)
-        .filter_by(user_id=booking.user_id, group_id=booking.group_id, status="pending_activation")
-        .order_by(GroupAbonement.created_at.desc())
-        .first()
+        .filter(
+            GroupAbonement.user_id == booking.user_id,
+            GroupAbonement.status == "active",
+            GroupAbonement.group_id.in_(bundle_group_ids),
+            GroupAbonement.abonement_type == abonement_type,
+            GroupAbonement.bundle_size == bundle_size,
+            GroupAbonement.valid_from == valid_from,
+            GroupAbonement.valid_to == valid_to,
+            GroupAbonement.balance_credits == lessons_per_group,
+        )
+        .all()
     )
-    if not abonement:
+    if len(existing_rows) == bundle_size:
+        by_group_id = {row.group_id: row for row in existing_rows}
+        if all(group_id in by_group_id for group_id in bundle_group_ids):
+            return by_group_id[bundle_group_ids[0]]
+
+    bundle_id = str(uuid.uuid4()) if bundle_size > 1 else None
+    activated: list[GroupAbonement] = []
+    for group_id in bundle_group_ids:
+        pending_row = (
+            db.query(GroupAbonement)
+            .filter_by(user_id=booking.user_id, group_id=group_id, status="pending_activation")
+            .order_by(GroupAbonement.created_at.desc())
+            .first()
+        )
+        if pending_row:
+            pending_row.status = "active"
+            pending_row.balance_credits = lessons_per_group
+            pending_row.valid_from = valid_from
+            pending_row.valid_to = valid_to
+            pending_row.abonement_type = abonement_type
+            pending_row.bundle_size = bundle_size
+            pending_row.bundle_id = bundle_id
+            activated.append(pending_row)
+            continue
+
         abonement = GroupAbonement(
             user_id=booking.user_id,
-            group_id=booking.group_id,
-            balance_credits=lessons,
+            group_id=group_id,
+            abonement_type=abonement_type,
+            bundle_id=bundle_id,
+            bundle_size=bundle_size,
+            balance_credits=lessons_per_group,
             status="active",
             valid_from=valid_from,
             valid_to=valid_to,
         )
         db.add(abonement)
-    else:
-        abonement.status = "active"
-        if lessons:
-            abonement.balance_credits = lessons
-        if abonement.valid_from is None:
-            abonement.valid_from = valid_from
-        if abonement.valid_to is None:
-            abonement.valid_to = valid_to
-    return abonement
+        activated.append(abonement)
+
+    return activated[0] if activated else None
 
 
 @dp.callback_query(F.data.startswith("attmiss:"))
@@ -1582,7 +1880,7 @@ async def handle_attendance_absence_callback(callback: CallbackQuery):
         if not schedule:
             await callback.answer("Занятие не найдено", show_alert=True)
             return
-        if schedule.status in {"cancelled", "deleted"}:
+        if (schedule.status or "").lower() in INACTIVE_SCHEDULE_STATUSES:
             await callback.answer("Занятие отменено", show_alert=True)
             return
         if _is_attendance_locked(schedule):
@@ -1678,7 +1976,7 @@ async def handle_booking_action(callback: CallbackQuery):
         if prefix == "booking_cancel":
             user = db.query(User).filter_by(id=booking.user_id).first()
             text = format_booking_message(booking, user)
-            reply_markup = _build_booking_keyboard_markup(booking.status, booking.object_type, booking.id)
+            reply_markup = _build_booking_keyboard_markup(booking.status, booking.object_type, booking.id, booking)
             await callback.message.edit_text(
                 text,
                 parse_mode=ParseMode.HTML,
@@ -1686,6 +1984,17 @@ async def handle_booking_action(callback: CallbackQuery):
             )
             await callback.answer("Отмена подтверждения.")
             return
+
+        free_trial_flow = is_free_trial_booking(booking)
+
+        # Backward compatibility for old "approve" callbacks in admin chat:
+        # treat it as "request_payment" for paid group bookings.
+        if booking.object_type == "group" and action == "approve" and not free_trial_flow:
+            action = "request_payment"
+            if prefix == "booking_confirm":
+                prefix = "booking"
+        if booking.object_type == "group" and prefix == "booking_confirm":
+            prefix = "booking"
 
         if prefix == "booking_confirm":
             if action not in {"approve", "reject"}:
@@ -1695,7 +2004,12 @@ async def handle_booking_action(callback: CallbackQuery):
         if prefix != "booking_confirm":
             allowed_actions = {
                 button["callback_data"].split(":")[-1]
-                for row in build_booking_keyboard_data(booking.status, booking.object_type, booking.id)
+                for row in build_booking_keyboard_data(
+                    booking.status,
+                    booking.object_type,
+                    booking.id,
+                    is_free_group_trial=is_free_trial_booking(booking),
+                )
                 for button in row
             }
             if action not in allowed_actions:
@@ -1754,14 +2068,21 @@ async def handle_booking_action(callback: CallbackQuery):
 
         _sync_booking_status_to_schedule(db, booking, staff, next_status)
 
-        if next_status == "PAID" and booking.object_type == "group":
+        should_activate_group_abonement = (
+            booking.object_type == "group"
+            and (
+                next_status == "PAID"
+                or (next_status == "APPROVED" and free_trial_flow)
+            )
+        )
+        if should_activate_group_abonement:
             _activate_group_abonement_from_booking(db, booking)
 
         db.commit()
 
         user = db.query(User).filter_by(id=booking.user_id).first()
         text = format_booking_message(booking, user)
-        reply_markup = _build_booking_keyboard_markup(booking.status, booking.object_type, booking.id)
+        reply_markup = _build_booking_keyboard_markup(booking.status, booking.object_type, booking.id, booking)
 
         await callback.message.edit_text(
             text,
@@ -1769,9 +2090,130 @@ async def handle_booking_action(callback: CallbackQuery):
             reply_markup=reply_markup
         )
         await callback.answer("Статус заявки обновлен.")
-        await _notify_user_on_status_change(user, booking, next_status)
+        asyncio.create_task(_notify_user_on_status_change(user, booking, next_status))
     finally:
         db.close()
+
+
+def _get_active_payment_profile(db):
+    return (
+        db.query(PaymentProfile)
+        .filter(PaymentProfile.is_active.is_(True))
+        .order_by(PaymentProfile.slot.asc())
+        .first()
+    ) or db.query(PaymentProfile).order_by(PaymentProfile.slot.asc()).first()
+
+
+def _compute_booking_payment_amount(db, booking: BookingRequest) -> int | None:
+    if booking.object_type != "group":
+        return None
+    if booking.requested_amount is not None:
+        try:
+            amount = int(booking.requested_amount)
+        except (TypeError, ValueError):
+            return None
+        return amount if amount >= 0 else None
+    if not booking.group_id or not booking.lessons_count:
+        return None
+    try:
+        lessons_count = int(booking.lessons_count)
+    except (TypeError, ValueError):
+        return None
+    if lessons_count <= 0:
+        return None
+    group = db.query(Group).filter_by(id=booking.group_id).first()
+    if not group:
+        return None
+    direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
+    if not direction or not direction.base_price:
+        return None
+    try:
+        base_price = int(direction.base_price)
+    except (TypeError, ValueError):
+        return None
+    if base_price <= 0:
+        return None
+    return lessons_count * base_price
+
+
+def _build_payment_request_message(db, booking: BookingRequest) -> str:
+    profile = _get_active_payment_profile(db)
+    bank = (getattr(profile, "recipient_bank", None) or "—").strip() or "—"
+    number = (getattr(profile, "recipient_number", None) or "—").strip() or "—"
+    full_name = (getattr(profile, "recipient_full_name", None) or "—").strip() or "—"
+    amount = _compute_booking_payment_amount(db, booking)
+    amount_text = f"{amount:,} ₽".replace(",", " ") if amount else "уточните у администратора"
+
+    return (
+        "Здравствуйте!\n"
+        "Это администрация Shebba Sports x Lissa Dance Studio.\n\n"
+        "Реквизиты для оплаты:\n"
+        f"• Банк получателя: {bank}\n"
+        f"• Номер: {number}\n"
+        f"• ФИО получателя: {full_name}\n"
+        f"• Сумма к оплате: {amount_text}\n\n"
+        "Пожалуйста, после оплаты отправьте чек для подтверждения."
+    )
+
+
+async def _notify_payment_delivery_failed(user: User | None, booking: BookingRequest, reason: str, failed_text: str) -> None:
+    if not BOOKINGS_ADMIN_CHAT_ID:
+        return
+    user_label = "неизвестный пользователь"
+    if user:
+        username = f"@{user.username}" if user.username else "—"
+        user_label = f"{user.name} (id={user.telegram_id or '—'}, username={username})"
+    elif booking.user_telegram_id:
+        user_label = f"id={booking.user_telegram_id}"
+    reason_text = (reason or "неизвестная ошибка").strip()
+
+    alert = (
+        "⚠️ Не получилось отправить сообщение пользователю.\n"
+        f"Получатель: {user_label}\n"
+        f"Причина: {reason_text}\n\n"
+        "По возможности отправьте сообщение вручную."
+    )
+    try:
+        await bot.send_message(chat_id=BOOKINGS_ADMIN_CHAT_ID, text=alert)
+        await bot.send_message(chat_id=BOOKINGS_ADMIN_CHAT_ID, text=failed_text)
+    except Exception:
+        pass
+
+
+async def _send_payment_message_from_admin_account(user: User | None, booking: BookingRequest) -> None:
+    telegram_id = user.telegram_id if user else booking.user_telegram_id
+    if not telegram_id:
+        return
+
+    local_db = get_session()
+    try:
+        payment_text = _build_payment_request_message(local_db, booking)
+    finally:
+        local_db.close()
+    user_target = {
+        "id": telegram_id,
+        "username": user.username if user else None,
+        "phone": user.phone if user else None,
+        "name": user.name if user else None,
+    }
+
+    try:
+        await asyncio.wait_for(send_private_message(user_target, payment_text), timeout=15)
+    except Exception as exc:
+        reason = str(exc).strip() or "неизвестная ошибка"
+        if isinstance(exc, asyncio.TimeoutError):
+            reason = "таймаут отправки сообщения от userbot (15 сек)"
+        await _notify_payment_delivery_failed(user, booking, reason, payment_text)
+        try:
+            await bot.send_message(
+                chat_id=telegram_id,
+                text=(
+                    "Не получилось отправить реквизиты для оплаты.\n"
+                    f"Пожалуйста, добавьте админский аккаунт в контакты: {PAYMENT_ADMIN_CONTACT_URL}"
+                ),
+            )
+        except Exception:
+            pass
 
 
 async def _notify_user_on_status_change(user: User | None, booking: BookingRequest, status: str) -> None:
@@ -1779,13 +2221,37 @@ async def _notify_user_on_status_change(user: User | None, booking: BookingReque
     if not telegram_id:
         return
 
+    should_send_payment_details = (
+        status == "AWAITING_PAYMENT"
+        or (status == "APPROVED" and booking.object_type in {"rental", "individual"})
+    )
+    if should_send_payment_details:
+        await _send_payment_message_from_admin_account(user, booking)
+        return
+
     text_map = {
         "APPROVED": "Ваша заявка подтверждена. В ближайшее время с вами свяжется администратор для обсуждения оплаты.",
         "REJECTED": "К сожалению, вашу заявку отклонили. При необходимости вы можете отправить новую заявку или обратиться к администратору.",
-        "PAID": "Ваша заявка полностью одобрена, ждём вас на занятиях!",
+        "PAID": "Ваша заявка полностью одобрена, ждем вас на занятиях!",
     }
     message_text = text_map.get(status)
     if not message_text:
+        return
+
+    if status == "PAID":
+        user_target = {
+            "id": telegram_id,
+            "username": user.username if user else None,
+            "phone": user.phone if user else None,
+            "name": user.name if user else None,
+        }
+        try:
+            await asyncio.wait_for(send_private_message(user_target, message_text), timeout=15)
+        except Exception as exc:
+            reason = str(exc).strip() or "неизвестная ошибка"
+            if isinstance(exc, asyncio.TimeoutError):
+                reason = "таймаут отправки сообщения от userbot (15 сек)"
+            await _notify_payment_delivery_failed(user, booking, reason, message_text)
         return
 
     try:
@@ -1899,7 +2365,7 @@ async def process_direction_photo(message, state: FSMContext):
         
         # Загружаем на сервер через API
         try:
-            # Использвуем aiohttp для загрузки
+            # Используем aiohttp для загрузки
             async with aiohttp.ClientSession() as session:
                 form = aiohttp.FormData()
                 form.add_field('photo', file_content, filename=f'photo_{session_id}.jpg', content_type='image/jpeg')
@@ -1992,3 +2458,6 @@ async def process_staff_photo(message, state: FSMContext):
             f"Попробуйте отправить фото еще раз."
         )
         await state.set_state(StaffPhotoStates.waiting_for_photo)
+
+
+

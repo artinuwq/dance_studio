@@ -190,6 +190,37 @@ async def create_group_chat(title: str, users: Sequence[Any]) -> dict:
                 pass
 
 
+async def send_private_message(user: Any, text: str) -> dict:
+    """
+    Sends direct message from userbot account to a user.
+    Returns {"ok": True} or raises RuntimeError with reason.
+    """
+    async with _lock:
+        client = await _get_client()
+        try:
+            entity = await _resolve_user_entity(client, user)
+            await client.send_message(entity=entity, message=text)
+            return {"ok": True}
+        except RPCError as e:
+            raise RuntimeError(f"Telethon RPC error: {e}") from e
+        except Exception as e:
+            raise RuntimeError(str(e)) from e
+        finally:
+            try:
+                await client.disconnect()
+            except Exception:
+                pass
+
+
+def send_private_message_sync(user: Any, text: str) -> dict | None:
+    try:
+        return asyncio.run(send_private_message(user, text))
+    except Exception as e:
+        reason = str(e).strip() or repr(e)
+        print(f"⚠️ Не удалось отправить сообщение от userbot: {reason}")
+        return {"ok": False, "error": reason}
+
+
 def create_group_chat_sync(title: str, users: Sequence[Any]) -> dict | None:
     """
     Синхронная обертка для Flask.

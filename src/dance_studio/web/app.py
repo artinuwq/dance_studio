@@ -2,6 +2,7 @@ from flask import Flask, jsonify, send_from_directory, request, g, make_response
 from datetime import date, time, datetime, timedelta
 import os
 import json
+import re
 import hashlib
 import secrets
 from werkzeug.utils import secure_filename
@@ -32,8 +33,13 @@ from dance_studio.db.models import (
     GroupAbonement,
     Attendance,
     AttendanceIntention,
+    AttendanceReminder,
+    ScheduleOverrides,
     GroupAbonementActionLog,
     PaymentTransaction,
+    PaymentProfile,
+    AppSetting,
+    AppSettingChange,
     BookingRequest,
     SessionRecord,
 )
@@ -46,11 +52,29 @@ from dance_studio.core.permissions import has_permission
 from dance_studio.core.tech_notifier import send_critical_sync
 from dance_studio.core.booking_utils import (
     BOOKING_STATUS_LABELS,
+    BOOKING_TYPE_LABELS,
     format_booking_message,
     build_booking_keyboard_data,
 )
 from dance_studio.core.tg_auth import validate_init_data
 from dance_studio.core.tg_replay import store_used_init_data
+from dance_studio.core.abonement_pricing import (
+    ABONEMENT_TYPE_MULTI,
+    ABONEMENT_TYPE_TRIAL,
+    AbonementPricingError,
+    get_next_group_date as pricing_get_next_group_date,
+    parse_booking_bundle_group_ids,
+    quote_group_booking,
+    serialize_group_booking_quote,
+)
+from dance_studio.core.system_settings_service import (
+    SettingValidationError,
+    get_setting_value,
+    list_setting_changes,
+    list_setting_specs,
+    list_settings,
+    update_setting,
+)
 from dance_studio.core.config import (
     OWNER_IDS,
     TECH_ADMIN_ID,
@@ -98,6 +122,16 @@ try:
 except Exception as e:
     logging.exception("Failed to create media directories on startup: %s", e)
 SENSITIVE_PATH_PREFIXES = ("/schedule", "/api/bookings", "/api/payments", "/mailings", "/news")
+INACTIVE_SCHEDULE_STATUSES = {
+    "cancelled",
+    "deleted",
+    "rejected",
+    "payment_failed",
+    "CANCELLED",
+    "DELETED",
+    "REJECTED",
+    "PAYMENT_FAILED",
+}
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
@@ -523,6 +557,25 @@ class DirectionUploadSessionModelView(ModelView):
     column_filters = ['status', 'created_at']
     form_columns = ['admin_id', 'title', 'description', 'base_price', 'image_path', 'status', 'session_token']
 
+class PaymentProfileModelView(ModelView):
+    column_list = ['id', 'slot', 'recipient_bank', 'recipient_number', 'recipient_full_name', 'is_active', 'updated_at']
+    column_filters = ['slot', 'is_active', 'updated_at']
+    form_columns = ['slot', 'recipient_bank', 'recipient_number', 'recipient_full_name', 'is_active']
+
+class AppSettingModelView(ModelView):
+    column_list = ['id', 'key', 'value_type', 'is_public', 'updated_by_staff_id', 'updated_at']
+    column_searchable_list = ['key', 'description']
+    column_filters = ['value_type', 'is_public', 'updated_at']
+    form_columns = ['key', 'value_json', 'value_type', 'description', 'is_public', 'updated_by_staff_id']
+
+class AppSettingChangeModelView(ModelView):
+    can_create = False
+    can_edit = False
+    can_delete = False
+    column_list = ['id', 'setting_key', 'old_value_json', 'new_value_json', 'changed_by_staff_id', 'source', 'created_at']
+    column_searchable_list = ['setting_key', 'change_reason']
+    column_filters = ['setting_key', 'source', 'created_at']
+
 admin.add_view(UserModelView(User, Session()))
 admin.add_view(StaffModelView(Staff, Session()))
 admin.add_view(NewsModelView(News, Session()))
@@ -530,6 +583,9 @@ admin.add_view(MailingModelView(Mailing, Session()))
 admin.add_view(ScheduleModelView(Schedule, Session()))
 admin.add_view(DirectionModelView(Direction, Session()))
 admin.add_view(DirectionUploadSessionModelView(DirectionUploadSession, Session()))
+admin.add_view(PaymentProfileModelView(PaymentProfile, Session()))
+admin.add_view(AppSettingModelView(AppSetting, Session()))
+admin.add_view(AppSettingChangeModelView(AppSettingChange, Session()))
 
 # Автоматическое управление сессиями
 @app.before_request
@@ -689,6 +745,14 @@ def index():
     return send_from_directory(FRONTEND_DIR, "index.html")
 
 
+@app.route("/assets/<path:filename>")
+def serve_frontend_asset(filename):
+    asset_path = Path(FRONTEND_DIR) / filename
+    if asset_path.exists() and asset_path.is_file():
+        return send_from_directory(FRONTEND_DIR, filename)
+    return {"error": "file not found"}, 404
+
+
 @app.route("/health")
 def health():
     return {"status": "ok"}
@@ -696,20 +760,25 @@ def health():
 
 @app.route("/bot-username")
 def get_bot_username():
-    """Возвращает имя бота для открытия чата"""
+    """Возвращает username бота для открытия чата."""
+    db = g.db
     try:
-        # Получаем имя бота из бота если доступно
-        from bot.bot import BOT_USERNAME_GLOBAL
+        configured = get_setting_value(db, "contacts.bot_username")
+        db.commit()
+        if isinstance(configured, str) and configured.strip():
+            return jsonify({"bot_username": configured.strip().lstrip("@")})
+    except Exception:
+        db.rollback()
+        app.logger.exception("Failed to resolve bot username from system settings")
+
+    try:
+        from dance_studio.bot.bot import BOT_USERNAME_GLOBAL
         if BOT_USERNAME_GLOBAL:
-            return jsonify({"bot_username": BOT_USERNAME_GLOBAL})
+            return jsonify({"bot_username": str(BOT_USERNAME_GLOBAL).strip().lstrip("@")})
+    except Exception:
+        app.logger.exception("Failed to resolve runtime bot username")
 
-        # Fallback на конфиг
-        from dance_studio.core.config import BOT_USERNAME
-        return jsonify({"bot_username": BOT_USERNAME})
-    except (ImportError, AttributeError):
-        app.logger.exception("Failed to resolve bot username")
-        return jsonify({"bot_username": "dance_studio_admin_bot"})
-
+    return jsonify({"bot_username": "dance_studio_admin_bot"})
 
 
 @app.route("/schedule")
@@ -733,13 +802,51 @@ def schedule_public():
     query = query.filter(Schedule.status != "cancelled")
 
     if mine and user:
-        query = query.filter(
-            or_(
-                Schedule.object_type == "group",
-                (Schedule.object_type == "individual") & (IndividualLesson.student_id == user.id),
-                (Schedule.object_type == "rental") & (HallRental.creator_type == "user") & (HallRental.creator_id == user.id),
-            )
+        today = date.today()
+        mine_conditions = []
+
+        # Индивидуальные занятия пользователя
+        mine_conditions.append(
+            (Schedule.object_type == "individual") & (IndividualLesson.student_id == user.id)
         )
+        # Аренда, созданная пользователем
+        mine_conditions.append(
+            (Schedule.object_type == "rental") & (HallRental.creator_type == "user") & (HallRental.creator_id == user.id)
+        )
+
+        # Группы пользователя по активным абонементам
+        active_group_ids = [
+            gid for (gid,) in db.query(GroupAbonement.group_id).filter(
+                GroupAbonement.user_id == user.id,
+                GroupAbonement.status == "active",
+                or_(GroupAbonement.valid_from == None, GroupAbonement.valid_from <= today),
+                or_(GroupAbonement.valid_to == None, GroupAbonement.valid_to >= today),
+            ).all()
+        ]
+        if active_group_ids:
+            mine_conditions.append(
+                (Schedule.object_type == "group") & (
+                    (Schedule.group_id.in_(active_group_ids)) |
+                    (Schedule.object_id.in_(active_group_ids))
+                )
+            )
+
+        # Если пользователь связан с сотрудником (преподаватель) — добавляем его группы
+        staff = None
+        if getattr(user, "telegram_id", None):
+            staff = db.query(Staff).filter_by(telegram_id=user.telegram_id).first()
+        if staff:
+            taught_group_ids = [gid for (gid,) in db.query(Group.id).filter(Group.teacher_id == staff.id).all()]
+            staff_group_parts = [Schedule.teacher_id == staff.id]
+            if taught_group_ids:
+                staff_group_parts.append(Schedule.group_id.in_(taught_group_ids))
+                staff_group_parts.append(Schedule.object_id.in_(taught_group_ids))
+            mine_conditions.append((Schedule.object_type == "group") & or_(*staff_group_parts))
+
+        if mine_conditions:
+            query = query.filter(or_(*mine_conditions))
+        else:
+            query = query.filter(Schedule.id == -1)
     else:
         # публичная выдача только групп
         query = query.filter(Schedule.object_type == "group")
@@ -874,7 +981,7 @@ def create_schedule():
     Создает новое занятие
     """
     db = g.db
-    data = request.json
+    data = request.json or {}
 
     
 
@@ -1040,7 +1147,7 @@ def update_schedule_v2(schedule_id):
         try:
             schedule.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
         except ValueError:
-            return {"error": "date должен быть в формате YYYY-MM-DD"}, 400
+            return {"error": "date должен быть в формате YYYY-MM-DD и быть существующей датой"}, 400
     if "time_from" in data:
         try:
             schedule.time_from = datetime.strptime(data["time_from"], "%H:%M").time()
@@ -1261,9 +1368,9 @@ def get_attendance(schedule_id):
     db = g.db
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "?????????? ?? ???????"}, 404
+        return {"error": "Занятие не найдено"}, 404
     if not _can_edit_schedule_attendance(db, schedule):
-        return {"error": "??? ????"}, 403
+        return {"error": "Нет доступа"}, 403
 
     existing = {a.user_id: a for a in db.query(Attendance).filter_by(schedule_id=schedule_id).all()}
     intentions = {
@@ -1354,17 +1461,17 @@ def get_attendance(schedule_id):
         })
 
     status_labels = {
-        "present": "?????????????",
-        "absent": "????????????",
-        "late": "???????",
-        "sick": "?????",
+        "present": "Присутствовал",
+        "absent": "Отсутствовал",
+        "late": "Опоздал",
+        "sick": "Болел",
     }
 
     return {
         "items": items,
         "source": roster_source or "manual",
         "status_labels": status_labels,
-        "debit_policy": "????????? 1 ??????? ??? ????? ???????, ????? '?????'",
+        "debit_policy": "Списывается 1 занятие для всех статусов, кроме 'sick'",
         "can_edit": bool(window["is_open"]),
         "attendance_phase": window["phase"],
         "attendance_phase_message": window["message"],
@@ -1382,11 +1489,11 @@ def set_attendance(schedule_id):
     db = g.db
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "?????????? ?? ???????"}, 404
+        return {"error": "Занятие не найдено"}, 404
     window = _attendance_marking_window_info(schedule)
     if not window["is_open"]:
         return {
-            "error": "   .",
+            "error": "Окно отметки закрыто.",
             "attendance_phase": window["phase"],
             "attendance_phase_message": window["message"],
             "attendance_starts_at": window["starts_at"],
@@ -1396,7 +1503,7 @@ def set_attendance(schedule_id):
     data = request.json or {}
     items = data.get("items") or []
     if not isinstance(items, list):
-        return {"error": "items ?????? ???? ???????"}, 400
+        return {"error": "items должен быть списком"}, 400
 
     staff = _get_current_staff(db)
     results = []
@@ -1407,13 +1514,13 @@ def set_attendance(schedule_id):
         status = (item.get("status") or "").lower()
         comment = item.get("comment")
         if status not in ATTENDANCE_ALLOWED_STATUSES:
-            return {"error": f"???????????? ??????: {status}"}, 400
+            return {"error": f"Недопустимый статус: {status}"}, 400
         if not user_id:
-            return {"error": "user_id ??????????"}, 400
+            return {"error": "user_id обязателен"}, 400
         try:
             user_id_int = int(user_id)
         except (TypeError, ValueError):
-            return {"error": "user_id ?????? ???? ??????"}, 400
+            return {"error": "user_id должен быть числом"}, 400
 
         att = db.query(Attendance).filter_by(schedule_id=schedule_id, user_id=user_id_int).first()
         if not att:
@@ -1448,14 +1555,14 @@ def set_attendance(schedule_id):
 def add_attendance_user(schedule_id):
     db = g.db
     if not has_permission(getattr(g, "telegram_id", None) or 0, "manage_schedule"):
-        return {"error": "??? ????"}, 403
+        return {"error": "Нет доступа"}, 403
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "?????????? ?? ???????"}, 404
+        return {"error": "Занятие не найдено"}, 404
     window = _attendance_marking_window_info(schedule)
     if not window["is_open"]:
         return {
-            "error": "   .",
+            "error": "Окно отметки закрыто.",
             "attendance_phase": window["phase"],
             "attendance_phase_message": window["message"],
             "attendance_starts_at": window["starts_at"],
@@ -1465,19 +1572,19 @@ def add_attendance_user(schedule_id):
     data = request.json or {}
     user_id = data.get("user_id")
     if not user_id:
-        return {"error": "user_id ??????????"}, 400
+        return {"error": "user_id обязателен"}, 400
     try:
         user_id_int = int(user_id)
     except (TypeError, ValueError):
-        return {"error": "user_id ?????? ???? ??????"}, 400
+        return {"error": "user_id должен быть числом"}, 400
 
     user = db.query(User).filter_by(id=user_id_int).first()
     if not user:
-        return {"error": "???????????? ?? ??????"}, 404
+        return {"error": "Пользователь не найден"}, 404
 
     existing = db.query(Attendance).filter_by(schedule_id=schedule_id, user_id=user_id_int).first()
     if existing:
-        return {"message": "???????????? ??? ? ??????"}, 200
+        return {"message": "Пользователь уже в списке"}, 200
 
     att = Attendance(
         schedule_id=schedule_id,
@@ -1487,7 +1594,7 @@ def add_attendance_user(schedule_id):
     )
     db.add(att)
     db.commit()
-    return {"message": "?????????", "user_id": user_id_int}
+    return {"message": "Добавлено", "user_id": user_id_int}
 
 
 def _serialize_attendance_intention(row: AttendanceIntention | None) -> dict:
@@ -1521,14 +1628,14 @@ def get_my_attendance_intention(schedule_id):
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
 
     if not _can_user_set_absence_for_schedule(db, user, schedule):
-        return {"error": "РќРµР»СЊР·СЏ РѕС‚РРµС‚РёС‚СЊСЃСЏ РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РЅСЏС‚РёСЏ"}, 403
+        return {"error": "Нельзя отметиться для этого занятия"}, 403
 
     lock_info = _attendance_intention_lock_info(schedule)
     row = db.query(AttendanceIntention).filter_by(schedule_id=schedule_id, user_id=user.id).first()
@@ -1540,14 +1647,14 @@ def set_my_attendance_intention(schedule_id):
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
 
     if not _can_user_set_absence_for_schedule(db, user, schedule):
-        return {"error": "РќРµР»СЊР·СЏ РѕС‚РРµС‚РёС‚СЊСЃСЏ РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РЅСЏС‚РёСЏ"}, 403
+        return {"error": "Нельзя отметиться для этого занятия"}, 403
 
     lock_info = _attendance_intention_lock_info(schedule)
     if lock_info["is_locked"]:
@@ -1597,14 +1704,14 @@ def delete_my_attendance_intention(schedule_id):
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
 
     if not _can_user_set_absence_for_schedule(db, user, schedule):
-        return {"error": "РќРµР»СЊР·СЏ РѕС‚РРµС‚РёС‚СЊСЃСЏ РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РЅСЏС‚РёСЏ"}, 403
+        return {"error": "Нельзя отметиться для этого занятия"}, 403
 
     lock_info = _attendance_intention_lock_info(schedule)
     if lock_info["is_locked"]:
@@ -1836,19 +1943,26 @@ def restore_news(news_id):
 @app.route("/users", methods=["POST"])
 def register_user():
     db = g.db
-    data = request.json
-    
-    # Проверяем обязательные поля (только telegram_id и name)
-    if not data.get("telegram_id") or not data.get("name"):
-        return {"error": "telegram_id и name обязательны"}, 400
-    
-    # Проверяем, не существует ли пользователь
-    existing_user = db.query(User).filter_by(telegram_id=data["telegram_id"]).first()
-    if existing_user:
-        return {"error": "Пользователь уже зарегистрирован"}, 409
-    
+    data = request.json or {}
+
+    if not data.get("name"):
+        return {"error": "name is required"}, 400
+
+    telegram_id_raw = data.get("telegram_id")
+    telegram_id = None
+    if telegram_id_raw not in (None, ""):
+        try:
+            telegram_id = int(telegram_id_raw)
+        except (TypeError, ValueError):
+            return {"error": "telegram_id must be an integer"}, 400
+
+    if telegram_id is not None:
+        existing_user = db.query(User).filter_by(telegram_id=telegram_id).first()
+        if existing_user:
+            return {"error": "user with this telegram_id already exists"}, 409
+
     user = User(
-        telegram_id=data["telegram_id"],
+        telegram_id=telegram_id,
         username=data.get("username"),
         phone=data.get("phone"),
         name=data["name"],
@@ -1859,7 +1973,7 @@ def register_user():
     )
     db.add(user)
     db.commit()
-    
+
     return {
         "id": user.id,
         "telegram_id": user.telegram_id,
@@ -1875,10 +1989,10 @@ def register_user():
     }, 201
 
 
-@app.route("/users/<int:telegram_id>", methods=["GET"])
-def get_user(telegram_id):
+@app.route("/users/<int:user_id>", methods=["GET"])
+def get_user(user_id):
     db = g.db
-    user = db.query(User).filter_by(telegram_id=telegram_id).first()
+    user = db.query(User).filter_by(id=user_id).first()
     
     if not user:
         return {"error": "Пользователь не найден"}, 404
@@ -1895,6 +2009,28 @@ def get_user(telegram_id):
         "status": user.status,
         "user_notes": user.user_notes,
         "staff_notes": user.staff_notes
+    }
+
+
+@app.route("/users/me", methods=["GET"])
+def get_my_user():
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "user not found"}, 404
+    return {
+        "id": user.id,
+        "telegram_id": user.telegram_id,
+        "username": user.username,
+        "phone": user.phone,
+        "name": user.name,
+        "email": user.email,
+        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
+        "registered_at": user.registered_at.isoformat(),
+        "status": user.status,
+        "user_notes": user.user_notes,
+        "staff_notes": user.staff_notes,
+        "photo_path": user.photo_path,
     }
 
 
@@ -1923,18 +2059,18 @@ def list_all_users():
     ])
 
 
-@app.route("/users/<int:telegram_id>", methods=["PUT"])
-def update_user(telegram_id):
+@app.route("/users/<int:user_id>", methods=["PUT"])
+def update_user(user_id):
     perm_error = require_permission("manage_staff")
     if perm_error:
         return perm_error
     db = g.db
-    user = db.query(User).filter_by(telegram_id=telegram_id).first()
+    user = db.query(User).filter_by(id=user_id).first()
     
     if not user:
         return {"error": "Пользователь не найден"}, 404
     
-    data = request.json
+    data = request.json or {}
     
     if "phone" in data:
         user.phone = data["phone"]
@@ -1969,95 +2105,77 @@ def update_user(telegram_id):
     }
 
 
-@app.route("/users/<int:telegram_id>/photo", methods=["POST"])
-def upload_user_photo(telegram_id):
-    """
-    Загружает фото пользователя (только для персонала)
-    Ожидает файл в form-data с ключом 'photo'
-    """
+@app.route("/users/<int:user_id>/photo", methods=["POST"])
+def upload_user_photo(user_id):
     db = g.db
-    
-    # Проверяем, является ли пользователь персоналом
-    staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
-    if not staff:
-        return {"error": "Загрузка фото доступна только для персонала"}, 403
-    
-    user = db.query(User).filter_by(telegram_id=telegram_id).first()
-    
+    user = db.query(User).filter_by(id=user_id).first()
     if not user:
-        return {"error": "Пользователь не найден"}, 404
-    
-    if 'photo' not in request.files:
-        return {"error": "Файл не предоставлен"}, 400
-    
-    file = request.files['photo']
-    
-    if file.filename == '':
-        return {"error": "Файл не выбран"}, 400
-    
-    # Проверяем расширение
-    allowed_extensions = {'jpg', 'jpeg', 'png', 'gif'}
-    if not ('.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
-        return {"error": "Допустимые форматы: jpg, jpeg, png, gif"}, 400
-    
+        return {"error": "user not found"}, 404
+
+    if not user.telegram_id:
+        return {"error": "telegram_id is not set for this user"}, 400
+
+    staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
+    if not staff:
+        return {"error": "upload is allowed only for active staff user"}, 403
+
+    if "photo" not in request.files:
+        return {"error": "photo file is required"}, 400
+
+    file = request.files["photo"]
+    if file.filename == "":
+        return {"error": "filename is empty"}, 400
+
+    allowed_extensions = {"jpg", "jpeg", "png", "gif"}
+    if not ("." in file.filename and file.filename.rsplit(".", 1)[1].lower() in allowed_extensions):
+        return {"error": "unsupported file extension"}, 400
+
     try:
-        # Удаляем старое фото если существует
         if user.photo_path:
             delete_user_photo(user.photo_path)
-        
-        # Сохраняем новое фото
+
         file_data = file.read()
-        filename = "profile." + file.filename.rsplit('.', 1)[1].lower()
-        photo_path = save_user_photo(telegram_id, file_data, filename)
-        
+        filename = "profile." + file.filename.rsplit(".", 1)[1].lower()
+        photo_path = save_user_photo(user.id, file_data, filename)
         if not photo_path:
-            return {"error": "Ошибка при сохранении файла"}, 500
-        
-        # Обновляем БД
+            return {"error": "failed to save photo"}, 500
+
         user.photo_path = photo_path
         db.commit()
-        
+
         return {
             "id": user.id,
             "telegram_id": user.telegram_id,
             "photo_path": user.photo_path,
-            "message": "Фото успешно загружено"
+            "message": "photo uploaded",
         }, 201
-    
     except Exception as e:
-        print(f"Ошибка при загрузке фото: {e}")
         return {"error": str(e)}, 500
 
 
-@app.route("/users/<int:telegram_id>/photo", methods=["DELETE"])
-def delete_user_photo_endpoint(telegram_id):
-    """
-    Удаляет фото пользователя (только для персонала)
-    """
+@app.route("/users/<int:user_id>/photo", methods=["DELETE"])
+def delete_user_photo_endpoint(user_id):
     db = g.db
-    
-    # Проверяем, является ли пользователь персоналом
-    staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
-    if not staff:
-        return {"error": "Удаление фото доступно только для персонала"}, 403
-    
-    user = db.query(User).filter_by(telegram_id=telegram_id).first()
-    
+    user = db.query(User).filter_by(id=user_id).first()
     if not user:
-        return {"error": "Пользователь не найден"}, 404
-    
+        return {"error": "user not found"}, 404
+
+    if not user.telegram_id:
+        return {"error": "telegram_id is not set for this user"}, 400
+
+    staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
+    if not staff:
+        return {"error": "delete is allowed only for active staff user"}, 403
+
     if not user.photo_path:
-        return {"error": "Фото не найдено"}, 404
-    
+        return {"error": "photo not found"}, 404
+
     try:
         delete_user_photo(user.photo_path)
         user.photo_path = None
         db.commit()
-        
-        return {"ok": True, "message": "Фото удалено"}
-    
+        return {"ok": True, "message": "photo deleted"}
     except Exception as e:
-        print(f"Ошибка при удалении фото: {e}")
         return {"error": str(e)}, 500
 
 
@@ -2179,14 +2297,14 @@ def check_staff_by_telegram(telegram_id):
         })
 
 
-@app.route("/user/<int:telegram_id>/photo")
-def get_user_photo(telegram_id):
+@app.route("/user/<int:user_id>/photo")
+def get_user_photo(user_id):
     """
     Получить фото, загруженное пользователем через бота
     """
     try:
         db = g.db
-        user = db.query(User).filter_by(telegram_id=telegram_id).first()
+        user = db.query(User).filter_by(id=user_id).first()
         
         if not user or not user.staff_notes:
             return {"photo_data": None}, 404
@@ -2225,7 +2343,7 @@ def create_staff():
         return {"error": "name (или telegram_id с профилем) и position обязательны"}, 400
 
     # Проверяем допустимые должности
-    valid_positions = ["учитель", "администратор", "владелец", "тех. админ"]
+    valid_positions = ["учитель", "администратор", "старший админ", "владелец", "тех. админ"]
     if data.get("position").lower() not in valid_positions:
         return {"error": f"Допустимые должности: {', '.join(valid_positions)}"}, 400
 
@@ -2264,6 +2382,7 @@ def create_staff():
                         position_display = {
                             "учитель": "👩‍🏫 Учитель",
                             "администратор": "📋 Администратор",
+                            "старший админ": "🛡️ Старший админ",
                             "владелец": "👑 Владелец",
                             "тех. админ": "⚙️ Технический администратор"
                         }
@@ -2323,6 +2442,7 @@ def create_staff():
             position_display = {
                 "учитель": "👩‍🏫 Учитель",
                 "администратор": "📋 Администратор",
+                "старший админ": "🛡️ Старший админ",
                 "владелец": "👑 Владелец",
                 "тех. админ": "⚙️ Технический администратор"
             }
@@ -2461,10 +2581,11 @@ def update_staff(staff_id):
     if "telegram_id" in data:
         staff.telegram_id = data["telegram_id"]
     if "position" in data:
-        valid_positions = ["Учитель", "администратор", "модератор", "владелец"]
-        if data["position"] not in valid_positions:
+        valid_positions = {"учитель", "администратор", "старший админ", "модератор", "владелец", "тех. админ"}
+        normalized_position = str(data["position"]).strip().lower()
+        if normalized_position not in valid_positions:
             return {"error": f"Допустимые должности: {', '.join(valid_positions)}"}, 400
-        staff.position = data["position"]
+        staff.position = normalized_position
     if "specialization" in data:
         staff.specialization = data["specialization"]
     if "bio" in data:
@@ -2478,7 +2599,7 @@ def update_staff(staff_id):
         actor_staff = None
         if actor_telegram_id is not None:
             actor_staff = db.query(Staff).filter_by(telegram_id=actor_telegram_id, status="active").first()
-        allowed_positions = {"администратор", "владелец", "тех. админ"}
+        allowed_positions = {"администратор", "старший админ", "владелец", "тех. админ"}
         actor_position = (actor_staff.position or "").strip().lower() if actor_staff else ""
         if actor_position not in allowed_positions:
             return {"error": "Нет прав на изменение поля teaches"}, 403
@@ -3558,6 +3679,8 @@ def get_direction_groups(direction_id):
         result.append({
             "id": gr.id,
             "direction_id": gr.direction_id,
+            "direction_type": direction.direction_type,
+            "direction_title": direction.title,
             "teacher_id": gr.teacher_id,
             "teacher_name": teacher_name,
             "teacher_photo": teacher_photo,
@@ -3710,6 +3833,61 @@ def get_group(group_id):
     })
 
 
+@app.route("/api/groups/compatible", methods=["GET"])
+def get_compatible_groups():
+    db = g.db
+    direction_type = (request.args.get("direction_type") or "").strip().lower()
+    lessons_per_week_raw = request.args.get("lessons_per_week")
+    exclude_group_id_raw = request.args.get("exclude_group_id")
+
+    if direction_type not in ALLOWED_DIRECTION_TYPES:
+        return {"error": "direction_type must be dance or sport"}, 400
+    try:
+        lessons_per_week = int(lessons_per_week_raw)
+    except (TypeError, ValueError):
+        return {"error": "lessons_per_week must be an integer"}, 400
+    if lessons_per_week <= 0:
+        return {"error": "lessons_per_week must be > 0"}, 400
+
+    exclude_group_id = None
+    if exclude_group_id_raw not in (None, ""):
+        try:
+            exclude_group_id = int(exclude_group_id_raw)
+        except (TypeError, ValueError):
+            return {"error": "exclude_group_id must be an integer"}, 400
+
+    groups = db.query(Group).filter(Group.lessons_per_week == lessons_per_week).order_by(Group.created_at.desc()).all()
+    direction_ids = {g.direction_id for g in groups if g.direction_id}
+    directions = db.query(Direction).filter(Direction.direction_id.in_(direction_ids)).all() if direction_ids else []
+    directions_by_id = {d.direction_id: d for d in directions}
+    teacher_ids = {g.teacher_id for g in groups if g.teacher_id}
+    teachers = db.query(Staff).filter(Staff.id.in_(teacher_ids)).all() if teacher_ids else []
+    teachers_by_id = {t.id: t for t in teachers}
+
+    result = []
+    for group in groups:
+        if exclude_group_id and group.id == exclude_group_id:
+            continue
+        direction = directions_by_id.get(group.direction_id)
+        if not direction:
+            continue
+        if (direction.direction_type or "").strip().lower() != direction_type:
+            continue
+        teacher = teachers_by_id.get(group.teacher_id)
+        result.append(
+            {
+                "id": group.id,
+                "name": group.name,
+                "direction_id": direction.direction_id,
+                "direction_title": direction.title,
+                "direction_type": direction.direction_type,
+                "lessons_per_week": group.lessons_per_week,
+                "teacher_name": teacher.name if teacher else None,
+            }
+        )
+    return jsonify(result)
+
+
 @app.route("/api/groups/<int:group_id>", methods=["PUT"])
 def update_group(group_id):
     """Обновляет группу"""
@@ -3769,7 +3947,7 @@ def normalize_teaches(value):
         return 1 if value else 0
     if isinstance(value, str):
         v = value.strip().lower()
-        if v in ("1", "true", "yes", "y", "да"):
+        if v in ("1", "true", "yes", "y", "Р Т‘Р В°"):
             return 1
         if v in ("0", "false", "no", "n", "нет"):
             return 0
@@ -3812,11 +3990,12 @@ def try_fetch_telegram_avatar(telegram_id, db, staff_obj=None):
         if photo_resp.status_code != 200:
             return
 
-        photo_path = save_user_photo(telegram_id, photo_resp.content)
+        user = db.query(User).filter_by(telegram_id=telegram_id).first()
+        storage_id = user.id if user else telegram_id
+        photo_path = save_user_photo(storage_id, photo_resp.content)
         if not photo_path:
             return
 
-        user = db.query(User).filter_by(telegram_id=telegram_id).first()
         if user and not user.photo_path:
             user.photo_path = photo_path
 
@@ -3851,7 +4030,7 @@ def create_direction_upload_session():
         return {"error": "Неверный telegram_id"}, 400
 
     admin = db.query(Staff).filter_by(telegram_id=telegram_user_id).first()
-    if not admin or admin.position not in ["администратор", "владелец", "тех. админ"]:
+    if not admin or admin.position not in ["администратор", "старший админ", "владелец", "тех. админ"]:
         return {"error": "У вас нет прав администратора"}, 403
     
     # Обязательные поля
@@ -3936,12 +4115,12 @@ def create_direction():
 
     session_token = data.get("session_token")
     if not session_token:
-        return {"error": "session_token ??????????"}, 400
+        return {"error": "session_token обязателен"}, 400
 
     session = db.query(DirectionUploadSession).filter_by(session_token=session_token).first()
     if not session:
         print(f"[create_direction] session not found: {session_token}")
-        return {"error": "?????? ?? ???????"}, 404
+        return {"error": "Сессия не найдена"}, 404
 
     print(f"[create_direction] session found: status={session.status}, photo={session.image_path}")
 
@@ -3974,7 +4153,7 @@ def create_direction():
         "direction_id": direction.direction_id,
         "title": direction.title,
         "direction_type": direction.direction_type,
-        "message": "??????????? ??????? ???????"
+        "message": "Направление успешно создано"
     }, 201
 
 
@@ -4111,6 +4290,9 @@ def upload_direction_photo(token):
 
 
 # ======================== ГРУППОВЫЕ АБОНЕМЕНТЫ / ОПЛАТЫ (ЗАГЛУШКА) ========================
+PAYMENT_PROFILE_SLOTS = (1, 2)
+
+
 def get_current_user_from_request(db):
     telegram_id = getattr(g, "telegram_id", None)
     if not telegram_id:
@@ -4120,6 +4302,245 @@ def get_current_user_from_request(db):
     except (TypeError, ValueError):
         return None
     return db.query(User).filter_by(telegram_id=telegram_id).first()
+
+
+def _ensure_payment_profiles(db):
+    profiles = (
+        db.query(PaymentProfile)
+        .filter(PaymentProfile.slot.in_(PAYMENT_PROFILE_SLOTS))
+        .order_by(PaymentProfile.slot.asc())
+        .all()
+    )
+    by_slot = {int(p.slot): p for p in profiles}
+    created = False
+
+    for slot in PAYMENT_PROFILE_SLOTS:
+        if slot not in by_slot:
+            profile = PaymentProfile(
+                slot=slot,
+                title="Основные реквизиты" if slot == 1 else "Резервные реквизиты",
+                details="",
+                recipient_bank="",
+                recipient_number="",
+                recipient_full_name="",
+                is_active=(slot == 1),
+            )
+            db.add(profile)
+            by_slot[slot] = profile
+            created = True
+
+    if created:
+        db.flush()
+
+    active_profiles = [p for p in by_slot.values() if p.is_active]
+    if not active_profiles:
+        by_slot[1].is_active = True
+    elif len(active_profiles) > 1:
+        for p in active_profiles:
+            p.is_active = (p.slot == 1)
+
+    return by_slot
+
+
+def _serialize_payment_profile(profile: PaymentProfile) -> dict:
+    recipient_bank = (profile.recipient_bank or "").strip()
+    recipient_number = (profile.recipient_number or "").strip()
+    recipient_full_name = (profile.recipient_full_name or "").strip()
+    details = (
+        f"Банк получателя: {recipient_bank or '—'}\n"
+        f"Номер: {recipient_number or '—'}\n"
+        f"ФИО получателя: {recipient_full_name or '—'}"
+    )
+    return {
+        "slot": int(profile.slot),
+        "title": profile.title or "",
+        "details": details,
+        "recipient_bank": recipient_bank,
+        "recipient_number": recipient_number,
+        "recipient_full_name": recipient_full_name,
+        "is_active": bool(profile.is_active),
+        "updated_at": profile.updated_at.isoformat() if profile.updated_at else None,
+    }
+
+
+def _get_active_payment_profile_payload(db) -> dict | None:
+    active = (
+        db.query(PaymentProfile)
+        .filter(PaymentProfile.slot.in_(PAYMENT_PROFILE_SLOTS), PaymentProfile.is_active.is_(True))
+        .order_by(PaymentProfile.slot.asc())
+        .first()
+    )
+    if not active:
+        active = (
+            db.query(PaymentProfile)
+            .filter(PaymentProfile.slot.in_(PAYMENT_PROFILE_SLOTS))
+            .order_by(PaymentProfile.slot.asc())
+            .first()
+        )
+    if not active:
+        return None
+    payload = _serialize_payment_profile(active)
+    payload["label"] = "Профиль 1" if active.slot == 1 else "Профиль 2"
+    return payload
+
+
+@app.route("/api/payment-profiles/active", methods=["GET"])
+def get_active_payment_profile():
+    db = g.db
+    profile = _get_active_payment_profile_payload(db)
+    if not profile:
+        return {"error": "Активные реквизиты оплаты не настроены"}, 404
+    return jsonify(profile)
+
+
+@app.route("/api/admin/payment-profiles", methods=["GET"])
+def admin_get_payment_profiles():
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    profiles = _ensure_payment_profiles(db)
+    db.commit()
+    result = [_serialize_payment_profile(profiles[slot]) for slot in PAYMENT_PROFILE_SLOTS]
+    active_slot = next((item["slot"] for item in result if item["is_active"]), 1)
+    return jsonify({"profiles": result, "active_slot": active_slot})
+
+
+@app.route("/api/admin/payment-profiles/<int:slot>", methods=["PUT"])
+def admin_update_payment_profile(slot):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    if slot not in PAYMENT_PROFILE_SLOTS:
+        return {"error": "slot должен быть 1 или 2"}, 400
+
+    db = g.db
+    data = request.json or {}
+    recipient_bank = str(data.get("recipient_bank") or "").strip()
+    recipient_number = str(data.get("recipient_number") or "").strip()
+    recipient_full_name = str(data.get("recipient_full_name") or "").strip()
+
+    if not recipient_bank:
+        return {"error": "recipient_bank обязателен"}, 400
+    if not recipient_number:
+        return {"error": "recipient_number обязателен"}, 400
+    if not recipient_full_name:
+        return {"error": "recipient_full_name обязателен"}, 400
+    if len(recipient_bank) > 160:
+        return {"error": "recipient_bank слишком длинный (максимум 160 символов)"}, 400
+    if len(recipient_number) > 64:
+        return {"error": "recipient_number слишком длинный (максимум 64 символа)"}, 400
+    if len(recipient_full_name) > 160:
+        return {"error": "recipient_full_name слишком длинный (максимум 160 символов)"}, 400
+
+    profiles = _ensure_payment_profiles(db)
+    profile = profiles[slot]
+    profile.title = "Профиль 1" if slot == 1 else "Профиль 2"
+    profile.details = (
+        f"Банк получателя: {recipient_bank}\n"
+        f"Номер: {recipient_number}\n"
+        f"ФИО получателя: {recipient_full_name}"
+    )
+    profile.recipient_bank = recipient_bank
+    profile.recipient_number = recipient_number
+    profile.recipient_full_name = recipient_full_name
+    db.commit()
+    return jsonify({"profile": _serialize_payment_profile(profile)})
+
+
+@app.route("/api/admin/payment-profiles/active", methods=["PUT"])
+def admin_switch_active_payment_profile():
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    data = request.json or {}
+    try:
+        active_slot = int(data.get("active_slot"))
+    except (TypeError, ValueError):
+        return {"error": "active_slot должен быть числом 1 или 2"}, 400
+
+    if active_slot not in PAYMENT_PROFILE_SLOTS:
+        return {"error": "active_slot должен быть 1 или 2"}, 400
+
+    db = g.db
+    profiles = _ensure_payment_profiles(db)
+    for slot, profile in profiles.items():
+        profile.is_active = (slot == active_slot)
+    db.commit()
+    return jsonify({"active_slot": active_slot})
+
+
+@app.route("/api/system-settings/public", methods=["GET"])
+def get_public_system_settings():
+    db = g.db
+    items = list_settings(db, public_only=True)
+    db.commit()
+    return jsonify({"items": items, "specs": list_setting_specs(public_only=True)})
+
+
+@app.route("/api/admin/system-settings", methods=["GET"])
+def admin_get_system_settings():
+    perm_error = require_permission("system_settings")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    items = list_settings(db, public_only=False)
+    db.commit()
+    return jsonify({"items": items, "specs": list_setting_specs(public_only=False)})
+
+
+@app.route("/api/admin/system-settings/<path:key>", methods=["PUT"])
+def admin_update_system_setting(key):
+    perm_error = require_permission("system_settings")
+    if perm_error:
+        return perm_error
+
+    data = request.json or {}
+    if "value" not in data:
+        return {"error": "value is required"}, 400
+
+    db = g.db
+    staff = _get_current_staff(db)
+    reason = data.get("reason")
+    try:
+        setting_payload = update_setting(
+            db,
+            key=key,
+            raw_value=data.get("value"),
+            changed_by_staff_id=(staff.id if staff else None),
+            reason=reason,
+            source="admin_api",
+        )
+    except KeyError as exc:
+        return {"error": str(exc)}, 404
+    except SettingValidationError as exc:
+        return {"error": str(exc)}, 400
+
+    db.commit()
+    return jsonify({"setting": setting_payload})
+
+
+@app.route("/api/admin/system-settings/changes", methods=["GET"])
+def admin_get_system_settings_changes():
+    perm_error = require_permission("system_settings")
+    if perm_error:
+        return perm_error
+
+    key = (request.args.get("key") or "").strip() or None
+    limit_raw = request.args.get("limit")
+    try:
+        limit = int(limit_raw) if limit_raw is not None else 100
+    except (TypeError, ValueError):
+        return {"error": "limit must be an integer"}, 400
+
+    db = g.db
+    items = list_setting_changes(db, key=key, limit=limit)
+    return jsonify({"items": items})
+
 
 def _time_overlaps(start_a, end_a, start_b, end_b) -> bool:
     return start_a < end_b and start_b < end_a
@@ -4138,7 +4559,7 @@ def _find_booking_overlaps(db, date_val, time_from, time_to) -> list[dict]:
 
     schedules = db.query(Schedule).filter(
         Schedule.date == date_val,
-        Schedule.status.notin_(["cancelled", "deleted"])
+        Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES))
     ).all()
     for item in schedules:
         start = item.time_from or item.start_time
@@ -4224,7 +4645,7 @@ def _collect_busy_intervals(db, teacher_id: int, target_date: date) -> list[tupl
         .filter(
             Schedule.teacher_id == teacher_id,
             Schedule.date == target_date,
-            Schedule.status.notin_(["cancelled", "deleted"]),
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
         )
         .all()
     )
@@ -4276,7 +4697,17 @@ def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
         return
 
     text = format_booking_message(booking, user)
-    keyboard_data = build_booking_keyboard_data(booking.status, booking.object_type, booking.id)
+    is_free_group_trial = (
+        booking.object_type == "group"
+        and (booking.abonement_type or "").strip().lower() == ABONEMENT_TYPE_TRIAL
+        and int(booking.requested_amount or 0) == 0
+    )
+    keyboard_data = build_booking_keyboard_data(
+        booking.status,
+        booking.object_type,
+        booking.id,
+        is_free_group_trial=is_free_group_trial,
+    )
 
     payload = {
         "chat_id": BOOKINGS_ADMIN_CHAT_ID,
@@ -4291,6 +4722,191 @@ def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
         requests.post(telegram_api_url, json=payload, timeout=5)
     except Exception:
         pass
+
+
+def _compute_group_booking_payment_amount(db, booking: BookingRequest) -> int | None:
+    if booking.object_type != "group":
+        return None
+    if booking.requested_amount is not None:
+        try:
+            amount = int(booking.requested_amount)
+        except (TypeError, ValueError):
+            return None
+        return amount if amount >= 0 else None
+
+    if not booking.group_id:
+        return None
+    try:
+        quote = quote_group_booking(
+            db,
+            user_id=None,  # quote for already created booking should not be blocked by trial checks
+            group_id=booking.group_id,
+            abonement_type=booking.abonement_type or ABONEMENT_TYPE_MULTI,
+            bundle_group_ids=parse_booking_bundle_group_ids(booking),
+        )
+    except AbonementPricingError:
+        return None
+    return quote.amount
+
+
+def _build_booking_payment_request_message(db, booking: BookingRequest) -> str:
+    profile = _get_active_payment_profile_payload(db) or {}
+    bank = str(profile.get("recipient_bank") or "—").strip() or "—"
+    number = str(profile.get("recipient_number") or "—").strip() or "—"
+    full_name = str(profile.get("recipient_full_name") or "—").strip() or "—"
+
+    amount = _compute_group_booking_payment_amount(db, booking)
+    amount_text = f"{amount:,} ₽".replace(",", " ") if amount else "уточните у администратора"
+
+    return (
+        "Здравствуйте!\n"
+        "Это администрация Shebba Sports x Lissa Dance Studio.\n\n"
+        "Реквизиты для оплаты:\n"
+        f"• Банк получателя: {bank}\n"
+        f"• Номер: {number}\n"
+        f"• ФИО получателя: {full_name}\n"
+        f"• Сумма к оплате: {amount_text}\n\n"
+        "Пожалуйста, после оплаты отправьте чек для подтверждения."
+    )
+
+
+def _humanize_userbot_error(raw_reason: str) -> str:
+    reason = str(raw_reason or "").strip()
+    if not reason:
+        return "неизвестная ошибка"
+
+    # Unwrap wrappers like "userbot returned: {...}" and keep the most specific error text.
+    wrapped_match = re.search(r"userbot returned:\s*(.+)$", reason, flags=re.IGNORECASE)
+    if wrapped_match:
+        reason = wrapped_match.group(1).strip()
+
+    dict_error_match = re.search(r"'error'\s*:\s*'([^']+)'", reason)
+    if not dict_error_match:
+        dict_error_match = re.search(r'"error"\s*:\s*"([^"]+)"', reason)
+    if dict_error_match:
+        reason = dict_error_match.group(1).strip()
+
+    if reason in {"None", "null", "{}"}:
+        return "userbot не вернул текст ошибки"
+
+    # Specific Telethon/Telegram RPC code translations.
+    allow_payment_match = re.search(r"\bALLOW_PAYMENT_REQUIRED_(\d+)\b", reason, flags=re.IGNORECASE)
+    if allow_payment_match:
+        stars = allow_payment_match.group(1)
+        return f"Требуется {stars} звёзд Telegram для отправки сообщения (ALLOW_PAYMENT_REQUIRED_{stars})"
+
+    known_codes = {
+        "USER_IS_BLOCKED": "Пользователь запретил личные сообщения от аккаунта userbot",
+        "CHAT_WRITE_FORBIDDEN": "Нет прав на отправку сообщения этому пользователю",
+        "PEER_FLOOD": "Ограничение Telegram на частые действия (flood control)",
+        "FLOOD_WAIT": "Telegram временно ограничил отправку сообщений (flood wait)",
+        "PRIVACY_RESTRICTED": "Ограничения приватности пользователя не позволяют написать ему",
+    }
+    upper_reason = reason.upper()
+    for code, text in known_codes.items():
+        if code in upper_reason:
+            return f"{text} ({code})"
+
+    return reason
+
+
+def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user: User | None) -> None:
+    telegram_id = user.telegram_id if user else booking.user_telegram_id
+    if not telegram_id:
+        app.logger.warning("booking %s: skip payment DM, telegram_id missing", booking.id)
+        return
+
+    try:
+        from dance_studio.bot.telegram_userbot import send_private_message_sync
+    except Exception:
+        app.logger.exception("booking %s: userbot import failed", booking.id)
+        return
+
+    payment_text = _build_booking_payment_request_message(db, booking)
+    user_target = {
+        "id": telegram_id,
+        "username": user.username if user else booking.user_username,
+        "phone": user.phone if user else None,
+        "name": user.name if user else booking.user_name,
+    }
+    try:
+        result = send_private_message_sync(user_target, payment_text)
+        if not result:
+            raise RuntimeError("userbot returned: None")
+        if not result.get("ok"):
+            detail = str(result.get("error") or "").strip()
+            if detail:
+                raise RuntimeError(detail)
+            raise RuntimeError(f"userbot returned: {result!r}")
+    except Exception as exc:
+        app.logger.exception("booking %s: failed to deliver payment details via userbot", booking.id)
+        try:
+            from dance_studio.core.config import BOT_TOKEN, BOOKINGS_ADMIN_CHAT_ID
+
+            if BOT_TOKEN and BOOKINGS_ADMIN_CHAT_ID:
+                username = f"@{user_target['username']}" if user_target.get("username") else "—"
+                reason = _humanize_userbot_error(str(exc))
+                alert_text = (
+                    "⚠️ Не удалось отправить реквизиты через userbot.\n"
+                    f"Заявка: #{booking.id}\n"
+                    f"Получатель: {user_target.get('name') or 'пользователь'} "
+                    f"(id={telegram_id}, username={username})\n"
+                    f"Причина: {reason}"
+                )
+                requests.post(
+                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+                    json={"chat_id": BOOKINGS_ADMIN_CHAT_ID, "text": alert_text},
+                    timeout=5,
+                )
+        except Exception:
+            pass
+
+
+@app.route("/api/booking-requests/group/quote", methods=["POST"])
+def quote_group_booking_request():
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    data = request.json or {}
+    try:
+        quote = quote_group_booking(
+            db,
+            user_id=user.id,
+            group_id=data.get("group_id"),
+            abonement_type=data.get("abonement_type"),
+            bundle_group_ids=data.get("bundle_group_ids"),
+            multi_lessons_per_group=data.get("multi_lessons_per_group"),
+        )
+    except AbonementPricingError as exc:
+        return {"error": str(exc)}, 400
+
+    groups = db.query(Group).filter(Group.id.in_(quote.bundle_group_ids)).all()
+    groups_by_id = {row.id: row for row in groups}
+    direction_ids = {row.direction_id for row in groups if row.direction_id}
+    directions = db.query(Direction).filter(Direction.direction_id.in_(direction_ids)).all() if direction_ids else []
+    directions_by_id = {row.direction_id: row for row in directions}
+
+    bundle_groups = []
+    for group_id in quote.bundle_group_ids:
+        group = groups_by_id.get(group_id)
+        direction = directions_by_id.get(group.direction_id) if group else None
+        bundle_groups.append(
+            {
+                "group_id": group_id,
+                "group_name": group.name if group else None,
+                "direction_id": direction.direction_id if direction else None,
+                "direction_title": direction.title if direction else None,
+                "direction_type": direction.direction_type if direction else None,
+                "lessons_per_week": group.lessons_per_week if group else None,
+            }
+        )
+
+    payload = serialize_group_booking_quote(quote)
+    payload["bundle_groups"] = bundle_groups
+    payload["payment_info"] = _get_active_payment_profile_payload(db) if quote.requires_payment else None
+    return jsonify(payload)
 
 
 @app.route("/api/booking-requests", methods=["GET"])
@@ -4329,6 +4945,8 @@ def list_booking_requests():
             "id": booking.id,
             "object_type": booking.object_type,
             "group_id": booking.group_id,
+            "abonement_type": booking.abonement_type,
+            "bundle_group_ids": parse_booking_bundle_group_ids(booking),
             "teacher_id": booking.teacher_id,
             "date": booking.date.isoformat(),
             "time_from": time_from_str,
@@ -4338,9 +4956,79 @@ def list_booking_requests():
             "user_name": booking.user_name,
             "comment": booking.comment,
             "lessons_count": booking.lessons_count,
+            "requested_amount": booking.requested_amount,
+            "requested_currency": booking.requested_currency,
             "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
             "valid_until": booking.valid_until.isoformat() if booking.valid_until else None,
         })
+
+    return jsonify(result)
+
+
+@app.route("/api/booking-requests/my", methods=["GET"])
+def list_my_booking_requests():
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "Authentication required"}, 401
+
+    rows = (
+        db.query(BookingRequest)
+        .filter(BookingRequest.user_id == user.id)
+        .order_by(BookingRequest.created_at.desc(), BookingRequest.id.desc())
+        .all()
+    )
+
+    all_group_ids: set[int] = set()
+    for booking in rows:
+        bundle_ids = parse_booking_bundle_group_ids(booking)
+        for group_id in bundle_ids:
+            all_group_ids.add(int(group_id))
+        if booking.group_id:
+            all_group_ids.add(int(booking.group_id))
+
+    groups_by_id: dict[int, Group] = {}
+    if all_group_ids:
+        groups = db.query(Group).filter(Group.id.in_(list(all_group_ids))).all()
+        groups_by_id = {int(group.id): group for group in groups}
+
+    result = []
+    for booking in rows:
+        bundle_group_ids = parse_booking_bundle_group_ids(booking)
+        if booking.group_id and int(booking.group_id) not in bundle_group_ids:
+            bundle_group_ids.insert(0, int(booking.group_id))
+
+        bundle_group_names = []
+        for group_id in bundle_group_ids:
+            group = groups_by_id.get(int(group_id))
+            bundle_group_names.append(group.name if group and group.name else f"Группа #{group_id}")
+
+        main_group = groups_by_id.get(int(booking.group_id)) if booking.group_id else None
+        result.append(
+            {
+                "id": booking.id,
+                "object_type": booking.object_type,
+                "object_type_label": BOOKING_TYPE_LABELS.get(booking.object_type, booking.object_type),
+                "status": booking.status,
+                "status_label": BOOKING_STATUS_LABELS.get(booking.status, booking.status),
+                "comment": booking.comment,
+                "created_at": booking.created_at.isoformat() if booking.created_at else None,
+                "date": booking.date.isoformat() if booking.date else None,
+                "time_from": booking.time_from.strftime("%H:%M") if booking.time_from else None,
+                "time_to": booking.time_to.strftime("%H:%M") if booking.time_to else None,
+                "teacher_id": booking.teacher_id,
+                "group_id": booking.group_id,
+                "group_name": main_group.name if main_group else None,
+                "bundle_group_ids": bundle_group_ids,
+                "bundle_group_names": bundle_group_names,
+                "abonement_type": booking.abonement_type,
+                "lessons_count": booking.lessons_count,
+                "requested_amount": booking.requested_amount,
+                "requested_currency": booking.requested_currency,
+                "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
+                "valid_until": booking.valid_until.isoformat() if booking.valid_until else None,
+            }
+        )
 
     return jsonify(result)
 
@@ -4352,34 +5040,29 @@ def create_booking_request():
 
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "Пользователь не найден"}, 401
+        return {"error": "Authentication required"}, 401
 
     object_type = data.get("object_type")
     if object_type not in ["rental", "individual", "group"]:
-        return {"error": "object_type должен быть rental, individual или group"}, 400
+        return {"error": "object_type must be rental, individual, or group"}, 400
 
     teacher_id_val = None
-    teacher = None
     if "teacher_id" in data:
         try:
             teacher_id_val = int(data.get("teacher_id"))
         except (TypeError, ValueError):
-            return {"error": "teacher_id должен быть числом"}, 400
+            return {"error": "teacher_id must be an integer"}, 400
         teacher = db.query(Staff).filter_by(id=teacher_id_val, status="active").first()
         if not teacher:
-            return {"error": "Преподаватель не найден"}, 404
+            return {"error": "Teacher not found"}, 404
 
     if object_type == "individual" and not teacher_id_val:
-        return {"error": "teacher_id обязателен для индивидуального занятия"}, 400
+        return {"error": "teacher_id is required for individual booking"}, 400
 
     date_str = data.get("date")
     time_from_str = data.get("time_from")
     time_to_str = data.get("time_to")
     comment = data.get("comment")
-    group_id = data.get("group_id")
-    lessons_count = data.get("lessons_count")
-    group_start_date_str = data.get("start_date")
-    valid_until_str = data.get("valid_until")
 
     date_val = None
     time_from_val = None
@@ -4388,61 +5071,53 @@ def create_booking_request():
     lessons_count_val = None
     group_start_date_val = None
     valid_until_val = None
+    requested_amount_val = None
+    requested_currency_val = None
+    abonement_type_val = None
+    bundle_group_ids_json_val = None
+    quote_payload = None
+    overlaps: list[dict] = []
 
     if object_type != "group":
         if not date_str or not time_from_str or not time_to_str:
-            return {"error": "date, time_from и time_to обязательны"}, 400
-
-    if date_str:
+            return {"error": "date, time_from and time_to are required"}, 400
         try:
             date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
-        except ValueError:
-            return {"error": "date должен быть в формате YYYY-MM-DD"}, 400
-    if time_from_str:
-        try:
             time_from_val = datetime.strptime(time_from_str, "%H:%M").time()
-        except ValueError:
-            return {"error": "time_from должен быть в формате HH:MM"}, 400
-    if time_to_str:
-        try:
             time_to_val = datetime.strptime(time_to_str, "%H:%M").time()
         except ValueError:
-            return {"error": "time_to должен быть в формате HH:MM"}, 400
+            return {"error": "Invalid date/time format. Expected YYYY-MM-DD and HH:MM"}, 400
 
-    if group_id is not None:
-        try:
-            group_id_val = int(group_id)
-        except (TypeError, ValueError):
-            return {"error": "group_id должен быть числом"}, 400
+        if object_type == "rental" and date_val < date.today():
+            return {"error": "Rental date cannot be in the past"}, 400
+        if time_from_val >= time_to_val:
+            return {"error": "time_from must be earlier than time_to"}, 400
 
-    if lessons_count is not None:
-        try:
-            lessons_count_val = int(lessons_count)
-        except (TypeError, ValueError):
-            return {"error": "lessons_count должен быть числом"}, 400
-        if lessons_count_val <= 0:
-            return {"error": "lessons_count должен быть больше 0"}, 400
-
-    if group_start_date_str:
-        try:
-            group_start_date_val = datetime.strptime(group_start_date_str, "%Y-%m-%d").date()
-        except ValueError:
-            return {"error": "start_date должен быть в формате YYYY-MM-DD"}, 400
-
-    if valid_until_str:
-        try:
-            valid_until_val = datetime.strptime(valid_until_str, "%Y-%m-%d").date()
-        except ValueError:
-            return {"error": "valid_until должен быть в формате YYYY-MM-DD"}, 400
-
-    if time_from_val and time_to_val and time_from_val >= time_to_val:
-        return {"error": "time_from должен быть меньше time_to"}, 400
-
-    overlaps = []
-    if date_val and time_from_val and time_to_val:
         overlaps = _find_booking_overlaps(db, date_val, time_from_val, time_to_val)
+        status = "NEW"
+    else:
+        try:
+            quote = quote_group_booking(
+                db,
+                user_id=user.id,
+                group_id=data.get("group_id"),
+                abonement_type=data.get("abonement_type"),
+                bundle_group_ids=data.get("bundle_group_ids"),
+                multi_lessons_per_group=data.get("multi_lessons_per_group"),
+            )
+        except AbonementPricingError as exc:
+            return {"error": str(exc)}, 400
 
-    status = "AWAITING_PAYMENT" if object_type == "group" else "NEW"
+        quote_payload = serialize_group_booking_quote(quote)
+        group_id_val = quote.group_id
+        lessons_count_val = quote.total_lessons
+        group_start_date_val = quote.valid_from.date()
+        valid_until_val = quote.valid_to.date()
+        requested_amount_val = quote.amount
+        requested_currency_val = quote.currency
+        abonement_type_val = quote.abonement_type
+        bundle_group_ids_json_val = json.dumps(quote.bundle_group_ids, ensure_ascii=False)
+        status = "NEW" if (quote.abonement_type == ABONEMENT_TYPE_TRIAL and quote.amount == 0) else "AWAITING_PAYMENT"
 
     booking = BookingRequest(
         user_id=user.id,
@@ -4459,15 +5134,51 @@ def create_booking_request():
         status=status,
         teacher_id=teacher_id_val,
         group_id=group_id_val,
+        abonement_type=abonement_type_val,
+        bundle_group_ids_json=bundle_group_ids_json_val,
         lessons_count=lessons_count_val,
+        requested_amount=requested_amount_val,
+        requested_currency=requested_currency_val,
         group_start_date=group_start_date_val,
         valid_until=valid_until_val,
     )
-
     db.add(booking)
     db.flush()
 
-    individual_lesson = None
+    if object_type == "rental" and date_val and time_from_val and time_to_val:
+        rental = HallRental(
+            creator_id=user.id,
+            creator_type="user",
+            date=date_val,
+            time_from=time_from_val,
+            time_to=time_to_val,
+            purpose=comment,
+            review_status="pending",
+            payment_status="pending",
+            activity_status="pending",
+            comment=comment,
+            start_time=datetime.combine(date_val, time_from_val),
+            end_time=datetime.combine(date_val, time_to_val),
+            status=status,
+            duration_minutes=booking.duration_minutes,
+        )
+        db.add(rental)
+        db.flush()
+
+        rental_schedule = Schedule(
+            object_type="rental",
+            object_id=rental.id,
+            date=date_val,
+            time_from=time_from_val,
+            time_to=time_to_val,
+            status=status,
+            status_comment=f"Synced with booking #{booking.id}",
+            title="Аренда зала",
+            start_time=time_from_val,
+            end_time=time_to_val,
+        )
+        db.add(rental_schedule)
+
     if object_type == "individual" and teacher_id_val and date_val and time_from_val and time_to_val:
         individual_lesson = IndividualLesson(
             teacher_id=teacher_id_val,
@@ -4479,7 +5190,7 @@ def create_booking_request():
             comment=comment,
             person_comment=comment,
             booking_id=booking.id,
-            status=status
+            status=status,
         )
         db.add(individual_lesson)
         db.flush()
@@ -4491,7 +5202,7 @@ def create_booking_request():
             time_from=time_from_val,
             time_to=time_to_val,
             status=status,
-            title="ндивидуальное занятие",
+            title="Индивидуальное занятие",
             start_time=time_from_val,
             end_time=time_to_val,
             teacher_id=teacher_id_val,
@@ -4501,13 +5212,31 @@ def create_booking_request():
     db.commit()
 
     _notify_booking_admins(booking, user)
+    if object_type == "group" and int(booking.requested_amount or 0) > 0:
+        _send_booking_payment_details_via_userbot(db, booking, user)
 
-    return {
+    response_payload = {
         "id": booking.id,
         "status": booking.status,
         "overlaps": overlaps,
-    }, 201
+    }
+    if object_type == "group":
+        response_payload.update(
+            {
+                "group_id": booking.group_id,
+                "abonement_type": booking.abonement_type,
+                "bundle_group_ids": parse_booking_bundle_group_ids(booking),
+                "lessons_count": booking.lessons_count,
+                "requested_amount": booking.requested_amount,
+                "requested_currency": booking.requested_currency,
+                "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
+                "valid_until": booking.valid_until.isoformat() if booking.valid_until else None,
+                "quote": quote_payload,
+                "payment_info": _get_active_payment_profile_payload(db) if int(booking.requested_amount or 0) > 0 else None,
+            }
+        )
 
+    return response_payload, 201
 
 @app.route("/api/rental-occupancy")
 def rental_occupancy():
@@ -4519,14 +5248,14 @@ def rental_occupancy():
         try:
             date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
-            return {"error": "date должен быть в формате YYYY-MM-DD"}, 400
+            return {"error": "date должен быть в формате YYYY-MM-DD и быть существующей датой"}, 400
 
     entries = db.query(Schedule).filter(
         Schedule.object_type == "rental",
         Schedule.date == date_val,
         Schedule.time_from.isnot(None),
         Schedule.time_to.isnot(None),
-        Schedule.status.notin_(["cancelled", "deleted"])
+        Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES))
     ).all()
 
     result = []
@@ -4553,13 +5282,13 @@ def hall_occupancy():
         try:
             date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
-            return {"error": "date должен быть в формате YYYY-MM-DD"}, 400
+            return {"error": "date должен быть в формате YYYY-MM-DD и быть существующей датой"}, 400
 
     entries = db.query(Schedule).filter(
         Schedule.date == date_val,
         Schedule.time_from.isnot(None),
         Schedule.time_to.isnot(None),
-        Schedule.status.notin_(["cancelled", "deleted"])
+        Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES))
     ).order_by(Schedule.time_from.asc()).all()
 
     result = []
@@ -4608,18 +5337,17 @@ def get_individual_lesson(lesson_id):
 
 
 def get_next_group_date(db, group_id):
-    today = datetime.now().date()
-    q = db.query(Schedule).filter(
-        Schedule.object_type == "group",
-        Schedule.date.isnot(None),
-        Schedule.status != "cancelled",
-        ((Schedule.group_id == group_id) | (Schedule.object_id == group_id)),
-        Schedule.date >= today
-    ).order_by(Schedule.date.asc())
-    item = q.first()
-    if item and item.date:
-        return item.date
-    return today
+    return pricing_get_next_group_date(db, int(group_id))
+
+
+@app.route("/api/groups/<int:group_id>/next-session", methods=["GET"])
+def get_group_next_session(group_id: int):
+    db = g.db
+    group = db.query(Group).filter_by(id=group_id).first()
+    if not group:
+        return {"error": "Group not found"}, 404
+    next_date = get_next_group_date(db, group_id)
+    return jsonify({"group_id": group_id, "next_session_date": next_date.isoformat() if next_date else None})
 
 
 @app.route("/api/group-abonements/create", methods=["POST"])
@@ -4629,68 +5357,85 @@ def create_group_abonement():
 
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "Пользователь не найден"}, 401
+        return {"error": "Authentication required"}, 401
 
-    group_id = data.get("group_id")
-    lessons_count = data.get("lessons_count")
-    if not group_id or not lessons_count:
-        return {"error": "group_id и lessons_count обязательны"}, 400
+    raw_group_id = data.get("group_id")
+    try:
+        group_id = int(raw_group_id)
+    except (TypeError, ValueError):
+        return {"error": "group_id must be an integer"}, 400
+
+    raw_bundle_group_ids = data.get("bundle_group_ids")
+    if raw_bundle_group_ids in (None, "", []):
+        raw_bundle_group_ids = [group_id]
 
     try:
-        group_id = int(group_id)
-        lessons_count = int(lessons_count)
-    except (TypeError, ValueError):
-        return {"error": "group_id и lessons_count должны быть числами"}, 400
+        quote = quote_group_booking(
+            db,
+            user_id=user.id,
+            group_id=group_id,
+            abonement_type=data.get("abonement_type") or ABONEMENT_TYPE_MULTI,
+            bundle_group_ids=raw_bundle_group_ids,
+            multi_lessons_per_group=data.get("multi_lessons_per_group"),
+        )
+    except AbonementPricingError as exc:
+        return {"error": str(exc)}, 400
 
-    if lessons_count <= 0:
-        return {"error": "lessons_count должен быть больше 0"}, 400
+    legacy_lessons_count = data.get("lessons_count")
+    if legacy_lessons_count not in (None, ""):
+        try:
+            legacy_lessons_count = int(legacy_lessons_count)
+        except (TypeError, ValueError):
+            return {"error": "lessons_count must be an integer"}, 400
+        if legacy_lessons_count != quote.total_lessons:
+            return {
+                "error": f"lessons_count mismatch: expected {quote.total_lessons} for selected abonement configuration"
+            }, 400
 
-    group = db.query(Group).filter_by(id=group_id).first()
-    if not group:
-        return {"error": "Группа не найдена"}, 404
-
-    direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
-    price_per_lesson = direction.base_price if direction else None
-    if not price_per_lesson or price_per_lesson <= 0:
-        return {"error": "Цена направления не задана"}, 400
-
-    total_amount = lessons_count * price_per_lesson
-    base_date = get_next_group_date(db, group_id)
-    valid_from = datetime.combine(base_date, time.min)
-    valid_to = valid_from + timedelta(days=30)
-
-    abonement = GroupAbonement(
+    status = "NEW" if (quote.abonement_type == ABONEMENT_TYPE_TRIAL and quote.amount == 0) else "AWAITING_PAYMENT"
+    booking = BookingRequest(
         user_id=user.id,
-        group_id=group_id,
-        balance_credits=lessons_count,
-        status="pending_activation",
-        valid_from=valid_from,
-        valid_to=valid_to
+        user_telegram_id=user.telegram_id,
+        user_name=user.name,
+        user_username=user.username,
+        object_type="group",
+        status=status,
+        comment=(data.get("comment") or "").strip() or None,
+        group_id=quote.group_id,
+        abonement_type=quote.abonement_type,
+        bundle_group_ids_json=json.dumps(quote.bundle_group_ids, ensure_ascii=False),
+        lessons_count=quote.total_lessons,
+        requested_amount=quote.amount,
+        requested_currency=quote.currency,
+        group_start_date=quote.valid_from.date(),
+        valid_until=quote.valid_to.date(),
+        overlaps_json=json.dumps([], ensure_ascii=False),
     )
-    db.add(abonement)
-    db.flush()
-
-    payment = PaymentTransaction(
-        user_id=user.id,
-        amount=total_amount,
-        currency="RUB",
-        provider="stub",
-        status="pending",
-        description=f"Абонемент на {lessons_count} занятий",
-        meta=json.dumps({"abonement_id": abonement.id})
-    )
-    db.add(payment)
+    db.add(booking)
     db.commit()
 
-    return {
-        "abonement_id": abonement.id,
-        "payment_id": payment.id,
-        "amount": total_amount,
-        "currency": "RUB",
-        "valid_from": abonement.valid_from.isoformat() if abonement.valid_from else None,
-        "valid_to": abonement.valid_to.isoformat() if abonement.valid_to else None,
-        "status": "pending"
-    }, 201
+    _notify_booking_admins(booking, user)
+    if quote.requires_payment:
+        _send_booking_payment_details_via_userbot(db, booking, user)
+
+    return (
+        jsonify(
+            {
+                "ok": True,
+                "booking_id": booking.id,
+                "status": booking.status,
+                "abonement_type": booking.abonement_type,
+                "bundle_group_ids": parse_booking_bundle_group_ids(booking),
+                "amount": booking.requested_amount,
+                "currency": booking.requested_currency or "RUB",
+                "valid_from": quote.valid_from.isoformat(),
+                "valid_to": quote.valid_to.isoformat(),
+                "payment_id": None,
+                "payment_info": _get_active_payment_profile_payload(db) if quote.requires_payment else None,
+            }
+        ),
+        201,
+    )
 
 
 @app.route("/api/payment-transactions/<int:payment_id>/pay", methods=["POST"])
@@ -4772,6 +5517,724 @@ def admin_activate_abonement(abonement_id):
     }
 
 
+def _parse_iso_date(value, field_name: str):
+    if not value or not isinstance(value, str):
+        raise ValueError(f"{field_name} обязателен и должен быть строкой формата YYYY-MM-DD")
+    try:
+        return datetime.strptime(value, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError(f"{field_name} должен быть в формате YYYY-MM-DD") from exc
+
+
+def _parse_user_id_for_merge(payload: dict, field_name: str) -> int:
+    raw_value = payload.get(field_name)
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be an integer") from exc
+    if value <= 0:
+        raise ValueError(f"{field_name} must be positive")
+    return value
+
+
+def _merge_attendance_rows(db, source_user_id: int, target_user_id: int) -> dict:
+    moved = 0
+    merged = 0
+    relinked_logs = 0
+
+    rows = (
+        db.query(Attendance)
+        .filter(Attendance.user_id == source_user_id)
+        .order_by(Attendance.id.asc())
+        .all()
+    )
+    for source_row in rows:
+        target_row = db.query(Attendance).filter(
+            Attendance.schedule_id == source_row.schedule_id,
+            Attendance.user_id == target_user_id,
+        ).first()
+
+        if not target_row:
+            source_row.user_id = target_user_id
+            moved += 1
+            continue
+
+        if source_row.marked_at and (not target_row.marked_at or source_row.marked_at > target_row.marked_at):
+            target_row.marked_at = source_row.marked_at
+            target_row.marked_by_staff_id = source_row.marked_by_staff_id
+
+        if source_row.status and target_row.status != source_row.status:
+            if target_row.status not in {"present", "late"} or source_row.status in {"present", "late"}:
+                target_row.status = source_row.status
+
+        if not target_row.abonement_id and source_row.abonement_id:
+            target_row.abonement_id = source_row.abonement_id
+        if not target_row.comment and source_row.comment:
+            target_row.comment = source_row.comment
+
+        relinked = (
+            db.query(GroupAbonementActionLog)
+            .filter(GroupAbonementActionLog.attendance_id == source_row.id)
+            .update({GroupAbonementActionLog.attendance_id: target_row.id}, synchronize_session=False)
+        )
+        relinked_logs += int(relinked or 0)
+
+        db.delete(source_row)
+        merged += 1
+
+    return {"moved": moved, "merged": merged, "relinked_logs": relinked_logs}
+
+
+def _merge_attendance_intentions_rows(db, source_user_id: int, target_user_id: int) -> dict:
+    moved = 0
+    merged = 0
+
+    rows = (
+        db.query(AttendanceIntention)
+        .filter(AttendanceIntention.user_id == source_user_id)
+        .order_by(AttendanceIntention.id.asc())
+        .all()
+    )
+    for source_row in rows:
+        target_row = db.query(AttendanceIntention).filter(
+            AttendanceIntention.schedule_id == source_row.schedule_id,
+            AttendanceIntention.user_id == target_user_id,
+        ).first()
+        if not target_row:
+            source_row.user_id = target_user_id
+            moved += 1
+            continue
+
+        source_updated = source_row.updated_at or source_row.created_at
+        target_updated = target_row.updated_at or target_row.created_at
+        if source_updated and (not target_updated or source_updated > target_updated):
+            target_row.status = source_row.status
+            target_row.reason = source_row.reason
+            target_row.source = source_row.source
+            target_row.updated_at = source_row.updated_at
+        elif not target_row.reason and source_row.reason:
+            target_row.reason = source_row.reason
+
+        db.delete(source_row)
+        merged += 1
+
+    return {"moved": moved, "merged": merged}
+
+
+def _merge_attendance_reminders_rows(db, source_user_id: int, target_user_id: int) -> dict:
+    moved = 0
+    merged = 0
+
+    rows = (
+        db.query(AttendanceReminder)
+        .filter(AttendanceReminder.user_id == source_user_id)
+        .order_by(AttendanceReminder.id.asc())
+        .all()
+    )
+    for source_row in rows:
+        target_row = db.query(AttendanceReminder).filter(
+            AttendanceReminder.schedule_id == source_row.schedule_id,
+            AttendanceReminder.user_id == target_user_id,
+        ).first()
+        if not target_row:
+            source_row.user_id = target_user_id
+            moved += 1
+            continue
+
+        source_updated = source_row.updated_at or source_row.created_at
+        target_updated = target_row.updated_at or target_row.created_at
+        if source_updated and (not target_updated or source_updated > target_updated):
+            target_row.send_status = source_row.send_status
+            target_row.send_error = source_row.send_error
+            target_row.attempted_at = source_row.attempted_at
+            target_row.sent_at = source_row.sent_at
+            target_row.telegram_chat_id = source_row.telegram_chat_id
+            target_row.telegram_message_id = source_row.telegram_message_id
+            target_row.responded_at = source_row.responded_at
+            target_row.response_action = source_row.response_action
+            target_row.button_closed_at = source_row.button_closed_at
+            target_row.updated_at = source_row.updated_at
+        elif not target_row.response_action and source_row.response_action:
+            target_row.response_action = source_row.response_action
+            target_row.responded_at = source_row.responded_at or target_row.responded_at
+
+        db.delete(source_row)
+        merged += 1
+
+    return {"moved": moved, "merged": merged}
+
+
+def _append_merge_note(current_value: str | None, note: str) -> str:
+    existing = (current_value or "").strip()
+    if not existing:
+        return note
+    if note in existing:
+        return existing
+    return f"{existing}\n\n{note}"
+
+
+@app.route("/api/admin/clients/merge", methods=["POST"])
+def admin_merge_clients():
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    payload = request.json or {}
+    note = (payload.get("note") or "").strip()
+
+    try:
+        source_user_id = _parse_user_id_for_merge(payload, "source_user_id")
+        target_user_id = _parse_user_id_for_merge(payload, "target_user_id")
+    except ValueError as exc:
+        return {"error": str(exc)}, 400
+
+    if source_user_id == target_user_id:
+        return {"error": "source_user_id and target_user_id must be different"}, 400
+
+    source_user = db.query(User).filter_by(id=source_user_id).first()
+    if not source_user:
+        return {"error": "source user not found"}, 404
+
+    target_user = db.query(User).filter_by(id=target_user_id).first()
+    if not target_user:
+        return {"error": "target user not found"}, 404
+
+    if source_user.telegram_id:
+        return {"error": "source user must not have telegram_id"}, 409
+    if not target_user.telegram_id:
+        return {"error": "target user must have telegram_id"}, 409
+
+    if not target_user.username and source_user.username:
+        target_user.username = source_user.username
+    if not target_user.phone and source_user.phone:
+        target_user.phone = source_user.phone
+    if not target_user.email and source_user.email:
+        target_user.email = source_user.email
+    if not target_user.birth_date and source_user.birth_date:
+        target_user.birth_date = source_user.birth_date
+    if not target_user.photo_path and source_user.photo_path:
+        target_user.photo_path = source_user.photo_path
+
+    if source_user.user_notes:
+        target_user.user_notes = _append_merge_note(target_user.user_notes, source_user.user_notes)
+    if source_user.staff_notes:
+        target_user.staff_notes = _append_merge_note(target_user.staff_notes, source_user.staff_notes)
+
+    moved_group_abonements = int(
+        db.query(GroupAbonement)
+        .filter(GroupAbonement.user_id == source_user_id)
+        .update({GroupAbonement.user_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
+    moved_payments = int(
+        db.query(PaymentTransaction)
+        .filter(PaymentTransaction.user_id == source_user_id)
+        .update({PaymentTransaction.user_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
+    moved_booking_requests = int(
+        db.query(BookingRequest)
+        .filter(BookingRequest.user_id == source_user_id)
+        .update({BookingRequest.user_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
+    moved_individual_lessons = int(
+        db.query(IndividualLesson)
+        .filter(IndividualLesson.student_id == source_user_id)
+        .update({IndividualLesson.student_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
+    moved_schedule_overrides = int(
+        db.query(ScheduleOverrides)
+        .filter(ScheduleOverrides.created_by_user_id == source_user_id)
+        .update({ScheduleOverrides.created_by_user_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
+
+    attendance_result = _merge_attendance_rows(db, source_user_id, target_user_id)
+    intentions_result = _merge_attendance_intentions_rows(db, source_user_id, target_user_id)
+    reminders_result = _merge_attendance_reminders_rows(db, source_user_id, target_user_id)
+
+    merged_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    merge_marker = f"Merged into user #{target_user_id} at {merged_at}"
+    if note:
+        merge_marker = f"{merge_marker}. Note: {note}"
+    source_user.staff_notes = _append_merge_note(source_user.staff_notes, merge_marker)
+    source_user.status = "inactive"
+    source_user.telegram_id = None
+
+    db.commit()
+
+    return jsonify(
+        {
+            "ok": True,
+            "source_user_id": source_user_id,
+            "target_user_id": target_user_id,
+            "moved": {
+                "group_abonements": moved_group_abonements,
+                "payment_transactions": moved_payments,
+                "booking_requests": moved_booking_requests,
+                "individual_lessons": moved_individual_lessons,
+                "schedule_overrides": moved_schedule_overrides,
+                "attendance": attendance_result,
+                "attendance_intentions": intentions_result,
+                "attendance_reminders": reminders_result,
+            },
+        }
+    )
+
+
+@app.route("/api/admin/clients/<int:user_id>/sick-leave", methods=["POST"])
+def admin_apply_client_sick_leave(user_id: int):
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    payload = request.json or {}
+
+    try:
+        date_from = _parse_iso_date(payload.get("date_from"), "date_from")
+        date_to = _parse_iso_date(payload.get("date_to"), "date_to")
+    except ValueError as exc:
+        return {"error": str(exc)}, 400
+
+    if date_to < date_from:
+        return {"error": "date_to не может быть раньше date_from"}, 400
+
+    note = (payload.get("note") or "").strip()
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        return {"error": "Клиент не найден"}, 404
+
+    staff = _get_current_staff(db)
+    now = datetime.utcnow()
+    range_key = f"{date_from.isoformat()}:{date_to.isoformat()}"
+    sick_default_comment = f"Болел: {date_from.isoformat()} - {date_to.isoformat()}"
+    extension_days = (date_to - date_from).days + 1
+
+    schedules = (
+        db.query(Schedule)
+        .filter(
+            Schedule.object_type == "group",
+            Schedule.date.isnot(None),
+            Schedule.date >= date_from,
+            Schedule.date <= date_to,
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
+        )
+        .order_by(Schedule.date.asc(), Schedule.time_from.asc())
+        .all()
+    )
+
+    affected_schedule_ids = []
+    created_attendance = 0
+    updated_attendance = 0
+    refunded_credits = 0
+    affected_abonement_ids = set()
+
+    for schedule in schedules:
+        group_id = _schedule_group_id(schedule)
+        if not group_id:
+            continue
+
+        abonement = _resolve_group_active_abonement(db, user.id, group_id, schedule.date)
+        if not abonement:
+            continue
+        affected_abonement_ids.add(abonement.id)
+
+        attendance = db.query(Attendance).filter_by(schedule_id=schedule.id, user_id=user.id).first()
+        if not attendance:
+            attendance = Attendance(
+                schedule_id=schedule.id,
+                user_id=user.id,
+                status="sick",
+                abonement_id=abonement.id,
+                marked_at=now,
+                marked_by_staff_id=staff.id if staff else None,
+                comment=note or sick_default_comment,
+            )
+            db.add(attendance)
+            db.flush()
+            created_attendance += 1
+        else:
+            if attendance.status != "sick":
+                updated_attendance += 1
+            attendance.status = "sick"
+            attendance.marked_at = now
+            attendance.marked_by_staff_id = staff.id if staff else None
+            if not attendance.abonement_id:
+                attendance.abonement_id = abonement.id
+            if note:
+                attendance.comment = note
+            elif not attendance.comment:
+                attendance.comment = sick_default_comment
+
+        affected_schedule_ids.append(schedule.id)
+
+        debit_exists = db.query(GroupAbonementActionLog.id).filter_by(
+            attendance_id=attendance.id,
+            action_type="debit_attendance",
+        ).first()
+        refund_exists = db.query(GroupAbonementActionLog.id).filter_by(
+            attendance_id=attendance.id,
+            action_type="sick_leave_refund",
+        ).first()
+        if not debit_exists or refund_exists:
+            continue
+
+        refund_abonement_id = attendance.abonement_id or abonement.id
+        refund_abonement = db.query(GroupAbonement).filter_by(id=refund_abonement_id).first()
+        if not refund_abonement or refund_abonement.balance_credits is None:
+            continue
+
+        refund_abonement.balance_credits += 1
+        refunded_credits += 1
+        db.add(
+            GroupAbonementActionLog(
+                abonement_id=refund_abonement.id,
+                action_type="sick_leave_refund",
+                credits_delta=1,
+                reason="sick_leave",
+                note=f"Возврат занятия за больничный ({range_key})",
+                attendance_id=attendance.id,
+                actor_type="staff",
+                actor_id=staff.id if staff else None,
+                payload=json.dumps(
+                    {
+                        "date_from": date_from.isoformat(),
+                        "date_to": date_to.isoformat(),
+                        "user_id": user.id,
+                        "schedule_id": schedule.id,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+
+    extended_abonements = 0
+    for abonement_id in affected_abonement_ids:
+        abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
+        if not abonement or not abonement.valid_to:
+            continue
+
+        duplicate_extension = db.query(GroupAbonementActionLog.id).filter_by(
+            abonement_id=abonement.id,
+            action_type="sick_leave_extend",
+            reason=range_key,
+        ).first()
+        if duplicate_extension:
+            continue
+
+        abonement.valid_to = abonement.valid_to + timedelta(days=extension_days)
+        extended_abonements += 1
+        db.add(
+            GroupAbonementActionLog(
+                abonement_id=abonement.id,
+                action_type="sick_leave_extend",
+                credits_delta=0,
+                reason=range_key,
+                note=f"Продление абонемента на {extension_days} дн. (больничный)",
+                actor_type="staff",
+                actor_id=staff.id if staff else None,
+                payload=json.dumps(
+                    {
+                        "date_from": date_from.isoformat(),
+                        "date_to": date_to.isoformat(),
+                        "user_id": user.id,
+                        "extension_days": extension_days,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "user_id": user.id,
+        "telegram_id": user.telegram_id,
+        "date_from": date_from.isoformat(),
+        "date_to": date_to.isoformat(),
+        "extension_days": extension_days,
+        "affected_schedules": len(affected_schedule_ids),
+        "created_attendance": created_attendance,
+        "updated_attendance": updated_attendance,
+        "refunded_credits": refunded_credits,
+        "extended_abonements": extended_abonements,
+    }, 200
+
+
+def _serialize_client_abonement_for_admin(db, abonement: GroupAbonement) -> dict:
+    group = db.query(Group).filter_by(id=abonement.group_id).first()
+    direction = db.query(Direction).filter_by(direction_id=group.direction_id).first() if group else None
+    lessons_per_week = int(group.lessons_per_week) if group and group.lessons_per_week else None
+    return {
+        "id": abonement.id,
+        "group_id": abonement.group_id,
+        "group_name": group.name if group else None,
+        "direction_title": direction.title if direction else None,
+        "lessons_per_week": lessons_per_week,
+        "abonement_type": abonement.abonement_type,
+        "bundle_id": abonement.bundle_id,
+        "bundle_size": abonement.bundle_size,
+        "balance_credits": abonement.balance_credits,
+        "status": abonement.status,
+        "valid_from": abonement.valid_from.isoformat() if abonement.valid_from else None,
+        "valid_to": abonement.valid_to.isoformat() if abonement.valid_to else None,
+    }
+
+
+def _parse_month_start(value: str | None):
+    if not value:
+        now = datetime.now()
+        return date(now.year, now.month, 1)
+    try:
+        dt = datetime.strptime(value, "%Y-%m")
+        return date(dt.year, dt.month, 1)
+    except ValueError as exc:
+        raise ValueError("month должен быть в формате YYYY-MM") from exc
+
+
+@app.route("/api/admin/clients/<int:user_id>/abonements", methods=["GET"])
+def admin_get_client_abonements(user_id: int):
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        return {"error": "Клиент не найден"}, 404
+
+    items = (
+        db.query(GroupAbonement)
+        .filter_by(user_id=user.id, status="active")
+        .order_by(GroupAbonement.created_at.desc())
+        .all()
+    )
+    return jsonify(
+        {
+            "user": {"id": user.id, "telegram_id": user.telegram_id, "name": user.name},
+            "items": [_serialize_client_abonement_for_admin(db, item) for item in items],
+        }
+    )
+
+
+@app.route("/api/admin/clients/<int:user_id>/attendance-calendar", methods=["GET"])
+def admin_get_client_attendance_calendar(user_id: int):
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        return {"error": "Клиент не найден"}, 404
+
+    month_param = request.args.get("month")
+    try:
+        month_start = _parse_month_start(month_param)
+    except ValueError as exc:
+        return {"error": str(exc)}, 400
+
+    if month_start.month == 12:
+        month_end = date(month_start.year + 1, 1, 1)
+    else:
+        month_end = date(month_start.year, month_start.month + 1, 1)
+
+    schedules = (
+        db.query(Schedule)
+        .filter(
+            Schedule.object_type == "group",
+            Schedule.date.isnot(None),
+            Schedule.date >= month_start,
+            Schedule.date < month_end,
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
+        )
+        .order_by(Schedule.date.asc(), Schedule.time_from.asc())
+        .all()
+    )
+
+    schedule_ids = [s.id for s in schedules]
+    attendance_by_schedule_id = {}
+    if schedule_ids:
+        for row in db.query(Attendance).filter(
+            Attendance.user_id == user.id,
+            Attendance.schedule_id.in_(schedule_ids),
+        ).all():
+            attendance_by_schedule_id[row.schedule_id] = row
+
+    group_ids = sorted({
+        _schedule_group_id(s) for s in schedules
+        if _schedule_group_id(s)
+    })
+    groups = {}
+    directions = {}
+    if group_ids:
+        for g_row in db.query(Group).filter(Group.id.in_(group_ids)).all():
+            groups[g_row.id] = g_row
+            if g_row.direction_id:
+                directions[g_row.direction_id] = None
+        direction_ids = [d_id for d_id in directions.keys()]
+        if direction_ids:
+            for d_row in db.query(Direction).filter(Direction.direction_id.in_(direction_ids)).all():
+                directions[d_row.direction_id] = d_row
+
+    entries = []
+    for schedule in schedules:
+        group_id = _schedule_group_id(schedule)
+        if not group_id:
+            continue
+
+        attendance = attendance_by_schedule_id.get(schedule.id)
+        enrolled = bool(_resolve_group_active_abonement(db, user.id, group_id, schedule.date))
+        if not enrolled and not attendance:
+            continue
+
+        mark_code = None
+        mark_label = None
+        status = attendance.status if attendance else "planned"
+        if status in {"present", "late"}:
+            mark_code = "П"
+            mark_label = "Пришел"
+        elif status == "absent":
+            mark_code = "Н"
+            mark_label = "Неявка"
+        elif status == "sick":
+            mark_code = "Б"
+            mark_label = "Больничный"
+        elif status == "planned":
+            mark_code = None
+            mark_label = "Записан"
+
+        group = groups.get(group_id)
+        direction = directions.get(group.direction_id) if group and group.direction_id else None
+        entries.append(
+            {
+                "date": schedule.date.isoformat(),
+                "schedule_id": schedule.id,
+                "group_id": group_id,
+                "group_name": group.name if group else None,
+                "direction_title": direction.title if direction else None,
+                "time_from": schedule.time_from.strftime("%H:%M") if schedule.time_from else None,
+                "time_to": schedule.time_to.strftime("%H:%M") if schedule.time_to else None,
+                "status": status,
+                "mark_code": mark_code,
+                "mark_label": mark_label,
+            }
+        )
+
+    return jsonify(
+        {
+            "user": {"id": user.id, "telegram_id": user.telegram_id, "name": user.name},
+            "month": month_start.strftime("%Y-%m"),
+            "entries": entries,
+            "legend": {
+                "П": "Пришел",
+                "Н": "Неявка",
+                "Б": "Больничный",
+            },
+        }
+    )
+
+
+@app.route("/api/admin/group-abonements/<int:abonement_id>/extend", methods=["POST"])
+def admin_extend_group_abonement(abonement_id: int):
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    payload = request.json or {}
+    abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
+    if not abonement:
+        return {"error": "Абонемент не найден"}, 404
+
+    group = db.query(Group).filter_by(id=abonement.group_id).first()
+    lessons_per_week = int(group.lessons_per_week) if group and group.lessons_per_week else None
+    if not lessons_per_week or lessons_per_week <= 0:
+        return {"error": "Для группы не настроено количество занятий в неделю"}, 400
+
+    weeks_raw = payload.get("weeks")
+    lessons_raw = payload.get("lessons")
+    if weeks_raw in (None, "") and lessons_raw in (None, ""):
+        return {"error": "Укажите weeks или lessons"}, 400
+
+    weeks = None
+    lessons = None
+    if weeks_raw not in (None, ""):
+        try:
+            weeks = int(weeks_raw)
+        except (TypeError, ValueError):
+            return {"error": "weeks должен быть целым числом"}, 400
+        if weeks <= 0:
+            return {"error": "weeks должен быть больше 0"}, 400
+    if lessons_raw not in (None, ""):
+        try:
+            lessons = int(lessons_raw)
+        except (TypeError, ValueError):
+            return {"error": "lessons должен быть целым числом"}, 400
+        if lessons <= 0:
+            return {"error": "lessons должен быть больше 0"}, 400
+
+    if weeks is None and lessons is not None:
+        if lessons % lessons_per_week != 0:
+            return {"error": f"lessons должен быть кратен {lessons_per_week}"}, 400
+        weeks = lessons // lessons_per_week
+    elif lessons is None and weeks is not None:
+        lessons = weeks * lessons_per_week
+    else:
+        expected_lessons = weeks * lessons_per_week
+        if lessons != expected_lessons:
+            return {"error": f"Несоответствие: при {weeks} нед. должно быть {expected_lessons} занятий"}, 400
+
+    note = (payload.get("note") or "").strip()
+    staff = _get_current_staff(db)
+    now = datetime.utcnow()
+
+    abonement.balance_credits = int(abonement.balance_credits or 0) + lessons
+
+    valid_to_base = abonement.valid_to if (abonement.valid_to and abonement.valid_to > now) else now
+    abonement.valid_to = valid_to_base + timedelta(days=weeks * 7)
+
+    db.add(
+        GroupAbonementActionLog(
+            abonement_id=abonement.id,
+            action_type="manual_extend_abonement",
+            credits_delta=lessons,
+            reason=f"weeks={weeks};lessons={lessons}",
+            note=note or f"Продление абонемента: +{weeks} нед. / +{lessons} занятий",
+            actor_type="staff",
+            actor_id=staff.id if staff else None,
+            payload=json.dumps(
+                {
+                    "weeks": weeks,
+                    "lessons": lessons,
+                    "lessons_per_week": lessons_per_week,
+                    "user_id": abonement.user_id,
+                    "group_id": abonement.group_id,
+                },
+                ensure_ascii=False,
+            ),
+        )
+    )
+    db.commit()
+
+    return jsonify(
+        {
+            "ok": True,
+            "abonement": _serialize_client_abonement_for_admin(db, abonement),
+            "applied": {
+                "weeks": weeks,
+                "lessons": lessons,
+                "lessons_per_week": lessons_per_week,
+            },
+        }
+    )
+
+
 @app.route("/api/payment-transactions/my", methods=["GET"])
 def get_my_transactions():
     db = g.db
@@ -4813,6 +6276,9 @@ def get_my_abonements():
             "group_id": a.group_id,
             "group_name": group.name if group else None,
             "direction_title": direction.title if direction else None,
+            "abonement_type": a.abonement_type,
+            "bundle_id": a.bundle_id,
+            "bundle_size": a.bundle_size,
             "balance_credits": a.balance_credits,
             "status": a.status,
             "valid_from": a.valid_from.isoformat() if a.valid_from else None,

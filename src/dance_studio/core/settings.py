@@ -58,7 +58,6 @@ _ROOT = Path(__file__).resolve().parents[3]
 _load_dotenv(_ROOT / '.env')
 
 BOT_TOKEN = os.getenv('BOT_TOKEN', '')
-BOT_USERNAME = os.getenv('BOT_USERNAME', 'dance_studio_admin_bot')
 WEB_APP_URL = os.getenv('WEB_APP_URL', '')
 
 DATABASE_URL = os.getenv('DATABASE_URL')

@@ -34,18 +34,18 @@ def create_required_directories():
             print(f"❌ Ошибка при создании папки {directory}: {e}")
 
 
-def get_user_media_dir(telegram_id):
+def get_user_media_dir(user_id):
     """
     Возвращает путь к папке медиа файлов пользователя
     """
-    return os.path.join(USERS_MEDIA_DIR, str(telegram_id))
+    return os.path.join(USERS_MEDIA_DIR, str(user_id))
 
 
-def ensure_user_media_dir(telegram_id):
+def ensure_user_media_dir(user_id):
     """
     Создает папку для медиа файлов пользователя если ее нет
     """
-    user_dir = get_user_media_dir(telegram_id)
+    user_dir = get_user_media_dir(user_id)
     try:
         os.makedirs(user_dir, exist_ok=True)
         return user_dir
@@ -54,7 +54,7 @@ def ensure_user_media_dir(telegram_id):
         return None
 
 
-def save_user_photo(telegram_id, file_data, filename="profile.jpg"):
+def save_user_photo(user_id, file_data, filename="profile.jpg"):
     """
     Сохраняет фото пользователя и возвращает путь
     
@@ -67,7 +67,7 @@ def save_user_photo(telegram_id, file_data, filename="profile.jpg"):
         Относительный путь к файлу или None при ошибке
     """
     try:
-        user_dir = ensure_user_media_dir(telegram_id)
+        user_dir = ensure_user_media_dir(user_id)
         if not user_dir:
             return None
         

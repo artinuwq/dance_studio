@@ -8,7 +8,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(BigInteger, unique=True, nullable=False)
+    telegram_id = Column(BigInteger, unique=True, nullable=True)
     username = Column(String, nullable=True)  # Telegram username (@xxx)
     phone = Column(String, nullable=True)
     name = Column(String, nullable=False)
@@ -228,7 +228,11 @@ class BookingRequest(Base):
     duration_minutes = Column(Integer, nullable=True)
     comment = Column(Text, nullable=True)
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
+    abonement_type = Column(String, nullable=True)  # single | multi | trial
+    bundle_group_ids_json = Column(Text, nullable=True)  # JSON array of group ids for multi bundle
     lessons_count = Column(Integer, nullable=True)
+    requested_amount = Column(Integer, nullable=True)
+    requested_currency = Column(String(8), nullable=True, default="RUB")
     group_start_date = Column(Date, nullable=True)
     valid_until = Column(Date, nullable=True)
     overlaps_json = Column(Text, nullable=True)
@@ -312,7 +316,6 @@ class TeacherWorkingHours(Base):
         Index("ix_teacher_working_hours_teacher_validity", "teacher_id", "valid_from", "valid_to"),
     )
 
-
 # ======================== ИСКЛЮЧЕНИЯ И ОТПУСКА ПРЕПОДАВАТЕЛЕЙ ========================
 class TeacherTimeOff(Base):
     __tablename__ = "teacher_time_off"
@@ -355,6 +358,9 @@ class GroupAbonement(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=False)
+    abonement_type = Column(String, nullable=False, default="multi")  # single | multi | trial
+    bundle_id = Column(String(36), nullable=True)
+    bundle_size = Column(Integer, nullable=True)
     balance_credits = Column(Integer, nullable=False)
     status = Column(String, nullable=False)
     valid_from = Column(DateTime, nullable=True)
@@ -367,6 +373,12 @@ class GroupAbonement(Base):
 
     __table_args__ = (
         CheckConstraint("balance_credits >= 0", name="ck_group_abonements_balance_credits_non_negative"),
+        CheckConstraint(
+            "bundle_size IS NULL OR (bundle_size >= 1 AND bundle_size <= 3)",
+            name="ck_group_abonements_bundle_size_range",
+        ),
+        Index("ix_group_abonements_user_abonement_type", "user_id", "abonement_type"),
+        Index("ix_group_abonements_bundle_id", "bundle_id"),
     )
 
 
@@ -458,6 +470,68 @@ class PaymentTransaction(Base):
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_payment_transactions_amount_positive"),
+    )
+
+
+class PaymentProfile(Base):
+    __tablename__ = "payment_profiles"
+
+    id = Column(Integer, primary_key=True)
+    slot = Column(Integer, nullable=False, unique=True)  # 1 or 2
+    title = Column(String, nullable=True)
+    details = Column(Text, nullable=False, default="")
+    recipient_bank = Column(String, nullable=False, default="")
+    recipient_number = Column(String, nullable=False, default="")
+    recipient_full_name = Column(String, nullable=False, default="")
+    is_active = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("slot in (1, 2)", name="ck_payment_profiles_slot_range"),
+    )
+
+
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    id = Column(Integer, primary_key=True)
+    key = Column(String(128), nullable=False, unique=True)
+    value_json = Column(Text, nullable=False)
+    value_type = Column(String(32), nullable=False, default="string")
+    description = Column(String(255), nullable=True)
+    is_public = Column(Boolean, nullable=False, default=False)
+    updated_by_staff_id = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
+
+    updated_by_staff = relationship("Staff", foreign_keys=[updated_by_staff_id])
+
+    __table_args__ = (
+        Index("ix_app_settings_is_public", "is_public"),
+    )
+
+
+class AppSettingChange(Base):
+    __tablename__ = "app_setting_changes"
+
+    id = Column(Integer, primary_key=True)
+    setting_id = Column(Integer, ForeignKey("app_settings.id"), nullable=False)
+    setting_key = Column(String(128), nullable=False)
+    old_value_json = Column(Text, nullable=True)
+    new_value_json = Column(Text, nullable=False)
+    changed_by_staff_id = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    change_reason = Column(Text, nullable=True)
+    source = Column(String(32), nullable=False, default="api")
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    setting = relationship("AppSetting", foreign_keys=[setting_id])
+    changed_by_staff = relationship("Staff", foreign_keys=[changed_by_staff_id])
+
+    __table_args__ = (
+        Index("ix_app_setting_changes_setting_id", "setting_id"),
+        Index("ix_app_setting_changes_created_at", "created_at"),
+        Index("ix_app_setting_changes_setting_key", "setting_key"),
     )
 
 
