@@ -195,7 +195,9 @@ body.tg-mobile .header-back {
 }
 
 #profile .menu-item,
-#profile-settings .menu-item {
+#profile-settings .menu-item,
+#work-settings .menu-item,
+#work-settings-other .menu-item {
   background: #1f1f1f;
   color: var(--text);
   border: 2px solid var(--accent);
@@ -203,7 +205,9 @@ body.tg-mobile .header-back {
 }
 
 #profile .menu-item:active,
-#profile-settings .menu-item:active {
+#profile-settings .menu-item:active,
+#work-settings .menu-item:active,
+#work-settings-other .menu-item:active {
   background: #262626;
   opacity: 1;
 }
@@ -212,7 +216,8 @@ body.tg-mobile .header-back {
 #profile-abonements .save-btn,
 #profile-booking-requests .save-btn,
 #profile-settings .save-btn,
-#display-settings .save-btn {
+#display-settings .save-btn,
+#work-settings-prices .save-btn {
   background: #1f1f1f !important;
   color: var(--text) !important;
   border: 2px solid var(--accent) !important;
@@ -223,7 +228,8 @@ body.tg-mobile .header-back {
 #profile-abonements .save-btn:active,
 #profile-booking-requests .save-btn:active,
 #profile-settings .save-btn:active,
-#display-settings .save-btn:active {
+#display-settings .save-btn:active,
+#work-settings-prices .save-btn:active {
   background: #262626 !important;
 }
 
@@ -1151,6 +1157,100 @@ textarea.form-input {
   text-overflow: ellipsis;
 }
 
+/* ====== СПИСОК ПЕРСОНАЛА (В СТИЛЕ КЛИЕНТОВ) ====== */
+.staff-list-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.staff-client-card {
+  padding: 10px 12px;
+}
+
+.staff-client-card .staff-card-row {
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+.staff-card-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.staff-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.staff-card-name {
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.2;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.staff-role-chip {
+  border-color: rgba(255, 140, 66, 0.35);
+  background: rgba(255, 140, 66, 0.14);
+  color: #ffd3b3;
+}
+
+.staff-user-line {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.staff-meta-row {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.staff-phone-line {
+  font-size: 12px;
+  color: var(--hint);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.staff-teaches-chip {
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: #f0f0f0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.staff-teaches-chip.is-true {
+  background: rgba(76, 175, 80, 0.16);
+}
+
+.staff-teaches-chip.is-false {
+  background: rgba(158, 158, 158, 0.16);
+}
+
 /* ====== ФОТО ПРОФИЛЯ ====== */
 .photo-preview {
   background: var(--card);
@@ -1251,39 +1351,37 @@ textarea.form-input {
 #news-detail {
   padding: 0 !important;
   padding-bottom: 56px !important;
+  position: relative;
 }
 
-#news-detail .news-detail-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--bg);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  border-bottom: 1px solid var(--border);
-}
-
-#news-detail .news-detail-back {
-  color: var(--accent);
-  cursor: pointer;
-  font-size: 24px;
-  line-height: 1;
-  flex-shrink: 0;
-  padding: 4px 8px;
-}
-
-#news-detail .news-detail-back:active {
-  opacity: 0.6;
-}
-
-#news-detail .news-detail-title-header {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text);
+#news-detail .brand-header {
   margin: 0;
-  flex: 1;
+  padding: 0 16px;
+  position: absolute;
+  top: calc(8px + var(--safe-top));
+  left: 0;
+  right: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+#news-detail .brand-row {
+  background: rgba(20, 20, 20, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 6px 12px;
+}
+
+#news-detail .brand-avatar {
+  display: none;
+}
+
+#news-detail.news-detail-no-photo .brand-header {
+  position: relative;
+  top: 0;
+  margin: calc(8px + var(--safe-top)) 0 10px 0;
+  pointer-events: auto;
 }
 
 #news-detail-photo-container {
@@ -1886,6 +1984,31 @@ textarea.form-input {
   color: var(--text);
 }
 
+.work-settings-menu-hint {
+  margin-top: -4px;
+  margin-bottom: 14px;
+  color: var(--hint);
+  font-size: 13px;
+}
+
+.work-price-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.work-price-input-wrap {
+  flex: 1;
+  min-width: 160px;
+}
+
+.work-price-status {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--hint);
+}
+
 .attendance-screen-header {
   display: flex;
   justify-content: space-between;
@@ -2211,6 +2334,16 @@ textarea.form-input {
   margin-bottom: 8px;
 }
 
+#personal-calendar-nav {
+  gap: 8px;
+}
+
+#personal-calendar-nav .public-calendar-nav-label {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+}
+
 .public-calendar-nav.active {
   display: flex;
 }
@@ -2372,6 +2505,92 @@ textarea.form-input {
   color: var(--hint);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.personal-individual-form {
+  margin-top: 0;
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    max-height 360ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 220ms ease,
+    transform 320ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    margin-top 320ms ease,
+    padding-top 220ms ease,
+    padding-bottom 220ms ease,
+    border-color 220ms ease,
+    background-color 220ms ease;
+  pointer-events: none;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.personal-individual-form.is-open {
+  margin-top: 12px;
+  max-height: 1200px;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-color: var(--border);
+  background: var(--card);
+}
+
+#personal-individual-toggle-btn {
+  transition: transform 180ms ease, box-shadow 220ms ease, background-color 220ms ease;
+}
+
+#personal-individual-toggle-btn:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+#personal-individual-toggle-btn.is-open {
+  background: #111;
+}
+
+.personal-individual-user-results {
+  max-height: 240px;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  background: var(--card);
+  padding: 8px;
+  border: 1px solid var(--border);
+}
+
+.personal-individual-user-card {
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.personal-individual-user-card:last-child {
+  margin-bottom: 0;
+}
+
+.personal-individual-user-card.is-selected {
+  border-left: 4px solid var(--accent);
+  background: var(--accent-soft);
+}
+
+.personal-individual-user-chip {
+  margin: 0 0 10px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 12px;
+}
+
+.personal-individual-booking-msg {
+  margin: 10px 0 0 0;
+  font-size: 12px;
+  color: var(--hint);
 }
 
 @media (max-width: 380px) {
@@ -2678,6 +2897,17 @@ textarea.form-input {
   display: none;
 }
 
+.personal-schedule-refresh-capsule {
+  z-index: 2201;
+  pointer-events: auto;
+  cursor: pointer;
+  user-select: none;
+}
+
+.personal-schedule-refresh-capsule.hidden {
+  display: none;
+}
+
 .teacher-detail-overlay {
   position: fixed;
   inset: 0;
@@ -2738,6 +2968,21 @@ textarea.form-input {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+#teacher-profile-individual-btn,
+#teacher-profile-groups-toggle-btn {
+  -webkit-tap-highlight-color: transparent;
+}
+
+#teacher-profile-individual-btn:focus,
+#teacher-profile-individual-btn:focus-visible,
+#teacher-profile-individual-btn:active,
+#teacher-profile-groups-toggle-btn:focus,
+#teacher-profile-groups-toggle-btn:focus-visible,
+#teacher-profile-groups-toggle-btn:active {
+  outline: none;
+  box-shadow: none;
 }
 
 .teacher-detail-header {
@@ -3177,16 +3422,6 @@ textarea.form-input {
 </div>
 <div class="section-item-arrow">›</div>
 </div>
-<div class="section-item" onclick="showSection('info-individual')">
-<div class="section-item-left">
-<div class="section-item-icon section-icon--blue">⏱️</div>
-<div class="section-item-text">
-<h4 class="section-item-title">Индивидуальные занятия</h4>
-<p class="section-item-desc">Запишитесь на персональную тренировку</p>
-</div>
-</div>
-<div class="section-item-arrow">›</div>
-</div>
 <div class="section-item" onclick="showSection('info-rent')">
 <div class="section-item-left">
 <div class="section-item-icon section-icon--pink">🔑</div>
@@ -3312,26 +3547,51 @@ textarea.form-input {
 <button class="save-btn" id="news-manage-btn-work" onclick="showPage('news-manage')" style="width: 100%; margin-bottom: 8px;">Новости</button>
 </div>
 <div class="card work-section" id="work-section-stats-payment" style="margin-bottom: 12px;">
-<h4 style="margin-bottom: 10px;">Статистика и оплата</h4>
+<h4 style="margin-bottom: 10px;">Статистика и настройки</h4>
 <button class="save-btn" id="stats-btn" onclick="showPage('stats')" style="width: 100%; margin-bottom: 8px; display: none;">Статистика</button>
-<button class="save-btn" id="payment-profiles-btn-work" onclick="showPage('payment-profiles-admin')" style="width: 100%; margin-bottom: 8px; display: none;">Реквизиты оплаты</button>
+<button class="save-btn" id="work-settings-btn-work" onclick="showPage('work-settings')" style="width: 100%; margin-bottom: 8px; display: none;">Параметры настройки</button>
 </div>
 </div>
 <!-- ====== ЛИЧНОЕ РАСПИСАНИЕ ====== -->
-<div class="page" data-title="📅 Личное расписание" id="personal-schedule">
+<div class="page" id="personal-schedule">
 
-  <div class="public-schedule-header" style="margin-top: -4px;">
-    <div class="public-schedule-title"><span>👩‍🏫</span>Мои занятия</div>
-    <div class="public-schedule-action" onclick="refreshPersonalSchedule()">Обновить</div>
-  </div>
-  <div class="public-schedule-month" id="personal-schedule-month">—</div>
   <div class="public-calendar-nav active" id="personal-calendar-nav">
     <button type="button" onclick="shiftPersonalScheduleMonth(-1)">‹</button>
+    <div class="public-schedule-month public-calendar-nav-label" id="personal-schedule-month">—</div>
     <button type="button" onclick="shiftPersonalScheduleMonth(1)">›</button>
   </div>
 
 <div id="personal-schedule-container">
   <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+</div>
+<button class="save-btn" id="personal-individual-toggle-btn" onclick="togglePersonalIndividualBookingPanel()" style="margin-top: 10px; display: none;">Заявка на индивидуальное</button>
+<div class="card personal-individual-form" id="personal-individual-booking-card" style="display: none;">
+  <h4 style="margin: 0 0 8px 0;">Заявка на индивидуальное занятие</h4>
+  <p class="small" style="margin: 0 0 10px 0; color: var(--hint);">Дата: <b id="personal-individual-selected-date">—</b></p>
+  <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+    <div style="flex: 1;">
+      <label class="label">Время от</label>
+      <input class="form-input" id="personal-individual-time-from" type="time" step="1800"/>
+    </div>
+    <div style="flex: 1;">
+      <label class="label">Время до</label>
+      <input class="form-input" id="personal-individual-time-to" type="time" step="1800"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label>Клиент</label>
+    <input class="form-input" id="personal-individual-user-search" oninput="searchPersonalIndividualUsers()" placeholder="Имя, ID или @юзер" type="text"/>
+  </div>
+  <div class="personal-individual-user-results" id="personal-individual-user-results">
+    <p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска клиента...</p>
+  </div>
+  <div class="personal-individual-user-chip" id="personal-individual-user-selected">Клиент не выбран</div>
+  <div class="form-group" style="margin-bottom: 0;">
+    <label>Комментарий для админов (опционально)</label>
+    <textarea class="form-input" id="personal-individual-comment" rows="2" placeholder="Например: акцент на растяжку"></textarea>
+  </div>
+  <button class="save-btn" id="personal-individual-submit" onclick="submitPersonalIndividualBooking()" style="margin-top: 10px;">Отправить заявку</button>
+  <p class="personal-individual-booking-msg" id="personal-individual-booking-msg"></p>
 </div>
 </div>
 <!-- ====== СТАТИСТИКА ====== -->
@@ -3352,9 +3612,28 @@ textarea.form-input {
     </div>
     <button class="save-btn" style="width:100%; margin-top:12px;" onclick="loadTeacherStats()">Показать статистику</button>
   </div>
-  <div class="card" id="stats-result">
-    <p class="small" style="color: var(--hint); margin:0;">Выберите преподавателя и период, чтобы увидеть статистику.</p>
+<div class="card" id="stats-result">
+  <p class="small" style="color: var(--hint); margin:0;">Выберите преподавателя и период, чтобы увидеть статистику.</p>
+</div>
+</div>
+<!-- ====== ПАРАМЕТРЫ НАСТРОЙКИ (РАБОТА) ====== -->
+<div class="page" data-title="⚙️ Параметры настройки" id="work-settings">
+  <p class="work-settings-menu-hint">Разделы для финансовых и организационных параметров.</p>
+  <div class="menu-item" id="work-settings-payment-item" onclick="showPage('payment-profiles-admin')">💳 Реквизиты оплаты</div>
+  <div class="menu-item" id="work-settings-prices-item" onclick="showPage('work-settings-prices')">💰 Ценники</div>
+  <div class="menu-item" id="work-settings-other-item" onclick="showPage('work-settings-other')">⚙️ Остальные параметры</div>
+</div>
+<div class="page" data-title="💰 Ценники" id="work-settings-prices">
+  <div class="card" style="margin-bottom: 12px;">
+    <h4 style="margin: 0 0 6px;">Цены по направлениям</h4>
+    <p class="small" style="margin: 0; color: var(--hint);">Изменения применяются сразу после сохранения цены.</p>
   </div>
+  <div id="work-settings-prices-container">
+    <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+  </div>
+</div>
+<div class="page" data-title="⚙️ Остальные параметры" id="work-settings-other">
+  <div class="menu-item">🧩 Дополнительные настройки (в разработке)</div>
 </div>
 <!-- ====== УПРАВЛЕНИЕ РАСПИСАНИЕМ ====== -->
 <div class="page" data-title="🗓 Расписание" id="schedule-control">
@@ -3650,7 +3929,7 @@ textarea.form-input {
 <h4>🔍 Поиск персонала</h4>
 <input class="form-input" id="staff-manage-search" oninput="searchStaffManage()" placeholder="Имя, ID или @юзернейм" style="margin-top: 8px;" type="text"/>
 </div>
-<div id="staff-manage-container">
+<div class="clients-list staff-list-cards" id="staff-manage-container">
 <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
 </div>
 </div>
@@ -3966,7 +4245,7 @@ textarea.form-input {
 <div class="page" data-title="👥 Персонал" id="staff-management">
 
 <button class="save-btn" onclick="showAddStaffForm()" style="width: 100%; margin-bottom: 12px;">➕ Добавить персонал</button>
-<div id="staff-list-container">
+<div class="clients-list staff-list-cards" id="staff-list-container">
 <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
 </div>
 </div>
@@ -4028,26 +4307,18 @@ textarea.form-input {
 <p class="small" id="staff-detail-position">—</p>
 </div>
 <div class="card">
-<h4>📋 Информация</h4>
-<div style="margin-bottom: 12px;">
-<label style="font-size: 12px; color: var(--hint);">Должность</label>
-<div id="staff-detail-position-full" style="font-size: 15px; margin-top: 4px;">—</div>
+<h4 style="margin: 0 0 8px 0;">📋 Информация</h4>
+<div style="margin-bottom: 8px;">
+<label style="font-size: 12px; color: var(--hint); line-height: 1.2;">Должность</label>
+<div id="staff-detail-position-full" style="font-size: 15px; margin-top: 2px;">—</div>
 </div>
-<div id="staff-detail-phone-block" style="margin-bottom: 12px; display: none;">
-<label style="font-size: 12px; color: var(--hint);">Телефон</label>
-<div id="staff-detail-phone" style="font-size: 15px; margin-top: 4px;">—</div>
+<div id="staff-detail-phone-block" style="margin-bottom: 8px; display: none;">
+<label style="font-size: 12px; color: var(--hint); line-height: 1.2;">Телефон</label>
+<div id="staff-detail-phone" style="font-size: 15px; margin-top: 2px;">—</div>
 </div>
-<div style="margin-bottom: 12px;">
-<label style="font-size: 12px; color: var(--hint);">Email</label>
-<div id="staff-detail-email" style="font-size: 15px; margin-top: 4px;">—</div>
-</div>
-<div style="margin-bottom: 12px;">
-<label style="font-size: 12px; color: var(--hint);">Специализация</label>
-<div id="staff-detail-specialization" style="font-size: 15px; margin-top: 4px;">—</div>
-</div>
-<div style="margin-bottom: 12px;">
-<label style="font-size: 12px; color: var(--hint);">Статус</label>
-<div id="staff-detail-status" style="font-size: 15px; margin-top: 4px;">—</div>
+<div style="margin-bottom: 4px;">
+<label style="font-size: 12px; color: var(--hint); line-height: 1.2;">Специализация</label>
+<div id="staff-detail-specialization" style="font-size: 15px; margin-top: 2px;">—</div>
 </div>
 </div>
 <div class="card">
@@ -4517,11 +4788,7 @@ textarea.form-input {
   </div>
 </div>
 <!-- ====== ПРОСМОТР НОВОСТИ ====== -->
-<div class="page" id="news-detail">
-<div class="news-detail-header">
-<div class="news-detail-back" onclick="goBack()"><</div>
-<h3 class="news-detail-title-header">Новости</h3>
-</div>
+<div class="page" data-title="Новости" id="news-detail">
 <div id="news-detail-photo-container"></div>
 <div class="news-detail-content-wrapper">
 <h3 id="news-detail-title"></h3>
@@ -4550,6 +4817,7 @@ textarea.form-input {
 <div class="nav-btn" onclick="showPage('profile')">👤<br/>Профиль</div>
 </div>
 <div id="group-booking-capsule" class="action-title-popup group-booking-capsule hidden"></div>
+<div id="personal-schedule-refresh-capsule" class="action-title-popup personal-schedule-refresh-capsule hidden" onclick="handlePersonalScheduleRefreshCapsuleClick()"></div>
 <div id="group-booking-overlay" class="group-booking-overlay">
   <div class="group-booking-backdrop" onclick="closeGroupBookingForm()"></div>
   <div class="group-booking-card">
@@ -4958,7 +5226,10 @@ function showPage(id) {
 
   // Личное расписание (для преподавателя)
   if (id === 'personal-schedule') {
+    showPersonalScheduleRefreshCapsule();
     loadPersonalSchedule();
+  } else {
+    hidePersonalScheduleRefreshCapsule();
   }
   
   // Загружаем список персонала для управления
@@ -5015,6 +5286,16 @@ function showPage(id) {
 
   if (id === 'profile-settings') {
     setHeaderTitle('Настройки');
+  }
+  if (id === 'work-settings') {
+    setHeaderTitle('Параметры настройки');
+  }
+  if (id === 'work-settings-prices') {
+    setHeaderTitle('Ценники');
+    loadWorkSettingsPrices();
+  }
+  if (id === 'work-settings-other') {
+    setHeaderTitle('Остальные параметры');
   }
   if (id === 'payment-profiles-admin') {
     setHeaderTitle('Управление оплатой');
@@ -5817,7 +6098,8 @@ function loadInfoTeachers() {
         const safeName = escapeHtml(t.name || '');
         const safeSpecialization = escapeHtml(t.specialization || t.position || '');
         const initials = (t.name || '').split(' ').map(part => part[0]?.toUpperCase()).filter(Boolean).slice(0, 2).join('') || '—';
-        const photo = t.photo ? `<img src="${escapeHtml(t.photo)}" alt="${safeName}">` : `<span>${escapeHtml(initials)}</span>`;
+        const photoUrl = buildMediaUrl(t.photo);
+        const photo = photoUrl ? `<img src="${escapeHtml(photoUrl)}" alt="${safeName}">` : `<span>${escapeHtml(initials)}</span>`;
         return `
           <div class="teacher-card" onclick="openTeacherDetail(${t.id})" style="cursor:pointer;">
             <div class="teacher-photo">${photo}</div>
@@ -7004,6 +7286,38 @@ function hideGroupBookingCapsule() {
   if (!capsule) return;
   capsule.classList.remove('show');
   capsule.classList.add('hidden');
+}
+
+function getPersonalScheduleRefreshCapsuleText() {
+  return personalScheduleRefreshLoading
+    ? '📅 Личное расписание ⏳'
+    : '📅 Личное расписание 🔄';
+}
+
+function showPersonalScheduleRefreshCapsule() {
+  const capsule = document.getElementById('personal-schedule-refresh-capsule');
+  if (!capsule) return;
+  capsule.textContent = getPersonalScheduleRefreshCapsuleText();
+  capsule.classList.remove('hidden');
+  requestAnimationFrame(() => capsule.classList.add('show'));
+}
+
+function hidePersonalScheduleRefreshCapsule() {
+  const capsule = document.getElementById('personal-schedule-refresh-capsule');
+  if (!capsule) return;
+  capsule.classList.remove('show');
+  capsule.classList.add('hidden');
+}
+
+function updatePersonalScheduleRefreshCapsule() {
+  const capsule = document.getElementById('personal-schedule-refresh-capsule');
+  if (!capsule) return;
+  capsule.textContent = getPersonalScheduleRefreshCapsuleText();
+}
+
+function handlePersonalScheduleRefreshCapsuleClick() {
+  if (personalScheduleRefreshLoading) return;
+  refreshPersonalSchedule();
 }
 
 function formatDirectionTypeLabel(directionType) {
@@ -9083,6 +9397,26 @@ function getStaffAvatarColor(name) {
   return colors[hash % colors.length];
 }
 
+function openStaffDetailCard(staffId) {
+  const list = Array.isArray(window.allStaffList) ? window.allStaffList : [];
+  const staff = list.find(item => Number(item.id) === Number(staffId));
+  if (!staff) {
+    showNotification('Сотрудник не найден');
+    return;
+  }
+
+  openStaffDetail(
+    staff.id,
+    staff.name || '—',
+    staff.position || '—',
+    staff.phone || '',
+    staff.email || '',
+    staff.specialization || '',
+    staff.bio || '',
+    staff.status || ''
+  );
+}
+
 function displayStaffList(staffList) {
   // Определяем правильный контейнер в зависимости от текущей страницы
   const currentPage = Array.from(document.querySelectorAll('.page')).find(p => p.classList.contains('active'));
@@ -9097,21 +9431,33 @@ function displayStaffList(staffList) {
     const photoUrl = s.photo ? buildMediaUrl(s.photo) : null;
     const initials = getStaffInitials(s.name);
     const avatarBg = getStaffAvatarColor(s.name);
+    const safeName = escapeHtml(String(s.name || 'Без имени'));
+    const safeRole = escapeHtml(String(s.position || 'Без роли'));
+    const username = s.username ? `@${s.username}` : '—';
+    const phoneText = s.phone ? String(s.phone) : '—';
+    const safeUsername = escapeHtml(username);
+    const safePhone = escapeHtml(phoneText);
+    const teaches = (s.teaches === true || s.teaches === 1 || s.teaches === '1');
+    const teachesClass = teaches ? 'is-true' : 'is-false';
+    const teachesLabel = '👩‍🏫 Учитель';
+    const safePhotoUrl = photoUrl ? escapeHtml(photoUrl) : '';
+    const safeStaffId = Number.isFinite(Number(s.id)) ? Number(s.id) : 0;
     return `
-    <div class="card" onclick="openStaffDetail(${s.id}, '${s.name}', '${s.position}', '${s.phone ? s.phone : ''}', '${s.email}', '${s.specialization || ''}', '${s.bio || ''}', '${s.status}')" style="cursor: pointer;">
+    <div class="client-card staff-client-card" onclick="openStaffDetailCard(${safeStaffId})">
       <div class="staff-card-row">
         <div class="staff-card-avatar" style="background: ${photoUrl ? '#262626' : avatarBg};">
-          ${photoUrl ? `<img src="${photoUrl}" alt=""/>` : `<span>${initials}</span>`}
+          ${photoUrl ? `<img src="${safePhotoUrl}" alt=""/>` : `<span>${escapeHtml(initials)}</span>`}
         </div>
-        <div style="flex: 1;">
-          <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-            <div style="font-weight: 600; font-size: 16px;">${s.name}</div>
-            ${s.teaches ? '<span style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(76, 175, 80, 0.12); color: #c8e6c9;">👩‍🏫</span>' : ''}
+        <div class="staff-card-main">
+          <div class="staff-card-title">
+            <div class="staff-card-name">${safeName}</div>
+            <div class="client-card-status staff-role-chip">${safeRole}</div>
           </div>
-          ${s.username ? `<div style="font-size: 13px; color: var(--accent); margin-top: 2px;">@${s.username}</div>` : ''}
-          <div style="font-size: 14px; color: var(--hint); margin-top: 4px;">📍 ${s.position}</div>
-          ${s.phone ? `<div style="font-size: 13px; color: var(--hint); margin-top: 2px;">📱 ${s.phone}</div>` : ''}
-          <div style="font-size: 12px; color: ${s.status === 'active' ? '#4caf50' : '#ff6b6b'}; margin-top: 6px;">${s.status === 'active' ? '✅ Активен' : '⏸️ Неактивен'}</div>
+          <div class="staff-user-line">${safeUsername}</div>
+          <div class="staff-meta-row">
+            <div class="staff-phone-line">${safePhone}</div>
+            <div class="staff-teaches-chip ${teachesClass}">${teachesLabel}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -9471,10 +9817,8 @@ function openStaffDetail(id, name, position, phone, email, specialization, bio, 
     document.getElementById('staff-detail-phone').innerText = '—';
     phoneBlock.style.display = 'none';
   }
-  document.getElementById('staff-detail-email').innerText = email || '—';
   document.getElementById('staff-detail-specialization').innerText = specialization || '—';
   document.getElementById('staff-detail-bio').innerText = bio || '—';
-  document.getElementById('staff-detail-status').innerText = status === 'active' ? '✅ Активен' : '⏸️ Неактивен';
   
   showPage('staff-detail');
   setHeaderTitle(name);
@@ -9583,7 +9927,10 @@ async function loadStaffSchedule() {
 async function loadPersonalSchedule() {
   const container = document.getElementById('personal-schedule-container');
   if (!container) return;
+  personalScheduleRefreshLoading = true;
+  updatePersonalScheduleRefreshCapsule();
   container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+  initPersonalIndividualBookingPanel();
 
   // Дождёмся загрузки профиля, чтобы знать telegram_id/имя
   if (profileLoadedPromise) {
@@ -9666,7 +10013,46 @@ async function loadPersonalSchedule() {
       return false;
     });
 
-    personalScheduleItems = schedules;
+    // Дедупликация: один и тот же слот может прийти из нескольких источников (/schedule, /schedule/public, /schedule/v2)
+    const scheduleScore = (item) => {
+      let score = 0;
+      if (item && (item.object_type || item.objectType)) score += 3;
+      if (item && (item.time_from || item.start || item.start_time)) score += 2;
+      if (item && (item.time_to || item.end || item.end_time)) score += 2;
+      if (item && (item.teacher_id ?? item.teacher?.id ?? item.teacherId) != null) score += 1;
+      if (item && (item.title || item.direction_title || item.direction)) score += 1;
+      return score;
+    };
+
+    const scheduleMap = new Map();
+    schedules.forEach((item) => {
+      const parsedId = Number(item?.id);
+      const dateKey = String(item?.date || item?.date_from || '').slice(0, 10);
+      const startKey = item?.time_from || item?.start || item?.start_time || '';
+      const endKey = item?.time_to || item?.end || item?.end_time || '';
+      const typeKey = (item?.object_type || '').toString().toLowerCase();
+      const objectIdKey = item?.object_id ?? '';
+      const teacherKey = item?.teacher_id ?? item?.teacher?.id ?? item?.teacherId ?? '';
+      const dedupeKey = (Number.isFinite(parsedId) && parsedId > 0)
+        ? `id:${parsedId}`
+        : `k:${dateKey}|${startKey}|${endKey}|${typeKey}|${objectIdKey}|${teacherKey}`;
+
+      const existing = scheduleMap.get(dedupeKey);
+      if (!existing) {
+        scheduleMap.set(dedupeKey, item);
+        return;
+      }
+
+      const existingScore = scheduleScore(existing);
+      const currentScore = scheduleScore(item);
+      if (currentScore >= existingScore) {
+        scheduleMap.set(dedupeKey, { ...existing, ...item });
+      } else {
+        scheduleMap.set(dedupeKey, { ...item, ...existing });
+      }
+    });
+
+    personalScheduleItems = Array.from(scheduleMap.values());
     if (!personalScheduleDate) {
       const today = new Date();
       personalScheduleDate = formatDateLocal(today);
@@ -9677,9 +10063,14 @@ async function loadPersonalSchedule() {
     }
     initPersonalScheduleStrip();
     renderPersonalScheduleList();
+    personalScheduleRefreshLoading = false;
+    updatePersonalScheduleRefreshCapsule();
 
   } catch (err) {
     container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка загрузки</p>';
+    initPersonalIndividualBookingPanel();
+    personalScheduleRefreshLoading = false;
+    updatePersonalScheduleRefreshCapsule();
   }
 }
 
@@ -9814,9 +10205,18 @@ function renderPersonalScheduleList() {
     ? selectedItems.map((s) => {
         const title = s.title || s.direction_title || 'Занятие';
         const teacherName = s.teacher_name || (s.teacher && s.teacher.name ? s.teacher.name : '');
-        const isIndividual = s.object_type === 'individual';
-        const isRental = s.object_type === 'rental';
-        const directionTitle = isIndividual || isRental ? '' : (s.direction || '');
+        const objectType = (s.object_type || '').toString().toLowerCase();
+        const isIndividual = objectType === 'individual';
+        const isRental = objectType === 'rental';
+        const isGroup = objectType === 'group';
+        const directionTitle = isGroup ? (s.direction || s.direction_title || '') : '';
+        const typeLabel = isRental
+          ? 'Аренда зала'
+          : isIndividual
+            ? 'Индивидуальное занятие'
+            : isGroup
+              ? 'Групповое занятие'
+              : 'Занятие';
         const startTime = formatTimeShort(s.start || s.time_from || s.start_time);
         const endTime = formatTimeShort(s.end || s.time_to || s.end_time);
         const duration = getDurationMinutes(startTime, endTime);
@@ -9831,7 +10231,7 @@ function renderPersonalScheduleList() {
             <div>
               <div class="public-info-title">${title}</div>
               ${directionTitle ? `<div class="public-info-sub">${directionTitle}</div>` : ''}
-              <div class="public-info-sub">${isRental ? 'Аренда зала' : isIndividual ? 'Индивидуальное занятие' : 'Групповое занятие'}</div>
+              <div class="public-info-sub">${typeLabel}</div>
               ${teacherName ? `<div class="public-info-teacher">${teacherName}</div>` : ''}
             </div>
             <div class="public-chevron">›</div>
@@ -9847,6 +10247,7 @@ function renderPersonalScheduleList() {
       <div class="public-schedule-list" style="margin-top:0;">${agendaHtml}</div>
     </div>
   `;
+  initPersonalIndividualBookingPanel();
 }
 
 function initPersonalScheduleStrip() {
@@ -9890,6 +10291,233 @@ function shiftPersonalScheduleMonth(delta) {
 
 function refreshPersonalSchedule() {
   loadPersonalSchedule();
+}
+
+function canCreatePersonalIndividualBooking() {
+  const role = (currentStaffPosition || '').toLowerCase();
+  return role === 'учитель' || role === 'тех. админ';
+}
+
+function updatePersonalIndividualToggleButton() {
+  const btn = document.getElementById('personal-individual-toggle-btn');
+  if (!btn) return;
+  btn.classList.toggle('is-open', personalIndividualBookingExpanded);
+  btn.textContent = personalIndividualBookingExpanded
+    ? '▲ Скрыть заявку на индивидуальное'
+    : '✨ Заявка на индивидуальное';
+}
+
+function togglePersonalIndividualBookingPanel(forceOpen = null) {
+  if (!canCreatePersonalIndividualBooking()) return;
+  if (typeof forceOpen === 'boolean') {
+    personalIndividualBookingExpanded = forceOpen;
+  } else {
+    personalIndividualBookingExpanded = !personalIndividualBookingExpanded;
+  }
+  initPersonalIndividualBookingPanel();
+}
+function setPersonalIndividualBookingMessage(message, isError = false) {
+  const el = document.getElementById('personal-individual-booking-msg');
+  if (!el) return;
+  el.textContent = message || '';
+  el.style.color = message ? (isError ? '#ffb3b3' : 'var(--hint)') : 'var(--hint)';
+}
+
+function renderPersonalIndividualSelectedUser() {
+  const target = document.getElementById('personal-individual-user-selected');
+  if (!target) return;
+  const selected = personalIndividualBookingState.selectedUser;
+  if (!selected) {
+    target.textContent = 'Клиент не выбран';
+    return;
+  }
+  const usernamePart = selected.username ? ` • @${selected.username}` : '';
+  target.textContent = `Выбран: ${selected.name || 'Без имени'} (ID: ${selected.id}${usernamePart})`;
+}
+
+function initPersonalIndividualBookingPanel() {
+  const card = document.getElementById('personal-individual-booking-card');
+  const toggleBtn = document.getElementById('personal-individual-toggle-btn');
+  if (!card) return;
+
+  const canCreate = canCreatePersonalIndividualBooking();
+  if (toggleBtn) {
+    toggleBtn.style.display = canCreate ? 'block' : 'none';
+  }
+  if (!canCreate) {
+    card.style.display = 'none';
+    card.classList.remove('is-open');
+    personalIndividualBookingExpanded = false;
+    return;
+  }
+
+  updatePersonalIndividualToggleButton();
+  card.style.display = 'block';
+  card.classList.toggle('is-open', personalIndividualBookingExpanded);
+
+  const dateLabel = document.getElementById('personal-individual-selected-date');
+  if (dateLabel) {
+    if (personalScheduleDate) {
+      const dateObj = new Date(personalScheduleDate + 'T00:00:00');
+      dateLabel.textContent = dateObj.toLocaleDateString('ru-RU', {
+        day: 'numeric',
+        month: 'long',
+        weekday: 'long',
+      });
+    } else {
+      dateLabel.textContent = '—';
+    }
+  }
+
+  if (!personalIndividualBookingExpanded) {
+    return;
+  }
+
+  const timeFrom = document.getElementById('personal-individual-time-from');
+  const timeTo = document.getElementById('personal-individual-time-to');
+  if (timeFrom && !timeFrom.value) timeFrom.value = '10:00';
+  if (timeTo && !timeTo.value) timeTo.value = '11:00';
+
+  renderPersonalIndividualSelectedUser();
+}
+function renderPersonalIndividualUserResults(users) {
+  const results = document.getElementById('personal-individual-user-results');
+  if (!results) return;
+  if (!Array.isArray(users) || !users.length) {
+    results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Пользователи не найдены</p>';
+    return;
+  }
+
+  const selectedId = Number(personalIndividualBookingState.selectedUser?.id || 0);
+  results.innerHTML = users.map((u) => {
+    const isSelected = selectedId > 0 && Number(u.id) === selectedId;
+    const safeName = escapeHtml(u.name || 'Без имени');
+    const username = u.username ? ` • @${escapeHtml(u.username)}` : '';
+    const phone = u.phone ? `<div style="font-size: 12px; color: var(--hint);">📱 ${escapeHtml(u.phone)}</div>` : '';
+    return `
+      <div class="card personal-individual-user-card ${isSelected ? 'is-selected' : ''}" onclick="selectPersonalIndividualUser(${Number(u.id)})">
+        <div style="font-weight: 600; font-size: 14px;">${safeName}${isSelected ? ' ✓' : ''}</div>
+        <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">ID: ${Number(u.id)}${username}</div>
+        ${phone}
+      </div>
+    `;
+  }).join('');
+}
+
+function selectPersonalIndividualUser(userId) {
+  const parsedId = Number(userId);
+  if (!Number.isFinite(parsedId) || parsedId <= 0) return;
+  const user = (personalIndividualBookingState.searchResults || []).find((item) => Number(item.id) === parsedId);
+  if (!user) return;
+  personalIndividualBookingState.selectedUser = user;
+  renderPersonalIndividualSelectedUser();
+  renderPersonalIndividualUserResults(personalIndividualBookingState.searchResults || []);
+}
+
+async function searchPersonalIndividualUsers() {
+  const input = document.getElementById('personal-individual-user-search');
+  const results = document.getElementById('personal-individual-user-results');
+  if (!input || !results) return;
+
+  const raw = (input.value || '').trim().toLowerCase();
+  const byUsername = raw.startsWith('@');
+  const clean = raw.replace(/^@/, '');
+
+  try {
+    results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Поиск...</p>';
+    const params = new URLSearchParams();
+    if (clean) {
+      params.append('q', clean);
+      if (byUsername) params.append('by_username', 'true');
+    }
+
+    const response = await fetch(`/staff/search?${params.toString()}`, { headers: getAuthHeaders() });
+    if (!response.ok) {
+      throw new Error('Не удалось загрузить пользователей');
+    }
+
+    const users = await response.json();
+    personalIndividualBookingState.searchResults = Array.isArray(users) ? users.slice(0, 80) : [];
+    renderPersonalIndividualUserResults(personalIndividualBookingState.searchResults);
+  } catch (error) {
+    console.error('Ошибка при поиске клиентов для индивидуального занятия:', error);
+    results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">❌ Ошибка сети</p>';
+  }
+}
+
+async function submitPersonalIndividualBooking() {
+  if (!canCreatePersonalIndividualBooking()) {
+    showNotification('⚠️ Нет прав на создание заявки');
+    return;
+  }
+
+  const selectedUser = personalIndividualBookingState.selectedUser;
+  if (!selectedUser || !selectedUser.id) {
+    setPersonalIndividualBookingMessage('Выберите клиента из списка', true);
+    return;
+  }
+
+  if (!personalScheduleDate) {
+    setPersonalIndividualBookingMessage('Сначала выберите день в календаре', true);
+    return;
+  }
+
+  const timeFrom = document.getElementById('personal-individual-time-from')?.value || '';
+  const timeTo = document.getElementById('personal-individual-time-to')?.value || '';
+  const comment = (document.getElementById('personal-individual-comment')?.value || '').trim();
+  if (!timeFrom || !timeTo) {
+    setPersonalIndividualBookingMessage('Укажите время начала и окончания', true);
+    return;
+  }
+  if (timeToMinutes(timeFrom) >= timeToMinutes(timeTo)) {
+    setPersonalIndividualBookingMessage('Время "до" должно быть позже времени "от"', true);
+    return;
+  }
+
+  const submitBtn = document.getElementById('personal-individual-submit');
+  if (!submitBtn || personalIndividualBookingState.submitting) return;
+
+  personalIndividualBookingState.submitting = true;
+  submitBtn.disabled = true;
+  const originalText = submitBtn.textContent;
+  submitBtn.textContent = 'Отправка...';
+  setPersonalIndividualBookingMessage('');
+
+  try {
+    const payload = {
+      student_user_id: Number(selectedUser.id),
+      date: personalScheduleDate,
+      time_from: timeFrom,
+      time_to: timeTo,
+      comment: comment || null,
+    };
+
+    const response = await fetch('/api/booking-requests/teacher-individual', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось отправить заявку');
+    }
+
+    const overlapsCount = Array.isArray(data.overlaps) ? data.overlaps.length : 0;
+    if (overlapsCount > 0) {
+      setPersonalIndividualBookingMessage(`Заявка отправлена. Найдено пересечений: ${overlapsCount}. Админы проверят вручную.`, false);
+    } else {
+      setPersonalIndividualBookingMessage('Заявка отправлена админам на подтверждение.', false);
+    }
+    showNotification('Заявка на индивидуальное отправлена');
+    loadPersonalSchedule();
+  } catch (error) {
+    console.error('Ошибка при создании заявки на индивидуальное занятие:', error);
+    setPersonalIndividualBookingMessage(error.message || 'Ошибка сети', true);
+  } finally {
+    personalIndividualBookingState.submitting = false;
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
+  }
 }
 
 function openPersonalAttendance(scheduleId) {
@@ -10602,7 +11230,10 @@ function updateStaffNavigation() {
   const mailingsBtn = document.getElementById('mailings-btn-work');
   const newsManageBtn = document.getElementById('news-manage-btn-work');
   const statsBtn = document.getElementById('stats-btn');
-  const paymentProfilesBtn = document.getElementById('payment-profiles-btn-work');
+  const workSettingsBtn = document.getElementById('work-settings-btn-work');
+  const workSettingsPaymentItem = document.getElementById('work-settings-payment-item');
+  const workSettingsPricesItem = document.getElementById('work-settings-prices-item');
+  const workSettingsOtherItem = document.getElementById('work-settings-other-item');
 
   const peopleSection = document.getElementById('work-section-people');
   const structureSection = document.getElementById('work-section-structure');
@@ -10655,7 +11286,17 @@ function updateStaffNavigation() {
     setBtnVisible(mailingsBtn, hasPerm('manage_mailings'));
     setBtnVisible(newsManageBtn, hasPerm('create_news'));
     setBtnVisible(statsBtn, hasPerm('view_stats'));
-    setBtnVisible(paymentProfilesBtn, hasPerm('manage_schedule'));
+    setBtnVisible(workSettingsBtn, hasPerm('manage_schedule') || hasPerm('create_direction'));
+
+    if (workSettingsPaymentItem) {
+      workSettingsPaymentItem.style.display = hasPerm('manage_schedule') ? 'block' : 'none';
+    }
+    if (workSettingsPricesItem) {
+      workSettingsPricesItem.style.display = hasPerm('create_direction') ? 'block' : 'none';
+    }
+    if (workSettingsOtherItem) {
+      workSettingsOtherItem.style.display = 'block';
+    }
 
     updateSectionVisibility(peopleSection);
     updateSectionVisibility(structureSection);
@@ -10671,7 +11312,17 @@ function updateStaffNavigation() {
     setBtnVisible(mailingsBtn, false);
     setBtnVisible(newsManageBtn, false);
     setBtnVisible(statsBtn, false);
-    setBtnVisible(paymentProfilesBtn, false);
+    setBtnVisible(workSettingsBtn, false);
+
+    if (workSettingsPaymentItem) {
+      workSettingsPaymentItem.style.display = 'none';
+    }
+    if (workSettingsPricesItem) {
+      workSettingsPricesItem.style.display = 'none';
+    }
+    if (workSettingsOtherItem) {
+      workSettingsOtherItem.style.display = 'none';
+    }
 
     updateSectionVisibility(peopleSection);
     updateSectionVisibility(structureSection);
@@ -10692,6 +11343,13 @@ let profileLoadedPromise = null;
 let personalScheduleDate = null;
 let personalScheduleMonthDate = null;
 let personalScheduleItems = [];
+let personalScheduleRefreshLoading = false;
+let personalIndividualBookingExpanded = false;
+let personalIndividualBookingState = {
+  selectedUser: null,
+  searchResults: [],
+  submitting: false,
+};
 
 if (user) {
   document.getElementById('profile-name').innerText = user.first_name || '—';
@@ -11107,6 +11765,102 @@ function updatePaymentActiveTabs(activeSlot) {
   const activeTab = activeSlot === 2 ? secondTab : firstTab;
   indicator.style.width = `${activeTab.offsetWidth}px`;
   indicator.style.transform = `translateX(${activeTab.offsetLeft}px)`;
+}
+
+function setWorkSettingsPriceStatus(directionId, message, isError = false) {
+  const statusEl = document.getElementById(`work-price-status-${directionId}`);
+  if (!statusEl) return;
+  statusEl.textContent = message || '';
+  statusEl.style.color = isError ? '#ffb3b3' : 'var(--hint)';
+}
+
+async function loadWorkSettingsPrices() {
+  const container = document.getElementById('work-settings-prices-container');
+  if (!container) return;
+
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+  try {
+    const response = await fetch('/api/directions/manage', { headers: getAuthHeaders() });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error((data && data.error) ? data.error : 'Не удалось загрузить ценники');
+    }
+
+    const directions = Array.isArray(data) ? data : [];
+    if (directions.length === 0) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Ценники пока не настроены</p>';
+      return;
+    }
+
+    container.innerHTML = directions.map((direction) => {
+      const directionId = Number(direction.direction_id);
+      const safeDirectionId = Number.isFinite(directionId) ? directionId : 0;
+      const safeTitle = escapeHtml(String(direction.title || `Направление ${safeDirectionId || '—'}`));
+      const typeRaw = String(direction.direction_type || '').toLowerCase();
+      const typeLabel = typeRaw === 'sport' ? 'Спорт' : 'Танцы';
+      const basePriceValue = direction.base_price === null || direction.base_price === undefined ? '' : String(direction.base_price);
+      const safeBasePriceValue = escapeHtml(basePriceValue);
+      const currentPriceLabel = basePriceValue !== '' ? `${escapeHtml(basePriceValue)} ₽` : '—';
+
+      return `
+        <div class="card" style="margin-bottom: 10px;">
+          <div style="display:flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
+            <div style="font-weight: 700; font-size: 15px;">${safeTitle}</div>
+            <div class="small" style="white-space: nowrap;">${typeLabel}</div>
+          </div>
+          <div class="small" style="margin-bottom: 8px; color: var(--hint);">Текущая цена: ${currentPriceLabel}</div>
+          <div class="work-price-row">
+            <div class="work-price-input-wrap">
+              <input class="form-input" id="work-price-input-${safeDirectionId}" type="number" min="0" step="1" placeholder="Например: 5000" value="${safeBasePriceValue}"/>
+            </div>
+            <button class="save-btn" type="button" style="margin:0;" onclick="saveWorkSettingsPrice(${safeDirectionId})">Сохранить цену</button>
+          </div>
+          <div class="work-price-status" id="work-price-status-${safeDirectionId}">—</div>
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ ${escapeHtml(String(error.message || 'Ошибка загрузки'))}</p>`;
+  }
+}
+
+async function saveWorkSettingsPrice(directionId) {
+  const inputEl = document.getElementById(`work-price-input-${directionId}`);
+  if (!inputEl) return;
+
+  const rawValue = String(inputEl.value || '').trim().replace(',', '.');
+  if (!rawValue) {
+    setWorkSettingsPriceStatus(directionId, 'Введите цену', true);
+    return;
+  }
+
+  const parsed = Number(rawValue);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    setWorkSettingsPriceStatus(directionId, 'Цена должна быть числом 0 или больше', true);
+    return;
+  }
+
+  const normalizedPrice = Math.round(parsed);
+  setWorkSettingsPriceStatus(directionId, 'Сохранение...');
+  try {
+    const response = await fetch(`/api/directions/${directionId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ base_price: normalizedPrice }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error((data && data.error) ? data.error : 'Не удалось сохранить цену');
+    }
+
+    inputEl.value = String(normalizedPrice);
+    setWorkSettingsPriceStatus(directionId, `Сохранено: ${normalizedPrice} ₽`);
+    showNotification('✅ Цена обновлена');
+    loadWorkSettingsPrices();
+  } catch (error) {
+    setWorkSettingsPriceStatus(directionId, String(error.message || 'Ошибка сохранения'), true);
+    showNotification('❌ ' + (error.message || 'Не удалось сохранить цену'));
+  }
 }
 
 function formatPaymentStatus(status) {
