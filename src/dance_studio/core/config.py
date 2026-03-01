@@ -28,6 +28,12 @@ from dance_studio.core.settings import (
     SESSION_REAUTH_IDLE_SECONDS,
 )
 
+# --- BRANDING ---
+PROJECT_NAME_FULL = "Sheba Sport × Lissa Dance"
+PROJECT_NAME_SHORT = "Sheba x Lissa"
+PROJECT_NAME_MENU = "Open"
+PROJECT_NAME_TAG = "sheba-lissa-studio"
+
 __all__ = [
     'APP_SECRET_KEY',
     'BETA_TEST_MODE',
@@ -56,4 +62,9 @@ __all__ = [
     'WEB_APP_URL',
     'TG_INIT_DATA_MAX_AGE_SECONDS',
     'SESSION_REAUTH_IDLE_SECONDS',
+    # Branding
+    'PROJECT_NAME_FULL',
+    'PROJECT_NAME_SHORT',
+    'PROJECT_NAME_MENU',
+    'PROJECT_NAME_TAG',
 ]

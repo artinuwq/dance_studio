@@ -19,7 +19,7 @@ def get_active_payment_profile():
     db = g.db
     profile = _get_active_payment_profile_payload(db)
     if not profile:
-        return {"error": "РђРєС‚РёРІРЅС‹Рµ СЂРµРєРІРёР·РёС‚С‹ РѕРїР»Р°С‚С‹ РЅРµ РЅР°СЃС‚СЂРѕРµРЅС‹"}, 404
+        return {"error": "Активные реквизиты оплаты не настроены"}, 404
     return jsonify(profile)
 
 
@@ -44,7 +44,7 @@ def admin_update_payment_profile(slot):
         return perm_error
 
     if slot not in PAYMENT_PROFILE_SLOTS:
-        return {"error": "slot РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ 1 РёР»Рё 2"}, 400
+        return {"error": "slot должен быть 1 или 2"}, 400
 
     db = g.db
     data = request.json or {}
@@ -53,25 +53,25 @@ def admin_update_payment_profile(slot):
     recipient_full_name = str(data.get("recipient_full_name") or "").strip()
 
     if not recipient_bank:
-        return {"error": "recipient_bank РѕР±СЏР·Р°С‚РµР»РµРЅ"}, 400
+        return {"error": "recipient_bank обязателен"}, 400
     if not recipient_number:
-        return {"error": "recipient_number РѕР±СЏР·Р°С‚РµР»РµРЅ"}, 400
+        return {"error": "recipient_number обязателен"}, 400
     if not recipient_full_name:
-        return {"error": "recipient_full_name РѕР±СЏР·Р°С‚РµР»РµРЅ"}, 400
+        return {"error": "recipient_full_name обязателен"}, 400
     if len(recipient_bank) > 160:
-        return {"error": "recipient_bank СЃР»РёС€РєРѕРј РґР»РёРЅРЅС‹Р№ (РјР°РєСЃРёРјСѓРј 160 СЃРёРјРІРѕР»РѕРІ)"}, 400
+        return {"error": "recipient_bank слишком длинный (максимум 160 символов)"}, 400
     if len(recipient_number) > 64:
-        return {"error": "recipient_number СЃР»РёС€РєРѕРј РґР»РёРЅРЅС‹Р№ (РјР°РєСЃРёРјСѓРј 64 СЃРёРјРІРѕР»Р°)"}, 400
+        return {"error": "recipient_number слишком длинный (максимум 64 символа)"}, 400
     if len(recipient_full_name) > 160:
-        return {"error": "recipient_full_name СЃР»РёС€РєРѕРј РґР»РёРЅРЅС‹Р№ (РјР°РєСЃРёРјСѓРј 160 СЃРёРјРІРѕР»РѕРІ)"}, 400
+        return {"error": "recipient_full_name слишком длинный (максимум 160 символов)"}, 400
 
     profiles = _ensure_payment_profiles(db)
     profile = profiles[slot]
-    profile.title = "РџСЂРѕС„РёР»СЊ 1" if slot == 1 else "РџСЂРѕС„РёР»СЊ 2"
+    profile.title = "Профиль 1" if slot == 1 else "Профиль 2"
     profile.details = (
-        f"Р‘Р°РЅРє РїРѕР»СѓС‡Р°С‚РµР»СЏ: {recipient_bank}\n"
-        f"РќРѕРјРµСЂ: {recipient_number}\n"
-        f"Р¤РРћ РїРѕР»СѓС‡Р°С‚РµР»СЏ: {recipient_full_name}"
+        f"Банк получателя: {recipient_bank}\n"
+        f"Номер: {recipient_number}\n"
+        f"ФИО получателя: {recipient_full_name}"
     )
     profile.recipient_bank = recipient_bank
     profile.recipient_number = recipient_number
@@ -90,10 +90,10 @@ def admin_switch_active_payment_profile():
     try:
         active_slot = int(data.get("active_slot"))
     except (TypeError, ValueError):
-        return {"error": "active_slot РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‡РёСЃР»РѕРј 1 РёР»Рё 2"}, 400
+        return {"error": "active_slot должен быть числом 1 или 2"}, 400
 
     if active_slot not in PAYMENT_PROFILE_SLOTS:
-        return {"error": "active_slot РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ 1 РёР»Рё 2"}, 400
+        return {"error": "active_slot должен быть 1 или 2"}, 400
 
     db = g.db
     profiles = _ensure_payment_profiles(db)
@@ -108,11 +108,11 @@ def pay_transaction(payment_id):
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     payment = db.query(PaymentTransaction).filter_by(id=payment_id, user_id=user.id).first()
     if not payment:
-        return {"error": "РўСЂР°РЅР·Р°РєС†РёСЏ РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+        return {"error": "Транзакция не найдена"}, 404
 
     if payment.status == "paid":
         return {"status": "already_paid"}
@@ -145,7 +145,7 @@ def get_my_transactions():
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     items = db.query(PaymentTransaction).filter_by(user_id=user.id).order_by(PaymentTransaction.created_at.desc()).all()
     result = []
@@ -162,6 +162,3 @@ def get_my_transactions():
         })
 
     return jsonify(result)
-
-
-

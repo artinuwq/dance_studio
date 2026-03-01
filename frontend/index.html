@@ -95,6 +95,10 @@ body.tg-mobile .header-back {
   display: block;
 }
 
+#personal-schedule {
+  padding-top: calc(56px + var(--safe-top));
+}
+
 /* Минимальная высота для страниц */
 #staff {
   min-height: calc(100vh - 100px);
@@ -286,6 +290,29 @@ body.tg-mobile .header-back {
   pointer-events: none;
   overflow: hidden;
   flex: 0;
+}
+
+/* Remove mobile blue tap highlight globally */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.public-calendar-nav button:focus,
+.public-calendar-nav button:focus-visible,
+.public-week-nav button:focus,
+.public-week-nav button:focus-visible,
+.schedule-toolbar .button:focus,
+.schedule-toolbar .button:focus-visible,
+.schedule-filter-toggle:focus,
+.schedule-filter-toggle:focus-visible,
+.schedule-nav .nav-btn-mini:focus,
+.schedule-nav .nav-btn-mini:focus-visible,
+#personal-schedule-refresh-capsule:focus,
+#personal-schedule-refresh-capsule:focus-visible,
+#personal-individual-toggle-btn:focus,
+#personal-individual-toggle-btn:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 /* ====== ВКЛАДКИ С АНИМАЦИЕЙ ====== */
@@ -1942,6 +1969,25 @@ textarea.form-input {
   color: var(--accent);
 }
 
+.attendance-btn:disabled,
+.attendance-btn.active:disabled {
+  background: #343434;
+  border-color: #4a4a4a;
+  color: #8e8e8e;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+#attendance-screen .save-btn[disabled],
+#schedule-attendance-card .save-btn[disabled] {
+  background: #3a3a3a !important;
+  color: #8e8e8e !important;
+  border: 1px solid #4a4a4a !important;
+  cursor: not-allowed;
+  opacity: 1;
+  transform: none;
+}
+
 .attendance-badge {
   font-size: 11px;
   color: var(--hint);
@@ -1955,6 +2001,73 @@ textarea.form-input {
 }
 
 .attendance-screen.active {
+  display: block;
+}
+
+.attendance-screen-title {
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.attendance-screen-meta {
+  margin-top: 0;
+}
+
+.attendance-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.attendance-meta-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: var(--bg);
+  min-height: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.attendance-meta-label {
+  font-size: 11px;
+  color: var(--hint);
+}
+
+.attendance-meta-value {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.attendance-actions-row {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 8px 0;
+}
+
+.attendance-section-title {
+  margin: 2px 0 8px 2px;
+  font-size: 12px;
+  color: var(--hint);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.attendance-lock-banner {
+  display: none;
+  margin: 0 0 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #5a4c20;
+  background: rgba(197, 151, 44, 0.14);
+  color: #e7c06a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.attendance-lock-banner.show {
   display: block;
 }
 
@@ -2024,6 +2137,12 @@ textarea.form-input {
   padding: 10px 0 4px 0;
   display: flex;
   gap: 8px;
+}
+
+@media (max-width: 420px) {
+  .attendance-meta-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .photo-picker {
@@ -2563,6 +2682,11 @@ textarea.form-input {
   border: 1px solid var(--border);
 }
 
+.personal-individual-occupancy-panel {
+  margin-bottom: 10px;
+  padding-top: 2px;
+}
+
 .personal-individual-user-card {
   margin-bottom: 8px;
   cursor: pointer;
@@ -2576,15 +2700,6 @@ textarea.form-input {
 .personal-individual-user-card.is-selected {
   border-left: 4px solid var(--accent);
   background: var(--accent-soft);
-}
-
-.personal-individual-user-chip {
-  margin: 0 0 10px 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--card);
-  font-size: 12px;
 }
 
 .personal-individual-booking-msg {
@@ -2902,6 +3017,55 @@ textarea.form-input {
   pointer-events: auto;
   cursor: pointer;
   user-select: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: var(--text);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  max-width: min(calc(100vw - 24px), 520px);
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.personal-schedule-refresh-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+}
+
+.personal-schedule-refresh-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.personal-schedule-refresh-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.personal-schedule-refresh-state {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.personal-schedule-refresh-capsule:active .personal-schedule-refresh-row {
+  transform: translateY(1px);
+  opacity: 0.92;
 }
 
 .personal-schedule-refresh-capsule.hidden {
@@ -3371,14 +3535,14 @@ textarea.form-input {
 <header id="header">
 <button aria-label="Назад" class="header-back" id="header-back" onclick="goBack()"><</button>
 <div class="header-center">
-<div class="header-center-title" id="header-title">LISSA DANCE</div>
+<div class="header-center-title" id="header-title">Sheba x Lissa</div>
 </div>
 <div class="header-spacer" aria-hidden="true"></div>
 </header>
 <!-- ====== ГЛАВНАЯ ====== -->
 <div class="page active" id="home">
 <div class="home-logo-wrap home-logo-standalone">
-<img alt="LISSA DANCE logo" class="home-logo" onerror="this.parentElement.style.display='none'" src="/assets/logo.png"/>
+<img alt="Sheba x Lissa logo" class="home-logo" onerror="this.parentElement.style.display='none'" src="/assets/logo.png"/>
 </div>
 <div class="card home-welcome-card">
 <h3>Добро пожаловать!</h3>
@@ -3564,18 +3728,18 @@ textarea.form-input {
 <div id="personal-schedule-container">
   <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
 </div>
-<button class="save-btn" id="personal-individual-toggle-btn" onclick="togglePersonalIndividualBookingPanel()" style="margin-top: 10px; display: none;">Заявка на индивидуальное</button>
+<button class="save-btn" id="personal-individual-toggle-btn" onclick="togglePersonalIndividualBookingPanel()" style="margin-top: 10px; display: none;">Индивидуальное занятие</button>
 <div class="card personal-individual-form" id="personal-individual-booking-card" style="display: none;">
-  <h4 style="margin: 0 0 8px 0;">Заявка на индивидуальное занятие</h4>
+  <h4 style="margin: 0 0 8px 0;">Индивидуальное занятие</h4>
   <p class="small" style="margin: 0 0 10px 0; color: var(--hint);">Дата: <b id="personal-individual-selected-date">—</b></p>
   <div style="display: flex; gap: 8px; margin-bottom: 10px;">
     <div style="flex: 1;">
       <label class="label">Время от</label>
-      <input class="form-input" id="personal-individual-time-from" type="time" step="1800"/>
+      <input class="form-input" id="personal-individual-time-from" type="time" step="1800" min="09:00" max="22:00"/>
     </div>
     <div style="flex: 1;">
       <label class="label">Время до</label>
-      <input class="form-input" id="personal-individual-time-to" type="time" step="1800"/>
+      <input class="form-input" id="personal-individual-time-to" type="time" step="1800" min="09:00" max="22:00"/>
     </div>
   </div>
   <div class="form-group">
@@ -3585,7 +3749,15 @@ textarea.form-input {
   <div class="personal-individual-user-results" id="personal-individual-user-results">
     <p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска клиента...</p>
   </div>
-  <div class="personal-individual-user-chip" id="personal-individual-user-selected">Клиент не выбран</div>
+  <div class="rental-occupancy-panel personal-individual-occupancy-panel">
+    <div class="rental-occupancy-header">
+      <span>Занятость на день</span>
+      <span id="personal-individual-occupancy-date">—</span>
+    </div>
+    <div class="rental-occupancy-list" id="personal-individual-occupancy-list">
+      <div class="small" id="personal-individual-occupancy-placeholder">Выберите день, чтобы увидеть занятость</div>
+    </div>
+  </div>
   <div class="form-group" style="margin-bottom: 0;">
     <label>Комментарий для админов (опционально)</label>
     <textarea class="form-input" id="personal-individual-comment" rows="2" placeholder="Например: акцент на растяжку"></textarea>
@@ -3880,17 +4052,33 @@ textarea.form-input {
 
 <!-- ====== ПОЛНОЭКРАННАЯ ПОСЕЩАЕМОСТЬ ====== -->
 <div class="page attendance-screen" id="attendance-screen" data-title="Посещаемость">
-  <div class="attendance-screen-header">
-    <button class="save-btn" style="padding: 6px 10px; background:#444;" onclick="goBack()">Назад</button>
-    <div style="flex:1;">
-      <div id="attendance-screen-title" style="font-weight:700;">Занятие</div>
-      <div id="attendance-screen-subtitle" class="small" style="color:var(--hint);"></div>
+  <div class="attendance-screen-meta schedule-detail-card">
+    <div id="attendance-screen-title" class="attendance-screen-title">Занятие</div>
+    <div class="attendance-meta-grid">
+      <div class="attendance-meta-item">
+        <div class="attendance-meta-label">Дата</div>
+        <div class="attendance-meta-value" id="attendance-screen-meta-date">—</div>
+      </div>
+      <div class="attendance-meta-item">
+        <div class="attendance-meta-label">Время</div>
+        <div class="attendance-meta-value" id="attendance-screen-meta-time">—</div>
+      </div>
+      <div class="attendance-meta-item">
+        <div class="attendance-meta-label">Длительность</div>
+        <div class="attendance-meta-value" id="attendance-screen-meta-duration">—</div>
+      </div>
+      <div class="attendance-meta-item">
+        <div class="attendance-meta-label">Тип</div>
+        <div class="attendance-meta-value" id="attendance-screen-meta-type">—</div>
+      </div>
     </div>
   </div>
-  <div class="attendance-actions-row" style="display:flex; gap:8px; margin:10px 0 6px 0;">
+  <div class="attendance-actions-row">
     <button class="save-btn" style="flex:1; background:#444;" onclick="markAllPresent()">Все присутствуют</button>
     <button class="save-btn" style="flex:1; background:#2e2e2e;" onclick="promptAddAttendanceUser()">Добавить</button>
   </div>
+  <div class="attendance-lock-banner" id="attendance-lock-banner"></div>
+  <div class="attendance-section-title">Участники</div>
   <div id="attendance-screen-list" class="attendance-list"></div>
   <div class="attendance-footer" style="margin-top:10px;">
     <button class="save-btn" style="flex:1; background:var(--accent);" onclick="saveAttendance()">Сохранить</button>
@@ -5101,10 +5289,10 @@ if (hasTelegramBackButton && typeof tg.BackButton.onClick === 'function') {
   });
 }
 const pageTitleCache = {
-  home: 'LISSA DANCE',
-  schedule: 'LISSA DANCE',
+  home: 'Sheba x Lissa',
+  schedule: 'Sheba x Lissa',
   staff: 'Работа',
-  profile: 'LISSA DANCE'
+  profile: 'Sheba x Lissa'
 };
 
 function setHeaderTitle(title) {
@@ -5206,7 +5394,7 @@ function showPage(id) {
   if (id === 'attendance-screen') {
     const list = document.getElementById('attendance-screen-list');
     if (list) list.innerHTML = '<div class="small">Загрузка...</div>';
-    const schedId = currentScheduleItem?.id || attendanceState.scheduleId;
+    const schedId = attendanceScreenItem?.id || currentScheduleItem?.id || attendanceState.scheduleId;
     if (schedId) {
       loadAttendance(schedId);
     } else if (list) {
@@ -5987,22 +6175,24 @@ function renderHallOccupancy(_date, bookings) {
       const endMin = timeStringToMinutes(book.time_to || '00:00');
       const relativeStart = Math.max(0, startMin - RENTAL_TIMELINE_START_HOUR * 60);
       const relativeEnd = Math.min(RENTAL_TIMELINE_TOTAL_MINUTES, endMin - RENTAL_TIMELINE_START_HOUR * 60);
+      const masked = Boolean(book.is_masked) || !book.object_type;
+      const statusLabel = masked ? 'Занято' : formatScheduleStatusLabel(book.status);
       if (timeline && relativeEnd > relativeStart) {
         const slot = document.createElement('div');
         slot.className = 'rental-occupancy-slot';
         slot.style.left = `${(relativeStart / RENTAL_TIMELINE_TOTAL_MINUTES) * 100}%`;
         slot.style.width = `${((relativeEnd - relativeStart) / RENTAL_TIMELINE_TOTAL_MINUTES) * 100}%`;
-        slot.title = `${book.time_from || '—'} — ${book.time_to || '—'} · ${formatScheduleStatusLabel(book.status)}`;
+        slot.title = `${book.time_from || '—'} — ${book.time_to || '—'} · ${statusLabel}`;
         timeline.appendChild(slot);
       }
       if (list) {
         const item = document.createElement('div');
         item.className = 'rental-occupancy-item';
         const timeText = `${book.time_from || '—'} — ${book.time_to || '—'}`;
-        const icon = HALL_EVENT_ICONS[book.object_type] || '?';
+        const icon = masked ? '🔒' : (HALL_EVENT_ICONS[book.object_type] || '?');
         item.innerHTML = `
           <span>${icon} ${timeText}</span>
-          <span class="rental-occupancy-status">${formatScheduleStatusLabel(book.status)}</span>
+          <span class="rental-occupancy-status">${statusLabel}</span>
         `;
         list.appendChild(item);
       }
@@ -7288,16 +7478,26 @@ function hideGroupBookingCapsule() {
   capsule.classList.add('hidden');
 }
 
-function getPersonalScheduleRefreshCapsuleText() {
-  return personalScheduleRefreshLoading
-    ? '📅 Личное расписание ⏳'
-    : '📅 Личное расписание 🔄';
+function renderPersonalScheduleRefreshCapsule(capsule) {
+  if (!capsule) return;
+  const stateIcon = personalScheduleRefreshLoading ? '⏳' : '🔄';
+  capsule.innerHTML = `
+    <span class="personal-schedule-refresh-row">
+      <span class="personal-schedule-refresh-avatar" aria-hidden="true">📅</span>
+      <span class="personal-schedule-refresh-name">Личное расписание</span>
+      <span class="personal-schedule-refresh-state" aria-hidden="true">${stateIcon}</span>
+    </span>
+  `;
+  capsule.setAttribute(
+    'aria-label',
+    personalScheduleRefreshLoading ? 'Личное расписание обновляется' : 'Личное расписание, обновить'
+  );
 }
 
 function showPersonalScheduleRefreshCapsule() {
   const capsule = document.getElementById('personal-schedule-refresh-capsule');
   if (!capsule) return;
-  capsule.textContent = getPersonalScheduleRefreshCapsuleText();
+  renderPersonalScheduleRefreshCapsule(capsule);
   capsule.classList.remove('hidden');
   requestAnimationFrame(() => capsule.classList.add('show'));
 }
@@ -7312,7 +7512,7 @@ function hidePersonalScheduleRefreshCapsule() {
 function updatePersonalScheduleRefreshCapsule() {
   const capsule = document.getElementById('personal-schedule-refresh-capsule');
   if (!capsule) return;
-  capsule.textContent = getPersonalScheduleRefreshCapsuleText();
+  renderPersonalScheduleRefreshCapsule(capsule);
 }
 
 function handlePersonalScheduleRefreshCapsuleClick() {
@@ -7913,6 +8113,8 @@ const SCHEDULE_TYPE_TITLES = {
 const SCHEDULE_STATUS_LABELS = {
   scheduled: 'Запланировано',
   pending: 'Ожидается подтверждение',
+  BUSY: 'Занято',
+  busy: 'Занято',
   NEW: 'Новая заявка',
   APPROVED: 'Подтверждено, но не оплачено',
   PENDING: 'На рассмотрении',
@@ -8587,6 +8789,45 @@ const ATT_PLAN_LABELS = {
   will_come: 'Придет',
   will_miss: 'Не придет'
 };
+const ATTENDANCE_TYPE_LABELS = {
+  group: 'Групповое занятие',
+  individual: 'Индивидуальное занятие',
+  rental: 'Аренда зала'
+};
+
+function setAttendanceMetaValue(elementId, value) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  el.textContent = value || '—';
+}
+
+function formatAttendanceDateLabel(value) {
+  if (!value) return '—';
+  const normalized = String(value).slice(0, 10);
+  const d = new Date(`${normalized}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return normalized;
+  return d.toLocaleDateString('ru-RU', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+function fillAttendanceMeta(item) {
+  const title = document.getElementById('attendance-screen-title');
+  if (title) title.textContent = item?.title || 'Занятие';
+
+  const startTime = formatTimeShort(item?.time_from || item?.start || item?.start_time);
+  const endTime = formatTimeShort(item?.time_to || item?.end || item?.end_time);
+  const duration = getDurationMinutes(startTime, endTime);
+  const objectType = String(item?.object_type || '').toLowerCase();
+  const typeLabel = ATTENDANCE_TYPE_LABELS[objectType] || 'Занятие';
+
+  setAttendanceMetaValue('attendance-screen-meta-date', formatAttendanceDateLabel(item?.date));
+  setAttendanceMetaValue('attendance-screen-meta-time', `${startTime || '—'} — ${endTime || '—'}`);
+  setAttendanceMetaValue('attendance-screen-meta-duration', duration ? `${duration} мин` : '—');
+  setAttendanceMetaValue('attendance-screen-meta-type', typeLabel);
+}
 
 function renderAttendance() {
   const containers = [
@@ -8662,6 +8903,17 @@ function renderAttendance() {
   ].filter(Boolean);
   addBtns.forEach(btn => btn.disabled = !attendanceState.canEdit);
 
+  const lockBanner = document.getElementById('attendance-lock-banner');
+  if (lockBanner) {
+    if (attendanceState.canEdit) {
+      lockBanner.classList.remove('show');
+      lockBanner.textContent = '';
+    } else {
+      lockBanner.textContent = attendanceState.attendancePhaseMessage || '🔒 Отметка посещаемости сейчас недоступна';
+      lockBanner.classList.add('show');
+    }
+  }
+
   const phaseParts = [];
   if (attendanceState.plannedSummary) {
     const come = attendanceState.plannedSummary.will_come || 0;
@@ -8669,13 +8921,16 @@ function renderAttendance() {
     phaseParts.push(`План: придут ${come}, не придут ${miss}`);
   }
   if (attendanceState.attendancePhaseMessage) {
-    phaseParts.push(attendanceState.attendancePhaseMessage);
+    const canShowPhaseMessage = !attendanceState.canEdit || attendanceState.attendancePhase !== 'marking_closed';
+    if (canShowPhaseMessage) {
+      phaseParts.push(attendanceState.attendancePhaseMessage);
+    }
   }
   const phaseText = phaseParts.join(' • ');
   const statusPrimary = document.getElementById('attendance-status-message');
-  if (statusPrimary && phaseText) statusPrimary.textContent = phaseText;
+  if (statusPrimary) statusPrimary.textContent = phaseText || '';
   const statusSecondary = document.getElementById('attendance-screen-status');
-  if (statusSecondary && phaseText) statusSecondary.textContent = phaseText;
+  if (statusSecondary) statusSecondary.textContent = phaseText || '';
 }
 
 async function loadAttendance(scheduleId) {
@@ -8686,7 +8941,10 @@ async function loadAttendance(scheduleId) {
   containers.forEach(c => c.innerHTML = '<div class="small">Загрузка...</div>');
   try {
     const res = await fetch(`/api/attendance/${scheduleId}`, { headers: getAuthHeaders() });
-    if (!res.ok) throw new Error('Ошибка сети');
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null);
+      throw new Error((payload && (payload.error || payload.message)) || 'Не удалось загрузить посещаемость');
+    }
     const data = await res.json();
     attendanceState = {
       scheduleId,
@@ -8699,7 +8957,12 @@ async function loadAttendance(scheduleId) {
     };
     renderAttendance();
   } catch (err) {
-    containers.forEach(c => c.innerHTML = '<div class="small">Не удалось загрузить посещаемость</div>');
+    const errorText = escapeHtml(err?.message || 'Не удалось загрузить посещаемость');
+    containers.forEach(c => c.innerHTML = `<div class="small">${errorText}</div>`);
+    const statusPrimary = document.getElementById('attendance-status-message');
+    if (statusPrimary) statusPrimary.textContent = err?.message || 'Не удалось загрузить посещаемость';
+    const statusSecondary = document.getElementById('attendance-screen-status');
+    if (statusSecondary) statusSecondary.textContent = err?.message || 'Не удалось загрузить посещаемость';
   }
 }
 
@@ -8772,14 +9035,9 @@ function openAttendanceScreen(item) {
   if (!item) item = window.currentScheduleItem;
   if (!item) return;
   attendanceScreenItem = item;
-  const title = document.getElementById('attendance-screen-title');
-  const sub = document.getElementById('attendance-screen-subtitle');
-  if (title) title.textContent = item.title || 'Занятие';
-  if (sub) sub.textContent = `${item.date || ''} ${item.time_from && item.time_to ? item.time_from + '–' + item.time_to : ''}`;
-  const list = document.getElementById('attendance-screen-list');
-  if (list) list.innerHTML = '<div class="small">Загрузка...</div>';
+  attendanceState.scheduleId = item.id || null;
+  fillAttendanceMeta(item);
   showPage('attendance-screen');
-  loadAttendance(item.id);
 }
 
 function openScheduleForm(dateStr, timeStr) {
@@ -9296,6 +9554,11 @@ function goBack() {
     if (index >= 0) document.querySelectorAll('.nav-btn')[index].classList.add('active');
     
     applyHeaderForPage(previousPageId);
+    if (previousPageId === 'personal-schedule') {
+      showPersonalScheduleRefreshCapsule();
+    } else {
+      hidePersonalScheduleRefreshCapsule();
+    }
   } else {
     // Если стек пуст, идем домой
     showPage('home');
@@ -9927,6 +10190,13 @@ async function loadStaffSchedule() {
 async function loadPersonalSchedule() {
   const container = document.getElementById('personal-schedule-container');
   if (!container) return;
+  const todayStr = formatDateLocal(new Date());
+  if (personalScheduleTodaySyncDate !== todayStr) {
+    personalScheduleDate = todayStr;
+    const todayDate = new Date(`${todayStr}T00:00:00`);
+    personalScheduleMonthDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+    personalScheduleTodaySyncDate = todayStr;
+  }
   personalScheduleRefreshLoading = true;
   updatePersonalScheduleRefreshCapsule();
   container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
@@ -10303,8 +10573,8 @@ function updatePersonalIndividualToggleButton() {
   if (!btn) return;
   btn.classList.toggle('is-open', personalIndividualBookingExpanded);
   btn.textContent = personalIndividualBookingExpanded
-    ? '▲ Скрыть заявку на индивидуальное'
-    : '✨ Заявка на индивидуальное';
+    ? '▲ Скрыть индивидуальное занятие'
+    : '✨ Индивидуальное занятие';
 }
 
 function togglePersonalIndividualBookingPanel(forceOpen = null) {
@@ -10323,16 +10593,149 @@ function setPersonalIndividualBookingMessage(message, isError = false) {
   el.style.color = message ? (isError ? '#ffb3b3' : 'var(--hint)') : 'var(--hint)';
 }
 
-function renderPersonalIndividualSelectedUser() {
-  const target = document.getElementById('personal-individual-user-selected');
-  if (!target) return;
-  const selected = personalIndividualBookingState.selectedUser;
-  if (!selected) {
-    target.textContent = 'Клиент не выбран';
+function parsePersonalIndividualTimeMinutes(value) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || '').trim());
+  if (!match) return NaN;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function validatePersonalIndividualWorkingHours(showMessage = false) {
+  const timeFromEl = document.getElementById('personal-individual-time-from');
+  const timeToEl = document.getElementById('personal-individual-time-to');
+  if (!timeFromEl || !timeToEl) return true;
+
+  const fromVal = (timeFromEl.value || '').trim();
+  const toVal = (timeToEl.value || '').trim();
+  const fromMinutes = fromVal ? parsePersonalIndividualTimeMinutes(fromVal) : NaN;
+  const toMinutes = toVal ? parsePersonalIndividualTimeMinutes(toVal) : NaN;
+  const minMinutes = RENTAL_BOOKING_START_MINUTES;
+  const maxMinutes = RENTAL_BOOKING_END_MINUTES;
+  const invalidFrom = fromVal && (!Number.isFinite(fromMinutes) || fromMinutes < minMinutes || fromMinutes > maxMinutes);
+  const invalidTo = toVal && (!Number.isFinite(toMinutes) || toMinutes < minMinutes || toMinutes > maxMinutes);
+  const isValid = !invalidFrom && !invalidTo;
+  const message = 'Студия работает с 09:00 до 22:00. Выберите время в этом диапазоне.';
+
+  timeFromEl.setCustomValidity(isValid ? '' : message);
+  timeToEl.setCustomValidity(isValid ? '' : message);
+
+  if (!isValid && showMessage) {
+    setPersonalIndividualBookingMessage(message, true);
+  }
+  return isValid;
+}
+
+function renderPersonalIndividualOccupancy(dateStr, bookings) {
+  const list = document.getElementById('personal-individual-occupancy-list');
+  const dateLabel = document.getElementById('personal-individual-occupancy-date');
+  if (!list) return;
+
+  if (dateLabel) {
+    if (!dateStr) {
+      dateLabel.textContent = '—';
+    } else {
+      const d = new Date(`${dateStr}T00:00:00`);
+      dateLabel.textContent = Number.isNaN(d.getTime())
+        ? dateStr
+        : d.toLocaleDateString('ru-RU', { weekday: 'short', day: '2-digit', month: '2-digit' });
+    }
+  }
+
+  const rows = Array.isArray(bookings) ? bookings : [];
+  if (!rows.length) {
+    list.innerHTML = '<div class="small" id="personal-individual-occupancy-placeholder">На этот день зал свободен</div>';
     return;
   }
-  const usernamePart = selected.username ? ` • @${selected.username}` : '';
-  target.textContent = `Выбран: ${selected.name || 'Без имени'} (ID: ${selected.id}${usernamePart})`;
+
+  const typeLabels = {
+    individual: 'Индивидуальное',
+    group: 'Групповое',
+    rental: 'Аренда',
+  };
+  const sorted = rows.slice().sort((a, b) => timeStringToMinutes(a.time_from || '00:00') - timeStringToMinutes(b.time_from || '00:00'));
+  list.innerHTML = sorted.map((item) => {
+    const from = item.time_from || '—';
+    const to = item.time_to || '—';
+    const masked = Boolean(item.is_masked) || !item.object_type;
+    const type = masked ? 'Занято' : (typeLabels[(item.object_type || '').toLowerCase()] || 'Занятие');
+    const statusLabel = masked ? 'Занято' : formatScheduleStatusLabel(item.status);
+    return `
+      <div class="rental-occupancy-item">
+        <span>${from} — ${to} · ${type}</span>
+        <span class="rental-occupancy-status">${statusLabel}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadPersonalIndividualOccupancy(force = false) {
+  const list = document.getElementById('personal-individual-occupancy-list');
+  if (!list) return;
+
+  const targetDate = personalScheduleDate ? String(personalScheduleDate).slice(0, 10) : '';
+  if (!targetDate) {
+    personalIndividualBookingState.occupancyDate = null;
+    personalIndividualBookingState.occupancyItems = [];
+    renderPersonalIndividualOccupancy('', []);
+    return;
+  }
+
+  if (!force && personalIndividualBookingState.occupancyDate === targetDate) {
+    renderPersonalIndividualOccupancy(targetDate, personalIndividualBookingState.occupancyItems || []);
+    return;
+  }
+
+  personalIndividualBookingState.occupancyRequestId += 1;
+  const requestId = personalIndividualBookingState.occupancyRequestId;
+  renderPersonalIndividualOccupancy(targetDate, []);
+  list.innerHTML = '<div class="small" id="personal-individual-occupancy-placeholder">Загрузка занятости...</div>';
+
+  try {
+    const params = new URLSearchParams({ date: targetDate });
+    const response = await fetch(`/api/hall-occupancy?${params.toString()}`, { headers: getAuthHeaders() });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Не удалось загрузить занятость');
+    }
+    const bookings = await response.json();
+    if (requestId !== personalIndividualBookingState.occupancyRequestId) return;
+    personalIndividualBookingState.occupancyDate = targetDate;
+    personalIndividualBookingState.occupancyItems = Array.isArray(bookings) ? bookings : [];
+    renderPersonalIndividualOccupancy(targetDate, personalIndividualBookingState.occupancyItems);
+  } catch (error) {
+    if (requestId !== personalIndividualBookingState.occupancyRequestId) return;
+    personalIndividualBookingState.occupancyDate = targetDate;
+    personalIndividualBookingState.occupancyItems = [];
+    list.innerHTML = `<div class="small" id="personal-individual-occupancy-placeholder">⚠️ ${escapeHtml(error.message || 'Ошибка загрузки')}</div>`;
+  }
+}
+
+function renderPersonalIndividualSelectedUser() {
+  const input = document.getElementById('personal-individual-user-search');
+  const results = document.getElementById('personal-individual-user-results');
+  if (!results) return;
+  const selected = personalIndividualBookingState.selectedUser;
+  if (!selected) {
+    if (input) {
+      input.placeholder = 'Имя, ID или @юзер';
+    }
+    results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска клиента...</p>';
+    return;
+  }
+  if (input) {
+    input.value = '';
+    input.placeholder = 'Клиент выбран. Чтобы сменить, начните вводить';
+  }
+  const safeName = escapeHtml(selected.name || 'Без имени');
+  const username = selected.username ? ` • @${escapeHtml(selected.username)}` : '';
+  const phone = selected.phone ? `<div style="font-size: 12px; color: var(--hint);">📱 ${escapeHtml(selected.phone)}</div>` : '';
+  results.innerHTML = `
+    <div class="card personal-individual-user-card is-selected">
+      <div style="font-weight: 600; font-size: 14px;">${safeName} ✓</div>
+      <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">ID: ${Number(selected.id)}${username}</div>
+      ${phone}
+      <div style="font-size: 11px; color: var(--hint); margin-top: 6px;">Выбор клиента зафиксирован</div>
+    </div>
+  `;
 }
 
 function initPersonalIndividualBookingPanel() {
@@ -10377,8 +10780,20 @@ function initPersonalIndividualBookingPanel() {
   const timeTo = document.getElementById('personal-individual-time-to');
   if (timeFrom && !timeFrom.value) timeFrom.value = '10:00';
   if (timeTo && !timeTo.value) timeTo.value = '11:00';
+  if (timeFrom && !timeFrom.dataset.boundWorkingHoursValidation) {
+    timeFrom.dataset.boundWorkingHoursValidation = '1';
+    timeFrom.addEventListener('input', () => validatePersonalIndividualWorkingHours(true));
+    timeFrom.addEventListener('change', () => validatePersonalIndividualWorkingHours(true));
+  }
+  if (timeTo && !timeTo.dataset.boundWorkingHoursValidation) {
+    timeTo.dataset.boundWorkingHoursValidation = '1';
+    timeTo.addEventListener('input', () => validatePersonalIndividualWorkingHours(true));
+    timeTo.addEventListener('change', () => validatePersonalIndividualWorkingHours(true));
+  }
 
+  validatePersonalIndividualWorkingHours(false);
   renderPersonalIndividualSelectedUser();
+  loadPersonalIndividualOccupancy();
 }
 function renderPersonalIndividualUserResults(users) {
   const results = document.getElementById('personal-individual-user-results');
@@ -10410,8 +10825,8 @@ function selectPersonalIndividualUser(userId) {
   const user = (personalIndividualBookingState.searchResults || []).find((item) => Number(item.id) === parsedId);
   if (!user) return;
   personalIndividualBookingState.selectedUser = user;
+  personalIndividualBookingState.searchResults = [];
   renderPersonalIndividualSelectedUser();
-  renderPersonalIndividualUserResults(personalIndividualBookingState.searchResults || []);
 }
 
 async function searchPersonalIndividualUsers() {
@@ -10422,6 +10837,20 @@ async function searchPersonalIndividualUsers() {
   const raw = (input.value || '').trim().toLowerCase();
   const byUsername = raw.startsWith('@');
   const clean = raw.replace(/^@/, '');
+
+  if (!clean) {
+    if (personalIndividualBookingState.selectedUser) {
+      renderPersonalIndividualSelectedUser();
+    } else {
+      results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска клиента...</p>';
+    }
+    return;
+  }
+
+  // Start typing to replace an already fixed user selection.
+  if (personalIndividualBookingState.selectedUser) {
+    personalIndividualBookingState.selectedUser = null;
+  }
 
   try {
     results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Поиск...</p>';
@@ -10462,11 +10891,18 @@ async function submitPersonalIndividualBooking() {
     return;
   }
 
-  const timeFrom = document.getElementById('personal-individual-time-from')?.value || '';
-  const timeTo = document.getElementById('personal-individual-time-to')?.value || '';
+  const timeFromInput = document.getElementById('personal-individual-time-from');
+  const timeToInput = document.getElementById('personal-individual-time-to');
+  const timeFrom = timeFromInput?.value || '';
+  const timeTo = timeToInput?.value || '';
   const comment = (document.getElementById('personal-individual-comment')?.value || '').trim();
   if (!timeFrom || !timeTo) {
     setPersonalIndividualBookingMessage('Укажите время начала и окончания', true);
+    return;
+  }
+  if (!validatePersonalIndividualWorkingHours(true)) {
+    if (timeFromInput?.reportValidity) timeFromInput.reportValidity();
+    if (timeToInput?.reportValidity) timeToInput.reportValidity();
     return;
   }
   if (timeToMinutes(timeFrom) >= timeToMinutes(timeTo)) {
@@ -11342,6 +11778,7 @@ let isStaff = false;
 let profileLoadedPromise = null;
 let personalScheduleDate = null;
 let personalScheduleMonthDate = null;
+let personalScheduleTodaySyncDate = null;
 let personalScheduleItems = [];
 let personalScheduleRefreshLoading = false;
 let personalIndividualBookingExpanded = false;
@@ -11349,6 +11786,9 @@ let personalIndividualBookingState = {
   selectedUser: null,
   searchResults: [],
   submitting: false,
+  occupancyRequestId: 0,
+  occupancyDate: null,
+  occupancyItems: [],
 };
 
 if (user) {

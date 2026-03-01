@@ -14,7 +14,7 @@ bp = Blueprint('news_routes', __name__)
 
 @bp.route("/news/manage")
 def get_all_news():
-    """РџРѕР»СѓС‡Р°РµС‚ РІСЃРµ РЅРѕРІРѕСЃС‚Рё РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ (РІРєР»СЋС‡Р°СЏ Р°РєС‚РёРІРЅС‹Рµ Рё Р°СЂС…РёРІРёСЂРѕРІР°РЅРЅС‹Рµ)"""
+    """Получает все новости для управления (включая активные и архивированные)"""
     perm_error = require_permission("create_news")
     if perm_error:
         return perm_error
@@ -48,7 +48,7 @@ def create_news():
     data = request.json
     
     if not data.get("title") or not data.get("content"):
-        return {"error": "title Рё content РѕР±СЏР·Р°С‚РµР»СЊРЅС‹"}, 400
+        return {"error": "title и content обязательны"}, 400
     
     news = News(
         title=data["title"],
@@ -68,7 +68,7 @@ def create_news():
 
 @bp.route("/news")
 def get_news():
-    """РџРѕР»СѓС‡Р°РµС‚ С‚РѕР»СЊРєРѕ Р°РєС‚РёРІРЅС‹Рµ РЅРѕРІРѕСЃС‚Рё РґР»СЏ РіР»Р°РІРЅРѕР№ СЃС‚СЂР°РЅРёС†С‹"""
+    """Получает только активные новости для главной страницы"""
     db = g.db
     data = db.query(News).filter_by(status="active").order_by(News.created_at.desc()).all()
 
@@ -103,7 +103,7 @@ def get_news():
 @bp.route("/news/<int:news_id>/photo", methods=["POST"])
 def upload_news_photo(news_id):
     """
-    Р—Р°РіСЂСѓР¶Р°РµС‚ С„РѕС‚Рѕ РЅР»СЏ РЅРѕРІРѕСЃС‚Рё
+    Загружает фото для новости
     """
     perm_error = require_permission("create_news")
     if perm_error:
@@ -113,27 +113,27 @@ def upload_news_photo(news_id):
     news = db.query(News).filter_by(id=news_id).first()
     
     if not news:
-        return {"error": "РќРѕРІРѕСЃС‚СЊ РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+        return {"error": "Новость не найдена"}, 404
     
     if 'photo' not in request.files:
-        return {"error": "Р¤Р°Р№Р» РЅРµ РїСЂРµРґРѕСЃС‚Р°РІР»РµРЅ"}, 400
+        return {"error": "Файл не предоставлен"}, 400
     
     file = request.files['photo']
     
     if file.filename == '':
-        return {"error": "Р¤Р°Р№Р» РЅРµ РІС‹Р±СЂР°РЅ"}, 400
+        return {"error": "Файл не выбран"}, 400
     
-    # РџСЂРѕРІРµСЂСЏРµРј СЂР°СЃС€РёСЂРµРЅРёРµ
+    # Проверяем расширение
     allowed_extensions = {'jpg', 'jpeg', 'png', 'gif'}
     if not ('.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
-        return {"error": "Р”РѕРїСѓСЃС‚РёРјС‹Рµ С„РѕСЂРјР°С‚С‹: jpg, jpeg, png, gif"}, 400
+        return {"error": "Допустимые форматы: jpg, jpeg, png, gif"}, 400
     
     try:
-        # РЈРґР°Р»СЏРµРј СЃС‚Р°СЂРѕРµ С„РѕС‚Рѕ РµСЃР»Рё СЃСѓС‰РµСЃС‚РІСѓРµС‚
+        # Удаляем старое фото если существует
         if news.photo_path:
             delete_user_photo(news.photo_path)
         
-        # РЎРѕС…СЂР°РЅСЏРµРј РЅРѕРІРѕРµ С„РѕС‚Рѕ РІ РїР°РїРєСѓ media
+        # Сохраняем новое фото в папку media
         file_data = file.read()
         filename = "photo." + file.filename.rsplit('.', 1)[1].lower()
         
@@ -145,7 +145,7 @@ def upload_news_photo(news_id):
         with open(file_path, 'wb') as f:
             f.write(file_data)
         
-        # Р¤РѕСЂРјРёСЂСѓРµРј РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅС‹Р№ РїСѓС‚СЊ РѕС‚ РєРѕСЂРЅСЏ РїСЂРѕРµРєС‚Р°
+        # Формируем относительный путь от корня проекта
         photo_path = os.path.relpath(file_path, PROJECT_ROOT)
         news.photo_path = photo_path
         db.commit()
@@ -153,11 +153,11 @@ def upload_news_photo(news_id):
         return {
             "id": news.id,
             "photo_path": _build_image_url(news.photo_path),
-            "message": "Р¤РѕС‚Рѕ СѓСЃРїРµС€РЅРѕ Р·Р°РіСЂСѓР¶РµРЅРѕ"
+            "message": "Фото успешно загружено"
         }, 201
     
     except Exception as e:
-        print(f"РћС€РёР±РєР° РїСЂРё Р·Р°РіСЂСѓР¶РєРµ С„РѕС‚Рѕ: {e}")
+        print(f"Ошибка при загрузке фото: {e}")
         return {"error": str(e)}, 500
 
 
@@ -167,7 +167,7 @@ def delete_news(news_id):
     news = db.query(News).filter_by(id=news_id).first()
     
     if not news:
-        return {"error": "РќРѕРІРѕСЃС‚СЊ РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+        return {"error": "Новость не найдена"}, 404
     
     news.status = "deleted"
     db.commit()
@@ -177,7 +177,7 @@ def delete_news(news_id):
 
 @bp.route("/news/<int:news_id>/archive", methods=["PUT"])
 def archive_news(news_id):
-    """РђСЂС…РёРІРёСЂСѓРµС‚ РЅРѕРІРѕСЃС‚СЊ (РїРµСЂРµРІРѕРґРёС‚ РІ СЃС‚Р°С‚СѓСЃ 'archived')"""
+    """Архивирует новость (переводит в статус 'archived')"""
     perm_error = require_permission("create_news")
     if perm_error:
         return perm_error
@@ -186,7 +186,7 @@ def archive_news(news_id):
     news = db.query(News).filter_by(id=news_id).first()
     
     if not news:
-        return {"error": "РќРѕРІРѕСЃС‚СЊ РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+        return {"error": "Новость не найдена"}, 404
     
     news.status = "archived"
     db.commit()
@@ -196,7 +196,7 @@ def archive_news(news_id):
 
 @bp.route("/news/<int:news_id>/restore", methods=["PUT"])
 def restore_news(news_id):
-    """Р’РѕСЃСЃС‚Р°РЅР°РІР»РёРІР°РµС‚ РЅРѕРІРѕСЃС‚СЊ РёР· Р°СЂС…РёРІР° (РїРµСЂРµРІРѕРґРёС‚ СЃС‚Р°С‚СѓСЃ РѕР±СЂР°С‚РЅРѕ РІ 'active')"""
+    """Восстанавливает новость из архива (переводит статус обратно в 'active')"""
     perm_error = require_permission("create_news")
     if perm_error:
         return perm_error
@@ -205,12 +205,9 @@ def restore_news(news_id):
     news = db.query(News).filter_by(id=news_id).first()
     
     if not news:
-        return {"error": "РќРѕРІРѕСЃС‚СЊ РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+        return {"error": "Новость не найдена"}, 404
     
     news.status = "active"
     db.commit()
     
     return {"ok": True}
-
-
-

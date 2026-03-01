@@ -12,6 +12,8 @@ from dance_studio.core.abonement_pricing import (
     serialize_group_booking_quote,
 )
 from dance_studio.core.booking_utils import BOOKING_STATUS_LABELS, BOOKING_TYPE_LABELS
+from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID
+from dance_studio.core.permissions import has_permission
 from dance_studio.db.models import (
     BookingRequest,
     Direction,
@@ -36,13 +38,35 @@ from dance_studio.web.services.payments import _get_active_payment_profile_paylo
 bp = Blueprint('bookings_routes', __name__)
 
 
+def _can_view_full_hall_occupancy(db) -> bool:
+    """Staff (incl. teachers) sees full occupancy, clients see anonymized intervals."""
+    telegram_id = getattr(g, "telegram_id", None)
+    try:
+        telegram_id_int = int(telegram_id) if telegram_id is not None else None
+    except (TypeError, ValueError):
+        telegram_id_int = None
+
+    if telegram_id_int is not None:
+        if TECH_ADMIN_ID and telegram_id_int == int(TECH_ADMIN_ID):
+            return True
+        if telegram_id_int in OWNER_IDS:
+            return True
+
+    staff = _get_current_staff(db)
+    if not staff or not getattr(staff, "position", None):
+        return False
+
+    role = str(staff.position).strip().lower()
+    return has_permission(role, "manage_schedule") or has_permission(role, "view_personal_lessons")
+
+
 @bp.route("/api/groups/<int:group_id>", methods=["GET"])
 def get_group(group_id):
-    """Р’РѕР·РІСЂР°С‰Р°РµС‚ РіСЂСѓРїРїСѓ РїРѕ ID"""
+    """Возвращает группу по ID"""
     db = g.db
     group = db.query(Group).filter_by(id=group_id).first()
     if not group:
-        return {"error": "Р“СЂСѓРїРїР° РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+        return {"error": "Группа не найдена"}, 404
 
     teacher_name = group.teacher.name if group.teacher else None
     return jsonify({
@@ -117,7 +141,7 @@ def get_compatible_groups():
 
 @bp.route("/api/groups/<int:group_id>", methods=["PUT"])
 def update_group(group_id):
-    """РћР±РЅРѕРІР»СЏРµС‚ РіСЂСѓРїРїСѓ"""
+    """Обновляет группу"""
     perm_error = require_permission("manage_schedule")
     if perm_error:
         return perm_error
@@ -125,7 +149,7 @@ def update_group(group_id):
     data = request.json or {}
     group = db.query(Group).filter_by(id=group_id).first()
     if not group:
-        return {"error": "Р“СЂСѓРїРїР° РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+        return {"error": "Группа не найдена"}, 404
 
     if "name" in data:
         group.name = data["name"]
@@ -137,12 +161,12 @@ def update_group(group_id):
         try:
             group.max_students = int(data["max_students"])
         except ValueError:
-            return {"error": "max_students РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‡РёСЃР»РѕРј"}, 400
+            return {"error": "max_students должен быть числом"}, 400
     if "duration_minutes" in data:
         try:
             group.duration_minutes = int(data["duration_minutes"])
         except ValueError:
-            return {"error": "duration_minutes РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‡РёСЃР»РѕРј"}, 400
+            return {"error": "duration_minutes должен быть числом"}, 400
     if "lessons_per_week" in data:
         if data["lessons_per_week"] in (None, ""):
             group.lessons_per_week = None
@@ -150,18 +174,18 @@ def update_group(group_id):
             try:
                 group.lessons_per_week = int(data["lessons_per_week"])
             except ValueError:
-                return {"error": "lessons_per_week РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‡РёСЃР»РѕРј"}, 400
+                return {"error": "lessons_per_week должен быть числом"}, 400
     if "teacher_id" in data:
         teacher = db.query(Staff).filter_by(id=data["teacher_id"]).first()
         if not teacher:
-            return {"error": "РџСЂРµРїРѕРґР°РІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+            return {"error": "Преподаватель не найден"}, 404
         group.teacher_id = data["teacher_id"]
 
     db.commit()
 
     return {
         "id": group.id,
-        "message": "Р“СЂСѓРїРїР° РѕР±РЅРѕРІР»РµРЅР°"
+        "message": "Группа обновлена"
     }
 
 
@@ -228,13 +252,13 @@ def list_booking_requests():
             date_from_val = datetime.strptime(date_from, "%Y-%m-%d").date()
             query = query.filter(BookingRequest.date >= date_from_val)
         except ValueError:
-            return {"error": "date_from РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD"}, 400
+            return {"error": "date_from должен быть в формате YYYY-MM-DD"}, 400
     if date_to:
         try:
             date_to_val = datetime.strptime(date_to, "%Y-%m-%d").date()
             query = query.filter(BookingRequest.date <= date_to_val)
         except ValueError:
-            return {"error": "date_to РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD"}, 400
+            return {"error": "date_to должен быть в формате YYYY-MM-DD"}, 400
 
     result = []
     for booking in query:
@@ -304,7 +328,7 @@ def list_my_booking_requests():
         bundle_group_names = []
         for group_id in bundle_group_ids:
             group = groups_by_id.get(int(group_id))
-            bundle_group_names.append(group.name if group and group.name else f"Р“СЂСѓРїРїР° #{group_id}")
+            bundle_group_names.append(group.name if group and group.name else f"Группа #{group_id}")
 
         main_group = groups_by_id.get(int(booking.group_id)) if booking.group_id else None
         result.append(
@@ -476,7 +500,7 @@ def create_booking_request():
             time_to=time_to_val,
             status=status,
             status_comment=f"Synced with booking #{booking.id}",
-            title="РђСЂРµРЅРґР° Р·Р°Р»Р°",
+            title="Аренда зала",
             start_time=time_from_val,
             end_time=time_to_val,
         )
@@ -505,7 +529,7 @@ def create_booking_request():
             time_from=time_from_val,
             time_to=time_to_val,
             status=status,
-            title="РРЅРґРёРІРёРґСѓР°Р»СЊРЅРѕРµ Р·Р°РЅСЏС‚РёРµ",
+            title="Индивидуальное занятие",
             start_time=time_from_val,
             end_time=time_to_val,
             teacher_id=teacher_id_val,
@@ -663,7 +687,7 @@ def rental_occupancy():
         try:
             date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
-            return {"error": "date РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD Рё Р±С‹С‚СЊ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РµР№ РґР°С‚РѕР№"}, 400
+            return {"error": "date должен быть в формате YYYY-MM-DD и быть существующей датой"}, 400
 
     entries = db.query(Schedule).filter(
         Schedule.object_type == "rental",
@@ -681,7 +705,7 @@ def rental_occupancy():
             "time_from": entry.time_from.strftime("%H:%M") if entry.time_from else None,
             "time_to": entry.time_to.strftime("%H:%M") if entry.time_to else None,
             "status": entry.status,
-            "title": entry.title or "РђСЂРµРЅРґР°"
+            "title": entry.title or "Аренда"
         })
 
     return jsonify(result), 200
@@ -697,7 +721,7 @@ def hall_occupancy():
         try:
             date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
-            return {"error": "date РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD Рё Р±С‹С‚СЊ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РµР№ РґР°С‚РѕР№"}, 400
+            return {"error": "date must be in YYYY-MM-DD format"}, 400
 
     entries = db.query(Schedule).filter(
         Schedule.date == date_val,
@@ -706,19 +730,31 @@ def hall_occupancy():
         Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES))
     ).order_by(Schedule.time_from.asc()).all()
 
+    full_visibility = _can_view_full_hall_occupancy(db)
     result = []
     for entry in entries:
-        result.append({
-            "id": entry.id,
+        base_payload = {
             "date": entry.date.isoformat() if entry.date else None,
             "time_from": entry.time_from.strftime("%H:%M") if entry.time_from else None,
             "time_to": entry.time_to.strftime("%H:%M") if entry.time_to else None,
-            "status": entry.status,
-            "title": entry.title or "РЎРѕР±С‹С‚РёРµ",
-            "object_type": entry.object_type
-        })
+        }
+        if full_visibility:
+            result.append({
+                "id": entry.id,
+                "status": entry.status,
+                "title": entry.title or "Событие",
+                "object_type": entry.object_type,
+                **base_payload,
+            })
+        else:
+            result.append({
+                "status": "BUSY",
+                "is_masked": True,
+                **base_payload,
+            })
 
-    current_app.logger.info("hall occupancy %s -> %s entries", date_val, len(result))
+    visibility_label = "full" if full_visibility else "masked"
+    current_app.logger.info("hall occupancy %s -> %s entries (%s)", date_val, len(result), visibility_label)
     return jsonify(result), 200
 
 
@@ -727,7 +763,7 @@ def get_individual_lesson(lesson_id):
     db = g.db
     lesson = db.query(IndividualLesson).filter_by(id=lesson_id).first()
     if not lesson:
-        return {"error": "РЅРґРёРІРёРґСѓР°Р»СЊРЅРѕРµ Р·Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Индивидуальное занятие не найдено"}, 404
 
     teacher = db.query(Staff).filter_by(id=lesson.teacher_id).first()
     student = db.query(User).filter_by(id=lesson.student_id).first()
@@ -740,11 +776,11 @@ def get_individual_lesson(lesson_id):
         "status": lesson.status,
         "teacher": {
             "id": teacher.id if teacher else None,
-            "name": teacher.name if teacher else "вЂ”"
+            "name": teacher.name if teacher else "—"
         },
         "student": {
             "id": student.id if student else None,
-            "name": student.name if student else "вЂ”",
+            "name": student.name if student else "—",
             "telegram_id": student.telegram_id if student else None,
             "username": student.username if student else None
         }
@@ -854,7 +890,7 @@ def get_my_abonements():
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     items = db.query(GroupAbonement).filter_by(user_id=user.id, status="active").order_by(GroupAbonement.created_at.desc()).all()
     result = []
@@ -883,7 +919,7 @@ def get_my_groups():
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     abonements = db.query(GroupAbonement).filter_by(user_id=user.id, status="active").all()
     group_ids = sorted({a.group_id for a in abonements})
@@ -902,6 +938,3 @@ def get_my_groups():
         })
 
     return jsonify(result)
-
-
-

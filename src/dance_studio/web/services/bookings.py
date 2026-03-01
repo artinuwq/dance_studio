@@ -15,6 +15,7 @@ from dance_studio.core.abonement_pricing import (
     quote_group_booking,
 )
 from dance_studio.core.booking_utils import build_booking_keyboard_data, format_booking_message
+from dance_studio.core.config import PROJECT_NAME_FULL
 from dance_studio.db.models import BookingRequest, HallRental, IndividualLesson, Schedule, User
 from dance_studio.web.constants import INACTIVE_SCHEDULE_STATUSES
 from dance_studio.web.services.payments import _get_active_payment_profile_payload
@@ -146,7 +147,7 @@ def _build_booking_payment_request_message(db, booking: BookingRequest) -> str:
 
     return (
         "Здравствуйте!\n"
-        "Это администрация Shebba Sports x Lissa Dance Studio.\n\n"
+        f"Это администрация {PROJECT_NAME_FULL} Studio.\n\n"
         "Реквизиты для оплаты:\n"
         f"• Банк получателя: {bank}\n"
         f"• Номер: {number}\n"

@@ -31,7 +31,7 @@ def auth_telegram():
 
     verified = validate_init_data(init_data)
     if not verified:
-        return {"error": "init_data Р Р…Р ВµР Т‘Р ВµР в„–РЎРѓРЎвЂљР Р†Р С‘РЎвЂљР ВµР В»Р ВµР Р…"}, 401
+        return {"error": "init_data недействителен"}, 401
 
     telegram_id = verified.user_id
 
@@ -54,7 +54,7 @@ def auth_telegram():
     except Exception:
         db.rollback()
         current_app.logger.exception("Failed to create telegram auth session")
-        return {"error": "Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ РЎРѓР С•Р В·Р Т‘Р В°РЎвЂљРЎРЉ РЎРѓР ВµРЎРѓРЎРѓР С‘РЎР‹"}, 500
+        return {"error": "Не удалось создать сессию"}, 500
 
     response = jsonify({"ok": True, "telegram_id": telegram_id})
     _set_sid_cookie(response, sid)
@@ -72,7 +72,7 @@ def auth_logout():
         except Exception:
             db.rollback()
             current_app.logger.exception("Failed to logout session")
-            return {"error": "Р СњР Вµ РЎС“Р Т‘Р В°Р В»Р С•РЎРѓРЎРЉ Р В·Р В°Р Р†Р ВµРЎР‚РЎв‚¬Р С‘РЎвЂљРЎРЉ РЎРѓР ВµРЎРѓРЎРѓР С‘РЎР‹"}, 500
+            return {"error": "Не удалось завершить сессию"}, 500
 
     response = jsonify({"ok": True})
     _clear_sid_cookie(response)

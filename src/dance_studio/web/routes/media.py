@@ -93,7 +93,7 @@ def delete_user_photo_endpoint(user_id):
 @bp.route("/media/<path:filename>")
 def serve_media(filename):
     """
-    РЎР»СѓР¶РёС‚ РјРµРґРёР° С„Р°Р№Р»С‹ РёР· var/media; fallback РЅР° СЃС‚Р°СЂС‹Р№ database/media
+    Служит медиа файлы из var/media; fallback на старый database/media
     """
     var_path = MEDIA_ROOT / filename
     legacy_dir = PROJECT_ROOT / "database" / "media"
@@ -109,7 +109,7 @@ def serve_media(filename):
 @bp.route("/database/media/<path:filename>")
 def serve_media_full(filename):
     """
-    РђР»СЊС‚РµСЂРЅР°С‚РёРІРЅС‹Р№ РјР°СЂС€СЂСѓС‚; РїРѕРґРґРµСЂР¶РёРІР°РµС‚ Рё var/media, Рё СЃС‚Р°СЂС‹Р№ РїСѓС‚СЊ
+    Альтернативный маршрут; поддерживает и var/media, и старый путь
     """
     var_path = MEDIA_ROOT / filename
     legacy_dir = PROJECT_ROOT / "database" / "media"
@@ -125,7 +125,7 @@ def serve_media_full(filename):
 @bp.route("/user/<int:user_id>/photo")
 def get_user_photo(user_id):
     """
-    РџРѕР»СѓС‡РёС‚СЊ С„РѕС‚Рѕ, Р·Р°РіСЂСѓР¶РµРЅРЅРѕРµ РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј С‡РµСЂРµР· Р±РѕС‚Р°
+    Получить фото, загруженное пользователем через бота
     """
     try:
         db = g.db
@@ -134,13 +134,10 @@ def get_user_photo(user_id):
         if not user or not user.staff_notes:
             return {"photo_data": None}, 404
         
-        # staff_notes СЃРѕРґРµСЂР¶РёС‚ base64 С„РѕС‚Рѕ
+        # staff_notes содержит base64 фото
         return {
             "photo_data": user.staff_notes
         }
     except Exception as e:
-        print(f"вљ пёЏ РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё С„РѕС‚Рѕ: {e}")
+        print(f"⚠️ Ошибка при получении фото: {e}")
         return {"error": str(e)}, 500
-
-
-

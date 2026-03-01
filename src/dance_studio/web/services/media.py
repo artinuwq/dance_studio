@@ -31,7 +31,7 @@ def normalize_teaches(value):
         return 1 if value else 0
     if isinstance(value, str):
         v = value.strip().lower()
-        if v in ("1", "true", "yes", "y", "Р Т‘Р В°"):
+        if v in ("1", "true", "yes", "y", "да"):
             return 1
         if v in ("0", "false", "no", "n", "нет"):
             return 0

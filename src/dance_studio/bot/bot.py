@@ -16,6 +16,10 @@ from aiogram.enums import ParseMode
 from dance_studio.core.config import (
     BOT_TOKEN,
     WEB_APP_URL,
+    PROJECT_NAME_FULL,
+    PROJECT_NAME_SHORT,
+    PROJECT_NAME_MENU,
+    PROJECT_NAME_TAG,
     TECH_LOGS_CHAT_ID,
     TECH_BACKUPS_TOPIC_ID,
     TECH_STATUS_TOPIC_ID,
@@ -55,6 +59,7 @@ from dance_studio.core.abonement_pricing import (
 )
 from dance_studio.core.system_settings_service import update_setting
 from dance_studio.bot.telegram_userbot import send_private_message
+from dance_studio.web.services.attendance import _auto_finalize_attendance_from_intentions
 from sqlalchemy import or_
 from sqlalchemy.engine import make_url
 from datetime import datetime, time as dt_time, timedelta
@@ -634,16 +639,11 @@ async def start(message, state: FSMContext):
     # Регистрируем пользователя в БД
     await register_user_in_db(user_id, user_name, message.from_user)
     
-    #TODO: ВОТ ЭТО НАДО ПОМЕНЯТЬ
-    await bot.set_chat_menu_button(
-        chat_id=message.chat.id,
-        menu_button=MenuButtonWebApp(
-            text="🩰 LISSA DANCE",
-            web_app=WebAppInfo(
-                url=(WEB_APP_URL)
-            )
-        )
-    )
+    # Сбрасываем кастомную кнопку меню на стандартную
+    try:
+        await bot.set_chat_menu_button(chat_id=message.chat.id, menu_button=None)
+    except Exception:
+        pass
 
     # Получаем параметр из команды /start
     # Формат: /start параметр  или просто /start
@@ -741,11 +741,21 @@ async def start(message, state: FSMContext):
             db.close()
     
     else:
+        # Создаем inline-кнопку для открытия приложения
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(
+                text="🚀 Открыть приложение",
+                web_app=WebAppInfo(url=WEB_APP_URL)
+            )]
+        ])
+        
         await message.answer(
-            "Добро пожаловать!\n\n"
-            "Приложение доступно через кнопку внизу чата 👇"
+            "<b>Добро пожаловать!</b>\n\n"
+            "Записывайтесь на занятия, следите за новостями и управляйте своим профилем прямо здесь.",
+            parse_mode=ParseMode.HTML,
+            reply_markup=keyboard
         )
-        print(f"DEBUG: Стандартный старт без параметров")
+        print(f"DEBUG: Стандартный старт с inline-кнопкой")
 
 
 
@@ -1416,9 +1426,34 @@ async def close_locked_attendance_reminders() -> None:
         db.close()
 
 
+async def finalize_closed_attendance_windows() -> None:
+    db = get_session()
+    try:
+        today = datetime.now().date()
+        schedules = db.query(Schedule).filter(
+            Schedule.object_type.in_(["group", "individual"]),
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
+            Schedule.date.isnot(None),
+            Schedule.date <= today,
+        ).all()
+
+        finalized_total = 0
+        for schedule in schedules:
+            finalized_total += _auto_finalize_attendance_from_intentions(db, schedule)
+
+        if finalized_total > 0:
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"⚠️ attendance auto-finalize failed: {e}")
+    finally:
+        db.close()
+
+
 async def process_attendance_reminders() -> None:
     while True:
         await close_locked_attendance_reminders()
+        await finalize_closed_attendance_windows()
         await send_due_attendance_reminders()
         await asyncio.sleep(ATTENDANCE_REMINDER_POLL_SECONDS)
 
@@ -2146,7 +2181,7 @@ def _build_payment_request_message(db, booking: BookingRequest) -> str:
 
     return (
         "Здравствуйте!\n"
-        "Это администрация Shebba Sports x Lissa Dance Studio.\n\n"
+        f"Это администрация {PROJECT_NAME_FULL} Studio.\n\n"
         "Реквизиты для оплаты:\n"
         f"• Банк получателя: {bank}\n"
         f"• Номер: {number}\n"

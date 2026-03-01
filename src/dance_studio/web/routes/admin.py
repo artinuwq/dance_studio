@@ -9,7 +9,7 @@ from flask import Blueprint, current_app, g, jsonify, request, send_from_directo
 from sqlalchemy import or_
 from werkzeug.utils import secure_filename
 
-from dance_studio.core.config import BOT_TOKEN
+from dance_studio.core.config import BOT_TOKEN, PROJECT_NAME_FULL, PROJECT_NAME_SHORT
 from dance_studio.core.media_manager import delete_user_photo
 from dance_studio.core.system_settings_service import (
     SettingValidationError,
@@ -81,7 +81,7 @@ def health():
 
 @bp.route("/bot-username")
 def get_bot_username():
-    """Р’РѕР·РІСЂР°С‰Р°РµС‚ username Р±РѕС‚Р° РґР»СЏ РѕС‚РєСЂС‹С‚РёСЏ С‡Р°С‚Р°."""
+    """Возвращает username бота для открытия чата."""
     db = g.db
     try:
         configured = get_setting_value(db, "contacts.bot_username")
@@ -237,7 +237,7 @@ def schedule_public():
         elif s.object_type == "rental":
             rental = db.query(HallRental).filter_by(id=s.object_id).first() if s.object_id else None
             entry.update({
-                "title": s.title or "РђСЂРµРЅРґР° Р·Р°Р»Р°",
+                "title": s.title or "Аренда зала",
                 "creator_id": rental.creator_id if rental else None,
                 "creator_type": rental.creator_type if rental else None,
                 "status": s.status,
@@ -366,7 +366,7 @@ def create_schedule_v2():
     if object_type == "group":
         group = db.query(Group).filter_by(id=object_id).first()
         if not group:
-            return {"error": "Р“СЂСѓРїРїР° РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+            return {"error": "Группа не найдена"}, 404
         group_id = group.id
         teacher_id = group.teacher_id
         title = group.name
@@ -379,8 +379,8 @@ def create_schedule_v2():
     elif object_type == "rental":
         rental = db.query(HallRental).filter_by(id=object_id).first()
         if not rental:
-            return {"error": "РђСЂРµРЅРґР° РЅРµ РЅР°Р№РґРµРЅР°"}, 404
-        title = "РђСЂРµРЅРґР° Р·Р°Р»Р°"
+            return {"error": "Аренда не найдена"}, 404
+        title = "Аренда зала"
 
     def build_entry(entry_date):
         return Schedule(
@@ -880,7 +880,7 @@ def create_staff():
     
     staff = Staff(
         name=staff_name,
-        phone=data.get("phone") or "+7 000 000 00 00",  # РўРµР»РµС„РѕРЅ РѕРїС†РёРѕРЅР°Р»СЊРЅС‹Р№
+        phone=data.get("phone") or "+7 000 000 00 00",  # Телефон опциональный
         email=data.get("email"),
         telegram_id=data.get("telegram_id"),
         position=data["position"],
@@ -912,10 +912,10 @@ def create_staff():
             position_name = position_display.get(data["position"], data["position"])
             
             message_text = (
-                f"рџЋ‰ РџРѕР·РґСЂР°РІР»СЏРµРј!\n\n"
-                f"Р’С‹ РЅР°Р·РЅР°С‡РµРЅС‹ РЅР° РґРѕР»Р¶РЅРѕСЃС‚СЊ:\n"
+                f"🎉 Поздравляем!\n\n"
+                f"Вы назначены на должность:\n"
                 f"<b>{position_name}</b>\n\n"
-                f"РІ СЃС‚СѓРґРёРё С‚Р°РЅС†Р° LISSA DANCE!"
+                f"в студии танца {PROJECT_NAME_FULL}!"
             )
             
             # РћС‚РїСЂР°РІР»СЏРµРј СЃРѕРѕР±С‰РµРЅРёРµ РЅР°РїСЂСЏРјСѓСЋ С‡РµСЂРµР· Telegram API
@@ -998,7 +998,7 @@ def update_staff_from_telegram(telegram_id):
     staff = db.query(Staff).filter_by(telegram_id=telegram_id).first()
     
     if not staff:
-        return {"error": "РџРµСЂСЃРѕРЅР°Р» РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Персонал не найден"}, 404
     
     if "first_name" in data:
         # Р¤РѕСЂРјРёСЂСѓРµРј РїРѕР»РЅРѕРµ РёРјСЏ РёР· first_name Рё last_name
@@ -1013,7 +1013,7 @@ def update_staff_from_telegram(telegram_id):
         "id": staff.id,
         "name": staff.name,
         "position": staff.position,
-        "message": "РјСЏ РѕР±РЅРѕРІР»РµРЅРѕ РёР· Telegram"
+        "message": "Имя обновлено из Telegram"
     }
 
 
@@ -1057,7 +1057,7 @@ def update_staff(staff_id):
         try:
             actor_telegram_id = int(actor_telegram_id) if actor_telegram_id is not None else None
         except (TypeError, ValueError):
-            return {"error": "РќРµРІРµСЂРЅС‹Р№ telegram_id"}, 400
+            return {"error": "Неверный telegram_id"}, 400
         actor_staff = None
         if actor_telegram_id is not None:
             actor_staff = db.query(Staff).filter_by(telegram_id=actor_telegram_id, status="active").first()
@@ -1300,9 +1300,9 @@ def delete_staff(staff_id):
             from dance_studio.core.config import BOT_TOKEN
             
             message_text = (
-                f" Рљ СЃРѕР¶Р°Р»РµРЅРёСЋ...\n\n"
-                f"Р’С‹ СѓРґР°Р»РµРЅС‹ РёР· РїРµСЂСЃРѕРЅР°Р»Р° СЃС‚СѓРґРёРё С‚Р°РЅС†Р° LISSA DANCE.\n\n"
-                f"РЎРїР°СЃРёР±Рѕ Р·Р° СЃРѕС‚СЂСѓРґРЅРёС‡РµСЃС‚РІРѕ!"
+                f" К сожалению...\n\n"
+                f"Вы удалены из персонала студии танца {PROJECT_NAME_FULL}.\n\n"
+                f"Спасибо за сотрудничество!"
             )
             
             # РћС‚РїСЂР°РІР»СЏРµРј СЃРѕРѕР±С‰РµРЅРёРµ РЅР°РїСЂСЏРјСѓСЋ С‡РµСЂРµР· Telegram API
@@ -1323,7 +1323,7 @@ def delete_staff(staff_id):
             pass  # print(f"вљ пёЏ РћС€РёР±РєР° РїСЂРё РѕС‚РїСЂР°РІРєРµ СѓРІРµРґРѕРјР»РµРЅРёСЏ РѕР± СѓРІРѕР»СЊРЅРµРЅРёРё: {e}")
     
     return {
-        "message": f"РџРµСЂСЃРѕРЅР°Р» '{staff_name}' СѓРґР°Р»РµРЅ",
+        "message": f"Персонал '{staff_name}' удален",
         "deleted_id": staff_id,
         "status": staff.status
     }
@@ -1836,7 +1836,7 @@ def create_mailing():
             status=status,
             target_type=data["target_type"],
             target_id=data.get("target_id"),
-            mailing_type=data.get("mailing_type", "manual"),  # РџРѕ СѓРјРѕР»С‡Р°РЅРёСЋ - СЂСѓС‡РЅР°СЏ СЂР°СЃСЃС‹Р»РєР°
+            mailing_type=data.get("mailing_type", "manual"),  # По умолчанию - ручная рассылка
             sent_at=sent_at,
             scheduled_at=scheduled_at
         )
@@ -1882,7 +1882,7 @@ def get_mailing(mailing_id):
         mailing = db.query(Mailing).filter_by(mailing_id=mailing_id).first()
         
         if not mailing:
-            return {"error": "Р Р°СЃСЃС‹Р»РєР° РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+            return {"error": "Рассылка не найдена"}, 404
         
         return {
             "mailing_id": mailing.mailing_id,
@@ -1918,7 +1918,7 @@ def update_mailing(mailing_id):
         mailing = db.query(Mailing).filter_by(mailing_id=mailing_id).first()
         
         if not mailing:
-            return {"error": "Р Р°СЃСЃС‹Р»РєР° РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+            return {"error": "Рассылка не найдена"}, 404
         
         # РћР±РЅРѕРІР»СЏРµРј РїРѕР»СЏ
         if "name" in data:
@@ -1976,7 +1976,7 @@ def delete_mailing(mailing_id):
         mailing = db.query(Mailing).filter_by(mailing_id=mailing_id).first()
         
         if not mailing:
-            return {"error": "Р Р°СЃСЃС‹Р»РєР° РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+            return {"error": "Рассылка не найдена"}, 404
         
         # РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј СЃС‚Р°С‚СѓСЃ "РѕС‚РјРµРЅРµРЅРѕ" РІРјРµСЃС‚Рѕ СѓРґР°Р»РµРЅРёСЏ
         mailing.status = "cancelled"
@@ -2005,7 +2005,7 @@ def send_mailing_endpoint(mailing_id):
         mailing = db.query(Mailing).filter_by(mailing_id=mailing_id).first()
         
         if not mailing:
-            return {"error": "Р Р°СЃСЃС‹Р»РєР° РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+            return {"error": "Рассылка не найдена"}, 404
         
         # РџСЂРѕРІРµСЂСЏРµРј, РЅРµ РѕС‚РїСЂР°РІР»РµРЅР° Р»Рё СѓР¶Рµ
         if mailing.status == "sent":
@@ -2105,7 +2105,7 @@ def get_direction(direction_id):
     db = g.db
     direction = db.query(Direction).filter_by(direction_id=direction_id).first()
     if not direction:
-        return {"error": "РќР°РїСЂР°РІР»РµРЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Направление не найдено"}, 404
 
     image_url = _build_image_url(direction.image_path)
 
@@ -2129,7 +2129,7 @@ def get_direction_groups(direction_id):
     db = g.db
     direction = db.query(Direction).filter_by(direction_id=direction_id).first()
     if not direction:
-        return {"error": "РќР°РїСЂР°РІР»РµРЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Направление не найдено"}, 404
 
     groups = db.query(Group).filter_by(direction_id=direction_id).order_by(Group.created_at.desc()).all()
     result = []
@@ -2169,7 +2169,7 @@ def create_direction_group(direction_id):
 
     direction = db.query(Direction).filter_by(direction_id=direction_id).first()
     if not direction:
-        return {"error": "РќР°РїСЂР°РІР»РµРЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Направление не найдено"}, 404
 
     name = data.get("name")
     teacher_id = data.get("teacher_id")
@@ -2243,7 +2243,7 @@ def create_direction_group(direction_id):
                         f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
                         json={
                             "chat_id": int(uid),
-                            "text": f"РџСЂРёСЃРѕРµРґРёРЅРёС‚СЊСЃСЏ Рє С‡Р°С‚Сѓ РіСЂСѓРїРїС‹ \"{name}\" РјРѕР¶РЅРѕ РїРѕ СЃСЃС‹Р»РєРµ: {group.chat_invite_link}",
+                            "text": f"РџСЂРёСЃРѕРµРґРёРЅРёС‚СЊСЃСЏ Рє С‡Р°С‚Сѓ РіСЂСѓРїРїС‹ \"{name}\" можно по ссылке: {group.chat_invite_link}",
                             "disable_web_page_preview": True,
                         },
                         timeout=10,
@@ -2290,7 +2290,7 @@ def create_direction_upload_session():
     try:
         telegram_user_id = int(telegram_user_id)
     except (TypeError, ValueError):
-        return {"error": "РќРµРІРµСЂРЅС‹Р№ telegram_id"}, 400
+        return {"error": "Неверный telegram_id"}, 400
 
     admin = db.query(Staff).filter_by(telegram_id=telegram_user_id).first()
     if not admin or admin.position not in ["Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ", "СЃС‚Р°СЂС€РёР№ Р°РґРјРёРЅ", "РІР»Р°РґРµР»РµС†", "С‚РµС…. Р°РґРјРёРЅ"]:
@@ -2416,7 +2416,7 @@ def create_direction():
         "direction_id": direction.direction_id,
         "title": direction.title,
         "direction_type": direction.direction_type,
-        "message": "РќР°РїСЂР°РІР»РµРЅРёРµ СѓСЃРїРµС€РЅРѕ СЃРѕР·РґР°РЅРѕ"
+        "message": "Направление успешно создано"
     }, 201
 
 
@@ -2431,7 +2431,7 @@ def update_direction(direction_id):
     
     direction = db.query(Direction).filter_by(direction_id=direction_id).first()
     if not direction:
-        return {"error": "РќР°РїСЂР°РІР»РµРЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Направление не найдено"}, 404
     
     # РћР±РЅРѕРІР»СЏРµРј РїРѕР»СЏ
     if "title" in data:
@@ -2469,7 +2469,7 @@ def delete_direction(direction_id):
     
     direction = db.query(Direction).filter_by(direction_id=direction_id).first()
     if not direction:
-        return {"error": "РќР°РїСЂР°РІР»РµРЅРёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Направление не найдено"}, 404
     
     direction.status = "inactive"
     db.commit()
@@ -2494,7 +2494,7 @@ def upload_direction_photo(token):
 
     if "photo" not in request.files:
         current_app.logger.warning("direction upload: no file provided token=%s", token)
-        return {"error": "Р¤Р°Р№Р» РЅРµ Р·Р°РіСЂСѓР¶РµРЅ"}, 400
+        return {"error": "Файл не загружен"}, 400
 
     file = request.files["photo"]
     if file.filename == "":
@@ -3057,16 +3057,16 @@ def admin_get_client_attendance_calendar(user_id: int):
         status = attendance.status if attendance else "planned"
         if status in {"present", "late"}:
             mark_code = "Рџ"
-            mark_label = "РџСЂРёС€РµР»"
+            mark_label = "Пришел"
         elif status == "absent":
             mark_code = "Рќ"
-            mark_label = "РќРµСЏРІРєР°"
+            mark_label = "Неявка"
         elif status == "sick":
             mark_code = "Р‘"
-            mark_label = "Р‘РѕР»СЊРЅРёС‡РЅС‹Р№"
+            mark_label = "Больничный"
         elif status == "planned":
             mark_code = None
-            mark_label = "Р—Р°РїРёСЃР°РЅ"
+            mark_label = "Записан"
 
         group = groups.get(group_id)
         direction = directions.get(group.direction_id) if group and group.direction_id else None
@@ -3091,9 +3091,9 @@ def admin_get_client_attendance_calendar(user_id: int):
             "month": month_start.strftime("%Y-%m"),
             "entries": entries,
             "legend": {
-                "Рџ": "РџСЂРёС€РµР»",
-                "Рќ": "РќРµСЏРІРєР°",
-                "Р‘": "Р‘РѕР»СЊРЅРёС‡РЅС‹Р№",
+                "Рџ": "Пришел",
+                "Рќ": "Неявка",
+                "Р‘": "Больничный",
             },
         }
     )

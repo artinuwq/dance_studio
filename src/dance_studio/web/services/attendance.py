@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from sqlalchemy import or_
 
@@ -18,7 +18,6 @@ from dance_studio.web.constants import (
     ATTENDANCE_INTENTION_LOCK_DELTA,
     ATTENDANCE_INTENTION_LOCKED_MESSAGE,
     ATTENDANCE_INTENTION_STATUS_WILL_MISS,
-    ATTENDANCE_MARKING_WINDOW_HOURS,
 )
 
 def _attendance_already_debited(db, attendance_id: int) -> bool:
@@ -157,7 +156,8 @@ def _attendance_marking_window_info(schedule: Schedule) -> dict:
             "ends_at": None,
             "message": "Время занятия не задано.",
         }
-    ends_at = start_at + timedelta(hours=ATTENDANCE_MARKING_WINDOW_HOURS)
+    # Keep attendance editing open from lesson start until end of the same day.
+    ends_at = start_at.replace(hour=23, minute=59, second=59, microsecond=0)
     now = datetime.now()
     if now < start_at:
         return {
@@ -173,7 +173,7 @@ def _attendance_marking_window_info(schedule: Schedule) -> dict:
             "phase": "marking_open",
             "starts_at": start_at.isoformat(),
             "ends_at": ends_at.isoformat(),
-            "message": f"Можно отмечать фактическую посещаемость до {ends_at.strftime('%d.%m.%Y %H:%M')}.",
+            "message": f"Можно отмечать фактическую посещаемость до конца дня ({ends_at.strftime('%d.%m.%Y %H:%M')}).",
         }
     return {
         "is_open": False,
@@ -182,6 +182,91 @@ def _attendance_marking_window_info(schedule: Schedule) -> dict:
         "ends_at": ends_at.isoformat(),
         "message": f"Окно отметки закрыто. Напишите админу в случае чего-либо.",
     }
+
+
+def _auto_finalize_attendance_from_intentions(db, schedule: Schedule, now_utc: datetime | None = None) -> int:
+    """
+    After marking window closes, auto-fill missing attendance statuses
+    from intention state:
+    - will_miss -> absent
+    - otherwise -> present
+    Returns number of rows finalized during this call.
+    """
+    if not schedule:
+        return 0
+    window = _attendance_marking_window_info(schedule)
+    if window.get("phase") != "marking_closed":
+        return 0
+
+    now = now_utc or datetime.utcnow()
+    intentions = {
+        row.user_id: row
+        for row in db.query(AttendanceIntention).filter_by(schedule_id=schedule.id).all()
+    }
+    existing_rows = db.query(Attendance).filter_by(schedule_id=schedule.id).all()
+    existing_by_user = {row.user_id: row for row in existing_rows}
+
+    candidate_user_ids = set(existing_by_user.keys())
+    roster_abonements_by_user = {}
+
+    if schedule.object_type == "group":
+        for row in _load_group_roster(db, schedule):
+            user = row.get("user")
+            if not user:
+                continue
+            candidate_user_ids.add(user.id)
+            abon = row.get("abonement")
+            if abon and getattr(abon, "id", None):
+                roster_abonements_by_user[user.id] = abon.id
+    elif schedule.object_type == "individual":
+        lesson = db.query(IndividualLesson).filter_by(id=schedule.object_id).first() if schedule.object_id else None
+        if lesson and lesson.student_id:
+            candidate_user_ids.add(lesson.student_id)
+
+    candidate_user_ids.update(intentions.keys())
+    if not candidate_user_ids:
+        return 0
+
+    finalized_count = 0
+    for user_id in candidate_user_ids:
+        att = existing_by_user.get(user_id)
+        if att and (att.status or "").strip():
+            continue
+
+        planned = intentions.get(user_id)
+        inferred_status = (
+            "absent"
+            if planned and planned.status == ATTENDANCE_INTENTION_STATUS_WILL_MISS
+            else "present"
+        )
+
+        if not att:
+            att = Attendance(schedule_id=schedule.id, user_id=user_id)
+            db.add(att)
+            existing_by_user[user_id] = att
+
+        att.status = inferred_status
+        if not att.comment:
+            att.comment = "Авто-отметка из состояния приду/не приду"
+        att.marked_at = now
+        att.marked_by_staff_id = None
+
+        if schedule.object_type == "group" and not att.abonement_id:
+            abonement_id = roster_abonements_by_user.get(user_id)
+            if not abonement_id:
+                group_id = _schedule_group_id(schedule)
+                if group_id:
+                    resolved_abonement = _resolve_group_active_abonement(db, user_id, group_id, schedule.date)
+                    if resolved_abonement:
+                        abonement_id = resolved_abonement.id
+            if abonement_id:
+                att.abonement_id = abonement_id
+
+        db.flush()
+        _debit_abonement_for_attendance(db, att, None)
+        finalized_count += 1
+
+    return finalized_count
 
 def _serialize_attendance_intention(row: AttendanceIntention | None) -> dict:
     if not row:
@@ -209,6 +294,7 @@ def _serialize_attendance_intention_with_lock(row: AttendanceIntention | None, l
 
 __all__ = [
     "_attendance_already_debited",
+    "_auto_finalize_attendance_from_intentions",
     "_attendance_intention_lock_info",
     "_attendance_marking_window_info",
     "_can_edit_schedule_attendance",

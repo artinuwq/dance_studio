@@ -2,22 +2,21 @@ from datetime import datetime
 
 from flask import Blueprint, g, request
 
-from dance_studio.core.permissions import has_permission
 from dance_studio.db.models import Attendance, AttendanceIntention, IndividualLesson, Schedule, User
 from dance_studio.web.constants import (
     ATTENDANCE_ALLOWED_STATUSES,
     ATTENDANCE_INTENTION_LOCKED_MESSAGE,
     ATTENDANCE_INTENTION_STATUS_WILL_MISS,
 )
-from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request
+from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
 from dance_studio.web.services.attendance import (
     _attendance_already_debited,
     _attendance_intention_lock_info,
     _attendance_marking_window_info,
-    _can_edit_schedule_attendance,
     _can_user_set_absence_for_schedule,
     _debit_abonement_for_attendance,
     _load_group_roster,
+    _resolve_group_active_abonement,
     _serialize_attendance_intention_with_lock,
 )
 bp = Blueprint('attendance_routes', __name__)
@@ -28,16 +27,15 @@ def get_attendance(schedule_id):
     db = g.db
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
-    if not _can_edit_schedule_attendance(db, schedule):
-        return {"error": "РќРµС‚ РґРѕСЃС‚СѓРїР°"}, 403
+        return {"error": "Занятие не найдено"}, 404
+
+    window = _attendance_marking_window_info(schedule)
 
     existing = {a.user_id: a for a in db.query(Attendance).filter_by(schedule_id=schedule_id).all()}
     intentions = {
         row.user_id: row
         for row in db.query(AttendanceIntention).filter_by(schedule_id=schedule_id).all()
     }
-    window = _attendance_marking_window_info(schedule)
     items = []
     roster_source = None
 
@@ -121,17 +119,17 @@ def get_attendance(schedule_id):
         })
 
     status_labels = {
-        "present": "РџСЂРёСЃСѓС‚СЃС‚РІРѕРІР°Р»",
-        "absent": "РћС‚СЃСѓС‚СЃС‚РІРѕРІР°Р»",
-        "late": "РћРїРѕР·РґР°Р»",
-        "sick": "Р‘РѕР»РµР»",
+        "present": "Присутствовал",
+        "absent": "Отсутствовал",
+        "late": "Опоздал",
+        "sick": "Болел",
     }
 
     return {
         "items": items,
         "source": roster_source or "manual",
         "status_labels": status_labels,
-        "debit_policy": "РЎРїРёСЃС‹РІР°РµС‚СЃСЏ 1 Р·Р°РЅСЏС‚РёРµ РґР»СЏ РІСЃРµС… СЃС‚Р°С‚СѓСЃРѕРІ, РєСЂРѕРјРµ 'sick'",
+        "debit_policy": "Списывается 1 занятие для всех статусов, кроме 'sick'",
         "can_edit": bool(window["is_open"]),
         "attendance_phase": window["phase"],
         "attendance_phase_message": window["message"],
@@ -149,11 +147,11 @@ def set_attendance(schedule_id):
     db = g.db
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
     window = _attendance_marking_window_info(schedule)
     if not window["is_open"]:
         return {
-            "error": "РћРєРЅРѕ РѕС‚РјРµС‚РєРё Р·Р°РєСЂС‹С‚Рѕ.",
+            "error": "Окно отметки закрыто.",
             "attendance_phase": window["phase"],
             "attendance_phase_message": window["message"],
             "attendance_starts_at": window["starts_at"],
@@ -163,7 +161,7 @@ def set_attendance(schedule_id):
     data = request.json or {}
     items = data.get("items") or []
     if not isinstance(items, list):
-        return {"error": "items РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ СЃРїРёСЃРєРѕРј"}, 400
+        return {"error": "items должен быть списком"}, 400
 
     staff = _get_current_staff(db)
     results = []
@@ -174,13 +172,13 @@ def set_attendance(schedule_id):
         status = (item.get("status") or "").lower()
         comment = item.get("comment")
         if status not in ATTENDANCE_ALLOWED_STATUSES:
-            return {"error": f"РќРµРґРѕРїСѓСЃС‚РёРјС‹Р№ СЃС‚Р°С‚СѓСЃ: {status}"}, 400
+            return {"error": f"Недопустимый статус: {status}"}, 400
         if not user_id:
-            return {"error": "user_id РѕР±СЏР·Р°С‚РµР»РµРЅ"}, 400
+            return {"error": "user_id обязателен"}, 400
         try:
             user_id_int = int(user_id)
         except (TypeError, ValueError):
-            return {"error": "user_id РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‡РёСЃР»РѕРј"}, 400
+            return {"error": "user_id должен быть числом"}, 400
 
         att = db.query(Attendance).filter_by(schedule_id=schedule_id, user_id=user_id_int).first()
         if not att:
@@ -214,15 +212,16 @@ def set_attendance(schedule_id):
 @bp.route("/api/attendance/<int:schedule_id>/add-user", methods=["POST"])
 def add_attendance_user(schedule_id):
     db = g.db
-    if not has_permission(getattr(g, "telegram_id", None) or 0, "manage_schedule"):
-        return {"error": "РќРµС‚ РґРѕСЃС‚СѓРїР°"}, 403
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
     window = _attendance_marking_window_info(schedule)
     if not window["is_open"]:
         return {
-            "error": "РћРєРЅРѕ РѕС‚РјРµС‚РєРё Р·Р°РєСЂС‹С‚Рѕ.",
+            "error": "Окно отметки закрыто.",
             "attendance_phase": window["phase"],
             "attendance_phase_message": window["message"],
             "attendance_starts_at": window["starts_at"],
@@ -232,19 +231,19 @@ def add_attendance_user(schedule_id):
     data = request.json or {}
     user_id = data.get("user_id")
     if not user_id:
-        return {"error": "user_id РѕР±СЏР·Р°С‚РµР»РµРЅ"}, 400
+        return {"error": "user_id обязателен"}, 400
     try:
         user_id_int = int(user_id)
     except (TypeError, ValueError):
-        return {"error": "user_id РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‡РёСЃР»РѕРј"}, 400
+        return {"error": "user_id должен быть числом"}, 400
 
     user = db.query(User).filter_by(id=user_id_int).first()
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Пользователь не найден"}, 404
 
     existing = db.query(Attendance).filter_by(schedule_id=schedule_id, user_id=user_id_int).first()
     if existing:
-        return {"message": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СѓР¶Рµ РІ СЃРїРёСЃРєРµ"}, 200
+        return {"message": "Пользователь уже в списке"}, 200
 
     att = Attendance(
         schedule_id=schedule_id,
@@ -254,7 +253,7 @@ def add_attendance_user(schedule_id):
     )
     db.add(att)
     db.commit()
-    return {"message": "Р”РѕР±Р°РІР»РµРЅРѕ", "user_id": user_id_int}
+    return {"message": "Добавлено", "user_id": user_id_int}
 
 
 @bp.route("/api/attendance-intentions/<int:schedule_id>/my", methods=["GET"])
@@ -262,14 +261,14 @@ def get_my_attendance_intention(schedule_id):
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
 
     if not _can_user_set_absence_for_schedule(db, user, schedule):
-        return {"error": "РќРµР»СЊР·СЏ РѕС‚РјРµС‚РёС‚СЊСЃСЏ РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РЅСЏС‚РёСЏ"}, 403
+        return {"error": "Нельзя отметиться для этого занятия"}, 403
 
     lock_info = _attendance_intention_lock_info(schedule)
     row = db.query(AttendanceIntention).filter_by(schedule_id=schedule_id, user_id=user.id).first()
@@ -281,14 +280,14 @@ def set_my_attendance_intention(schedule_id):
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
 
     if not _can_user_set_absence_for_schedule(db, user, schedule):
-        return {"error": "РќРµР»СЊР·СЏ РѕС‚РјРµС‚РёС‚СЊСЃСЏ РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РЅСЏС‚РёСЏ"}, 403
+        return {"error": "Нельзя отметиться для этого занятия"}, 403
 
     lock_info = _attendance_intention_lock_info(schedule)
     if lock_info["is_locked"]:
@@ -338,14 +337,14 @@ def delete_my_attendance_intention(schedule_id):
     db = g.db
     user = get_current_user_from_request(db)
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 401
+        return {"error": "Пользователь не найден"}, 401
 
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
 
     if not _can_user_set_absence_for_schedule(db, user, schedule):
-        return {"error": "РќРµР»СЊР·СЏ РѕС‚РјРµС‚РёС‚СЊСЃСЏ РґР»СЏ СЌС‚РѕРіРѕ Р·Р°РЅСЏС‚РёСЏ"}, 403
+        return {"error": "Нельзя отметиться для этого занятия"}, 403
 
     lock_info = _attendance_intention_lock_info(schedule)
     if lock_info["is_locked"]:
@@ -356,6 +355,3 @@ def delete_my_attendance_intention(schedule_id):
         db.delete(row)
         db.commit()
     return _serialize_attendance_intention_with_lock(None, lock_info), 200
-
-
-
