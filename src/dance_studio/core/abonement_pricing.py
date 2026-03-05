@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import or_
 
 from dance_studio.core.system_settings_service import get_setting_value
-from dance_studio.db.models import BookingRequest, Direction, Group, GroupAbonement, Schedule
+from dance_studio.db.models import BookingRequest, Direction, Group, GroupAbonement, Schedule, UserDiscount
 
 
 ABONEMENT_TYPE_SINGLE = "single"
@@ -18,6 +18,8 @@ ALLOWED_ABONEMENT_TYPES = {
     ABONEMENT_TYPE_TRIAL,
 }
 ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
+ALLOWED_MULTI_SINGLE_LESSON_BUCKETS = {4, 8, 12, 16}
+ALLOWED_MULTI_BUNDLE_LESSON_BUCKETS = {4, 8, 12}
 INACTIVE_GROUP_SCHEDULE_STATUSES = {
     "cancelled",
     "deleted",
@@ -29,6 +31,20 @@ INACTIVE_GROUP_SCHEDULE_STATUSES = {
     "PAYMENT_FAILED",
 }
 DEFAULT_MULTI_SINGLE_PRICE_RUB = 400
+DEFAULT_MULTI_SINGLE_PRICES = {
+    "dance": {"4": 3600, "8": 7200, "12": 10800, "16": 14400},
+    "sport": {"4": 3600, "8": 7200, "12": 10800, "16": 14400},
+}
+DEFAULT_MULTI_BUNDLE_PRICES = {
+    "dance": {
+        "2": {"4": 6400, "8": 12800, "12": 19200},
+        "3": {"4": 8400, "8": 16800, "12": 25200},
+    },
+    "sport": {
+        "2": {"4": 6400, "8": 12800, "12": 19200},
+        "3": {"4": 8400, "8": 16800, "12": 25200},
+    },
+}
 
 
 class AbonementPricingError(ValueError):
@@ -72,8 +88,8 @@ def _normalize_multi_lessons_per_group(raw_value: Any) -> int | None:
         lessons_per_group = int(raw_value)
     except (TypeError, ValueError) as exc:
         raise AbonementPricingError("multi_lessons_per_group must be an integer.") from exc
-    if lessons_per_group not in {4, 8, 12}:
-        raise AbonementPricingError("multi_lessons_per_group must be one of: 4, 8, 12.")
+    if lessons_per_group not in ALLOWED_MULTI_SINGLE_LESSON_BUCKETS:
+        raise AbonementPricingError("multi_lessons_per_group must be one of: 4, 8, 12, 16.")
     return lessons_per_group
 
 
@@ -192,13 +208,18 @@ def _resolve_multi_single_amount_with_fallback(
     if amount is not None:
         return amount
 
-    # Fallback #1: derive single-group price from double-bundle matrix (half of 2-group package).
+    # Fallback #1: default studio tariff matrix for single-direction packages.
+    default_amount = _get_json_price(DEFAULT_MULTI_SINGLE_PRICES, direction_type, str(lessons_per_group))
+    if default_amount is not None:
+        return default_amount
+
+    # Fallback #2: derive single-group price from double-bundle matrix (half of 2-group package).
     bundle_matrix = get_setting_value(db, "abonements.multi_bundle_prices_json")
     bundle_two_amount = _get_json_price(bundle_matrix, direction_type, "2", str(lessons_per_group))
     if bundle_two_amount is not None:
         return max(0, int(bundle_two_amount) // 2)
 
-    # Fallback #2: minimal safety fallback so UI can still show purchasable option.
+    # Fallback #3: minimal safety fallback so UI can still show purchasable option.
     return DEFAULT_MULTI_SINGLE_PRICE_RUB
 
 
@@ -230,23 +251,28 @@ def _has_trial_for_direction_type(db, user_id: int, direction_type: str) -> bool
 
 def _resolve_multi_lessons_per_group(
     bundle_payloads: list[dict[str, Any]],
+    bundle_size: int,
     requested_lessons_per_group: int | None = None,
 ) -> int:
     lessons_per_week_values = [item.get("lessons_per_week") for item in bundle_payloads]
     if any(val is None for val in lessons_per_week_values):
         raise AbonementPricingError("lessons_per_week must be configured for all selected groups.")
-    if any(val not in {1, 2, 3} for val in lessons_per_week_values):
-        raise AbonementPricingError("lessons_per_week must be 1, 2, or 3 for multi abonement.")
+    if any(val not in {1, 2, 3, 4} for val in lessons_per_week_values):
+        raise AbonementPricingError("lessons_per_week must be 1, 2, 3, or 4 for multi abonement.")
     if len(set(lessons_per_week_values)) != 1:
         raise AbonementPricingError("All groups in bundle must have the same lessons_per_week.")
 
     max_lessons_per_group = int(lessons_per_week_values[0]) * 4
     if requested_lessons_per_group is None:
+        if bundle_size > 1:
+            return min(max_lessons_per_group, max(ALLOWED_MULTI_BUNDLE_LESSON_BUCKETS))
         return max_lessons_per_group
     if requested_lessons_per_group > max_lessons_per_group:
         raise AbonementPricingError(
             f"multi_lessons_per_group cannot exceed {max_lessons_per_group} for selected groups."
         )
+    if bundle_size > 1 and requested_lessons_per_group not in ALLOWED_MULTI_BUNDLE_LESSON_BUCKETS:
+        raise AbonementPricingError("For 2 or 3 groups, multi_lessons_per_group must be one of: 4, 8, 12.")
     return requested_lessons_per_group
 
 
@@ -281,6 +307,7 @@ def quote_group_booking(
             raise AbonementPricingError("Multi abonement supports only 1, 2, or 3 groups.")
         lessons_per_group = _resolve_multi_lessons_per_group(
             bundle_payloads,
+            bundle_size=bundle_size,
             requested_lessons_per_group=normalized_multi_lessons_per_group,
         )
 
@@ -303,9 +330,27 @@ def quote_group_booking(
             bundle_matrix = get_setting_value(db, "abonements.multi_bundle_prices_json")
             amount = _get_json_price(bundle_matrix, direction_type, str(bundle_size), str(lessons_per_group))
             if amount is None:
+                amount = _get_json_price(
+                    DEFAULT_MULTI_BUNDLE_PRICES, direction_type, str(bundle_size), str(lessons_per_group)
+                )
+            if amount is None:
                 raise AbonementPricingError(
                     f"Multi bundle price is not configured for {direction_type}/{bundle_size}/{lessons_per_group}."
                 )
+
+    if user_id:
+        active_discounts = (
+            db.query(UserDiscount)
+            .filter(UserDiscount.user_id == user_id, UserDiscount.is_active.is_(True))
+            .all()
+        )
+        if active_discounts:
+            best_discount_amt = 0
+            for d in active_discounts:
+                val = int(amount * (d.value / 100)) if d.discount_type == "percentage" else d.value
+                if val > best_discount_amt:
+                    best_discount_amt = val
+            amount = max(0, amount - best_discount_amt)
 
     if amount < 0:
         raise AbonementPricingError("Calculated amount must be >= 0.")

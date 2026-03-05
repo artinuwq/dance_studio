@@ -1051,7 +1051,7 @@ textarea.form-input {
   align-items: center;
 }
 
-/* ====== РЃС‚СЂР°РЅРёС†Р° СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ ====== */
+/* ====== Страница редактирования ====== */
 .direction-edit-header {
   display: flex;
   align-items: center;
@@ -1244,15 +1244,6 @@ textarea.form-input {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-}
-
-.staff-phone-line {
-  font-size: 12px;
-  color: var(--hint);
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .staff-teaches-chip {
@@ -1670,6 +1661,20 @@ textarea.form-input {
   color: #e65100;
 }
 
+.schedule-slot.cancelled {
+  background: rgba(128, 128, 128, 0.42);
+  border-color: rgba(140, 140, 140, 0.95);
+}
+
+.schedule-slot.cancelled .schedule-event {
+  color: #f1f1f1;
+  font-weight: 700;
+}
+
+.schedule-slot.cancelled:hover {
+  background: rgba(128, 128, 128, 0.52);
+}
+
 .schedule-slot.tentative {
   border-color: rgba(254, 88, 21, 0.8);
   background: rgba(254, 88, 21, 0.12);
@@ -1833,7 +1838,7 @@ textarea.form-input {
 .group-schedule-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.35);
   display: none;
   z-index: 1001;
 }
@@ -1844,22 +1849,208 @@ textarea.form-input {
 
 .group-schedule-modal {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: var(--card);
+  inset: 0;
+  background: var(--bg);
   color: var(--text);
-  border-radius: 20px 20px 0 0;
-  box-shadow: 0 -8px 20px rgba(0, 0, 0, 0.15);
-  padding: 16px;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
   display: none;
   z-index: 1002;
-  max-height: 85vh;
   overflow-y: auto;
 }
 
 .group-schedule-modal.show {
   display: block;
+}
+
+.group-schedule-shell {
+  min-height: 100vh;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 10px) 16px calc(var(--safe-bottom) + 14px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-schedule-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.group-schedule-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.group-schedule-subtitle {
+  margin-top: 3px;
+  color: var(--hint);
+  font-size: 13px;
+}
+
+.group-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.group-section {
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.group-section-head {
+  margin-bottom: 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--hint);
+  font-weight: 700;
+}
+
+.group-grid-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.group-field-wrap {
+  position: relative;
+}
+
+.group-field-wrap .form-input {
+  padding-right: 32px;
+}
+
+.field-confirm {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.82);
+  opacity: 0;
+  color: #39c47f;
+  font-size: 14px;
+  pointer-events: none;
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.field-confirm.show {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+.field-confirm.pulse {
+  animation: field-confirm-pulse 0.24s ease;
+}
+
+@keyframes field-confirm-pulse {
+  0% {
+    transform: translateY(-50%) scale(0.85);
+  }
+  55% {
+    transform: translateY(-50%) scale(1.13);
+  }
+  100% {
+    transform: translateY(-50%) scale(1);
+  }
+}
+
+.inline-error {
+  min-height: 16px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  color: #ff7070;
+  font-size: 12px;
+}
+
+.form-input.input-invalid {
+  border-color: #ff7070 !important;
+}
+
+.interval-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stepper-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.interval-stepper .form-input {
+  width: 62px;
+  text-align: center;
+  padding: 6px 4px;
+}
+
+.interval-stepper .form-input::-webkit-outer-spin-button,
+.interval-stepper .form-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.interval-stepper .form-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.live-result-card {
+  border: 1px solid var(--border);
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.live-result-main {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.live-result-warning {
+  margin-top: 6px;
+  color: #ff9f68;
+  font-size: 12px;
+  min-height: 16px;
+}
+
+.live-result-warning.ok {
+  color: #59c386;
+}
+
+.group-modal-actions {
+  margin-top: 4px;
+  padding-top: 10px;
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  gap: 8px;
+  background: linear-gradient(to top, var(--bg) 70%, rgba(0, 0, 0, 0));
+}
+
+@media (max-width: 560px) {
+  .group-grid-two {
+    grid-template-columns: 1fr;
+  }
 }
 
 .confirm-modal-overlay {
@@ -1997,7 +2188,7 @@ textarea.form-input {
   display: none;
   height: 100vh;
   overflow-y: auto;
-  padding: 16px;
+  padding: 40px 16px 16px 16px;
 }
 
 .attendance-screen.active {
@@ -2199,11 +2390,11 @@ textarea.form-input {
 }
 
 .repeat-panel {
-  margin-top: 10px;
-  padding: 10px;
-  border-radius: 12px;
-  background: var(--card);
-  border: 1px solid var(--border);
+  margin-top: 0;
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  border: 0;
 }
 
 .repeat-row {
@@ -2236,7 +2427,7 @@ textarea.form-input {
 }
 
 .repeat-inline input[type="number"] {
-  width: 60px;
+  width: 62px;
 }
 
 .repeat-summary {
@@ -3698,7 +3889,7 @@ textarea.form-input {
 <div class="card work-section" id="work-section-personal" style="margin-bottom: 12px;">
 <h4 style="margin-bottom: 10px;">Персональное</h4>
 <button class="save-btn" onclick="showPage('personal-schedule')" style="width: 100%; margin-bottom: 8px;">Личное расписание</button>
-<button class="save-btn" type="button" style="width: 100%; margin-bottom: 8px;">Личные группы</button>
+<button class="save-btn" onclick="showPage('personal-groups')" type="button" style="width: 100%; margin-bottom: 8px;">Личные группы</button>
 </div>
 <div class="card work-section" id="work-section-structure" style="margin-bottom: 12px;">
 <h4 style="margin-bottom: 10px;">Структура</h4>
@@ -3766,6 +3957,12 @@ textarea.form-input {
   <p class="personal-individual-booking-msg" id="personal-individual-booking-msg"></p>
 </div>
 </div>
+<!-- ====== ЛИЧНЫЕ ГРУППЫ ====== -->
+<div class="page" data-title="👥 Личные группы" id="personal-groups">
+  <div id="personal-groups-container">
+    <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
+  </div>
+</div>
 <!-- ====== СТАТИСТИКА ====== -->
 <div class="page" data-title="📊 Статистика" id="stats">
   <div class="card" style="margin-bottom: 12px;">
@@ -3797,8 +3994,8 @@ textarea.form-input {
 </div>
 <div class="page" data-title="💰 Ценники" id="work-settings-prices">
   <div class="card" style="margin-bottom: 12px;">
-    <h4 style="margin: 0 0 6px;">Цены по направлениям</h4>
-    <p class="small" style="margin: 0; color: var(--hint);">Изменения применяются сразу после сохранения цены.</p>
+    <h4 style="margin: 0 0 6px;">Цены абонементов</h4>
+    <p class="small" style="margin: 0; color: var(--hint);">Настройки берутся из базы и сразу влияют на расчет стоимости.</p>
   </div>
   <div id="work-settings-prices-container">
     <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
@@ -3832,6 +4029,36 @@ textarea.form-input {
   </div>
   <div id="schedule-detail-content" style="margin-top: 8px;"></div>
 </div>
+<div class="schedule-detail-overlay" id="schedule-move-overlay" onclick="closeScheduleMoveModal()"></div>
+<div class="schedule-detail-modal" id="schedule-move-modal">
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+    <h4 style="margin: 0;">Перенос занятия</h4>
+    <button class="save-btn" style="padding: 6px 10px; background: #777;" onclick="closeScheduleMoveModal()">Закрыть</button>
+  </div>
+  <label class="label">Тип переноса</label>
+  <select class="form-input" id="schedule-move-type">
+    <option value="studio_fault">Перенос по вине студии</option>
+    <option value="absence_people">Отсутствие людей</option>
+    <option value="low_attendance">Нехватка людей</option>
+  </select>
+  <label class="label">Новая дата</label>
+  <input class="form-input" id="schedule-move-date" type="date"/>
+  <div style="display: flex; gap: 8px;">
+    <div style="flex:1;">
+      <label class="label">Время от</label>
+      <input class="form-input" id="schedule-move-time-from" type="time" step="1800"/>
+    </div>
+    <div style="flex:1;">
+      <label class="label">Время до</label>
+      <input class="form-input" id="schedule-move-time-to" type="time" step="1800"/>
+    </div>
+  </div>
+  <div style="display: flex; gap: 8px; margin-top: 10px;">
+    <button class="save-btn" style="flex:1;" onclick="moveCurrentSchedule()">Перенести</button>
+    <button class="save-btn" style="flex:1; background:#777;" onclick="closeScheduleMoveModal()">Отмена</button>
+  </div>
+  <div class="small" id="schedule-move-action-status" style="margin-top: 8px; color: var(--hint);"></div>
+</div>
 
 <div class="schedule-form" id="schedule-admin-form">
   <h4 style="margin: 0 0 8px 0;">Создать занятие</h4>
@@ -3860,66 +4087,107 @@ textarea.form-input {
 <button class="save-btn" style="width: 100%; margin-top: 12px; background: var(--accent);" onclick="toggleGroupScheduleForm()">➕ Добавить групповое занятие</button>
 <div class="group-schedule-overlay" id="group-schedule-overlay" onclick="toggleGroupScheduleForm(false)"></div>
 <div class="group-schedule-modal" id="group-schedule-modal">
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-    <h4 style="margin: 0;">Групповое занятие</h4>
-    <button class="save-btn" style="padding: 6px 10px; background: #777;" onclick="toggleGroupScheduleForm(false)">Закрыть</button>
-  </div>
-  <label class="label">Группа</label>
-  <select class="form-input" id="group-schedule-group">
-    <option value="">Выберите группу</option>
-  </select>
-  <div class="schedule-detail-card" id="group-schedule-preview" style="display: none;"></div>
-  <label class="label">Дата</label>
-  <input class="form-input" id="group-schedule-date" type="date"/>
-  <div style="display: flex; gap: 8px;">
-    <div style="flex: 1;">
-      <label class="label">Время от</label>
-      <input class="form-input" id="group-schedule-time-from" type="time" step="1800"/>
-    </div>
-    <div style="flex: 1;">
-      <label class="label">Время до</label>
-      <input class="form-input" id="group-schedule-time-to" type="time" step="1800"/>
-    </div>
-  </div>
-
-  <div class="repeat-panel">
-    <div class="repeat-row">
-      <span style="font-size: 12px; font-weight: 600;">Повторять</span>
-      <select class="form-input" id="repeat-mode" style="flex: 1;">
-        <option value="none">Не повторять</option>
-        <option value="weekly" selected>По неделям</option>
-        <option value="daily">По дням</option>
-        <option value="monthly">По месяцам</option>
-      </select>
+  <div class="group-schedule-shell">
+    <div class="group-schedule-header">
+      <div>
+        <h3 class="group-schedule-title">Групповое занятие</h3>
+        <div class="group-schedule-subtitle">Создание</div>
+      </div>
+      <button class="group-close-btn" onclick="toggleGroupScheduleForm(false)" aria-label="Закрыть">✕</button>
     </div>
 
-    <div class="repeat-row repeat-inline" id="repeat-interval-row">
-      <span>Каждую(ые)</span>
-      <input class="form-input" id="repeat-interval" type="number" min="1" value="1"/>
-      <span id="repeat-interval-label">неделю</span>
+    <div class="group-section">
+      <div class="group-section-head">Основное</div>
+      <label class="label">Группа</label>
+      <div class="group-field-wrap">
+        <select class="form-input" id="group-schedule-group">
+          <option value="">Выберите группу</option>
+        </select>
+        <span class="field-confirm" id="group-schedule-group-ok">✓</span>
+      </div>
+      <div class="inline-error" id="group-schedule-group-error"></div>
+      <div class="schedule-detail-card" id="group-schedule-preview" style="display: none;"></div>
+
+      <label class="label">Дата</label>
+      <div class="group-field-wrap">
+        <input class="form-input" id="group-schedule-date" type="date"/>
+        <span class="field-confirm" id="group-schedule-date-ok">✓</span>
+      </div>
+      <div class="inline-error" id="group-schedule-date-error"></div>
+
+      <div class="group-grid-two">
+        <div>
+          <label class="label">Время от</label>
+          <div class="group-field-wrap">
+            <input class="form-input" id="group-schedule-time-from" type="time" step="1800"/>
+            <span class="field-confirm" id="group-schedule-time-from-ok">✓</span>
+          </div>
+          <div class="inline-error" id="group-schedule-time-from-error"></div>
+        </div>
+        <div>
+          <label class="label">Время до</label>
+          <div class="group-field-wrap">
+            <input class="form-input" id="group-schedule-time-to" type="time" step="1800"/>
+            <span class="field-confirm" id="group-schedule-time-to-ok">✓</span>
+          </div>
+          <div class="inline-error" id="group-schedule-time-to-error"></div>
+        </div>
+      </div>
     </div>
 
-    <div class="repeat-row" id="repeat-weekdays-row">
-      <span class="chip" data-day="1">Пн</span>
-      <span class="chip" data-day="2">Вт</span>
-      <span class="chip" data-day="3">Ср</span>
-      <span class="chip" data-day="4">Чт</span>
-      <span class="chip" data-day="5">Пт</span>
-      <span class="chip" data-day="6">Сб</span>
-      <span class="chip" data-day="0">Вс</span>
+    <div class="group-section">
+      <div class="group-section-head">Повтор</div>
+      <div class="repeat-panel">
+        <div class="repeat-row">
+          <span style="font-size: 12px; font-weight: 600;">Повторять</span>
+          <select class="form-input" id="repeat-mode" style="flex: 1;">
+            <option value="none">Не повторять</option>
+            <option value="weekly" selected>По неделям</option>
+            <option value="daily">По дням</option>
+            <option value="monthly">По месяцам</option>
+          </select>
+        </div>
+
+        <div class="repeat-row repeat-inline" id="repeat-interval-row">
+          <span>Каждые</span>
+          <div class="interval-stepper">
+            <button class="stepper-btn" id="repeat-interval-minus" type="button" aria-label="Уменьшить">-</button>
+            <input class="form-input" id="repeat-interval" type="number" min="1" value="1"/>
+            <button class="stepper-btn" id="repeat-interval-plus" type="button" aria-label="Увеличить">+</button>
+          </div>
+          <span id="repeat-interval-label">неделю</span>
+        </div>
+
+        <div class="repeat-row" id="repeat-weekdays-row">
+          <span class="chip" data-day="1">Пн</span>
+          <span class="chip" data-day="2">Вт</span>
+          <span class="chip" data-day="3">Ср</span>
+          <span class="chip" data-day="4">Чт</span>
+          <span class="chip" data-day="5">Пт</span>
+          <span class="chip" data-day="6">Сб</span>
+          <span class="chip" data-day="0">Вс</span>
+        </div>
+
+        <div class="repeat-row repeat-inline" id="repeat-until-row">
+          <label class="label" style="margin: 0;">До</label>
+          <input class="form-input" id="repeat-until" type="date"/>
+        </div>
+      </div>
     </div>
 
-  <div class="repeat-row repeat-inline">
-      <label class="label" style="margin: 0;">До</label>
-      <input class="form-input" id="repeat-until" type="date"/>
-  </div>
+    <div class="group-section">
+      <div class="group-section-head">Итог</div>
+      <div class="live-result-card">
+        <div class="live-result-main" id="group-live-summary">Заполните форму, чтобы увидеть результат.</div>
+        <div class="live-result-warning" id="group-live-warning"></div>
+      </div>
+      <div class="repeat-summary" id="repeat-summary">Без повторения</div>
+    </div>
 
-    <div class="repeat-summary" id="repeat-summary">Без повторения</div>
-  </div>
-
-  <div style="display: flex; gap: 8px; margin-top: 10px;">
-    <button class="save-btn" style="flex: 1;" onclick="createGroupSchedule()">Создать</button>
-    <button class="save-btn" style="flex: 1; background: #777;" onclick="toggleGroupScheduleForm(false)">Отмена</button>
+    <div class="group-modal-actions">
+      <button class="save-btn" style="flex: 1;" onclick="createGroupSchedule()">Создать</button>
+      <button class="save-btn" style="flex: 1; background: #777;" onclick="toggleGroupScheduleForm(false)">Отмена</button>
+    </div>
   </div>
 </div>
 </div>
@@ -4348,13 +4616,14 @@ textarea.form-input {
 <h4>Активный профиль</h4>
 <div class="small" id="payment-profiles-active-label" style="margin-bottom: 10px; color: var(--hint);">—</div>
 <div class="payment-tabs-container" id="payment-tabs-container">
-<button class="payment-tab-btn" id="payment-tab-1" type="button" onclick="selectPaymentProfileTab(1)">✅ Профиль 1</button>
-<button class="payment-tab-btn" id="payment-tab-2" type="button" onclick="selectPaymentProfileTab(2)">💳 Профиль 2</button>
+<button class="payment-tab-btn" id="payment-tab-1" type="button" onclick="selectPaymentProfileTab(1)">Реквизиты 1</button>
+<button class="payment-tab-btn" id="payment-tab-2" type="button" onclick="selectPaymentProfileTab(2)">Реквизиты 2</button>
+<button class="payment-tab-btn" id="payment-tab-3" type="button" onclick="selectPaymentProfileTab(3)">Реквизиты 3</button>
 <div class="payment-tab-indicator" id="payment-tab-indicator"></div>
 </div>
 </div>
 <div class="card" style="margin-bottom: 12px;">
-<h4>Профиль 1</h4>
+<h4>Реквизиты 1</h4>
 <div class="form-group">
 <label>Банк получателя</label>
 <input class="form-input" id="payment-profile-1-bank" type="text" placeholder="Например: Сбербанк"/>
@@ -4367,10 +4636,10 @@ textarea.form-input {
 <label>ФИО получателя</label>
 <input class="form-input" id="payment-profile-1-full-name" type="text" placeholder="Иванов Иван Иванович"/>
 </div>
-<button class="save-btn" type="button" onclick="savePaymentProfile(1)">Сохранить профиль 1</button>
+<button class="save-btn" type="button" onclick="savePaymentProfile(1)">Сохранить реквизиты 1</button>
 </div>
 <div class="card">
-<h4>Профиль 2</h4>
+<h4>Реквизиты 2</h4>
 <div class="form-group">
 <label>Банк получателя</label>
 <input class="form-input" id="payment-profile-2-bank" type="text" placeholder="Например: Т-Банк"/>
@@ -4383,7 +4652,23 @@ textarea.form-input {
 <label>ФИО получателя</label>
 <input class="form-input" id="payment-profile-2-full-name" type="text" placeholder="Петров Петр Петрович"/>
 </div>
-<button class="save-btn" type="button" onclick="savePaymentProfile(2)">Сохранить профиль 2</button>
+<button class="save-btn" type="button" onclick="savePaymentProfile(2)">Сохранить реквизиты 2</button>
+</div>
+<div class="card">
+<h4>Реквизиты 3</h4>
+<div class="form-group">
+<label>Банк получателя</label>
+<input class="form-input" id="payment-profile-3-bank" type="text" placeholder="Например: ВТБ"/>
+</div>
+<div class="form-group">
+<label>Номер</label>
+<input class="form-input" id="payment-profile-3-number" type="text" placeholder="Номер карты / счета / телефона"/>
+</div>
+<div class="form-group">
+<label>ФИО получателя</label>
+<input class="form-input" id="payment-profile-3-full-name" type="text" placeholder="Получатель"/>
+</div>
+<button class="save-btn" type="button" onclick="savePaymentProfile(3)">Сохранить реквизиты 3</button>
 </div>
 </div>
 <!-- ====== РАСПИСАНИЕ ПЕРСОНАЛА ====== -->
@@ -4500,10 +4785,6 @@ textarea.form-input {
 <label style="font-size: 12px; color: var(--hint); line-height: 1.2;">Должность</label>
 <div id="staff-detail-position-full" style="font-size: 15px; margin-top: 2px;">—</div>
 </div>
-<div id="staff-detail-phone-block" style="margin-bottom: 8px; display: none;">
-<label style="font-size: 12px; color: var(--hint); line-height: 1.2;">Телефон</label>
-<div id="staff-detail-phone" style="font-size: 15px; margin-top: 2px;">—</div>
-</div>
 <div style="margin-bottom: 4px;">
 <label style="font-size: 12px; color: var(--hint); line-height: 1.2;">Специализация</label>
 <div id="staff-detail-specialization" style="font-size: 15px; margin-top: 2px;">—</div>
@@ -4513,7 +4794,8 @@ textarea.form-input {
 <h4>📝 Биография</h4>
 <p id="staff-detail-bio" style="white-space: pre-wrap; line-height: 1.5;">—</p>
 </div>
-<button class="save-btn" onclick="deleteCurrentStaff()" style="width: 100%; background: #ff6b6b;">🗑️ Удалить персонал</button>
+<button class="save-btn" onclick="openStaffProfileEdit(currentDetailStaffId)" style="width: 100%; margin-bottom: 8px;">✏️ Редактировать профиль</button>
+<button class="save-btn" id="staff-detail-delete-btn" onclick="deleteCurrentStaff()" style="width: 100%; background: #ff6b6b;">🗑️ Удалить персонал</button>
 </div>
 <!-- ====== ФОРМА СОЗДАНИЯ НАПРАВЛЕНИЯ ====== -->
 <div class="page" data-title="➕ Создать направление" id="direction-create-form">
@@ -4665,6 +4947,17 @@ textarea.form-input {
 <label>Имя</label>
 <input class="form-input" id="staff-profile-name" placeholder="Имя" type="text"/>
 </div>
+<div class="form-group" id="staff-profile-position-group" style="display: none;">
+<label>Роль</label>
+<select class="form-input" id="staff-profile-position" onchange="updateStaffProfileTeachesToggle()">
+<option value="учитель">👩‍🏫 Учитель</option>
+<option value="администратор">📋 Администратор</option>
+<option value="старший админ">🛡️ Старший админ</option>
+<option value="модератор">🧩 Модератор</option>
+<option value="владелец">👑 Владелец</option>
+<option value="тех. админ">🛠️ Тех. админ</option>
+</select>
+</div>
 <div class="form-group">
 <label>Специализация</label>
 <input class="form-input" id="staff-profile-specialization" placeholder="Например: Балет, Хип?хоп" type="text"/>
@@ -4679,14 +4972,6 @@ textarea.form-input {
 <input id="staff-profile-teaches" type="checkbox"/>
 <span>Преподаватель</span>
 </label>
-</div>
-<div class="form-group">
-<label>Телефон</label>
-<input class="form-input" id="staff-profile-phone" placeholder="+7 900 000 00 00" type="text"/>
-</div>
-<div class="form-group">
-<label>Email</label>
-<input class="form-input" id="staff-profile-email" placeholder="name@example.com" type="email"/>
 </div>
 <input id="staff-profile-photo-input" type="file" accept="image/*" style="display: none;" onchange="uploadStaffPhotoFromGallery()"/>
 <button class="save-btn" onclick="openStaffPhotoPicker()" style="width: 100%; margin-top: 8px;">
@@ -5363,6 +5648,25 @@ function applyHeaderForPage(pageId) {
 let navigationStack = ['home'];
 applyHeaderForPage('home');
 
+function resetViewportToTop(activePage) {
+  if (activePage) {
+    activePage.scrollTop = 0;
+    if (typeof activePage.scrollTo === 'function') {
+      activePage.scrollTo(0, 0);
+    }
+  }
+  if (document.documentElement) {
+    document.documentElement.scrollTop = 0;
+  }
+  if (document.body) {
+    document.body.scrollTop = 0;
+  }
+  window.scrollTo(0, 0);
+  requestAnimationFrame(() => {
+    window.scrollTo(0, 0);
+  });
+}
+
 function showPage(id) {
   if (document.body.classList.contains('group-booking-open')) {
     closeGroupBookingForm();
@@ -5375,8 +5679,11 @@ function showPage(id) {
     navigationStack.push(id);
   }
   
+  const nextPage = document.getElementById(id);
+  if (!nextPage) return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  nextPage.classList.add('active');
+  resetViewportToTop(nextPage);
 
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const index = ROOT_PAGES.indexOf(id);
@@ -5418,6 +5725,10 @@ function showPage(id) {
     loadPersonalSchedule();
   } else {
     hidePersonalScheduleRefreshCapsule();
+  }
+
+  if (id === 'personal-groups') {
+    loadPersonalGroups();
   }
   
   // Загружаем список персонала для управления
@@ -6204,6 +6515,7 @@ function renderHallOccupancy(_date, bookings) {
     const end = timeStringToMinutes(book.time_to || '');
     return { start, end };
   }).filter(interval => interval.end > interval.start);
+  busyIntervals.push({ start: 14 * 60 + 30, end: 15 * 60 });
 
   rentalBookingState.freeRanges = buildFreeRangesFromBusyIntervals(
     busyIntervals,
@@ -7541,11 +7853,14 @@ function getMainGroupLessonsPerWeek() {
   return perWeek;
 }
 
+const GROUP_BOOKING_MULTI_BUCKETS = [4, 8, 12, 16];
+const GROUP_BOOKING_MULTI_BUNDLE_BUCKETS = [4, 8, 12];
+
 function getMainGroupLessonsBucket() {
   const perWeek = getMainGroupLessonsPerWeek();
   if (!perWeek) return null;
   const bucket = perWeek * 4;
-  if (bucket === 4 || bucket === 8 || bucket === 12) return bucket;
+  if (GROUP_BOOKING_MULTI_BUCKETS.includes(bucket)) return bucket;
   return null;
 }
 
@@ -7563,6 +7878,12 @@ function getSelectedOption() {
 function isMultiOptionSelected() {
   const selected = getSelectedOption();
   return !!selected && selected.abonementType === 'multi';
+}
+
+function isBundleEligibleMultiOptionSelected() {
+  const selected = getSelectedOption();
+  const lessonsPerGroup = getOptionMultiLessonsPerGroup(selected);
+  return !!selected && selected.abonementType === 'multi' && GROUP_BOOKING_MULTI_BUNDLE_BUCKETS.includes(lessonsPerGroup);
 }
 
 function buildGroupBookingOptionCandidates() {
@@ -7583,7 +7904,7 @@ function buildGroupBookingOptionCandidates() {
   ];
 
   if (lessonsBucket) {
-    [4, 8, 12].forEach((bucket) => {
+    GROUP_BOOKING_MULTI_BUCKETS.forEach((bucket) => {
       if (bucket <= lessonsBucket) {
         candidates.push({
           id: `multi_${bucket}`,
@@ -7602,13 +7923,15 @@ function buildGroupBookingOptionCandidates() {
 function getOptionMultiLessonsPerGroup(option) {
   if (!option || option.abonementType !== 'multi') return null;
   const parsed = Number.parseInt(option.multiLessonsPerGroup, 10);
-  if (!Number.isFinite(parsed) || ![4, 8, 12].includes(parsed)) return null;
+  if (!Number.isFinite(parsed) || !GROUP_BOOKING_MULTI_BUCKETS.includes(parsed)) return null;
   return parsed;
 }
 
 function getBundleGroupIdsForOption(option) {
   if (!activeGroupBookingId || !option) return [];
-  if (option.abonementType !== 'multi') {
+  const lessonsPerGroup = getOptionMultiLessonsPerGroup(option);
+  const canUseBundle = option.abonementType === 'multi' && GROUP_BOOKING_MULTI_BUNDLE_BUCKETS.includes(lessonsPerGroup);
+  if (!canUseBundle) {
     return [activeGroupBookingId];
   }
   return [activeGroupBookingId, ...getSelectedExtraGroupIds()].slice(0, 3);
@@ -7696,7 +8019,7 @@ function renderGroupBookingPicker() {
   const list = document.getElementById('group-booking-picker-list');
   if (!picker || !list) return;
 
-  if (!isMultiOptionSelected() || groupBookingState.activePickerSlot === null) {
+  if (!isBundleEligibleMultiOptionSelected() || groupBookingState.activePickerSlot === null) {
     picker.classList.add('hidden');
     list.innerHTML = '';
     return;
@@ -7746,7 +8069,7 @@ function renderGroupBookingDirections() {
   mainNode.innerHTML = `<b>\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435 \u043d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435:</b> ${escapeHtml(group.name || '\u0413\u0440\u0443\u043f\u043f\u0430')} - ${escapeHtml(group.direction_title || '-')} - ${escapeHtml(lessonsText)}`;
 
   const extras = getSelectedExtraGroupIds();
-  const multiSelected = isMultiOptionSelected();
+  const multiSelected = isBundleEligibleMultiOptionSelected();
 
   let slotsHtml = '';
   for (let slotIndex = 0; slotIndex < 2; slotIndex += 1) {
@@ -7785,7 +8108,7 @@ function renderGroupBookingDirections() {
 }
 
 function openGroupBookingDirectionPicker(slotIndex) {
-  if (!isMultiOptionSelected()) return;
+  if (!isBundleEligibleMultiOptionSelected()) return;
   const normalized = Number.parseInt(slotIndex, 10);
   if (!Number.isFinite(normalized) || normalized < 0 || normalized > 1) return;
   groupBookingState.activePickerSlot = normalized;
@@ -8410,18 +8733,29 @@ function renderScheduleNowIndicator(container) {
   container.appendChild(line);
 }
 
+function normalizeScheduleStatus(status) {
+  return String(status || '').trim().toLowerCase();
+}
+
+function isScheduleCancelledStatus(status) {
+  const normalized = normalizeScheduleStatus(status);
+  return normalized === 'cancelled' || normalized === 'canceled';
+}
+
 function getSlotInfo(dateStr, timeStr) {
   const activeItems = getActiveScheduleItems();
   const slotStart = timeToMinutes(timeStr);
   const slotEnd = slotStart + SLOT_MINUTES;
-  const item = activeItems.find(s => {
+  const overlapping = activeItems.filter(s => {
     if (s.date !== dateStr) return false;
     if (!s.time_from || !s.time_to) return false;
     const start = timeToMinutes(s.time_from);
     const end = timeToMinutes(s.time_to);
-    return slotStart < end && slotEnd > start && s.status !== 'cancelled';
+    return slotStart < end && slotEnd > start;
   });
-  return item || null;
+  if (!overlapping.length) return null;
+  const notCancelled = overlapping.find(s => !isScheduleCancelledStatus(s.status));
+  return notCancelled || overlapping[0];
 }
 
 function renderSlotCell(dateStr, timeStr, confirmedItem) {
@@ -8434,11 +8768,15 @@ function renderSlotCell(dateStr, timeStr, confirmedItem) {
 function renderConfirmedSlotCell(item, timeStr) {
   const info = getSlotRenderInfo(item, timeStr);
   const labelHtml = info.showLabel ? `<div class="schedule-event">${getScheduleLabel(item)}</div>` : '';
+  const isCancelled = isScheduleCancelledStatus(item.status);
   const color = getScheduleColor(item);
-  const stateClass = item.status && item.status !== 'scheduled' ? 'pending' : 'confirmed';
+  const stateClass = isCancelled
+    ? 'cancelled'
+    : (item.status && item.status !== 'scheduled' ? 'pending' : 'confirmed');
   const groupKey = item.id ? `schedule-${item.id}` : '';
   const dataAttr = groupKey ? ` data-slot-group="${groupKey}"` : '';
-  return `<div class="schedule-cell schedule-slot confirmed ${stateClass} ${item.object_type}" style="background: ${color};"${dataAttr} onclick="openScheduleDetailById(${item.id})">${labelHtml}</div>`;
+  const styleAttr = isCancelled ? '' : ` style="background: ${color};"`;
+  return `<div class="schedule-cell schedule-slot confirmed ${stateClass} ${item.object_type}"${styleAttr}${dataAttr} onclick="openScheduleDetailById(${item.id})">${labelHtml}</div>`;
 }
 
 function getScheduleLabel(item) {
@@ -8447,8 +8785,9 @@ function getScheduleLabel(item) {
     individual: 'Индив.',
     rental: 'Аренда'
   };
+  const prefix = isScheduleCancelledStatus(item.status) ? '🚫 ' : '';
   const statusIcon = getScheduleStatusIcon(item.status);
-  return `${typeMap[item.object_type] || 'Событие'} #${item.object_id}${statusIcon ? ' ' + statusIcon : ''}`;
+  return `${prefix}${typeMap[item.object_type] || 'Событие'} #${item.object_id}${statusIcon ? ' ' + statusIcon : ''}`;
 }
 
 function getScheduleStatusIcon(status) {
@@ -8462,7 +8801,6 @@ function getScheduleStatusIcon(status) {
       return '';
   }
 }
-
 function formatScheduleStatusLabel(status) {
   if (!status) return '—';
   const normalized = String(status);
@@ -8595,17 +8933,33 @@ function openScheduleDetail(item) {
   if (!card || !content || !overlay) return;
 
   const typeMap = SCHEDULE_TYPE_TITLES;
+  const isGroupSchedule = String(item.object_type || '').toLowerCase() === 'group';
 
   const dateText = item.date ? new Date(item.date).toLocaleDateString('ru-RU') : '—';
   const timeText = item.time_from && item.time_to ? `${item.time_from} - ${item.time_to}` : '—';
-
   content.innerHTML = `
     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
       <div class="schedule-detail-chip">📌 ${typeMap[item.object_type] || 'Событие'}</div>
       <div class="schedule-detail-chip">📅 ${dateText}</div>
       <div class="schedule-detail-chip">⏰ ${timeText}</div>
     </div>
-<div class="schedule-detail-card" id="schedule-detail-extra"></div>
+    <div class="schedule-detail-card" id="schedule-detail-extra"></div>
+    ${isGroupSchedule ? `
+    <div class="schedule-detail-card" id="schedule-admin-actions-card">
+      <div class="schedule-detail-row" style="justify-content: space-between; align-items: center;">
+        <div><strong>Управление занятием</strong></div>
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <button class="save-btn" style="flex:1; background:#d9534f;" onclick="cancelCurrentSchedule()">Отмена занятия</button>
+        <button class="save-btn" style="flex:1;" onclick="openScheduleMoveModal()">Перенос</button>
+      </div>
+      <div style="display: flex; gap: 8px; margin-top: 8px;">
+        <button class="save-btn" style="flex:1;" onclick="openAttendanceScreen(currentScheduleItem)">Посещаемость</button>
+      </div>
+      <div class="small" id="schedule-admin-action-status" style="margin-top: 8px; color: var(--hint);"></div>
+    </div>
+    ` : ''}
+    ${!isGroupSchedule ? `
     <div class="schedule-detail-card" id="schedule-attendance-card">
       <div class="schedule-detail-row" style="justify-content: space-between; align-items: center;">
         <div><strong>Посещаемость</strong></div>
@@ -8613,6 +8967,7 @@ function openScheduleDetail(item) {
       </div>
       <div class="small" style="color: var(--hint);">Отмечайте посещаемость на отдельном экране.</div>
     </div>
+    ` : ''}
   `;
 
   card.classList.add('show');
@@ -8629,12 +8984,251 @@ function openScheduleDetail(item) {
 
   // Не грузим посещаемость в модалке, только в полноэкранном экране
 }
-
 function closeScheduleDetail() {
   const card = document.getElementById('schedule-detail-modal');
   const overlay = document.getElementById('schedule-detail-overlay');
   if (card) card.classList.remove('show');
   if (overlay) overlay.classList.remove('show');
+  closeScheduleMoveModal();
+}
+
+function setScheduleMoveActionStatus(message, tone = 'info') {
+  const statusEl = document.getElementById('schedule-move-action-status');
+  if (!statusEl) return;
+
+  statusEl.textContent = message || '';
+  if (tone === 'error') {
+    statusEl.style.color = '#d9534f';
+    return;
+  }
+  if (tone === 'success') {
+    statusEl.style.color = '#2e7d32';
+    return;
+  }
+  statusEl.style.color = 'var(--hint)';
+}
+
+function setScheduleMoveModalBusy(isBusy) {
+  const modal = document.getElementById('schedule-move-modal');
+  if (!modal) return;
+  modal.querySelectorAll('button, select, input').forEach(el => {
+    el.disabled = !!isBusy;
+  });
+}
+
+function openScheduleMoveModal() {
+  const item = currentScheduleItem || window.currentScheduleItem;
+  if (!item || !item.id) {
+    showNotification('Не удалось определить занятие');
+    return;
+  }
+  if (String(item.object_type || '').toLowerCase() !== 'group') {
+    setScheduleAdminActionStatus('Перенос доступен только для группового занятия', 'error');
+    showNotification('Перенос доступен только для группового занятия');
+    return;
+  }
+
+  const overlay = document.getElementById('schedule-move-overlay');
+  const modal = document.getElementById('schedule-move-modal');
+  if (!overlay || !modal) return;
+
+  const moveTypeEl = document.getElementById('schedule-move-type');
+  const moveDateEl = document.getElementById('schedule-move-date');
+  const moveFromEl = document.getElementById('schedule-move-time-from');
+  const moveToEl = document.getElementById('schedule-move-time-to');
+
+  if (moveTypeEl) moveTypeEl.value = 'studio_fault';
+  if (moveDateEl) moveDateEl.value = item.date ? String(item.date).slice(0, 10) : '';
+  if (moveFromEl) moveFromEl.value = item.time_from ? String(item.time_from).slice(0, 5) : '';
+  if (moveToEl) moveToEl.value = item.time_to ? String(item.time_to).slice(0, 5) : '';
+
+  setScheduleMoveActionStatus('', 'info');
+  overlay.classList.add('show');
+  modal.classList.add('show');
+}
+
+function closeScheduleMoveModal() {
+  const overlay = document.getElementById('schedule-move-overlay');
+  const modal = document.getElementById('schedule-move-modal');
+  if (overlay) overlay.classList.remove('show');
+  if (modal) modal.classList.remove('show');
+  setScheduleMoveActionStatus('', 'info');
+}
+
+function setScheduleAdminActionStatus(message, tone = 'info') {
+  const statusEl = document.getElementById('schedule-admin-action-status');
+  if (!statusEl) return;
+
+  statusEl.textContent = message || '';
+  if (tone === 'error') {
+    statusEl.style.color = '#d9534f';
+    return;
+  }
+  if (tone === 'success') {
+    statusEl.style.color = '#2e7d32';
+    return;
+  }
+  statusEl.style.color = 'var(--hint)';
+}
+
+function setScheduleAdminActionsBusy(isBusy) {
+  const card = document.getElementById('schedule-admin-actions-card');
+  if (!card) return;
+  card.querySelectorAll('button, select, input').forEach(el => {
+    el.disabled = !!isBusy;
+  });
+}
+
+async function cancelCurrentSchedule() {
+  const item = currentScheduleItem || window.currentScheduleItem;
+  if (!item || !item.id) {
+    showNotification('Не удалось определить занятие');
+    return;
+  }
+  if (String(item.object_type || '').toLowerCase() !== 'group') {
+    setScheduleAdminActionStatus('Отмена доступна только для группового занятия', 'error');
+    return;
+  }
+
+  if (!confirm('Отменить занятие и применить компенсацию группе?')) {
+    return;
+  }
+
+  setScheduleAdminActionStatus('Отмена занятия...', 'info');
+  setScheduleAdminActionsBusy(true);
+
+  try {
+    const response = await fetch(`/schedule/v2/${item.id}/cancel`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ notify_group: true })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || 'Не удалось отменить занятие');
+    }
+
+    const details = [];
+    if (Number.isFinite(Number(data.extended_abonements))) {
+      details.push(`продлено: ${data.extended_abonements}`);
+    }
+    if (Number.isFinite(Number(data.refunded_credits))) {
+      details.push(`возвращено занятий: ${data.refunded_credits}`);
+    }
+    if (data.group_notify_error) {
+      details.push(`ошибка TG: ${data.group_notify_error}`);
+    }
+
+    const message = details.length
+      ? `Занятие отменено (${details.join(', ')})`
+      : 'Занятие отменено';
+    setScheduleAdminActionStatus(message, data.group_notify_error ? 'error' : 'success');
+    showNotification(message);
+    closeScheduleDetail();
+    loadScheduleV2();
+  } catch (error) {
+    const message = error?.message || 'Ошибка отмены занятия';
+    setScheduleAdminActionStatus(message, 'error');
+    showNotification(message);
+  } finally {
+    setScheduleAdminActionsBusy(false);
+  }
+}
+
+async function moveCurrentSchedule() {
+  const item = currentScheduleItem || window.currentScheduleItem;
+  if (!item || !item.id) {
+    const message = 'Не удалось определить занятие';
+    setScheduleMoveActionStatus(message, 'error');
+    showNotification(message);
+    return;
+  }
+  if (String(item.object_type || '').toLowerCase() !== 'group') {
+    const message = 'Перенос доступен только для группового занятия';
+    setScheduleMoveActionStatus(message, 'error');
+    setScheduleAdminActionStatus(message, 'error');
+    return;
+  }
+
+  const moveType = String(document.getElementById('schedule-move-type')?.value || '').trim();
+  const targetDate = String(document.getElementById('schedule-move-date')?.value || '').trim();
+  const targetFrom = String(document.getElementById('schedule-move-time-from')?.value || '').trim();
+  const targetTo = String(document.getElementById('schedule-move-time-to')?.value || '').trim();
+
+  if (!moveType || !targetDate || !targetFrom || !targetTo) {
+    const message = 'Заполните тип переноса, дату и время';
+    setScheduleMoveActionStatus(message, 'error');
+    showNotification(message);
+    return;
+  }
+  if (targetFrom >= targetTo) {
+    const message = 'Время начала должно быть меньше времени окончания';
+    setScheduleMoveActionStatus(message, 'error');
+    showNotification(message);
+    return;
+  }
+
+  const moveTypeLabel = ({
+    studio_fault: 'Перенос по вине студии',
+    absence_people: 'Отсутствие людей',
+    low_attendance: 'Нехватка людей'
+  })[moveType] || moveType;
+
+  if (!confirm(`Перенести занятие (${moveTypeLabel}) на ${targetDate} ${targetFrom}-${targetTo}?`)) {
+    return;
+  }
+
+  setScheduleMoveActionStatus('Перенос занятия...', 'info');
+  setScheduleMoveModalBusy(true);
+
+  try {
+    const response = await fetch(`/schedule/v2/${item.id}/move`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        move_type: moveType,
+        target_date: targetDate,
+        target_time_from: targetFrom,
+        target_time_to: targetTo,
+        notify_group: true
+      })
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || 'Не удалось перенести занятие');
+    }
+
+    const details = [];
+    if (Number.isFinite(Number(data.extended_abonements))) {
+      details.push(`продлено: ${data.extended_abonements}`);
+    }
+    if (Number.isFinite(Number(data.refunded_credits))) {
+      details.push(`возвращено занятий: ${data.refunded_credits}`);
+    }
+    if (moveType === 'low_attendance' && Number.isFinite(Number(data.present_count))) {
+      details.push(`пришло: ${data.present_count}`);
+    }
+    if (data.group_notify_error) {
+      details.push(`ошибка TG: ${data.group_notify_error}`);
+    }
+
+    const message = details.length
+      ? `Занятие перенесено (${details.join(', ')})`
+      : 'Занятие перенесено';
+    setScheduleMoveActionStatus(message, data.group_notify_error ? 'error' : 'success');
+    showNotification(message);
+    closeScheduleMoveModal();
+    closeScheduleDetail();
+    loadScheduleV2();
+  } catch (error) {
+    const message = error?.message || 'Ошибка переноса занятия';
+    setScheduleMoveActionStatus(message, 'error');
+    showNotification(message);
+  } finally {
+    setScheduleMoveModalBusy(false);
+  }
 }
 
 function loadGroupScheduleDetails(groupId) {
@@ -9119,9 +9713,307 @@ function hasScheduleConflict(dateStr, timeFrom, timeTo) {
   });
 }
 
+const GROUP_SCHEDULE_FIELD_MAP = {
+  'group-schedule-group': {
+    errorId: 'group-schedule-group-error',
+    okId: 'group-schedule-group-ok'
+  },
+  'group-schedule-date': {
+    errorId: 'group-schedule-date-error',
+    okId: 'group-schedule-date-ok'
+  },
+  'group-schedule-time-from': {
+    errorId: 'group-schedule-time-from-error',
+    okId: 'group-schedule-time-from-ok'
+  },
+  'group-schedule-time-to': {
+    errorId: 'group-schedule-time-to-error',
+    okId: 'group-schedule-time-to-ok'
+  }
+};
+
+let groupScheduleConflictPreviewTimer = null;
+let groupScheduleConflictPreviewRequestId = 0;
+
+function sanitizeRepeatInterval(value) {
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed) || parsed < 1) return 1;
+  return parsed;
+}
+
+function changeRepeatInterval(delta) {
+  const repeatInterval = document.getElementById('repeat-interval');
+  if (!repeatInterval) return;
+  const nextValue = Math.max(1, sanitizeRepeatInterval(repeatInterval.value) + delta);
+  repeatInterval.value = String(nextValue);
+  updateRepeatSummary();
+}
+
+function setGroupFieldState(fieldId, message, pulseOnValid) {
+  const config = GROUP_SCHEDULE_FIELD_MAP[fieldId];
+  const input = document.getElementById(fieldId);
+  if (!config || !input) return false;
+
+  const errorEl = document.getElementById(config.errorId);
+  const okEl = document.getElementById(config.okId);
+  const rawValue = typeof input.value === 'string' ? input.value.trim() : '';
+  const hasValue = rawValue.length > 0;
+  const isValid = !message && hasValue;
+
+  input.classList.toggle('input-invalid', Boolean(message));
+  if (errorEl) errorEl.textContent = message || '';
+
+  if (okEl) {
+    okEl.classList.toggle('show', isValid);
+    if (isValid && pulseOnValid) {
+      okEl.classList.remove('pulse');
+      void okEl.offsetWidth;
+      okEl.classList.add('pulse');
+      window.setTimeout(() => okEl.classList.remove('pulse'), 260);
+    }
+  }
+  return !message;
+}
+
+function validateGroupField(fieldId, pulseOnValid) {
+  const input = document.getElementById(fieldId);
+  if (!input) return false;
+  const value = (input.value || '').trim();
+  let message = '';
+
+  if (fieldId === 'group-schedule-group') {
+    if (!value) message = 'Выберите группу';
+  } else if (fieldId === 'group-schedule-date') {
+    if (!value) {
+      message = 'Укажите дату';
+    } else if (Number.isNaN(new Date(value).getTime())) {
+      message = 'Некорректная дата';
+    }
+  } else if (fieldId === 'group-schedule-time-from') {
+    if (!value) {
+      message = 'Укажите время начала';
+    } else if (!/^\d{2}:\d{2}$/.test(value)) {
+      message = 'Некорректное время';
+    }
+  } else if (fieldId === 'group-schedule-time-to') {
+    const fromValue = (document.getElementById('group-schedule-time-from')?.value || '').trim();
+    if (!value) {
+      message = 'Укажите время окончания';
+    } else if (!/^\d{2}:\d{2}$/.test(value)) {
+      message = 'Некорректное время';
+    } else if (fromValue && /^\d{2}:\d{2}$/.test(fromValue) && timeToMinutes(value) <= timeToMinutes(fromValue)) {
+      message = 'Время окончания должно быть позже начала';
+    }
+  }
+
+  return setGroupFieldState(fieldId, message, pulseOnValid);
+}
+
+function validateGroupScheduleForm(pulseOnValid) {
+  const groupValid = validateGroupField('group-schedule-group', pulseOnValid);
+  const dateValid = validateGroupField('group-schedule-date', pulseOnValid);
+  const fromValid = validateGroupField('group-schedule-time-from', pulseOnValid);
+  const toValid = validateGroupField('group-schedule-time-to', pulseOnValid);
+  return groupValid && dateValid && fromValid && toValid;
+}
+
+function clearGroupScheduleValidation() {
+  Object.keys(GROUP_SCHEDULE_FIELD_MAP).forEach(fieldId => {
+    const config = GROUP_SCHEDULE_FIELD_MAP[fieldId];
+    const input = document.getElementById(fieldId);
+    const errorEl = document.getElementById(config.errorId);
+    const okEl = document.getElementById(config.okId);
+    if (input) input.classList.remove('input-invalid');
+    if (errorEl) errorEl.textContent = '';
+    if (okEl) okEl.classList.remove('show', 'pulse');
+  });
+}
+
+function formatRuDate(dateStr) {
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('ru-RU');
+}
+
+function getLessonWord(count) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'занятие';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'занятия';
+  return 'занятий';
+}
+
+function hasScheduleConflictInItems(items, dateStr, timeFrom, timeTo) {
+  const start = timeToMinutes(timeFrom);
+  const end = timeToMinutes(timeTo);
+  return items.some(s => {
+    if (s.date !== dateStr) return false;
+    if (!s.time_from || !s.time_to) return false;
+    if (s.status === 'cancelled') return false;
+    const sStart = timeToMinutes(s.time_from);
+    const sEnd = timeToMinutes(s.time_to);
+    return start < sEnd && end > sStart;
+  });
+}
+
+function updateGroupLiveResult() {
+  const summaryEl = document.getElementById('group-live-summary');
+  const warningEl = document.getElementById('group-live-warning');
+  if (!summaryEl || !warningEl) return;
+
+  if (groupScheduleConflictPreviewTimer) {
+    clearTimeout(groupScheduleConflictPreviewTimer);
+    groupScheduleConflictPreviewTimer = null;
+  }
+  const requestId = ++groupScheduleConflictPreviewRequestId;
+
+  const dateStr = (document.getElementById('group-schedule-date')?.value || '').trim();
+  const timeFrom = (document.getElementById('group-schedule-time-from')?.value || '').trim();
+  const timeTo = (document.getElementById('group-schedule-time-to')?.value || '').trim();
+  const mode = document.getElementById('repeat-mode')?.value || 'none';
+  const interval = sanitizeRepeatInterval(document.getElementById('repeat-interval')?.value || '1');
+  const untilInput = (document.getElementById('repeat-until')?.value || '').trim();
+
+  warningEl.classList.remove('ok');
+  warningEl.textContent = '';
+
+  if (!dateStr || Number.isNaN(new Date(dateStr).getTime())) {
+    summaryEl.textContent = 'Заполните дату, чтобы увидеть итог.';
+    return;
+  }
+
+  const until = untilInput || addMonths(new Date(dateStr), 6).toISOString().slice(0, 10);
+  const dates = buildRepeatDates(dateStr, mode, interval, until);
+  if (!dates.length) {
+    summaryEl.textContent = 'Не удалось построить даты для создания.';
+    return;
+  }
+
+  const finalDate = dates[dates.length - 1];
+  summaryEl.textContent = `Будет создано ${dates.length} ${getLessonWord(dates.length)} до ${formatRuDate(finalDate)}.`;
+
+  if (!timeFrom || !timeTo) {
+    warningEl.textContent = 'Добавьте время, чтобы включить проверку конфликтов.';
+    return;
+  }
+  if (timeToMinutes(timeTo) <= timeToMinutes(timeFrom)) {
+    warningEl.textContent = 'Проверьте интервал времени: окончание должно быть позже начала.';
+    return;
+  }
+
+  const params = new URLSearchParams({
+    date_from: dates[0],
+    date_to: dates[dates.length - 1]
+  });
+  warningEl.textContent = 'Проверяем конфликты...';
+  groupScheduleConflictPreviewTimer = setTimeout(() => {
+    fetch(`/schedule/v2?${params.toString()}`, { headers: getAuthHeaders() })
+      .then(res => res.ok ? res.json() : [])
+      .then(data => {
+        if (requestId !== groupScheduleConflictPreviewRequestId) return;
+        const items = Array.isArray(data) ? data : [];
+        const conflictCount = dates.reduce((acc, date) => {
+          return acc + (hasScheduleConflictInItems(items, date, timeFrom, timeTo) ? 1 : 0);
+        }, 0);
+        if (conflictCount > 0) {
+          warningEl.classList.remove('ok');
+          warningEl.textContent = `Есть конфликты: ${conflictCount}. Проверьте занятые слоты.`;
+        } else {
+          warningEl.classList.add('ok');
+          warningEl.textContent = 'Конфликтов не найдено.';
+        }
+      })
+      .catch(() => {
+        if (requestId !== groupScheduleConflictPreviewRequestId) return;
+        warningEl.classList.remove('ok');
+        warningEl.textContent = 'Не удалось проверить конфликты.';
+      });
+  }, 160);
+}
+
 function initGroupScheduleForm() {
   const select = document.getElementById('group-schedule-group');
-  if (!select || select.dataset.loaded === '1') return;
+  if (!select) return;
+
+  if (select.dataset.bound !== '1') {
+    select.dataset.bound = '1';
+    select.addEventListener('change', () => {
+      updateGroupFormDefaults();
+      validateGroupField('group-schedule-group', true);
+      updateGroupLiveResult();
+    });
+
+    const dateInput = document.getElementById('group-schedule-date');
+    if (dateInput) {
+      const handleDateChange = () => {
+        updateGroupFormDefaults();
+        validateGroupField('group-schedule-date', true);
+        updateRepeatSummary();
+      };
+      dateInput.addEventListener('change', handleDateChange);
+      dateInput.addEventListener('input', handleDateChange);
+    }
+
+    const timeFromInput = document.getElementById('group-schedule-time-from');
+    if (timeFromInput) {
+      const handleFromChange = () => {
+        validateGroupField('group-schedule-time-from', true);
+        validateGroupField('group-schedule-time-to', false);
+        updateGroupLiveResult();
+      };
+      timeFromInput.addEventListener('input', handleFromChange);
+      timeFromInput.addEventListener('change', handleFromChange);
+    }
+
+    const timeToInput = document.getElementById('group-schedule-time-to');
+    if (timeToInput) {
+      const handleToChange = () => {
+        validateGroupField('group-schedule-time-to', true);
+        updateGroupLiveResult();
+      };
+      timeToInput.addEventListener('input', handleToChange);
+      timeToInput.addEventListener('change', handleToChange);
+    }
+
+    const weekdayRow = document.getElementById('repeat-weekdays-row');
+    if (weekdayRow) {
+      weekdayRow.addEventListener('click', e => {
+        const target = e.target;
+        if (target.classList.contains('chip')) {
+          target.classList.toggle('active');
+          updateRepeatSummary();
+        }
+      });
+    }
+
+    const repeatMode = document.getElementById('repeat-mode');
+    const repeatUntil = document.getElementById('repeat-until');
+    const repeatInterval = document.getElementById('repeat-interval');
+    const intervalMinus = document.getElementById('repeat-interval-minus');
+    const intervalPlus = document.getElementById('repeat-interval-plus');
+
+    if (repeatMode) repeatMode.addEventListener('change', updateRepeatSummary);
+    if (repeatInterval) {
+      const handleIntervalInput = () => {
+        repeatInterval.value = String(sanitizeRepeatInterval(repeatInterval.value));
+        updateRepeatSummary();
+      };
+      repeatInterval.addEventListener('input', handleIntervalInput);
+      repeatInterval.addEventListener('blur', handleIntervalInput);
+    }
+    if (repeatUntil) {
+      repeatUntil.addEventListener('change', updateRepeatSummary);
+      repeatUntil.addEventListener('input', updateRepeatSummary);
+    }
+    if (intervalMinus) intervalMinus.addEventListener('click', () => changeRepeatInterval(-1));
+    if (intervalPlus) intervalPlus.addEventListener('click', () => changeRepeatInterval(1));
+  }
+
+  if (select.dataset.loaded === '1') {
+    updateRepeatSummary();
+    updateGroupFormDefaults();
+    return;
+  }
 
   select.innerHTML = '<option value="">Загрузка групп...</option>';
   fetch('/api/directions/manage', { headers: getAuthHeaders() })
@@ -9150,39 +10042,11 @@ function initGroupScheduleForm() {
     })
     .catch(() => {
       select.innerHTML = '<option value="">Ошибка загрузки групп</option>';
-    });
-
-  select.addEventListener('change', () => {
-    updateGroupFormDefaults();
-  });
-
-  const dateInput = document.getElementById('group-schedule-date');
-  if (dateInput) {
-    dateInput.addEventListener('change', () => {
-      updateGroupFormDefaults();
+    })
+    .finally(() => {
       updateRepeatSummary();
+      updateGroupLiveResult();
     });
-  }
-
-  const weekdayRow = document.getElementById('repeat-weekdays-row');
-  if (weekdayRow) {
-    weekdayRow.addEventListener('click', e => {
-      const target = e.target;
-      if (target.classList.contains('chip')) {
-        target.classList.toggle('active');
-        updateRepeatSummary();
-      }
-    });
-  }
-
-  const repeatMode = document.getElementById('repeat-mode');
-  const repeatUntil = document.getElementById('repeat-until');
-  const repeatInterval = document.getElementById('repeat-interval');
-  if (repeatMode) repeatMode.addEventListener('change', updateRepeatSummary);
-  if (repeatInterval) repeatInterval.addEventListener('input', updateRepeatSummary);
-  if (repeatUntil) repeatUntil.addEventListener('change', updateRepeatSummary);
-  updateRepeatSummary();
-  updateGroupFormDefaults();
 }
 
 function toggleGroupScheduleForm(force) {
@@ -9194,6 +10058,7 @@ function toggleGroupScheduleForm(force) {
     resetGroupScheduleForm();
     modal.classList.add('show');
     overlay.classList.add('show');
+    updateGroupLiveResult();
   } else {
     modal.classList.remove('show');
     overlay.classList.remove('show');
@@ -9202,7 +10067,9 @@ function toggleGroupScheduleForm(force) {
 
 function updateRepeatSummary() {
   const mode = document.getElementById('repeat-mode')?.value || 'none';
-  const interval = parseInt(document.getElementById('repeat-interval')?.value || '1', 10);
+  const repeatIntervalInput = document.getElementById('repeat-interval');
+  const interval = sanitizeRepeatInterval(repeatIntervalInput?.value || '1');
+  if (repeatIntervalInput) repeatIntervalInput.value = String(interval);
   const untilInput = document.getElementById('repeat-until');
   const until = untilInput?.value;
   const dateBase = document.getElementById('group-schedule-date')?.value;
@@ -9213,38 +10080,47 @@ function updateRepeatSummary() {
   if (mode === 'none') {
     summary.textContent = 'Без повторения';
     toggleRepeatControls();
+    updateGroupLiveResult();
     return;
   }
 
   let text = 'Повторять ';
   if (mode === 'weekly') {
-    text += `каждую ${interval} неделю`;
+    text += interval === 1 ? 'каждую неделю' : `каждые ${interval} недели`;
     if (weekdays.length) {
       text += ` (${weekdays.map(d => WEEKDAY_LABELS[d]).join(', ')})`;
     }
   } else if (mode === 'daily') {
-    text += `каждые ${interval} день`;
+    text += interval === 1 ? 'каждый день' : `каждые ${interval} дня`;
   } else if (mode === 'monthly') {
-    text += `каждый ${interval} месяц`;
+    text += interval === 1 ? 'каждый месяц' : `каждые ${interval} месяца`;
   }
   const baseDate = dateBase ? new Date(dateBase) : new Date();
   const finalUntil = until || addMonths(baseDate, 6).toISOString().slice(0, 10);
   text += ` до ${new Date(finalUntil).toLocaleDateString('ru-RU')}`;
   summary.textContent = text;
   toggleRepeatControls();
+  updateGroupLiveResult();
 }
 
 function toggleRepeatControls() {
   const mode = document.getElementById('repeat-mode')?.value || 'none';
+  const interval = sanitizeRepeatInterval(document.getElementById('repeat-interval')?.value || '1');
   const intervalRow = document.getElementById('repeat-interval-row');
   const weekRow = document.getElementById('repeat-weekdays-row');
-  const untilRow = document.getElementById('repeat-until')?.parentElement;
+  const untilRow = document.getElementById('repeat-until-row');
   const label = document.getElementById('repeat-interval-label');
   if (intervalRow) intervalRow.style.display = mode === 'none' ? 'none' : 'flex';
   if (weekRow) weekRow.style.display = mode === 'weekly' ? 'flex' : 'none';
   if (untilRow) untilRow.style.display = mode === 'none' ? 'none' : 'flex';
   if (label) {
-    label.textContent = mode === 'daily' ? 'день' : mode === 'monthly' ? 'месяц' : 'неделю';
+    if (mode === 'daily') {
+      label.textContent = interval === 1 ? 'день' : 'дня';
+    } else if (mode === 'monthly') {
+      label.textContent = interval === 1 ? 'месяц' : 'месяца';
+    } else {
+      label.textContent = interval === 1 ? 'неделю' : 'недели';
+    }
   }
 }
 
@@ -9296,14 +10172,15 @@ function createGroupSchedule() {
   const timeFrom = document.getElementById('group-schedule-time-from')?.value;
   const timeTo = document.getElementById('group-schedule-time-to')?.value;
   const mode = document.getElementById('repeat-mode')?.value || 'none';
-  const interval = parseInt(document.getElementById('repeat-interval')?.value || '1', 10);
+  const interval = sanitizeRepeatInterval(document.getElementById('repeat-interval')?.value || '1');
   const untilStrInput = document.getElementById('repeat-until')?.value;
-  const untilStr = untilStrInput || addMonths(new Date(dateStr), 6).toISOString().slice(0, 10);
 
-  if (!groupId || !dateStr || !timeFrom || !timeTo) {
+  if (!validateGroupScheduleForm(false)) {
     showNotification('⚠️ Заполните все поля');
+    updateGroupLiveResult();
     return;
   }
+  const untilStr = untilStrInput || addMonths(new Date(dateStr), 6).toISOString().slice(0, 10);
 
   if (hasScheduleConflict(dateStr, timeFrom, timeTo)) {
     showNotification('? В это время уже есть занятие');
@@ -9353,6 +10230,7 @@ function updateGroupFormDefaults() {
       preview.style.display = 'none';
       preview.innerHTML = '';
     }
+    updateGroupLiveResult();
     return;
   }
   fetch(`/api/groups/${groupId}`, { headers: getAuthHeaders() })
@@ -9369,6 +10247,8 @@ function updateGroupFormDefaults() {
         const endMinutes = timeToMinutes(from) + base;
         timeFromInput.value = from;
         timeToInput.value = minutesToTime(endMinutes);
+        validateGroupField('group-schedule-time-from', false);
+        validateGroupField('group-schedule-time-to', false);
       }
 
       if (preview) {
@@ -9411,9 +10291,11 @@ function updateGroupFormDefaults() {
           })
           .catch(() => {});
       }
+      updateGroupLiveResult();
     })
     .catch(() => {
       // ignore
+      updateGroupLiveResult();
     });
 }
 
@@ -9437,7 +10319,14 @@ function resetGroupScheduleForm() {
   const chips = document.querySelectorAll('#repeat-weekdays-row .chip');
   chips.forEach(c => c.classList.remove('active'));
 
+  if (groupScheduleConflictPreviewTimer) {
+    clearTimeout(groupScheduleConflictPreviewTimer);
+    groupScheduleConflictPreviewTimer = null;
+  }
+  groupScheduleConflictPreviewRequestId += 1;
+  clearGroupScheduleValidation();
   updateRepeatSummary();
+  updateGroupLiveResult();
 }
 
 function createGroupScheduleEntries(groupId, dates, timeFrom, timeTo) {
@@ -9474,6 +10363,7 @@ function createGroupScheduleEntries(groupId, dates, timeFrom, timeTo) {
 function buildRepeatDates(startDateStr, mode, interval, untilStr) {
   const start = new Date(startDateStr);
   if (Number.isNaN(start.getTime())) return [];
+  const safeInterval = sanitizeRepeatInterval(interval);
   const until = untilStr ? new Date(untilStr) : addMonths(start, 6);
   if (untilStr && Number.isNaN(until.getTime())) return [];
 
@@ -9492,7 +10382,7 @@ function buildRepeatDates(startDateStr, mode, interval, untilStr) {
     let current = new Date(start);
     while (current <= until) {
       dates.push(current.toISOString().slice(0, 10));
-      current.setDate(current.getDate() + interval);
+      current.setDate(current.getDate() + safeInterval);
     }
     return dates;
   }
@@ -9501,7 +10391,7 @@ function buildRepeatDates(startDateStr, mode, interval, untilStr) {
     let current = new Date(start);
     while (current <= until) {
       dates.push(current.toISOString().slice(0, 10));
-      current.setMonth(current.getMonth() + interval);
+      current.setMonth(current.getMonth() + safeInterval);
     }
     return dates;
   }
@@ -9521,7 +10411,7 @@ function buildRepeatDates(startDateStr, mode, interval, untilStr) {
         dates.push(d.toISOString().slice(0, 10));
       }
     }
-    current.setDate(current.getDate() + interval * 7);
+    current.setDate(current.getDate() + safeInterval * 7);
   }
   return Array.from(new Set(dates)).sort();
 }
@@ -9672,11 +10562,8 @@ function openStaffDetailCard(staffId) {
     staff.id,
     staff.name || '—',
     staff.position || '—',
-    staff.phone || '',
-    staff.email || '',
     staff.specialization || '',
-    staff.bio || '',
-    staff.status || ''
+    staff.bio || ''
   );
 }
 
@@ -9697,9 +10584,7 @@ function displayStaffList(staffList) {
     const safeName = escapeHtml(String(s.name || 'Без имени'));
     const safeRole = escapeHtml(String(s.position || 'Без роли'));
     const username = s.username ? `@${s.username}` : '—';
-    const phoneText = s.phone ? String(s.phone) : '—';
     const safeUsername = escapeHtml(username);
-    const safePhone = escapeHtml(phoneText);
     const teaches = (s.teaches === true || s.teaches === 1 || s.teaches === '1');
     const teachesClass = teaches ? 'is-true' : 'is-false';
     const teachesLabel = '👩‍🏫 Учитель';
@@ -9718,7 +10603,6 @@ function displayStaffList(staffList) {
           </div>
           <div class="staff-user-line">${safeUsername}</div>
           <div class="staff-meta-row">
-            <div class="staff-phone-line">${safePhone}</div>
             <div class="staff-teaches-chip ${teachesClass}">${teachesLabel}</div>
           </div>
         </div>
@@ -10064,22 +10948,12 @@ function deleteStaffMember(staffId, name) {
 
 let currentDetailStaffId = null;
 
-function openStaffDetail(id, name, position, phone, email, specialization, bio, status) {
+function openStaffDetail(id, name, position, specialization, bio) {
   currentDetailStaffId = id;
-  
-  const phoneValue = (phone === 'null' || phone === 'undefined') ? '' : phone;
 
   document.getElementById('staff-detail-name').innerText = name;
   document.getElementById('staff-detail-position').innerText = position;
   document.getElementById('staff-detail-position-full').innerText = position;
-  const phoneBlock = document.getElementById('staff-detail-phone-block');
-  if (phoneValue) {
-    document.getElementById('staff-detail-phone').innerText = phoneValue;
-    phoneBlock.style.display = 'block';
-  } else {
-    document.getElementById('staff-detail-phone').innerText = '—';
-    phoneBlock.style.display = 'none';
-  }
   document.getElementById('staff-detail-specialization').innerText = specialization || '—';
   document.getElementById('staff-detail-bio').innerText = bio || '—';
   
@@ -10203,31 +11077,10 @@ async function loadPersonalSchedule() {
   initPersonalIndividualBookingPanel();
 
   // Дождёмся загрузки профиля, чтобы знать telegram_id/имя
-  if (profileLoadedPromise) {
-    try { await profileLoadedPromise; } catch (_) {}
-  } else if (!currentUserData && user?.id) {
-    try { await loadProfileData(); } catch (_) {}
-  }
-
-  // Убеждаемся, что знаем staff.id текущего пользователя
-  if (!window.currentStaffProfileId && currentUserData?.telegram_id) {
-    try {
-      const staffRes = await fetch(`/staff/check/${currentUserData.telegram_id}`);
-      if (staffRes.ok) {
-        const staffData = await staffRes.json();
-        if (staffData?.staff?.id) {
-          window.currentStaffProfileId = staffData.staff.id;
-          window.currentStaffProfileName = staffData.staff.name || window.currentStaffProfileName;
-        }
-      }
-    } catch (_) {
-      // тихо игнорируем, дальше будет фильтрация по имени
-    }
-  }
-
+  const staffContext = await ensureCurrentStaffProfileContext();
   const normalize = (v) => (v || '').toString().trim().toLowerCase();
-  const myStaffId = window.currentStaffProfileId;
-  const myName = normalize(window.currentStaffProfileName || currentUserData?.name);
+  const myStaffId = staffContext.staffId;
+  const myName = normalize(staffContext.staffName);
 
   try {
     const headers = getAuthHeaders ? getAuthHeaders() : {};
@@ -10341,6 +11194,97 @@ async function loadPersonalSchedule() {
     initPersonalIndividualBookingPanel();
     personalScheduleRefreshLoading = false;
     updatePersonalScheduleRefreshCapsule();
+  }
+}
+
+async function ensureCurrentStaffProfileContext() {
+  if (profileLoadedPromise) {
+    try { await profileLoadedPromise; } catch (_) {}
+  } else if (!currentUserData && user?.id) {
+    try { await loadProfileData(); } catch (_) {}
+  }
+
+  if (!window.currentStaffProfileId && currentUserData?.telegram_id) {
+    try {
+      const staffRes = await fetch(`/staff/check/${currentUserData.telegram_id}`);
+      if (staffRes.ok) {
+        const staffData = await staffRes.json();
+        if (staffData?.staff?.id) {
+          window.currentStaffProfileId = staffData.staff.id;
+          window.currentStaffProfileName = staffData.staff.name || window.currentStaffProfileName;
+        }
+      }
+    } catch (_) {
+      // ignore: callers can still fallback by name
+    }
+  }
+
+  const parsedStaffId = Number(window.currentStaffProfileId);
+  return {
+    staffId: Number.isFinite(parsedStaffId) && parsedStaffId > 0 ? parsedStaffId : null,
+    staffName: window.currentStaffProfileName || currentUserData?.name || '',
+  };
+}
+
+async function loadPersonalGroups() {
+  const container = document.getElementById('personal-groups-container');
+  if (!container) return;
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+
+  try {
+    const { staffId } = await ensureCurrentStaffProfileContext();
+    if (!staffId) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Не удалось определить профиль преподавателя</p>';
+      return;
+    }
+
+    const response = await fetch(`/api/teachers/${staffId}`, { headers: getAuthHeaders ? getAuthHeaders() : {} });
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (_) {
+      data = {};
+    }
+
+    if (!response.ok) {
+      const message = data?.error || 'Не удалось загрузить группы';
+      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ ${escapeHtml(message)}</p>`;
+      return;
+    }
+
+    const groups = Array.isArray(data.groups) ? data.groups : [];
+    if (!groups.length) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">У этого преподавателя пока нет групп</p>';
+      return;
+    }
+
+    container.innerHTML = groups.map((group) => {
+      const name = escapeHtml(group.name || '—');
+      const direction = escapeHtml(group.direction_title || '');
+      const age = escapeHtml(group.age_group || '');
+      const duration = Number(group.duration_minutes);
+      const lessonsPerWeek = Number(group.lessons_per_week);
+      const maxStudents = Number(group.max_students);
+      const description = escapeHtml(group.description || '');
+
+      const meta = [];
+      if (Number.isFinite(duration) && duration > 0) meta.push(`${duration} мин`);
+      if (Number.isFinite(lessonsPerWeek) && lessonsPerWeek > 0) meta.push(`${lessonsPerWeek} в неделю`);
+      if (Number.isFinite(maxStudents) && maxStudents > 0) meta.push(`до ${maxStudents} чел.`);
+
+      return `
+        <div class="card">
+          <div style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">${name}</div>
+          ${direction ? `<div class="small" style="color: var(--hint); margin-bottom: 4px;">Направление: ${direction}</div>` : ''}
+          ${age ? `<div class="small" style="color: var(--hint); margin-bottom: 4px;">Возраст: ${age}</div>` : ''}
+          ${meta.length ? `<div class="small" style="color: var(--hint); margin-bottom: 0;">${meta.map(item => escapeHtml(item)).join(' • ')}</div>` : ''}
+          ${description ? `<p class="small" style="margin-top: 8px; margin-bottom: 0; white-space: pre-wrap;">${description}</p>` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Ошибка при загрузке личных групп:', error);
+    container.innerHTML = '<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ Ошибка сети</p>';
   }
 }
 
@@ -10907,6 +11851,12 @@ async function submitPersonalIndividualBooking() {
   }
   if (timeToMinutes(timeFrom) >= timeToMinutes(timeTo)) {
     setPersonalIndividualBookingMessage('Время "до" должно быть позже времени "от"', true);
+    return;
+  }
+  const fromMinutes = timeToMinutes(timeFrom);
+  const toMinutes = timeToMinutes(timeTo);
+  if (fromMinutes < (15 * 60) && (14 * 60 + 30) < toMinutes) {
+    setPersonalIndividualBookingMessage('Интервал 14:30-15:00 закрыт под служебное время', true);
     return;
   }
 
@@ -11679,13 +12629,13 @@ function updateStaffNavigation() {
   const role = (currentStaffPosition || '').toLowerCase();
   const PERMISSIONS_BY_ROLE = {
     'тех. админ': new Set([
-      'manage_staff', 'view_all_users', 'manage_schedule', 'create_direction', 'create_news', 'manage_mailings', 'view_stats'
+      'manage_staff', 'view_all_users', 'manage_schedule', 'create_direction', 'create_news', 'manage_mailings', 'view_stats', 'system_settings'
     ]),
     'владелец': new Set([
-      'manage_staff', 'view_all_users', 'manage_schedule', 'create_direction', 'create_news', 'manage_mailings', 'view_stats'
+      'manage_staff', 'view_all_users', 'manage_schedule', 'create_direction', 'create_news', 'manage_mailings', 'view_stats', 'system_settings'
     ]),
     'старший админ': new Set([
-      'manage_staff', 'view_all_users', 'manage_schedule', 'create_direction', 'create_news', 'manage_mailings', 'view_stats'
+      'manage_staff', 'view_all_users', 'manage_schedule', 'create_direction', 'create_news', 'manage_mailings', 'view_stats', 'system_settings'
     ]),
     'администратор': new Set([
       'view_all_users', 'manage_schedule', 'create_direction', 'create_news', 'manage_mailings', 'view_stats'
@@ -11728,7 +12678,7 @@ function updateStaffNavigation() {
       workSettingsPaymentItem.style.display = hasPerm('manage_schedule') ? 'block' : 'none';
     }
     if (workSettingsPricesItem) {
-      workSettingsPricesItem.style.display = hasPerm('create_direction') ? 'block' : 'none';
+      workSettingsPricesItem.style.display = hasPerm('system_settings') ? 'block' : 'none';
     }
     if (workSettingsOtherItem) {
       workSettingsOtherItem.style.display = 'block';
@@ -12120,7 +13070,7 @@ async function loadPaymentProfilesAdmin() {
     const response = await fetch('/api/admin/payment-profiles', { headers: getAuthHeaders() });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error((data && data.error) ? data.error : 'Не удалось загрузить профили');
+      throw new Error((data && data.error) ? data.error : 'Не удалось загрузить реквизиты');
     }
     const profiles = Array.isArray(data.profiles) ? data.profiles : [];
     for (const profile of profiles) {
@@ -12132,13 +13082,14 @@ async function loadPaymentProfilesAdmin() {
       if (numberEl) numberEl.value = profile.recipient_number || '';
       if (fullNameEl) fullNameEl.value = profile.recipient_full_name || '';
     }
+    const activeSlot = Number(data.active_slot) || 2;
     if (activeLabel) {
-      activeLabel.textContent = `Сейчас активен профиль №${data.active_slot || 1}`;
+      activeLabel.textContent = `Активные реквизиты: ${activeSlot}`;
     }
-    updatePaymentActiveTabs(Number(data.active_slot) || 1);
+    updatePaymentActiveTabs(activeSlot);
   } catch (error) {
     if (activeLabel) activeLabel.textContent = error.message || 'Ошибка загрузки';
-    showNotification('⚠️ ' + (error.message || 'Не удалось загрузить профили оплаты'));
+    showNotification('Внимание: ' + (error.message || 'Не удалось загрузить реквизиты'));
   }
 }
 
@@ -12150,7 +13101,7 @@ async function savePaymentProfile(slot) {
   const recipient_number = numberEl ? numberEl.value.trim() : '';
   const recipient_full_name = fullNameEl ? fullNameEl.value.trim() : '';
   if (!recipient_bank || !recipient_number || !recipient_full_name) {
-    showNotification('⚠️ Заполните банк, номер и ФИО');
+    showNotification('Внимание: заполните банк, номер и ФИО получателя');
     return;
   }
 
@@ -12162,16 +13113,21 @@ async function savePaymentProfile(slot) {
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error((data && data.error) ? data.error : 'Не удалось сохранить профиль');
+      throw new Error((data && data.error) ? data.error : 'Не удалось сохранить реквизиты');
     }
-    showNotification(`✅ Профиль ${slot} сохранен`);
+    showNotification(`Сохранены реквизиты ${slot}`);
     await loadPaymentProfilesAdmin();
   } catch (error) {
-    showNotification('❌ ' + (error.message || 'Не удалось сохранить профиль'));
+    showNotification('Ошибка: ' + (error.message || 'Не удалось сохранить реквизиты'));
   }
 }
 
 async function switchPaymentProfile(slot) {
+  if (Number(slot) === 1) {
+    showNotification('Реквизиты 1 закреплены и не переключаются');
+    return;
+  }
+
   try {
     const response = await fetch('/api/admin/payment-profiles/active', {
       method: 'PUT',
@@ -12180,12 +13136,12 @@ async function switchPaymentProfile(slot) {
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error((data && data.error) ? data.error : 'Не удалось переключить профиль');
+      throw new Error((data && data.error) ? data.error : 'Не удалось переключить активные реквизиты');
     }
-    showNotification(`✅ Активирован профиль ${slot}`);
+    showNotification(`Активные реквизиты переключены на ${slot}`);
     await loadPaymentProfilesAdmin();
   } catch (error) {
-    showNotification('❌ ' + (error.message || 'Не удалось переключить профиль'));
+    showNotification('Ошибка: ' + (error.message || 'Не удалось переключить активные реквизиты'));
   }
 }
 
@@ -12196,22 +13152,166 @@ function selectPaymentProfileTab(slot) {
 function updatePaymentActiveTabs(activeSlot) {
   const firstTab = document.getElementById('payment-tab-1');
   const secondTab = document.getElementById('payment-tab-2');
+  const thirdTab = document.getElementById('payment-tab-3');
   const indicator = document.getElementById('payment-tab-indicator');
-  if (!firstTab || !secondTab || !indicator) return;
+  if (!firstTab || !secondTab || !thirdTab || !indicator) return;
 
-  firstTab.classList.toggle('active', activeSlot === 1);
+  firstTab.classList.toggle('active', false);
   secondTab.classList.toggle('active', activeSlot === 2);
+  thirdTab.classList.toggle('active', activeSlot === 3);
 
-  const activeTab = activeSlot === 2 ? secondTab : firstTab;
+  const activeTab = activeSlot === 3 ? thirdTab : secondTab;
   indicator.style.width = `${activeTab.offsetWidth}px`;
   indicator.style.transform = `translateX(${activeTab.offsetLeft}px)`;
 }
 
-function setWorkSettingsPriceStatus(directionId, message, isError = false) {
-  const statusEl = document.getElementById(`work-price-status-${directionId}`);
+const ABONEMENT_PRICE_DIRECTIONS = ['dance', 'sport'];
+const ABONEMENT_PRICE_SINGLE_LESSONS = [4, 8, 12, 16];
+const ABONEMENT_PRICE_BUNDLE_LESSONS = [4, 8, 12];
+const ABONEMENT_PRICE_BUNDLES = [2, 3];
+const ABONEMENT_PRICE_DEFAULT_MULTI_SINGLE = {
+  dance: { 4: 3600, 8: 7200, 12: 10800, 16: 14400 },
+  sport: { 4: 3600, 8: 7200, 12: 10800, 16: 14400 },
+};
+const ABONEMENT_PRICE_DEFAULT_MULTI_BUNDLE = {
+  dance: {
+    2: { 4: 6400, 8: 12800, 12: 19200 },
+    3: { 4: 8400, 8: 16800, 12: 25200 },
+  },
+  sport: {
+    2: { 4: 6400, 8: 12800, 12: 19200 },
+    3: { 4: 8400, 8: 16800, 12: 25200 },
+  },
+};
+
+function _systemSettingsToMap(items) {
+  const map = {};
+  const list = Array.isArray(items) ? items : [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue;
+    if (!item.key) continue;
+    map[String(item.key)] = item.value;
+  }
+  return map;
+}
+
+function _asNonNegativeInt(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return Math.round(parsed);
+}
+
+function _normalizeMultiSingleMatrix(rawValue) {
+  const raw = (rawValue && typeof rawValue === 'object') ? rawValue : {};
+  const result = {};
+  for (const direction of ABONEMENT_PRICE_DIRECTIONS) {
+    const sourceDirection = (raw[direction] && typeof raw[direction] === 'object') ? raw[direction] : {};
+    result[direction] = {};
+    for (const lessons of ABONEMENT_PRICE_SINGLE_LESSONS) {
+      const fallback = ABONEMENT_PRICE_DEFAULT_MULTI_SINGLE?.[direction]?.[lessons] ?? 0;
+      result[direction][String(lessons)] = _asNonNegativeInt(sourceDirection[String(lessons)], fallback);
+    }
+  }
+  return result;
+}
+
+function _normalizeMultiBundleMatrix(rawValue) {
+  const raw = (rawValue && typeof rawValue === 'object') ? rawValue : {};
+  const result = {};
+  for (const direction of ABONEMENT_PRICE_DIRECTIONS) {
+    const sourceDirection = (raw[direction] && typeof raw[direction] === 'object') ? raw[direction] : {};
+    result[direction] = {};
+    for (const bundle of ABONEMENT_PRICE_BUNDLES) {
+      const sourceBundle = (sourceDirection[String(bundle)] && typeof sourceDirection[String(bundle)] === 'object')
+        ? sourceDirection[String(bundle)]
+        : {};
+      result[direction][String(bundle)] = {};
+      for (const lessons of ABONEMENT_PRICE_BUNDLE_LESSONS) {
+        const fallback = ABONEMENT_PRICE_DEFAULT_MULTI_BUNDLE?.[direction]?.[bundle]?.[lessons] ?? 0;
+        result[direction][String(bundle)][String(lessons)] = _asNonNegativeInt(sourceBundle[String(lessons)], fallback);
+      }
+    }
+  }
+  return result;
+}
+
+function _buildLessonsHeaderRow(lessonsBuckets) {
+  const columns = Array.isArray(lessonsBuckets) ? lessonsBuckets : [];
+  return `
+    <div style="display:grid; grid-template-columns: 130px repeat(${columns.length}, minmax(80px, 1fr)); gap:8px; align-items:center; margin-bottom:8px;">
+      <div></div>
+      ${columns.map((lessons) => `<div class="small" style="text-align:center;">${lessons} занятий</div>`).join('')}
+    </div>
+  `;
+}
+
+function _renderMultiSingleMatrix(matrix) {
+  const directionTitles = { dance: 'Танцы', sport: 'Спорт' };
+  return ABONEMENT_PRICE_DIRECTIONS.map((direction) => `
+    <div style="display:grid; grid-template-columns: 130px repeat(${ABONEMENT_PRICE_SINGLE_LESSONS.length}, minmax(80px, 1fr)); gap:8px; align-items:center; margin-bottom:8px;">
+      <div class="small">${directionTitles[direction] || direction}</div>
+      ${ABONEMENT_PRICE_SINGLE_LESSONS.map((lessons) => `
+        <input class="form-input" id="work-price-ms-${direction}-${lessons}" type="number" min="0" step="1" value="${escapeHtml(String(matrix[direction][String(lessons)]))}" />
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function _renderMultiBundleMatrix(matrix) {
+  const directionTitles = { dance: 'Танцы', sport: 'Спорт' };
+  return ABONEMENT_PRICE_DIRECTIONS.map((direction) => `
+    <div style="margin-bottom: 12px;">
+      <div style="font-weight:700; margin-bottom: 8px;">${directionTitles[direction] || direction}</div>
+      ${_buildLessonsHeaderRow(ABONEMENT_PRICE_BUNDLE_LESSONS)}
+      ${ABONEMENT_PRICE_BUNDLES.map((bundle) => `
+        <div style="display:grid; grid-template-columns: 130px repeat(${ABONEMENT_PRICE_BUNDLE_LESSONS.length}, minmax(80px, 1fr)); gap:8px; align-items:center; margin-bottom:8px;">
+          <div class="small">${bundle} группы</div>
+          ${ABONEMENT_PRICE_BUNDLE_LESSONS.map((lessons) => `
+            <input class="form-input" id="work-price-mb-${direction}-${bundle}-${lessons}" type="number" min="0" step="1" value="${escapeHtml(String(matrix[direction][String(bundle)][String(lessons)]))}" />
+          `).join('')}
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+function setWorkSettingsPricesStatus(message, isError = false) {
+  const statusEl = document.getElementById('work-settings-prices-status');
   if (!statusEl) return;
   statusEl.textContent = message || '';
   statusEl.style.color = isError ? '#ffb3b3' : 'var(--hint)';
+}
+
+function _readPriceInput(inputId, fieldLabel) {
+  const input = document.getElementById(inputId);
+  if (!input) {
+    throw new Error(`Поле не найдено: ${fieldLabel}`);
+  }
+  const raw = String(input.value || '').trim().replace(',', '.');
+  if (!raw) {
+    throw new Error(`Заполните поле: ${fieldLabel}`);
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`Поле "${fieldLabel}" должно быть числом 0 или больше`);
+  }
+  return Math.round(parsed);
+}
+
+async function _updateAdminSystemSetting(key, value) {
+  const response = await fetch(`/api/admin/system-settings/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({
+      value,
+      reason: 'Updated from work settings pricing screen',
+    }),
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error((payload && payload.error) ? payload.error : `Failed to save setting: ${key}`);
+  }
+  return payload;
 }
 
 async function loadWorkSettingsPrices() {
@@ -12219,87 +13319,107 @@ async function loadWorkSettingsPrices() {
   if (!container) return;
 
   container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
+
   try {
-    const response = await fetch('/api/directions/manage', { headers: getAuthHeaders() });
-    const data = await response.json().catch(() => null);
+    const response = await fetch('/api/admin/system-settings', { headers: getAuthHeaders() });
+    const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error((data && data.error) ? data.error : 'Не удалось загрузить ценники');
+      throw new Error((payload && payload.error) ? payload.error : 'Не удалось загрузить системные настройки');
     }
 
-    const directions = Array.isArray(data) ? data : [];
-    if (directions.length === 0) {
-      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Ценники пока не настроены</p>';
-      return;
-    }
+    const settingsMap = _systemSettingsToMap(payload && payload.items);
+    const singleVisitPrice = _asNonNegativeInt(settingsMap['abonements.single_visit_price_rub'], 1200);
+    const trialPrice = _asNonNegativeInt(settingsMap['abonements.trial_price_rub'], 0);
+    const multiSingleMatrix = _normalizeMultiSingleMatrix(settingsMap['abonements.multi_single_prices_json']);
+    const multiBundleMatrix = _normalizeMultiBundleMatrix(settingsMap['abonements.multi_bundle_prices_json']);
 
-    container.innerHTML = directions.map((direction) => {
-      const directionId = Number(direction.direction_id);
-      const safeDirectionId = Number.isFinite(directionId) ? directionId : 0;
-      const safeTitle = escapeHtml(String(direction.title || `Направление ${safeDirectionId || '—'}`));
-      const typeRaw = String(direction.direction_type || '').toLowerCase();
-      const typeLabel = typeRaw === 'sport' ? 'Спорт' : 'Танцы';
-      const basePriceValue = direction.base_price === null || direction.base_price === undefined ? '' : String(direction.base_price);
-      const safeBasePriceValue = escapeHtml(basePriceValue);
-      const currentPriceLabel = basePriceValue !== '' ? `${escapeHtml(basePriceValue)} ₽` : '—';
-
-      return `
-        <div class="card" style="margin-bottom: 10px;">
-          <div style="display:flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
-            <div style="font-weight: 700; font-size: 15px;">${safeTitle}</div>
-            <div class="small" style="white-space: nowrap;">${typeLabel}</div>
+    container.innerHTML = `
+      <div class="card" style="margin-bottom: 10px;">
+        <h4 style="margin:0 0 10px;">Базовые цены</h4>
+        <div class="work-price-row">
+          <div class="work-price-input-wrap">
+            <label class="label">Разовое занятие (RUB)</label>
+            <input class="form-input" id="work-price-single-visit" type="number" min="0" step="1" value="${escapeHtml(String(singleVisitPrice))}" />
           </div>
-          <div class="small" style="margin-bottom: 8px; color: var(--hint);">Текущая цена: ${currentPriceLabel}</div>
-          <div class="work-price-row">
-            <div class="work-price-input-wrap">
-              <input class="form-input" id="work-price-input-${safeDirectionId}" type="number" min="0" step="1" placeholder="Например: 5000" value="${safeBasePriceValue}"/>
-            </div>
-            <button class="save-btn" type="button" style="margin:0;" onclick="saveWorkSettingsPrice(${safeDirectionId})">Сохранить цену</button>
+          <div class="work-price-input-wrap">
+            <label class="label">Пробное занятие (RUB)</label>
+            <input class="form-input" id="work-price-trial" type="number" min="0" step="1" value="${escapeHtml(String(trialPrice))}" />
           </div>
-          <div class="work-price-status" id="work-price-status-${safeDirectionId}">—</div>
         </div>
-      `;
-    }).join('');
+      </div>
+
+      <div class="card" style="margin-bottom: 10px;">
+        <h4 style="margin:0 0 8px;">Мульти (1 группа)</h4>
+        <p class="small" style="margin:0 0 10px; color: var(--hint);">Цены по направлению и количеству занятий.</p>
+        <div style="overflow-x:auto;">
+          ${_buildLessonsHeaderRow(ABONEMENT_PRICE_SINGLE_LESSONS)}
+          ${_renderMultiSingleMatrix(multiSingleMatrix)}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom: 10px;">
+        <h4 style="margin:0 0 8px;">Мульти (2 и 3 группы)</h4>
+        <p class="small" style="margin:0 0 10px; color: var(--hint);">Цены для двойного и тройного абонемента.</p>
+        <div style="overflow-x:auto;">
+          ${_renderMultiBundleMatrix(multiBundleMatrix)}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="work-price-row">
+          <button class="save-btn" type="button" style="margin:0; width:100%;" onclick="saveWorkSettingsPrices()">Сохранить ценники</button>
+        </div>
+        <div class="work-price-status" id="work-settings-prices-status">Изменения вступают в силу сразу после сохранения.</div>
+      </div>
+    `;
   } catch (error) {
-    container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ ${escapeHtml(String(error.message || 'Ошибка загрузки'))}</p>`;
+    container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ ${escapeHtml(String(error.message || 'Ошибка загрузки ценников'))}</p>`;
   }
 }
 
-async function saveWorkSettingsPrice(directionId) {
-  const inputEl = document.getElementById(`work-price-input-${directionId}`);
-  if (!inputEl) return;
-
-  const rawValue = String(inputEl.value || '').trim().replace(',', '.');
-  if (!rawValue) {
-    setWorkSettingsPriceStatus(directionId, 'Введите цену', true);
-    return;
-  }
-
-  const parsed = Number(rawValue);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    setWorkSettingsPriceStatus(directionId, 'Цена должна быть числом 0 или больше', true);
-    return;
-  }
-
-  const normalizedPrice = Math.round(parsed);
-  setWorkSettingsPriceStatus(directionId, 'Сохранение...');
+async function saveWorkSettingsPrices() {
   try {
-    const response = await fetch(`/api/directions/${directionId}`, {
-      method: 'PUT',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ base_price: normalizedPrice }),
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error((data && data.error) ? data.error : 'Не удалось сохранить цену');
+    const singleVisitPrice = _readPriceInput('work-price-single-visit', 'Разовое занятие');
+    const trialPrice = _readPriceInput('work-price-trial', 'Пробное занятие');
+
+    const multiSinglePayload = {};
+    for (const direction of ABONEMENT_PRICE_DIRECTIONS) {
+      multiSinglePayload[direction] = {};
+      for (const lessons of ABONEMENT_PRICE_SINGLE_LESSONS) {
+        multiSinglePayload[direction][String(lessons)] = _readPriceInput(
+          `work-price-ms-${direction}-${lessons}`,
+          `Мульти 1 группа (${direction}/${lessons})`
+        );
+      }
     }
 
-    inputEl.value = String(normalizedPrice);
-    setWorkSettingsPriceStatus(directionId, `Сохранено: ${normalizedPrice} ₽`);
-    showNotification('✅ Цена обновлена');
-    loadWorkSettingsPrices();
+    const multiBundlePayload = {};
+    for (const direction of ABONEMENT_PRICE_DIRECTIONS) {
+      multiBundlePayload[direction] = {};
+      for (const bundle of ABONEMENT_PRICE_BUNDLES) {
+        multiBundlePayload[direction][String(bundle)] = {};
+        for (const lessons of ABONEMENT_PRICE_BUNDLE_LESSONS) {
+          multiBundlePayload[direction][String(bundle)][String(lessons)] = _readPriceInput(
+            `work-price-mb-${direction}-${bundle}-${lessons}`,
+            `Мульти ${bundle} группы (${direction}/${lessons})`
+          );
+        }
+      }
+    }
+
+    setWorkSettingsPricesStatus('Сохранение...');
+
+    await _updateAdminSystemSetting('abonements.single_visit_price_rub', singleVisitPrice);
+    await _updateAdminSystemSetting('abonements.trial_price_rub', trialPrice);
+    await _updateAdminSystemSetting('abonements.multi_single_prices_json', multiSinglePayload);
+    await _updateAdminSystemSetting('abonements.multi_bundle_prices_json', multiBundlePayload);
+
+    setWorkSettingsPricesStatus('Сохранено');
+    showNotification('✅ Ценники абонементов сохранены');
+    await loadWorkSettingsPrices();
   } catch (error) {
-    setWorkSettingsPriceStatus(directionId, String(error.message || 'Ошибка сохранения'), true);
-    showNotification('❌ ' + (error.message || 'Не удалось сохранить цену'));
+    setWorkSettingsPricesStatus(String(error.message || 'Ошибка сохранения'), true);
+    showNotification('❌ ' + (error.message || 'Не удалось сохранить ценники'));
   }
 }
 
@@ -12726,33 +13846,102 @@ async function displayStaffInfo(userData) {
   }
 }
 
-async function openStaffProfileEdit() {
-  if (!currentUserData) {
-    showNotification('⚠️ Профиль не загружен');
+let staffProfileEditTargetId = null;
+
+function resolveStaffProfileEditTargetId() {
+  const directId = Number(staffProfileEditTargetId);
+  if (Number.isFinite(directId) && directId > 0) {
+    return directId;
+  }
+  const selfId = Number(window.currentStaffProfileId);
+  if (Number.isFinite(selfId) && selfId > 0) {
+    return selfId;
+  }
+  return null;
+}
+
+function updateStaffProfileTeachesToggle() {
+  const positionSelect = document.getElementById('staff-profile-position');
+  const teachesCheckbox = document.getElementById('staff-profile-teaches');
+  if (!positionSelect || !teachesCheckbox) return;
+
+  const position = (positionSelect.value || '').toLowerCase();
+  const isTeacher = position === 'учитель';
+  if (isTeacher) {
+    teachesCheckbox.checked = true;
+  }
+  teachesCheckbox.disabled = isTeacher;
+}
+
+async function openStaffProfileEdit(staffId = null) {
+  const requestedId = Number(staffId);
+  const hasRequestedId = Number.isFinite(requestedId) && requestedId > 0;
+
+  if (!hasRequestedId && !currentUserData) {
+    showNotification('Профиль не загружен');
     return;
   }
 
   try {
-    const response = await fetch(`/staff/check/${currentUserData.telegram_id}`);
-    if (!response.ok) {
-      showNotification('? Не удалось загрузить профиль');
-      return;
+    let staff = null;
+
+    if (hasRequestedId) {
+      const response = await fetch(`/staff/${requestedId}`, { headers: getAuthHeaders() });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data) {
+        showNotification('Не удалось загрузить профиль сотрудника');
+        return;
+      }
+      staff = data;
+    } else {
+      const response = await fetch(`/staff/check/${currentUserData.telegram_id}`);
+      if (!response.ok) {
+        showNotification('Не удалось загрузить профиль');
+        return;
+      }
+      const data = await response.json();
+      if (!data.is_staff || !data.staff) {
+        showNotification('Профиль персонала не найден');
+        return;
+      }
+      staff = data.staff;
+      window.currentStaffProfileId = staff.id;
+      window.currentStaffProfileName = staff.name || window.currentStaffProfileName;
     }
-    const data = await response.json();
-    if (!data.is_staff || !data.staff) {
-      showNotification('? Профиль персонала не найден');
+
+    if (!staff || !staff.id) {
+      showNotification('Профиль персонала не найден');
       return;
     }
 
-    const staff = data.staff;
-    window.currentStaffProfileId = staff.id;
+    staffProfileEditTargetId = Number(staff.id);
     document.getElementById('staff-profile-name').value = staff.name || '';
     document.getElementById('staff-profile-specialization').value = staff.specialization || '';
     document.getElementById('staff-profile-bio').value = staff.bio || '';
-    document.getElementById('staff-profile-phone').value = staff.phone || '';
-    document.getElementById('staff-profile-email').value = staff.email || '';
+
+    const positionGroup = document.getElementById('staff-profile-position-group');
+    const positionSelect = document.getElementById('staff-profile-position');
     const teachesGroup = document.getElementById('staff-profile-teaches-group');
     const teachesCheckbox = document.getElementById('staff-profile-teaches');
+    const canEditPosition = ['владелец', 'старший админ', 'тех. админ'].includes((currentStaffPosition || '').toLowerCase());
+    if (positionSelect) {
+      Array.from(positionSelect.querySelectorAll('option[data-dynamic-position="1"]')).forEach((opt) => opt.remove());
+      const normalizedPosition = String(staff.position || '').trim().toLowerCase();
+      if (normalizedPosition) {
+        const hasOption = Array.from(positionSelect.options).some((opt) => opt.value === normalizedPosition);
+        if (!hasOption) {
+          const dynamicOption = document.createElement('option');
+          dynamicOption.value = normalizedPosition;
+          dynamicOption.dataset.dynamicPosition = '1';
+          dynamicOption.textContent = staff.position;
+          positionSelect.appendChild(dynamicOption);
+        }
+        positionSelect.value = normalizedPosition;
+      }
+    }
+    if (positionGroup) {
+      positionGroup.style.display = canEditPosition ? 'block' : 'none';
+    }
     if (teachesCheckbox) {
       teachesCheckbox.checked = !!staff.teaches;
     }
@@ -12760,37 +13949,44 @@ async function openStaffProfileEdit() {
       const canEditTeaches = ['владелец', 'старший админ', 'тех. админ'].includes((currentStaffPosition || '').toLowerCase());
       teachesGroup.style.display = canEditTeaches ? 'block' : 'none';
     }
+    updateStaffProfileTeachesToggle();
 
     showPage('staff-profile-edit');
   } catch (error) {
-    console.error('Ошибка при открытии профиля персонала:', error);
-    showNotification('❌ Ошибка сети');
+    console.error('Error opening staff profile edit page:', error);
+    showNotification('Ошибка сети');
   }
 }
 
 async function saveStaffProfile() {
-  const staffId = window.currentStaffProfileId;
+  const staffId = resolveStaffProfileEditTargetId();
   if (!staffId) {
-    showNotification('? ID персонала не найден');
+    showNotification('ID персонала не найден');
     return;
   }
 
   const name = document.getElementById('staff-profile-name').value.trim();
   const specialization = document.getElementById('staff-profile-specialization').value.trim();
   const bio = document.getElementById('staff-profile-bio').value.trim();
-  const phone = document.getElementById('staff-profile-phone').value.trim();
-  const email = document.getElementById('staff-profile-email').value.trim();
+  const positionSelect = document.getElementById('staff-profile-position');
   const teachesCheckbox = document.getElementById('staff-profile-teaches');
+  const canEditPosition = ['владелец', 'старший админ', 'тех. админ'].includes((currentStaffPosition || '').toLowerCase());
   const canEditTeaches = ['владелец', 'старший админ', 'тех. админ'].includes((currentStaffPosition || '').toLowerCase());
 
   try {
     const payload = {
       name: name || null,
       specialization: specialization || null,
-      bio: bio || null,
-      phone: phone || null,
-      email: email || null
+      bio: bio || null
     };
+    if (canEditPosition && positionSelect) {
+      const position = (positionSelect.value || '').trim().toLowerCase();
+      if (!position) {
+        showNotification('Выберите роль');
+        return;
+      }
+      payload.position = position;
+    }
     if (canEditTeaches && teachesCheckbox) {
       payload.teaches = teachesCheckbox.checked ? 1 : 0;
     }
@@ -12800,20 +13996,34 @@ async function saveStaffProfile() {
       body: JSON.stringify(payload)
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      showNotification('? ' + (data.error || 'Не удалось сохранить'));
+      showNotification((data && data.error) ? data.error : 'Не удалось сохранить профиль');
       return;
     }
 
-    showNotification('? Профиль обновлен');
-    if (currentUserData) {
+    showNotification('Профиль обновлен');
+    if (Number(window.currentStaffProfileId) === Number(staffId) && currentUserData) {
       displayStaffInfo(currentUserData);
+      if (data.position) {
+        currentStaffPosition = String(data.position).toLowerCase();
+        setCachedStaffStatus(true, currentStaffPosition);
+        updateStaffNavigation();
+      }
     }
+    if (Number(currentDetailStaffId) === Number(staffId)) {
+      document.getElementById('staff-detail-name').innerText = data.name || '—';
+      document.getElementById('staff-detail-position').innerText = data.position || '—';
+      document.getElementById('staff-detail-position-full').innerText = data.position || '—';
+      document.getElementById('staff-detail-specialization').innerText = data.specialization || '—';
+      document.getElementById('staff-detail-bio').innerText = data.bio || '—';
+      updateStaffDetailAvatar(data.photo_path, data.telegram_id);
+    }
+    loadStaffList();
     goBack();
   } catch (error) {
-    console.error('Ошибка при сохранении профиля персонала:', error);
-    showNotification('❌ Ошибка сети');
+    console.error('Error while saving staff profile:', error);
+    showNotification('Ошибка сети');
   }
 }
 
@@ -12838,9 +14048,9 @@ const WORKING_WEEKDAY_LABELS = [
 const WORKING_WEEKDAY_SHORT = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
 function openTeacherWorkingHours() {
-  const staffId = window.currentStaffProfileId;
+  const staffId = resolveStaffProfileEditTargetId();
   if (!staffId) {
-    showNotification('? ID персонала не найден');
+    showNotification('ID персонала не найден');
     return;
   }
   currentWorkingHoursTeacherId = staffId;
@@ -14199,9 +15409,9 @@ async function openBotForCreateNews() {
 }
 
 async function openBotForStaffPhoto() {
-  const staffId = window.currentStaffProfileId;
+  const staffId = resolveStaffProfileEditTargetId();
   if (!staffId) {
-    showNotification('? ID персонала не найден');
+    showNotification('ID персонала не найден');
     return;
   }
   try {
@@ -14228,9 +15438,9 @@ function openStaffPhotoPicker() {
 }
 
 async function uploadStaffPhotoFromGallery() {
-  const staffId = window.currentStaffProfileId;
+  const staffId = resolveStaffProfileEditTargetId();
   if (!staffId) {
-    showNotification('? ID персонала не найден');
+    showNotification('ID персонала не найден');
     return;
   }
   const input = document.getElementById('staff-profile-photo-input');
@@ -14249,24 +15459,30 @@ async function uploadStaffPhotoFromGallery() {
 
     if (response.ok) {
       const data = await response.json();
-      showNotification('? Фото загружено');
+      showNotification('Фото загружено');
       if (data.photo_path) {
         const mediaUrl = buildMediaUrl(data.photo_path);
-        const staffAvatar = document.getElementById('staff-panel-avatar-img');
-        if (mediaUrl && staffAvatar) {
-          staffAvatar.src = mediaUrl;
-          staffAvatar.style.display = 'block';
-          document.querySelector('.staff-avatar-small p').style.display = 'none';
+        if (Number(staffId) === Number(window.currentStaffProfileId)) {
+          const staffAvatar = document.getElementById('staff-panel-avatar-img');
+          if (mediaUrl && staffAvatar) {
+            staffAvatar.src = mediaUrl;
+            staffAvatar.style.display = 'block';
+            document.querySelector('.staff-avatar-small p').style.display = 'none';
+          }
+        }
+        if (Number(currentDetailStaffId) === Number(staffId)) {
+          updateStaffDetailAvatar(data.photo_path, null);
         }
       }
+      loadStaffList();
       return;
     }
 
-    const error = await response.json();
-    showNotification('? ' + (error.error || 'Не удалось загрузить фото'));
+    const error = await response.json().catch(() => ({}));
+    showNotification((error && error.error) ? error.error : 'Не удалось загрузить фото');
   } catch (error) {
     console.error('Ошибка при загрузке фото персонала:', error);
-    showNotification('❌ Ошибка сети при загрузке фото: ' + (error && error.message ? error.message : 'unknown'));
+    showNotification('Ошибка сети при загрузке фото');
   }
 }
 
@@ -15805,7 +17021,6 @@ function archiveDirection(directionId) {
 </script>
 </body>
 </html>
-
 
 
 

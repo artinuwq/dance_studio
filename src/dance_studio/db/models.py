@@ -477,7 +477,7 @@ class PaymentProfile(Base):
     __tablename__ = "payment_profiles"
 
     id = Column(Integer, primary_key=True)
-    slot = Column(Integer, nullable=False, unique=True)  # 1 or 2
+    slot = Column(Integer, nullable=False, unique=True)  # 1, 2, or 3
     title = Column(String, nullable=True)
     details = Column(Text, nullable=False, default="")
     recipient_bank = Column(String, nullable=False, default="")
@@ -488,7 +488,7 @@ class PaymentProfile(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, nullable=False)
 
     __table_args__ = (
-        CheckConstraint("slot in (1, 2)", name="ck_payment_profiles_slot_range"),
+        CheckConstraint("slot in (1, 2, 3)", name="ck_payment_profiles_slot_range"),
     )
 
 
@@ -554,3 +554,19 @@ class GroupAbonementActionLog(Base):
     abonement = relationship("GroupAbonement", foreign_keys=[abonement_id])
     attendance = relationship("Attendance", foreign_keys=[attendance_id])
     payment = relationship("PaymentTransaction", foreign_keys=[payment_id])
+
+
+class UserDiscount(Base):
+    __tablename__ = "user_discounts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    discount_type = Column(String, nullable=False)  # percentage | fixed
+    value = Column(Integer, nullable=False)
+    is_one_time = Column(Boolean, default=True, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    comment = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    user = relationship("User", foreign_keys=[user_id])
+

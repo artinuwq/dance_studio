@@ -144,6 +144,10 @@ def get_attendance(schedule_id):
 
 @bp.route("/api/attendance/<int:schedule_id>", methods=["POST"])
 def set_attendance(schedule_id):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
     db = g.db
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:

@@ -15,10 +15,11 @@ from dance_studio.core.abonement_pricing import (
     quote_group_booking,
 )
 from dance_studio.core.booking_utils import build_booking_keyboard_data, format_booking_message
+from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.config import PROJECT_NAME_FULL
 from dance_studio.db.models import BookingRequest, HallRental, IndividualLesson, Schedule, User
 from dance_studio.web.constants import INACTIVE_SCHEDULE_STATUSES
-from dance_studio.web.services.payments import _get_active_payment_profile_payload
+from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
 
 def _time_overlaps(start_a, end_a, start_b, end_b) -> bool:
     return start_a < end_b and start_b < end_a
@@ -137,7 +138,7 @@ def _compute_group_booking_payment_amount(db, booking: BookingRequest) -> int | 
     return quote.amount
 
 def _build_booking_payment_request_message(db, booking: BookingRequest) -> str:
-    profile = _get_active_payment_profile_payload(db) or {}
+    profile = _resolve_payment_profile_payload_for_booking(db, booking) or {}
     bank = str(profile.get("recipient_bank") or "—").strip() or "—"
     number = str(profile.get("recipient_number") or "—").strip() or "—"
     full_name = str(profile.get("recipient_full_name") or "—").strip() or "—"

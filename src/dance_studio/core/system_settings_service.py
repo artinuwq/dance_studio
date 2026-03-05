@@ -114,8 +114,11 @@ SETTING_SPECS: dict[str, SettingSpec] = {
     "abonements.multi_single_prices_json": SettingSpec(
         key="abonements.multi_single_prices_json",
         value_type="json",
-        default={},
-        description="Multi abonement prices for single group by direction_type and lessons bucket (4/8/12).",
+        default={
+            "dance": {"4": 3600, "8": 7200, "12": 10800, "16": 14400},
+            "sport": {"4": 3600, "8": 7200, "12": 10800, "16": 14400},
+        },
+        description="Multi abonement prices for single group by direction_type and lessons bucket (4/8/12/16).",
         is_public=False,
     ),
     "abonements.multi_bundle_prices_json": SettingSpec(

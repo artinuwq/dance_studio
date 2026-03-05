@@ -1,14 +1,15 @@
-import json
+﻿import json
 import os
 import re
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as dt_time, timedelta
 
 import requests
 from flask import Blueprint, current_app, g, jsonify, request, send_from_directory
 from sqlalchemy import or_
 from werkzeug.utils import secure_filename
 
+from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.config import BOT_TOKEN, PROJECT_NAME_FULL, PROJECT_NAME_SHORT
 from dance_studio.core.media_manager import delete_user_photo
 from dance_studio.core.system_settings_service import (
@@ -36,6 +37,7 @@ from dance_studio.db.models import (
     Staff,
     TeacherWorkingHours,
     User,
+    UserDiscount,
 )
 from dance_studio.web.constants import (
     ALLOWED_DIRECTION_TYPES,
@@ -65,8 +67,20 @@ from dance_studio.web.services.admin import (
     format_schedule_v2,
 )
 from dance_studio.web.services.media import _build_image_url, normalize_teaches, try_fetch_telegram_avatar
+from dance_studio.web.services.studio_rules import (
+    SERVICE_BREAK_END,
+    SERVICE_BREAK_START,
+    interval_overlaps_service_break,
+)
 
 bp = Blueprint('admin_routes', __name__)
+
+SCHEDULE_MOVE_TYPE_LABELS = {
+    "studio_fault": "Перенос по вине студии",
+    "absence_people": "Отсутствие людей",
+    "low_attendance": "Нехватка людей",
+}
+SCHEDULE_PRESENT_STATUSES = {"present", "late"}
 
 
 @bp.route("/")
@@ -102,8 +116,191 @@ def get_bot_username():
     return jsonify({"bot_username": "dance_studio_admin_bot"})
 
 
+def _schedule_time_bounds(schedule: Schedule):
+    time_from = schedule.time_from or schedule.start_time
+    time_to = schedule.time_to or schedule.end_time
+    return time_from, time_to
+
+
+def _format_schedule_slot_label(schedule: Schedule) -> str:
+    if not schedule.date:
+        return "—"
+    time_from, time_to = _schedule_time_bounds(schedule)
+    date_text = schedule.date.strftime("%d.%m.%Y")
+    if not time_from or not time_to:
+        return date_text
+    return f"{date_text} {time_from.strftime('%H:%M')}–{time_to.strftime('%H:%M')}"
+
+
+def _active_group_abonements_for_schedule_date(db, group_id: int, schedule_date: date | None) -> dict[int, GroupAbonement]:
+    query = db.query(GroupAbonement).filter(
+        GroupAbonement.group_id == group_id,
+        GroupAbonement.status == "active",
+    )
+    if schedule_date:
+        day_start = datetime.combine(schedule_date, dt_time.min)
+        day_end = datetime.combine(schedule_date, dt_time.max)
+        query = query.filter(
+            or_(GroupAbonement.valid_from == None, GroupAbonement.valid_from <= day_end),
+            or_(GroupAbonement.valid_to == None, GroupAbonement.valid_to >= day_start),
+        )
+    rows = query.order_by(GroupAbonement.valid_to.is_(None), GroupAbonement.valid_to.asc(), GroupAbonement.id.asc()).all()
+    by_user: dict[int, GroupAbonement] = {}
+    for row in rows:
+        by_user.setdefault(row.user_id, row)
+    return by_user
+
+
+def _extend_abonement_by_week(
+    db,
+    *,
+    abonement: GroupAbonement,
+    action_type: str,
+    reason: str,
+    staff: Staff | None,
+    note: str,
+    payload: dict,
+) -> bool:
+    duplicate = db.query(GroupAbonementActionLog.id).filter_by(
+        abonement_id=abonement.id,
+        action_type=action_type,
+        reason=reason,
+    ).first()
+    if duplicate:
+        return False
+
+    now = datetime.utcnow()
+    if abonement.valid_to:
+        base = abonement.valid_to if abonement.valid_to > now else now
+    elif abonement.valid_from:
+        base = abonement.valid_from if abonement.valid_from > now else now
+    else:
+        base = now
+    abonement.valid_to = base + timedelta(days=7)
+
+    db.add(
+        GroupAbonementActionLog(
+            abonement_id=abonement.id,
+            action_type=action_type,
+            credits_delta=0,
+            reason=reason,
+            note=note,
+            actor_type="staff",
+            actor_id=staff.id if staff else None,
+            payload=json.dumps(payload, ensure_ascii=False),
+        )
+    )
+    return True
+
+
+def _refund_schedule_attendance_credit(
+    db,
+    *,
+    attendance: Attendance,
+    action_type: str,
+    reason: str,
+    staff: Staff | None,
+    note: str,
+    payload: dict,
+) -> bool:
+    if not attendance.abonement_id:
+        return False
+
+    debit_exists = db.query(GroupAbonementActionLog.id).filter_by(
+        attendance_id=attendance.id,
+        action_type="debit_attendance",
+    ).first()
+    if not debit_exists:
+        return False
+
+    duplicate_refund = db.query(GroupAbonementActionLog.id).filter_by(
+        attendance_id=attendance.id,
+        action_type=action_type,
+        reason=reason,
+    ).first()
+    if duplicate_refund:
+        return False
+
+    abonement = db.query(GroupAbonement).filter_by(id=attendance.abonement_id).first()
+    if not abonement:
+        return False
+    abonement.balance_credits = int(abonement.balance_credits or 0) + 1
+
+    db.add(
+        GroupAbonementActionLog(
+            abonement_id=abonement.id,
+            action_type=action_type,
+            credits_delta=1,
+            reason=reason,
+            note=note,
+            attendance_id=attendance.id,
+            actor_type="staff",
+            actor_id=staff.id if staff else None,
+            payload=json.dumps(payload, ensure_ascii=False),
+        )
+    )
+    return True
+
+
+def _send_group_chat_message(chat_id: int | None, text: str) -> tuple[bool, str | None]:
+    if not chat_id:
+        return False, "group_chat_not_configured"
+    if not BOT_TOKEN:
+        return False, "bot_token_not_set"
+
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": int(chat_id),
+                "text": text,
+            },
+            timeout=10,
+        )
+        if resp.ok:
+            return True, None
+        return False, resp.text or "telegram_send_failed"
+    except Exception as exc:
+        return False, str(exc)
+
+
+def _has_group_schedule_conflict(
+    db,
+    *,
+    schedule_id: int,
+    group_id: int,
+    target_date: date,
+    target_time_from,
+    target_time_to,
+) -> bool:
+    rows = (
+        db.query(Schedule)
+        .filter(
+            Schedule.id != schedule_id,
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
+            Schedule.date == target_date,
+            or_(Schedule.group_id == group_id, Schedule.object_id == group_id),
+        )
+        .all()
+    )
+    start_target = _time_to_minutes(target_time_from)
+    end_target = _time_to_minutes(target_time_to)
+    for row in rows:
+        row_from, row_to = _schedule_time_bounds(row)
+        if not row_from or not row_to:
+            continue
+        start_row = _time_to_minutes(row_from)
+        end_row = _time_to_minutes(row_to)
+        if start_target < end_row and start_row < end_target:
+            return True
+    return False
+
+
 @bp.route("/schedule")
 def schedule():
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
     db = g.db
     data = db.query(Schedule).all()
     return jsonify([format_schedule(s) for s in data])
@@ -119,23 +316,23 @@ def schedule_public():
     query = db.query(Schedule).outerjoin(IndividualLesson, Schedule.object_id == IndividualLesson.id)\
                                .outerjoin(HallRental, Schedule.object_id == HallRental.id)
 
-    # Р±Р°Р·РѕРІС‹Р№ С„РёР»СЊС‚СЂ РїРѕ СЃС‚Р°С‚СѓСЃСѓ
+    # базовый фильтр по статусу
     query = query.filter(Schedule.status != "cancelled")
 
     if mine and user:
         today = date.today()
         mine_conditions = []
 
-        # РРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹Рµ Р·Р°РЅСЏС‚РёСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
+        # Индивидуальные занятия пользователя
         mine_conditions.append(
             (Schedule.object_type == "individual") & (IndividualLesson.student_id == user.id)
         )
-        # РђСЂРµРЅРґР°, СЃРѕР·РґР°РЅРЅР°СЏ РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј
+        # Аренда, созданная пользователем
         mine_conditions.append(
             (Schedule.object_type == "rental") & (HallRental.creator_type == "user") & (HallRental.creator_id == user.id)
         )
 
-        # Р“СЂСѓРїРїС‹ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РїРѕ Р°РєС‚РёРІРЅС‹Рј Р°Р±РѕРЅРµРјРµРЅС‚Р°Рј
+        # Группы пользователя по активным абонементам
         active_group_ids = [
             gid for (gid,) in db.query(GroupAbonement.group_id).filter(
                 GroupAbonement.user_id == user.id,
@@ -152,7 +349,7 @@ def schedule_public():
                 )
             )
 
-        # Р•СЃР»Рё РїРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃРІСЏР·Р°РЅ СЃ СЃРѕС‚СЂСѓРґРЅРёРєРѕРј (РїСЂРµРїРѕРґР°РІР°С‚РµР»СЊ) вЂ” РґРѕР±Р°РІР»СЏРµРј РµРіРѕ РіСЂСѓРїРїС‹
+        # Если пользователь связан с сотрудником (преподаватель) — добавляем его группы
         staff = None
         if getattr(user, "telegram_id", None):
             staff = db.query(Staff).filter_by(telegram_id=user.telegram_id).first()
@@ -169,7 +366,7 @@ def schedule_public():
         else:
             query = query.filter(Schedule.id == -1)
     else:
-        # РїСѓР±Р»РёС‡РЅР°СЏ РІС‹РґР°С‡Р° С‚РѕР»СЊРєРѕ РіСЂСѓРїРї
+        # публичная выдача только групп
         query = query.filter(Schedule.object_type == "group")
 
     items = query.all()
@@ -229,7 +426,7 @@ def schedule_public():
             lesson = db.query(IndividualLesson).filter_by(id=s.object_id).first() if s.object_id else None
             teacher = db.query(Staff).filter_by(id=s.teacher_id).first() if s.teacher_id else None
             entry.update({
-                "title": s.title or "РРЅРґРёРІРёРґСѓР°Р»СЊРЅРѕРµ Р·Р°РЅСЏС‚РёРµ",
+                "title": s.title or "Индивидуальное занятие",
                 "teacher_name": teacher.name if teacher else None,
                 "student_id": lesson.student_id if lesson else None,
                 "status": s.status,
@@ -259,6 +456,7 @@ def schedule_v2_list():
     db = g.db
     query = db.query(Schedule)
     object_type = request.args.get("object_type")
+    teacher_id = request.args.get("teacher_id")
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
     mine_flag = request.args.get("mine")
@@ -266,23 +464,31 @@ def schedule_v2_list():
 
     if object_type:
         query = query.filter(Schedule.object_type == object_type)
+    if teacher_id:
+        try:
+            teacher_id_val = int(teacher_id)
+        except (TypeError, ValueError):
+            return {"error": "teacher_id must be an integer"}, 400
+        if teacher_id_val <= 0:
+            return {"error": "teacher_id must be positive"}, 400
+        query = query.filter(Schedule.teacher_id == teacher_id_val)
     if date_from:
         try:
             date_from_val = datetime.strptime(date_from, "%Y-%m-%d").date()
             query = query.filter(Schedule.date >= date_from_val)
         except ValueError:
-            return {"error": "date_from РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD"}, 400
+            return {"error": "date_from должен быть в формате YYYY-MM-DD"}, 400
     if date_to:
         try:
             date_to_val = datetime.strptime(date_to, "%Y-%m-%d").date()
             query = query.filter(Schedule.date <= date_to_val)
         except ValueError:
-            return {"error": "date_to РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD"}, 400
+            return {"error": "date_to должен быть в формате YYYY-MM-DD"}, 400
 
     if mine:
         user = get_current_user_from_request(db)
         if not user:
-            return {"error": "РўСЂРµР±СѓРµС‚СЃСЏ Р°РІС‚РѕСЂРёР·Р°С†РёСЏ"}, 401
+            return {"error": "Требуется авторизация"}, 401
         query = query.outerjoin(IndividualLesson, Schedule.object_id == IndividualLesson.id)\
                      .outerjoin(HallRental, Schedule.object_id == HallRental.id)\
                      .filter(
@@ -299,26 +505,38 @@ def schedule_v2_list():
 @bp.route("/schedule", methods=["POST"])
 def create_schedule():
     """
-    РЎРѕР·РґР°РµС‚ РЅРѕРІРѕРµ Р·Р°РЅСЏС‚РёРµ
+    Создает новое занятие
     """
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
     db = g.db
     data = request.json or {}
 
     
 
     if not data.get("title") or not data.get("teacher_id") or not data.get("date") or not data.get("start_time") or not data.get("end_time"):
-        return {"error": "title, teacher_id, date, start_time Рё end_time РѕР±СЏР·Р°С‚РµР»СЊРЅС‹"}, 400
+        return {"error": "title, teacher_id, date, start_time и end_time обязательны"}, 400
     
     teacher = db.query(Staff).filter_by(id=data["teacher_id"]).first()
     if not teacher:
-        return {"error": "РЈС‡РёС‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Учитель не найден"}, 404
     
+    date_val = datetime.strptime(data["date"], "%Y-%m-%d").date()
+    start_time_val = datetime.strptime(data["start_time"], "%H:%M").time()
+    end_time_val = datetime.strptime(data["end_time"], "%H:%M").time()
+    if start_time_val >= end_time_val:
+        return {"error": "start_time must be earlier than end_time"}, 400
+    if interval_overlaps_service_break(start_time_val, end_time_val):
+        return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
+
     schedule = Schedule(
         title=data["title"],
         teacher_id=data["teacher_id"],
-        date=datetime.strptime(data["date"], "%Y-%m-%d").date(),
-        start_time=datetime.strptime(data["start_time"], "%H:%M").time(),
-        end_time=datetime.strptime(data["end_time"], "%H:%M").time()
+        date=date_val,
+        start_time=start_time_val,
+        end_time=end_time_val
     )
     db.add(schedule)
     db.commit()
@@ -343,21 +561,23 @@ def create_schedule_v2():
     repeat_until_str = data.get("repeat_weekly_until")
 
     if object_type not in ["group", "individual", "rental"]:
-        return {"error": "object_type РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РѕРґРЅРёРј РёР·: group, individual, rental"}, 400
+        return {"error": "object_type должен быть одним из: group, individual, rental"}, 400
     if not object_id:
-        return {"error": "object_id РѕР±СЏР·Р°С‚РµР»РµРЅ"}, 400
+        return {"error": "object_id обязателен"}, 400
     if not date_str or not time_from_str or not time_to_str:
-        return {"error": "date, time_from, time_to РѕР±СЏР·Р°С‚РµР»СЊРЅС‹"}, 400
+        return {"error": "date, time_from, time_to обязательны"}, 400
 
     try:
         date_val = datetime.strptime(date_str, "%Y-%m-%d").date()
         time_from_val = datetime.strptime(time_from_str, "%H:%M").time()
         time_to_val = datetime.strptime(time_to_str, "%H:%M").time()
     except ValueError:
-        return {"error": "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ РґР°С‚С‹ РёР»Рё РІСЂРµРјРµРЅРё"}, 400
+        return {"error": "Неверный формат даты или времени"}, 400
 
     if time_from_val >= time_to_val:
-        return {"error": "time_from РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РјРµРЅСЊС€Рµ time_to"}, 400
+        return {"error": "time_from должен быть меньше time_to"}, 400
+    if interval_overlaps_service_break(time_from_val, time_to_val):
+        return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
 
     group_id = data.get("group_id")
     teacher_id = data.get("teacher_id")
@@ -373,9 +593,9 @@ def create_schedule_v2():
     elif object_type == "individual":
         lesson = db.query(IndividualLesson).filter_by(id=object_id).first()
         if not lesson:
-            return {"error": "РРЅРґРёРІРёРґСѓР°Р»СЊРЅРѕРµ Р·Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+            return {"error": "Индивидуальное занятие не найдено"}, 404
         teacher_id = lesson.teacher_id
-        title = "РРЅРґРёРІРёРґСѓР°Р»СЊРЅРѕРµ Р·Р°РЅСЏС‚РёРµ"
+        title = "Индивидуальное занятие"
     elif object_type == "rental":
         rental = db.query(HallRental).filter_by(id=object_id).first()
         if not rental:
@@ -404,7 +624,7 @@ def create_schedule_v2():
         try:
             repeat_until = datetime.strptime(repeat_until_str, "%Y-%m-%d").date()
         except ValueError:
-            return {"error": "repeat_weekly_until РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD"}, 400
+            return {"error": "repeat_weekly_until должен быть в формате YYYY-MM-DD"}, 400
         current_date = date_val
         while True:
             current_date = current_date + timedelta(days=7)
@@ -422,13 +642,17 @@ def create_schedule_v2():
 @bp.route("/schedule/<int:schedule_id>", methods=["PUT"])
 def update_schedule(schedule_id):
     """
-    РћР±РЅРѕРІР»СЏРµС‚ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РµРµ Р·Р°РЅСЏС‚РёРµ
+    Обновляет существующее занятие
     """
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
     db = g.db
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
     
     data = request.json
     
@@ -437,7 +661,7 @@ def update_schedule(schedule_id):
     if data.get("teacher_id"):
         teacher = db.query(Staff).filter_by(id=data["teacher_id"]).first()
         if not teacher:
-            return {"error": "РЈС‡РёС‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+            return {"error": "Учитель не найден"}, 404
         schedule.teacher_id = data["teacher_id"]
     if data.get("date"):
         schedule.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
@@ -445,6 +669,16 @@ def update_schedule(schedule_id):
         schedule.start_time = datetime.strptime(data["start_time"], "%H:%M").time()
     if data.get("end_time"):
         schedule.end_time = datetime.strptime(data["end_time"], "%H:%M").time()
+
+    time_fields_changed = bool(data.get("start_time") or data.get("end_time"))
+    if time_fields_changed:
+        start_candidate = schedule.start_time or schedule.time_from
+        end_candidate = schedule.end_time or schedule.time_to
+        if start_candidate and end_candidate:
+            if start_candidate >= end_candidate:
+                return {"error": "start_time must be earlier than end_time"}, 400
+            if interval_overlaps_service_break(start_candidate, end_candidate):
+                return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
     
     db.commit()
     
@@ -460,7 +694,7 @@ def update_schedule_v2(schedule_id):
     db = g.db
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
 
     data = request.json or {}
 
@@ -468,17 +702,27 @@ def update_schedule_v2(schedule_id):
         try:
             schedule.date = datetime.strptime(data["date"], "%Y-%m-%d").date()
         except ValueError:
-            return {"error": "date РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD Рё Р±С‹С‚СЊ СЃСѓС‰РµСЃС‚РІСѓСЋС‰РµР№ РґР°С‚РѕР№"}, 400
+            return {"error": "date должен быть в формате YYYY-MM-DD и быть существующей датой"}, 400
     if "time_from" in data:
         try:
             schedule.time_from = datetime.strptime(data["time_from"], "%H:%M").time()
         except ValueError:
-            return {"error": "time_from РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ HH:MM"}, 400
+            return {"error": "time_from должен быть в формате HH:MM"}, 400
     if "time_to" in data:
         try:
             schedule.time_to = datetime.strptime(data["time_to"], "%H:%M").time()
         except ValueError:
-            return {"error": "time_to РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ HH:MM"}, 400
+            return {"error": "time_to должен быть в формате HH:MM"}, 400
+
+    if "time_from" in data or "time_to" in data:
+        time_from_candidate = schedule.time_from or schedule.start_time
+        time_to_candidate = schedule.time_to or schedule.end_time
+        if time_from_candidate and time_to_candidate:
+            if time_from_candidate >= time_to_candidate:
+                return {"error": "time_from must be earlier than time_to"}, 400
+            if interval_overlaps_service_break(time_from_candidate, time_to_candidate):
+                return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
+
     if "status" in data:
         schedule.status = data["status"]
     if "status_comment" in data:
@@ -493,23 +737,325 @@ def update_schedule_v2(schedule_id):
 @bp.route("/schedule/<int:schedule_id>", methods=["DELETE"])
 def delete_schedule(schedule_id):
     """
-    РЈРґР°Р»СЏРµС‚ Р·Р°РЅСЏС‚РёРµ
+    Удаляет занятие
     """
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
     db = g.db
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     
     if not schedule:
-        return {"error": "Р—Р°РЅСЏС‚РёРµ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Занятие не найдено"}, 404
     
     schedule.status = "cancelled"
-    schedule.status_comment = schedule.status_comment or "РћС‚РјРµРЅРµРЅРѕ"
+    schedule.status_comment = schedule.status_comment or "Отменено"
     db.commit()
 
-    return {"ok": True, "message": "Р—Р°РЅСЏС‚РёРµ РѕС‚РјРµРЅРµРЅРѕ"}
+    return {"ok": True, "message": "Занятие отменено"}
 
 
 @bp.route("/schedule/v2/<int:schedule_id>", methods=["DELETE"])
+def delete_schedule_v2(schedule_id):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
 
+    db = g.db
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+
+    if not schedule:
+        return {"error": "Занятие не найдено"}, 404
+
+    schedule.status = "cancelled"
+    schedule.status_comment = schedule.status_comment or "Отменено"
+    db.commit()
+
+    return {"ok": True, "message": "Занятие отменено"}
+
+
+@bp.route("/schedule/v2/<int:schedule_id>/cancel", methods=["POST"])
+def cancel_schedule_v2(schedule_id):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    payload = request.json or {}
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "Занятие не найдено"}, 404
+
+    group_id = _schedule_group_id(schedule)
+    if not group_id:
+        return {"error": "Отмена по этой механике доступна только для группового занятия"}, 400
+
+    group = db.query(Group).filter_by(id=group_id).first()
+    if not group:
+        return {"error": "Группа не найдена"}, 404
+
+    staff = _get_current_staff(db)
+    op_reason = f"schedule_cancel:{schedule.id}"
+    note = (payload.get("note") or "Отмена занятия с компенсацией группы").strip()
+
+    abonements_by_user = _active_group_abonements_for_schedule_date(db, group_id, schedule.date)
+    extended_abonements = 0
+    for user_id, abonement in abonements_by_user.items():
+        changed = _extend_abonement_by_week(
+            db,
+            abonement=abonement,
+            action_type="schedule_cancel_extend",
+            reason=op_reason,
+            staff=staff,
+            note=note,
+            payload={
+                "schedule_id": schedule.id,
+                "group_id": group_id,
+                "user_id": user_id,
+                "mode": "cancel",
+            },
+        )
+        if changed:
+            extended_abonements += 1
+
+    refunded_credits = 0
+    attendance_rows = db.query(Attendance).filter_by(schedule_id=schedule.id).all()
+    for attendance in attendance_rows:
+        refunded = _refund_schedule_attendance_credit(
+            db,
+            attendance=attendance,
+            action_type="schedule_cancel_refund",
+            reason=op_reason,
+            staff=staff,
+            note="Возврат списания из-за отмены занятия",
+            payload={
+                "schedule_id": schedule.id,
+                "group_id": group_id,
+                "user_id": attendance.user_id,
+                "mode": "cancel",
+            },
+        )
+        if refunded:
+            refunded_credits += 1
+
+    cancelled_slot = _format_schedule_slot_label(schedule)
+    schedule.status = "cancelled"
+    schedule.status_comment = (payload.get("status_comment") or f"Отменено: {note}").strip()
+
+    notify_group_raw = payload.get("notify_group", True)
+    notify_group = str(notify_group_raw).strip().lower() not in {"0", "false", "no", "off"}
+    group_notified = False
+    group_notify_error = None
+    if notify_group:
+        group_notified, group_notify_error = _send_group_chat_message(
+            group.chat_id,
+            f"Извините, занятие на {cancelled_slot} отменилось.",
+        )
+
+    db.commit()
+    return jsonify(
+        {
+            "ok": True,
+            "schedule_id": schedule.id,
+            "status": schedule.status,
+            "extended_abonements": extended_abonements,
+            "refunded_credits": refunded_credits,
+            "group_notified": group_notified,
+            "group_notify_error": group_notify_error,
+        }
+    )
+
+
+@bp.route("/schedule/v2/<int:schedule_id>/move", methods=["POST"])
+def move_schedule_v2(schedule_id):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    payload = request.json or {}
+    schedule = db.query(Schedule).filter_by(id=schedule_id).first()
+    if not schedule:
+        return {"error": "Занятие не найдено"}, 404
+
+    group_id = _schedule_group_id(schedule)
+    if not group_id:
+        return {"error": "Перенос по этой механике доступен только для группового занятия"}, 400
+
+    group = db.query(Group).filter_by(id=group_id).first()
+    if not group:
+        return {"error": "Группа не найдена"}, 404
+
+    move_type = str(payload.get("move_type") or "").strip()
+    if move_type not in SCHEDULE_MOVE_TYPE_LABELS:
+        return {"error": "move_type должен быть одним из: studio_fault, absence_people, low_attendance"}, 400
+
+    target_date_raw = payload.get("target_date")
+    target_time_from_raw = payload.get("target_time_from")
+    target_time_to_raw = payload.get("target_time_to")
+    if not target_date_raw or not target_time_from_raw or not target_time_to_raw:
+        return {"error": "target_date, target_time_from, target_time_to обязательны"}, 400
+
+    try:
+        target_date = datetime.strptime(str(target_date_raw), "%Y-%m-%d").date()
+        target_time_from = datetime.strptime(str(target_time_from_raw), "%H:%M").time()
+        target_time_to = datetime.strptime(str(target_time_to_raw), "%H:%M").time()
+    except ValueError:
+        return {"error": "Неверный формат даты/времени. Используйте YYYY-MM-DD и HH:MM"}, 400
+
+    if target_time_from >= target_time_to:
+        return {"error": "target_time_from должен быть меньше target_time_to"}, 400
+    if interval_overlaps_service_break(target_time_from, target_time_to):
+        return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
+
+    if _has_group_schedule_conflict(
+        db,
+        schedule_id=schedule.id,
+        group_id=group_id,
+        target_date=target_date,
+        target_time_from=target_time_from,
+        target_time_to=target_time_to,
+    ):
+        return {"error": "На выбранный слот уже есть другое занятие этой группы"}, 409
+
+    staff = _get_current_staff(db)
+    move_label = SCHEDULE_MOVE_TYPE_LABELS[move_type]
+    old_slot = _format_schedule_slot_label(schedule)
+    new_slot = f"{target_date.strftime('%d.%m.%Y')} {target_time_from.strftime('%H:%M')}–{target_time_to.strftime('%H:%M')}"
+    op_reason = f"schedule_move:{schedule.id}:{move_type}:{target_date.isoformat()}:{target_time_from.strftime('%H:%M')}"
+
+    attendance_rows = db.query(Attendance).filter_by(schedule_id=schedule.id).all()
+    abonements_by_user = _active_group_abonements_for_schedule_date(db, group_id, schedule.date)
+
+    extended_abonements = 0
+    refunded_credits = 0
+    low_attendance_present_count = 0
+
+    if move_type in {"studio_fault", "absence_people"}:
+        for user_id, abonement in abonements_by_user.items():
+            changed = _extend_abonement_by_week(
+                db,
+                abonement=abonement,
+                action_type="schedule_move_extend",
+                reason=op_reason,
+                staff=staff,
+                note=f"{move_label}: продление на 1 неделю",
+                payload={
+                    "schedule_id": schedule.id,
+                    "group_id": group_id,
+                    "user_id": user_id,
+                    "move_type": move_type,
+                },
+            )
+            if changed:
+                extended_abonements += 1
+
+        for attendance in attendance_rows:
+            refunded = _refund_schedule_attendance_credit(
+                db,
+                attendance=attendance,
+                action_type="schedule_move_refund",
+                reason=op_reason,
+                staff=staff,
+                note=f"{move_label}: возврат списания",
+                payload={
+                    "schedule_id": schedule.id,
+                    "group_id": group_id,
+                    "user_id": attendance.user_id,
+                    "move_type": move_type,
+                },
+            )
+            if refunded:
+                refunded_credits += 1
+    else:
+        present_rows = [
+            row for row in attendance_rows
+            if (row.status or "").strip().lower() in SCHEDULE_PRESENT_STATUSES
+        ]
+        low_attendance_present_count = len(present_rows)
+        if low_attendance_present_count >= 3:
+            return {
+                "error": "Для типа 'Нехватка людей' количество пришедших должно быть меньше 3",
+                "present_count": low_attendance_present_count,
+            }, 400
+
+        for attendance in present_rows:
+            abonement = None
+            if attendance.abonement_id:
+                abonement = db.query(GroupAbonement).filter_by(id=attendance.abonement_id).first()
+            if not abonement:
+                abonement = abonements_by_user.get(attendance.user_id)
+                if abonement and not attendance.abonement_id:
+                    attendance.abonement_id = abonement.id
+
+            if abonement:
+                changed = _extend_abonement_by_week(
+                    db,
+                    abonement=abonement,
+                    action_type="schedule_move_present_extend",
+                    reason=op_reason,
+                    staff=staff,
+                    note="Нехватка людей: продление на 1 неделю пришедшему ученику",
+                    payload={
+                        "schedule_id": schedule.id,
+                        "group_id": group_id,
+                        "user_id": attendance.user_id,
+                        "move_type": move_type,
+                    },
+                )
+                if changed:
+                    extended_abonements += 1
+
+            refunded = _refund_schedule_attendance_credit(
+                db,
+                attendance=attendance,
+                action_type="schedule_move_present_refund",
+                reason=op_reason,
+                staff=staff,
+                note="Нехватка людей: добавлено 1 занятие пришедшему ученику",
+                payload={
+                    "schedule_id": schedule.id,
+                    "group_id": group_id,
+                    "user_id": attendance.user_id,
+                    "move_type": move_type,
+                },
+            )
+            if refunded:
+                refunded_credits += 1
+
+    schedule.date = target_date
+    schedule.time_from = target_time_from
+    schedule.time_to = target_time_to
+    schedule.start_time = target_time_from
+    schedule.end_time = target_time_to
+    schedule.status = "scheduled"
+    schedule.status_comment = f"{move_label}: {old_slot} -> {new_slot}"
+
+    notify_group_raw = payload.get("notify_group", True)
+    notify_group = str(notify_group_raw).strip().lower() not in {"0", "false", "no", "off"}
+    group_notified = False
+    group_notify_error = None
+    if notify_group:
+        group_notified, group_notify_error = _send_group_chat_message(
+            group.chat_id,
+            f"Занятие перенесено ({move_label}). Было: {old_slot}. Теперь: {new_slot}.",
+        )
+
+    db.commit()
+    return jsonify(
+        {
+            "ok": True,
+            "schedule": format_schedule_v2(schedule),
+            "move_type": move_type,
+            "extended_abonements": extended_abonements,
+            "refunded_credits": refunded_credits,
+            "present_count": low_attendance_present_count if move_type == "low_attendance" else None,
+            "group_notified": group_notified,
+            "group_notify_error": group_notify_error,
+            "attendance_rows_total": len(attendance_rows),
+        }
+    )
 
 # -------------------- ATTENDANCE --------------------
 
@@ -584,7 +1130,7 @@ def get_user(user_id):
     user = db.query(User).filter_by(id=user_id).first()
     
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Пользователь не найден"}, 404
     
     return {
         "id": user.id,
@@ -657,7 +1203,7 @@ def update_user(user_id):
     user = db.query(User).filter_by(id=user_id).first()
     
     if not user:
-        return {"error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Пользователь не найден"}, 404
     
     data = request.json or {}
     
@@ -697,7 +1243,7 @@ def update_user(user_id):
 @bp.route("/staff")
 def get_all_staff():
     """
-    РџРѕР»СѓС‡РёС‚СЊ РІСЃРµС… СЃРѕС‚СЂСѓРґРЅРёРєРѕРІ
+    Получить всех сотрудников
     """
     perm_error = require_permission("view_all_users")
     if perm_error:
@@ -707,7 +1253,7 @@ def get_all_staff():
     
     result = []
     for s in staff:
-        # РџРѕР»СѓС‡Р°РµРј username РёР· User РµСЃР»Рё РµСЃС‚СЊ telegram_id
+        # Получаем username из User если есть telegram_id
         username = None
         if s.telegram_id:
             user = db.query(User).filter_by(telegram_id=s.telegram_id).first()
@@ -736,8 +1282,8 @@ def get_all_staff():
 @bp.route("/staff/check/<int:telegram_id>")
 def check_staff_by_telegram(telegram_id):
     """
-    РџСЂРѕРІРµСЂРёС‚СЊ СЏРІР»СЏРµС‚СЃСЏ Р»Рё РїРѕР»СЊР·РѕРІР°С‚РµР»РµРј СЃРѕС‚СЂСѓРґРЅРёРєРѕРј.
-    Р•СЃР»Рё РґР°РЅРЅС‹Рµ РїРµСЂСЃРѕРЅР°Р»Р° РЅРµРїРѕР»РЅС‹Рµ, РїРѕРґРіСЂСѓР¶Р°РµС‚ РґР°РЅРЅС‹Рµ РёР· РїСЂРѕС„РёР»СЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ (Р±РµР· СЃРѕС…СЂР°РЅРµРЅРёСЏ РІ Р‘Р”).
+    Проверить является ли пользователем сотрудником.
+    Если данные персонала неполные, подгружает данные из профиля пользователя (без сохранения в БД).
     """
     try:
         db = g.db
@@ -749,13 +1295,13 @@ def check_staff_by_telegram(telegram_id):
                 "staff": None
             })
         
-        # Р—Р°РіСЂСѓР¶Р°РµРј РїСЂРѕС„РёР»СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ РґР»СЏ РїРѕРґСЃС‚Р°РЅРѕРІРєРё РґР°РЅРЅС‹С…
+        # Загружаем профиль пользователя для подстановки данных
         try:
             user = db.query(User).filter_by(telegram_id=telegram_id).first()
         except:
             user = None
         
-        # Р•СЃР»Рё РґР°РЅРЅС‹Рµ РїРµСЂСЃРѕРЅР°Р»Р° РЅРµРїРѕР»РЅС‹Рµ, Р±РµСЂРµРј РёР· РїСЂРѕС„РёР»СЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
+        # Если данные персонала неполные, берем из профиля пользователя
         staff_data = {
             "id": staff.id,
             "name": staff.name or (user.name if user else None),
@@ -773,7 +1319,7 @@ def check_staff_by_telegram(telegram_id):
             "staff": staff_data
         })
     except Exception as e:
-        print(f"вљ пёЏ РћС€РёР±РєР° РїСЂРё РїСЂРѕРІРµСЂРєРµ СЃРѕС‚СЂСѓРґРЅРёРєР°: {e}")
+        print(f"⚠️ Ошибка при проверке сотрудника: {e}")
         return jsonify({
             "is_staff": False,
             "staff": None
@@ -783,9 +1329,9 @@ def check_staff_by_telegram(telegram_id):
 @bp.route("/staff", methods=["POST"])
 def create_staff():
     """
-    РЎРѕР·РґР°С‚СЊ РЅРѕРІС‹Р№ РїСЂРѕС„РёР»СЊ СЃРѕС‚СЂСѓРґРЅРёРєР°.
-    РћР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ: position, name (РёР»Рё telegram_id СЃ РїСЂРѕС„РёР»РµРј)
-    РћСЃС‚Р°Р»СЊРЅС‹Рµ РѕРїС†РёРѕРЅР°Р»СЊРЅС‹Рµ.
+    Создать новый профиль сотрудника.
+    Обязательные поля: position, name (или telegram_id с профилем)
+    Остальные опциональные.
     """
     perm_error = require_permission("manage_staff")
     if perm_error:
@@ -794,7 +1340,7 @@ def create_staff():
     db = g.db
     data = request.json
     
-    # РџРѕР»СѓС‡Р°РµРј РёРјСЏ: Р»РёР±Рѕ РёР· РґР°РЅРЅС‹С…, Р»РёР±Рѕ РёР· РїСЂРѕС„РёР»СЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
+    # Получаем имя: либо из данных, либо из профиля пользователя
     staff_name = data.get("name")
     if not staff_name and data.get("telegram_id"):
         user = db.query(User).filter_by(telegram_id=data.get("telegram_id")).first()
@@ -802,12 +1348,12 @@ def create_staff():
             staff_name = user.name
     
     if not staff_name or not data.get("position"):
-        return {"error": "name (РёР»Рё telegram_id СЃ РїСЂРѕС„РёР»РµРј) Рё position РѕР±СЏР·Р°С‚РµР»СЊРЅС‹"}, 400
+        return {"error": "name (или telegram_id с профилем) и position обязательны"}, 400
 
-    # РџСЂРѕРІРµСЂСЏРµРј РґРѕРїСѓСЃС‚РёРјС‹Рµ РґРѕР»Р¶РЅРѕСЃС‚Рё
-    valid_positions = ["СѓС‡РёС‚РµР»СЊ", "Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ", "СЃС‚Р°СЂС€РёР№ Р°РґРјРёРЅ", "РІР»Р°РґРµР»РµС†", "С‚РµС…. Р°РґРјРёРЅ"]
+    # Проверяем допустимые должности
+    valid_positions = ["учитель", "администратор", "старший админ", "владелец", "тех. админ"]
     if data.get("position").lower() not in valid_positions:
-        return {"error": f"Р”РѕРїСѓСЃС‚РёРјС‹Рµ РґРѕР»Р¶РЅРѕСЃС‚Рё: {', '.join(valid_positions)}"}, 400
+        return {"error": f"Допустимые должности: {', '.join(valid_positions)}"}, 400
 
     notify_flag = data.get("notify", True)
     notify_user = str(notify_flag).strip().lower() in ["1", "true", "yes", "y", "on"]
@@ -815,12 +1361,12 @@ def create_staff():
     teaches_value = 0
     teaches_raw = normalize_teaches(data.get("teaches"))
     if teaches_raw is None:
-        teaches_value = 1 if data.get("position").lower() == "СѓС‡РёС‚РµР»СЊ" else 0
+        teaches_value = 1 if data.get("position").lower() == "учитель" else 0
     else:
         teaches_value = teaches_raw
 
     
-    # Р—Р°С‰РёС‚Р° РѕС‚ РґСѓР±Р»РµР№ РїРѕ telegram_id
+    # Защита от дублей по telegram_id
     if data.get("telegram_id"):
         existing_staff = db.query(Staff).filter_by(telegram_id=data.get("telegram_id")).first()
         if existing_staff:
@@ -842,39 +1388,37 @@ def create_staff():
                         from dance_studio.core.config import BOT_TOKEN
 
                         position_display = {
-                            "СѓС‡РёС‚РµР»СЊ": "рџ‘©вЂЌрџЏ« РЈС‡РёС‚РµР»СЊ",
-                            "Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ": "рџ“‹ РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ",
-                            "СЃС‚Р°СЂС€РёР№ Р°РґРјРёРЅ": "рџ›ЎпёЏ РЎС‚Р°СЂС€РёР№ Р°РґРјРёРЅ",
-                            "РІР»Р°РґРµР»РµС†": "рџ‘‘ Р’Р»Р°РґРµР»РµС†",
-                            "С‚РµС…. Р°РґРјРёРЅ": "вљ™пёЏ РўРµС…РЅРёС‡РµСЃРєРёР№ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ"
+                            "учитель": "👩‍🏫 Учитель",
+                            "администратор": "📋 Администратор",
+                            "старший админ": "🛡️ Старший админ",
+                            "владелец": "👑 Владелец",
+                            "тех. админ": "⚙️ Технический администратор"
                         }
 
                         position_name = position_display.get(data["position"], data["position"])
                         message_text = (
-                            f"рџЋ‰ Р’С‹ СЃРЅРѕРІР° РІ РєРѕРјР°РЅРґРµ!\n\n"
-                            f"Р’Р°Рј РЅР°Р·РЅР°С‡РµРЅР° РґРѕР»Р¶РЅРѕСЃС‚СЊ:\n"
+                            f"🎉 Вы снова в команде!\n\n"
+                            f"Вам назначена должность:\n"
                             f"<b>{position_name}</b>\n\n"
-                            f"Р”РѕР±СЂРѕ РїРѕР¶Р°Р»РѕРІР°С‚СЊ РѕР±СЂР°С‚РЅРѕ!"
+                            f"Добро пожаловать обратно!"
                         )
 
-                        telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-                        payload = {
-                            "chat_id": data.get("telegram_id"),
-                            "text": message_text,
-                            "parse_mode": "HTML"
-                        }
-                        requests.post(telegram_api_url, json=payload, timeout=5)
+                        send_user_notification_sync(
+                            user_id=data.get("telegram_id"),
+                            text=message_text,
+                            context_note="Восстановление сотрудника"
+                        )
                     except Exception:
                         pass
 
                 return {
-                    "message": "РџРµСЂСЃРѕРЅР°Р» РІРѕСЃСЃС‚Р°РЅРѕРІР»РµРЅ",
+                    "message": "Персонал восстановлен",
                     "id": existing_staff.id,
                     "restored": True
                 }, 200
 
             return {
-                "error": "РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ СЃ С‚Р°РєРёРј telegram_id СѓР¶Рµ СЃСѓС‰РµСЃС‚РІСѓРµС‚",
+                "error": "Пользователь с таким telegram_id уже существует",
                 "existing_id": existing_staff.id
             }, 409
     
@@ -895,18 +1439,18 @@ def create_staff():
     if data.get("telegram_id"):
         try_fetch_telegram_avatar(data.get("telegram_id"), db, staff_obj=staff)
     
-    # РћС‚РїСЂР°РІР»СЏРµРј СѓРІРµРґРѕРјР»РµРЅРёРµ РІ Telegram РµСЃР»Рё РµСЃС‚СЊ telegram_id
+    # Отправляем уведомление в Telegram если есть telegram_id
     if data.get("telegram_id") and notify_user:
         try:
             import requests
             from dance_studio.core.config import BOT_TOKEN
             
             position_display = {
-                "СѓС‡РёС‚РµР»СЊ": "рџ‘©вЂЌрџЏ« РЈС‡РёС‚РµР»СЊ",
-                "Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ": "рџ“‹ РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ",
-                "СЃС‚Р°СЂС€РёР№ Р°РґРјРёРЅ": "рџ›ЎпёЏ РЎС‚Р°СЂС€РёР№ Р°РґРјРёРЅ",
-                "РІР»Р°РґРµР»РµС†": "рџ‘‘ Р’Р»Р°РґРµР»РµС†",
-                "С‚РµС…. Р°РґРјРёРЅ": "вљ™пёЏ РўРµС…РЅРёС‡РµСЃРєРёР№ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ"
+                "учитель": "👩‍🏫 Учитель",
+                "администратор": "📋 Администратор",
+                "старший админ": "🛡️ Старший админ",
+                "владелец": "👑 Владелец",
+                "тех. админ": "⚙️ Технический администратор"
             }
             
             position_name = position_display.get(data["position"], data["position"])
@@ -918,22 +1462,13 @@ def create_staff():
                 f"в студии танца {PROJECT_NAME_FULL}!"
             )
             
-            # РћС‚РїСЂР°РІР»СЏРµРј СЃРѕРѕР±С‰РµРЅРёРµ РЅР°РїСЂСЏРјСѓСЋ С‡РµСЂРµР· Telegram API
-            telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-            payload = {
-                "chat_id": data.get("telegram_id"),
-                "text": message_text,
-                "parse_mode": "HTML"
-            }
-            
-            response = requests.post(telegram_api_url, json=payload, timeout=5)
-            if response.status_code == 200:
-                pass  # print(f"вњ… РЈРІРµРґРѕРјР»РµРЅРёРµ РѕС‚РїСЂР°РІР»РµРЅРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ {data.get('telegram_id')}")
-            else:
-                pass  # print(f"вљ пёЏ РћС€РёР±РєР° РїСЂРё РѕС‚РїСЂР°РІРєРµ СѓРІРµРґРѕРјР»РµРЅРёСЏ: {response.text}")
-                
-        except Exception as e:
-            pass  # print(f"вљ пёЏ РћС€РёР±РєР° РїСЂРё РѕС‚РїСЂР°РІРєРµ СѓРІРµРґРѕРјР»РµРЅРёСЏ: {e}")
+            send_user_notification_sync(
+                user_id=data.get("telegram_id"),
+                text=message_text,
+                context_note="Назначение сотрудника"
+            )
+        except Exception:
+            pass
     
     return {
         "id": staff.id,
@@ -953,13 +1488,13 @@ def create_staff():
 @bp.route("/staff/<int:staff_id>", methods=["GET"])
 def get_staff(staff_id):
     """
-    РџРѕР»СѓС‡РёС‚СЊ РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ СЃРѕС‚СЂСѓРґРЅРёРєРµ
+    Получить информацию о сотруднике
     """
     db = g.db
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
     if not staff:
-        return {"error": "РЎРѕС‚СЂСѓРґРЅРёРє РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Сотрудник не найден"}, 404
 
     username = None
     photo_path = staff.photo_path
@@ -990,7 +1525,7 @@ def get_staff(staff_id):
 @bp.route("/staff/update-from-telegram/<int:telegram_id>", methods=["PUT"])
 def update_staff_from_telegram(telegram_id):
     """
-    РћР±РЅРѕРІР»СЏРµС‚ РёРјСЏ Рё РґСЂСѓРіРёРµ РґР°РЅРЅС‹Рµ РїРµСЂСЃРѕРЅР°Р»Р° РёР· Telegram РїСЂРѕС„РёР»СЏ
+    Обновляет имя и другие данные персонала из Telegram профиля
     """
     db = g.db
     data = request.json
@@ -1001,7 +1536,7 @@ def update_staff_from_telegram(telegram_id):
         return {"error": "Персонал не найден"}, 404
     
     if "first_name" in data:
-        # Р¤РѕСЂРјРёСЂСѓРµРј РїРѕР»РЅРѕРµ РёРјСЏ РёР· first_name Рё last_name
+        # Формируем полное имя из first_name и last_name
         name = data["first_name"]
         if data.get("last_name"):
             name += " " + data["last_name"]
@@ -1020,7 +1555,7 @@ def update_staff_from_telegram(telegram_id):
 @bp.route("/staff/<int:staff_id>", methods=["PUT"])
 def update_staff(staff_id):
     """
-    РћР±РЅРѕРІРёС‚СЊ РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ СЃРѕС‚СЂСѓРґРЅРёРєРµ
+    Обновить информацию о сотруднике
     """
     perm_error = require_permission("manage_staff", allow_self_staff_id=staff_id)
     if perm_error:
@@ -1030,7 +1565,7 @@ def update_staff(staff_id):
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
     if not staff:
-        return {"error": "РЎРѕС‚СЂСѓРґРЅРёРє РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Сотрудник не найден"}, 404
     
     data = request.json
     
@@ -1043,10 +1578,13 @@ def update_staff(staff_id):
     if "telegram_id" in data:
         staff.telegram_id = data["telegram_id"]
     if "position" in data:
-        valid_positions = {"СѓС‡РёС‚РµР»СЊ", "Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ", "СЃС‚Р°СЂС€РёР№ Р°РґРјРёРЅ", "РјРѕРґРµСЂР°С‚РѕСЂ", "РІР»Р°РґРµР»РµС†", "С‚РµС…. Р°РґРјРёРЅ"}
+        position_perm_error = require_permission("manage_staff")
+        if position_perm_error:
+            return position_perm_error
+        valid_positions = {"учитель", "администратор", "старший админ", "модератор", "владелец", "тех. админ"}
         normalized_position = str(data["position"]).strip().lower()
         if normalized_position not in valid_positions:
-            return {"error": f"Р”РѕРїСѓСЃС‚РёРјС‹Рµ РґРѕР»Р¶РЅРѕСЃС‚Рё: {', '.join(valid_positions)}"}, 400
+            return {"error": f"Допустимые должности: {', '.join(valid_positions)}"}, 400
         staff.position = normalized_position
     if "specialization" in data:
         staff.specialization = data["specialization"]
@@ -1061,10 +1599,10 @@ def update_staff(staff_id):
         actor_staff = None
         if actor_telegram_id is not None:
             actor_staff = db.query(Staff).filter_by(telegram_id=actor_telegram_id, status="active").first()
-        allowed_positions = {"Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ", "СЃС‚Р°СЂС€РёР№ Р°РґРјРёРЅ", "РІР»Р°РґРµР»РµС†", "С‚РµС…. Р°РґРјРёРЅ"}
+        allowed_positions = {"администратор", "старший админ", "владелец", "тех. админ"}
         actor_position = (actor_staff.position or "").strip().lower() if actor_staff else ""
         if actor_position not in allowed_positions:
-            return {"error": "РќРµС‚ РїСЂР°РІ РЅР° РёР·РјРµРЅРµРЅРёРµ РїРѕР»СЏ teaches"}, 403
+            return {"error": "Нет прав на изменение поля teaches"}, 403
         staff.teaches = normalize_teaches(data["teaches"])
     if "status" in data:
         staff.status = data["status"]
@@ -1127,9 +1665,9 @@ def get_teacher_stats():
     try:
         teacher_id = int(request.args.get("teacher_id", 0))
     except (TypeError, ValueError):
-        return {"error": "teacher_id РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‡РёСЃР»РѕРј"}, 400
+        return {"error": "teacher_id должен быть числом"}, 400
     if not teacher_id:
-        return {"error": "teacher_id РѕР±СЏР·Р°С‚РµР»РµРЅ"}, 400
+        return {"error": "teacher_id обязателен"}, 400
 
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
@@ -1137,7 +1675,7 @@ def get_teacher_stats():
         date_from_val = datetime.strptime(date_from, "%Y-%m-%d").date() if date_from else None
         date_to_val = datetime.strptime(date_to, "%Y-%m-%d").date() if date_to else None
     except ValueError:
-        return {"error": "РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ РґР°С‚С‹, РёСЃРїРѕР»СЊР·СѓР№С‚Рµ YYYY-MM-DD"}, 400
+        return {"error": "Неверный формат даты, используйте YYYY-MM-DD"}, 400
 
     schedules_q = db.query(Schedule).filter(
         Schedule.teacher_id == teacher_id,
@@ -1191,28 +1729,28 @@ def put_teacher_working_hours(teacher_id):
     data = request.json or {}
     items = data.get("items", [])
     if not isinstance(items, list):
-        return {"error": "items РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ СЃРїРёСЃРєРѕРј"}, 400
+        return {"error": "items должен быть списком"}, 400
 
     parsed_items = []
     for item in items:
         try:
             weekday = int(item.get("weekday"))
         except (TypeError, ValueError):
-            return {"error": "weekday РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‡РёСЃР»РѕРј 0..6"}, 400
+            return {"error": "weekday должен быть числом 0..6"}, 400
         if weekday < 0 or weekday > 6:
-            return {"error": "weekday РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ РґРёР°РїР°Р·РѕРЅРµ 0..6"}, 400
+            return {"error": "weekday должен быть в диапазоне 0..6"}, 400
 
         time_from_str = item.get("time_from")
         time_to_str = item.get("time_to")
         if not time_from_str or not time_to_str:
-            return {"error": "time_from Рё time_to РѕР±СЏР·Р°С‚РµР»СЊРЅС‹"}, 400
+            return {"error": "time_from и time_to обязательны"}, 400
         try:
             time_from_val = datetime.strptime(time_from_str, "%H:%M").time()
             time_to_val = datetime.strptime(time_to_str, "%H:%M").time()
         except ValueError:
-            return {"error": "time_from Рё time_to РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ HH:MM"}, 400
+            return {"error": "time_from и time_to должны быть в формате HH:MM"}, 400
         if time_from_val >= time_to_val:
-            return {"error": "time_from РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РјРµРЅСЊС€Рµ time_to"}, 400
+            return {"error": "time_from должен быть меньше time_to"}, 400
 
         valid_from = item.get("valid_from")
         valid_to = item.get("valid_to")
@@ -1220,7 +1758,7 @@ def put_teacher_working_hours(teacher_id):
             valid_from_val = datetime.strptime(valid_from, "%Y-%m-%d").date() if valid_from else None
             valid_to_val = datetime.strptime(valid_to, "%Y-%m-%d").date() if valid_to else None
         except ValueError:
-            return {"error": "valid_from Рё valid_to РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD"}, 400
+            return {"error": "valid_from и valid_to должны быть в формате YYYY-MM-DD"}, 400
 
         parsed_items.append(
             {
@@ -1270,7 +1808,7 @@ def put_teacher_working_hours(teacher_id):
 @bp.route("/staff/<int:staff_id>", methods=["DELETE"])
 def delete_staff(staff_id):
     """
-    РЈРґР°Р»РёС‚СЊ СЃРѕС‚СЂСѓРґРЅРёРєР°
+    Удалить сотрудника
     """
     perm_error = require_permission("manage_staff")
     if perm_error:
@@ -1280,12 +1818,12 @@ def delete_staff(staff_id):
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
     if not staff:
-        return {"error": "РЎРѕС‚СЂСѓРґРЅРёРє РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Сотрудник не найден"}, 404
     
     staff_name = staff.name
     telegram_id = staff.telegram_id
 
-    # Р’РјРµСЃС‚Рѕ С„РёР·РёС‡РµСЃРєРѕРіРѕ СѓРґР°Р»РµРЅРёСЏ вЂ” РґРµР°РєС‚РёРІРёСЂСѓРµРј, С‡С‚РѕР±С‹ РЅРµ Р»РѕРјР°С‚СЊ СЂР°СЃРїРёСЃР°РЅРёРµ
+    # Вместо физического удаления — деактивируем, чтобы не ломать расписание
     staff.status = "dismissed"
     staff.teaches = 0
     db.commit()
@@ -1293,7 +1831,7 @@ def delete_staff(staff_id):
     notify_flag = request.args.get("notify", "1").strip().lower()
     notify_user = notify_flag in ["1", "true", "yes", "y", "on"]
 
-    # РћС‚РїСЂР°РІР»СЏРµРј СѓРІРµРґРѕРјР»РµРЅРёРµ РѕР± СѓРІРѕР»СЊРЅРµРЅРёРё РІ Telegram РµСЃР»Рё РµСЃС‚СЊ telegram_id
+    # Отправляем уведомление об увольнении в Telegram если есть telegram_id
     if telegram_id and notify_user:
         try:
             import requests
@@ -1305,22 +1843,13 @@ def delete_staff(staff_id):
                 f"Спасибо за сотрудничество!"
             )
             
-            # РћС‚РїСЂР°РІР»СЏРµРј СЃРѕРѕР±С‰РµРЅРёРµ РЅР°РїСЂСЏРјСѓСЋ С‡РµСЂРµР· Telegram API
-            telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-            payload = {
-                "chat_id": telegram_id,
-                "text": message_text,
-                "parse_mode": "HTML"
-            }
-            
-            response = requests.post(telegram_api_url, json=payload, timeout=5)
-            if response.status_code == 200:
-                pass  # print(f"вњ… РЈРІРµРґРѕРјР»РµРЅРёРµ РѕР± СѓРІРѕР»СЊРЅРµРЅРёРё РѕС‚РїСЂР°РІР»РµРЅРѕ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ {telegram_id}")
-            else:
-                pass  # print(f"вљ пёЏ РћС€РёР±РєР° РїСЂРё РѕС‚РїСЂР°РІРєРµ СѓРІРµРґРѕРјР»РµРЅРёСЏ: {response.text}")
-                
-        except Exception as e:
-            pass  # print(f"вљ пёЏ РћС€РёР±РєР° РїСЂРё РѕС‚РїСЂР°РІРєРµ СѓРІРµРґРѕРјР»РµРЅРёСЏ РѕР± СѓРІРѕР»СЊРЅРµРЅРёРё: {e}")
+            send_user_notification_sync(
+                user_id=telegram_id,
+                text=message_text,
+                context_note="Увольнение сотрудника"
+            )
+        except Exception:
+            pass
     
     return {
         "message": f"Персонал '{staff_name}' удален",
@@ -1332,33 +1861,33 @@ def delete_staff(staff_id):
 @bp.route("/staff/<int:staff_id>/photo", methods=["POST"])
 def upload_staff_photo(staff_id):
     """
-    Р—Р°РіСЂСѓР¶Р°РµС‚ С„РѕС‚Рѕ СЃРѕС‚СЂСѓРґРЅРёРєР°
+    Загружает фото сотрудника
     """
     db = g.db
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
     if not staff:
-        return {"error": "РЎРѕС‚СЂСѓРґРЅРёРє РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Сотрудник не найден"}, 404
     
     if 'photo' not in request.files:
-        return {"error": "Р¤Р°Р№Р» РЅРµ РїСЂРµРґРѕСЃС‚Р°РІР»РµРЅ"}, 400
+        return {"error": "Файл не предоставлен"}, 400
     
     file = request.files['photo']
     
     if file.filename == '':
-        return {"error": "Р¤Р°Р№Р» РЅРµ РІС‹Р±СЂР°РЅ"}, 400
+        return {"error": "Файл не выбран"}, 400
     
-    # РџСЂРѕРІРµСЂСЏРµРј СЂР°СЃС€РёСЂРµРЅРёРµ
+    # Проверяем расширение
     allowed_extensions = {'jpg', 'jpeg', 'png', 'gif'}
     if not ('.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
-        return {"error": "Р”РѕРїСѓСЃС‚РёРјС‹Рµ С„РѕСЂРјР°С‚С‹: jpg, jpeg, png, gif"}, 400
+        return {"error": "Допустимые форматы: jpg, jpeg, png, gif"}, 400
     
     try:
-        # РЈРґР°Р»СЏРµРј СЃС‚Р°СЂРѕРµ С„РѕС‚Рѕ РµСЃР»Рё СЃСѓС‰РµСЃС‚РІСѓРµС‚
+        # Удаляем старое фото если существует
         if staff.photo_path:
             delete_user_photo(staff.photo_path)
         
-        # РЎРѕС…СЂР°РЅСЏРµРј РЅРѕРІРѕРµ С„РѕС‚Рѕ РІ РїР°РїРєСѓ teachers
+        # Сохраняем новое фото в папку teachers
         file_data = file.read()
         filename = "photo." + file.filename.rsplit('.', 1)[1].lower()
         
@@ -1378,37 +1907,37 @@ def upload_staff_photo(staff_id):
         return {
             "id": staff.id,
             "photo_path": staff.photo_path,
-            "message": "Р¤РѕС‚Рѕ СѓСЃРїРµС€РЅРѕ Р·Р°РіСЂСѓР¶РµРЅРѕ"
+            "message": "Фото успешно загружено"
         }, 201
     
     except Exception as e:
-        print(f"РћС€РёР±РєР° РїСЂРё Р·Р°РіСЂСѓР·РєРµ С„РѕС‚Рѕ: {e}")
+        print(f"Ошибка при загрузке фото: {e}")
         return {"error": str(e)}, 500
 
 
 @bp.route("/staff/<int:staff_id>/photo", methods=["DELETE"])
 def delete_staff_photo(staff_id):
     """
-    РЈРґР°Р»СЏРµС‚ С„РѕС‚Рѕ СЃРѕС‚СЂСѓРґРЅРёРєР°
+    Удаляет фото сотрудника
     """
     db = g.db
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
     if not staff:
-        return {"error": "РЎРѕС‚СЂСѓРґРЅРёРє РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Сотрудник не найден"}, 404
     
     if not staff.photo_path:
-        return {"error": "Р¤РѕС‚Рѕ РЅРµ РЅР°Р№РґРµРЅРѕ"}, 404
+        return {"error": "Фото не найдено"}, 404
     
     try:
         delete_user_photo(staff.photo_path)
         staff.photo_path = None
         db.commit()
         
-        return {"ok": True, "message": "Р¤РѕС‚Рѕ СѓРґР°Р»РµРЅРѕ"}
+        return {"ok": True, "message": "Фото удалено"}
     
     except Exception as e:
-        print(f"РћС€РёР±РєР° РїСЂРё СѓРґР°Р»РµРЅРёРё С„РѕС‚Рѕ: {e}")
+        print(f"Ошибка при удалении фото: {e}")
         return {"error": str(e)}, 500
 
 
@@ -1419,7 +1948,7 @@ def list_public_teachers():
         Staff.status == "active",
         or_(
             Staff.teaches == 1,
-            (Staff.position.in_(["СѓС‡РёС‚РµР»СЊ", "РЈС‡РёС‚РµР»СЊ"]) & Staff.teaches.is_(None))
+            (Staff.position.in_(["учитель", "Учитель"]) & Staff.teaches.is_(None))
         )
     ).all()
 
@@ -1446,13 +1975,13 @@ def get_public_teacher(teacher_id):
             Staff.status == "active",
             or_(
                 Staff.teaches == 1,
-                (Staff.position.in_(["СѓС‡РёС‚РµР»СЊ", "РЈС‡РёС‚РµР»СЊ"]) & Staff.teaches.is_(None))
+                (Staff.position.in_(["учитель", "Учитель"]) & Staff.teaches.is_(None))
             )
         )
         .first()
     )
     if not teacher:
-        return {"error": "РџСЂРµРїРѕРґР°РІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Преподаватель не найден"}, 404
     groups = (
         db.query(Group)
         .filter(Group.teacher_id == teacher.id)
@@ -1495,11 +2024,11 @@ def get_public_teacher_schedule(teacher_id):
         Staff.status == "active",
         or_(
             Staff.teaches == 1,
-            (Staff.position.in_(["СѓС‡РёС‚РµР»СЊ", "РЈС‡РёС‚РµР»СЊ"]) & Staff.teaches.is_(None))
+            (Staff.position.in_(["учитель", "Учитель"]) & Staff.teaches.is_(None))
         )
     ).first()
     if not teacher_exists:
-        return {"error": "РџСЂРµРїРѕРґР°РІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Преподаватель не найден"}, 404
     items = (
         db.query(TeacherWorkingHours)
         .filter_by(teacher_id=teacher_id, status="active")
@@ -1523,7 +2052,7 @@ def get_teacher_availability(teacher_id):
     db = g.db
     teacher = db.query(Staff).filter(Staff.id == teacher_id, Staff.status == "active").first()
     if not teacher:
-        return {"error": "РџСЂРµРїРѕРґР°РІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Преподаватель не найден"}, 404
 
     start_str = request.args.get("start")
     days_str = request.args.get("days")
@@ -1533,7 +2062,7 @@ def get_teacher_availability(teacher_id):
     try:
         start_date = datetime.strptime(start_str, "%Y-%m-%d").date() if start_str else date.today()
     except ValueError:
-        return {"error": "start РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РІ С„РѕСЂРјР°С‚Рµ YYYY-MM-DD"}, 400
+        return {"error": "start должен быть в формате YYYY-MM-DD"}, 400
 
     def _parse_positive_int(value, default, min_value, max_value):
         try:
@@ -1571,6 +2100,10 @@ def get_teacher_availability(teacher_id):
             and entry.time_to > entry.time_from
         ]
         busy_intervals = _collect_busy_intervals(db, teacher_id, day)
+        service_start = _time_to_minutes(SERVICE_BREAK_START)
+        service_end = _time_to_minutes(SERVICE_BREAK_END)
+        if service_end > service_start:
+            busy_intervals.append((service_start, service_end))
         busy_intervals.sort()
         slots = []
         seen = set()
@@ -1617,7 +2150,7 @@ def get_teacher_availability(teacher_id):
 @bp.route("/staff/list/all")
 def list_all_staff():
     """
-    Р’РѕР·РІСЂР°С‰Р°РµС‚ СЃРїРёСЃРѕРє РІСЃРµРіРѕ РїРµСЂСЃРѕРЅР°Р»Р° РґР»СЏ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂРѕРІ
+    Возвращает список всего персонала для администраторов
     """
     perm_error = require_permission("manage_staff")
     if perm_error:
@@ -1627,7 +2160,7 @@ def list_all_staff():
     
     result = []
     for s in staff:
-        # РџРѕР»СѓС‡Р°РµРј username РёР· User РµСЃР»Рё РµСЃС‚СЊ telegram_id
+        # Получаем username из User если есть telegram_id
         username = None
         if s.telegram_id:
             user = db.query(User).filter_by(telegram_id=s.telegram_id).first()
@@ -1655,21 +2188,21 @@ def list_all_staff():
 @bp.route("/staff/search")
 def search_staff():
     """
-    РџРѕРёСЃРє РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№ РґР»СЏ РґРѕР±Р°РІР»РµРЅРёСЏ РІ РїРµСЂСЃРѕРЅР°Р».
-    РџР°СЂР°РјРµС‚СЂС‹ query:
-    - q: СЃС‚СЂРѕРєР° РїРѕРёСЃРєР° (РµСЃР»Рё РЅРµ СѓРєР°Р·Р°РЅР°, РІРѕР·РІСЂР°С‰Р°РµС‚ РІСЃРµС… РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№)
-    - by_username: РµСЃР»Рё True, РёС‰РµС‚ С‚РѕР»СЊРєРѕ РїРѕ СЋР·РµСЂРЅРµР№РјСѓ (РёСЃРїРѕР»СЊР·СѓРµС‚СЃСЏ РїСЂРё @username)
+    Поиск пользователей для добавления в персонал.
+    Параметры query:
+    - q: строка поиска (если не указана, возвращает всех пользователей)
+    - by_username: если True, ищет только по юзернейму (используется при @username)
     """
     try:
         db = g.db
         search_query = request.args.get('q', '').strip().lower()
         by_username = request.args.get('by_username', 'false').lower() == 'true'
         
-        # С‰РµРј СЃСЂРµРґРё РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№ (Users), Р° РЅРµ СЃСЂРµРґРё РїРµСЂСЃРѕРЅР°Р»Р° (Staff)
+        # щем среди пользователей (Users), а не среди персонала (Staff)
         users = db.query(User).all()
         result = []
         
-        # Р•СЃР»Рё РЅРµС‚ РїРѕРёСЃРєРѕРІРѕРіРѕ Р·Р°РїСЂРѕСЃР°, РІРѕР·РІСЂР°С‰Р°РµРј РІСЃРµС… РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№
+        # Если нет поискового запроса, возвращаем всех пользователей
         if not search_query:
             result = [
                 {
@@ -1683,12 +2216,12 @@ def search_staff():
                 for u in users
             ]
         else:
-            # Р’С‹РїРѕР»РЅСЏРµРј С„РёР»СЊС‚СЂ РІ Р·Р°РІРёСЃРёРјРѕСЃС‚Рё РѕС‚ С‚РёРїР° РїРѕРёСЃРєР°
+            # Выполняем фильтр в зависимости от типа поиска
             for u in users:
                 if by_username:
-                    # РџРѕРёСЃРє С‚РѕР»СЊРєРѕ РїРѕ СЋР·РµСЂРЅРµР№РјСѓ (РїСЂРё РІРІРѕРґРµ @username)
+                    # Поиск только по юзернейму (при вводе @username)
                     if u.username:
-                        # РќРѕСЂРјР°Р»РёР·СѓРµРј: СѓР±РёСЂР°РµРј @ РёР· РѕР±РѕРёС… СЃС‚СЂРѕРє РґР»СЏ СЃСЂР°РІРЅРµРЅРёСЏ
+                        # Нормализуем: убираем @ из обоих строк для сравнения
                         username_clean = u.username.lower().replace('@', '')
                         search_clean = search_query.replace('@', '')
                         if search_clean in username_clean or username_clean.startswith(search_clean):
@@ -1701,7 +2234,7 @@ def search_staff():
                                 "email": u.email
                             })
                 else:
-                    # РџРѕРёСЃРє РїРѕ РёРјРµРЅРё РёР»Рё telegram_id (РїСЂРё РѕР±С‹С‡РЅРѕРј РІРІРѕРґРµ)
+                    # Поиск по имени или telegram_id (при обычном вводе)
                     if (u.name.lower().startswith(search_query) or 
                         (u.telegram_id and str(u.telegram_id).startswith(search_query))):
                         result.append({
@@ -1715,13 +2248,13 @@ def search_staff():
         
         return jsonify(result)
     except Exception as e:
-        print(f"РћС€РёР±РєР° РїСЂРё РїРѕРёСЃРєРµ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№: {e}")
+        print(f"Ошибка при поиске пользователей: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 @bp.route("/search-users")
 def search_users():
-    """РџРѕРёСЃРє РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№ РґР»СЏ СЂР°СЃСЃС‹Р»РѕРє"""
+    """Поиск пользователей для рассылок"""
     db = g.db
     try:
         search_query = request.args.get('query', '').strip().lower()
@@ -1733,7 +2266,7 @@ def search_users():
         result = []
         
         for u in users:
-            # РџРѕРёСЃРє РїРѕ РёРјРµРЅРё РёР»Рё telegram_id
+            # Поиск по имени или telegram_id
             if (u.name.lower().find(search_query) != -1 or 
                 (u.telegram_id and str(u.telegram_id).startswith(search_query))):
                 result.append({
@@ -1747,13 +2280,13 @@ def search_users():
         
         return jsonify(result)
     except Exception as e:
-        print(f"РћС€РёР±РєР° РїСЂРё РїРѕРёСЃРєРµ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№: {e}")
+        print(f"Ошибка при поиске пользователей: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 @bp.route("/mailings", methods=["GET"])
 def get_mailings():
-    """РџРѕР»СѓС‡Р°РµС‚ РІСЃРµ СЂР°СЃСЃС‹Р»РєРё (РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ)"""
+    """Получает все рассылки (для управления)"""
     perm_error = require_permission("manage_mailings")
     if perm_error:
         return perm_error
@@ -1781,13 +2314,13 @@ def get_mailings():
         
         return jsonify(result)
     except Exception as e:
-        print(f"РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё СЂР°СЃСЃС‹Р»РѕРє: {e}")
+        print(f"Ошибка при получении рассылок: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 @bp.route("/mailings", methods=["POST"])
 def create_mailing():
-    """РЎРѕР·РґР°РµС‚ РЅРѕРІСѓСЋ СЂР°СЃСЃС‹Р»РєСѓ"""
+    """Создает новую рассылку"""
     perm_error = require_permission("manage_mailings")
     if perm_error:
         return perm_error
@@ -1796,37 +2329,37 @@ def create_mailing():
     data = request.json
     
     try:
-        # РћР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ
+        # Обязательные поля
         if not data.get("creator_id") or not data.get("name") or not data.get("purpose") or not data.get("target_type"):
-            return {"error": "creator_id, name, purpose Рё target_type РѕР±СЏР·Р°С‚РµР»СЊРЅС‹"}, 400
+            return {"error": "creator_id, name, purpose и target_type обязательны"}, 400
         
-        # РћРїСЂРµРґРµР»СЏРµРј СЃС‚Р°С‚СѓСЃ РЅР° РѕСЃРЅРѕРІРµ РІС‹Р±РѕСЂР° РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ
+        # Определяем статус на основе выбора пользователя
         send_now = data.get("send_now", False)
         
-        # Р•СЃР»Рё РѕС‚РїСЂР°РІР»СЏРµРј СЃРµР№С‡Р°СЃ, СЃС‚Р°С‚СѓСЃ = "pending" (Р¶РґРµС‚ РѕС‚РїСЂР°РІРєРё)
-        # Р•СЃР»Рё РѕС‚РїСЂР°РІР»СЏРµРј РїРѕР·Р¶Рµ, СЃС‚Р°С‚СѓСЃ = "scheduled"
+        # Если отправляем сейчас, статус = "pending" (ждет отправки)
+        # Если отправляем позже, статус = "scheduled"
         status = "pending" if send_now else "scheduled"
         
-        # Р•СЃР»Рё РЅСѓР¶РЅРѕ РѕС‚РїСЂР°РІРёС‚СЊ СЃРµР№С‡Р°СЃ
+        # Если нужно отправить сейчас
         sent_at = None
         if send_now:
-            sent_at = None  # РћС‚РїСЂР°РІР»СЏРµС‚СЃСЏ РІ РїСЂРѕС†РµСЃСЃРµ, sent_at СѓСЃС‚Р°РЅРѕРІРёС‚СЃСЏ РїРѕСЃР»Рµ РѕС‚РїСЂР°РІРєРё
+            sent_at = None  # Отправляется в процессе, sent_at установится после отправки
         
         scheduled_at = data.get("scheduled_at")
         
-        # Р•СЃР»Рё СЌС‚Рѕ РѕС‚Р»РѕР¶РµРЅРЅР°СЏ СЂР°СЃСЃС‹Р»РєР°, РЅСѓР¶РЅРѕ РІСЂРµРјСЏ
+        # Если это отложенная рассылка, нужно время
         if not send_now and not scheduled_at:
-            return {"error": "Р”Р»СЏ РѕС‚Р»РѕР¶РµРЅРЅРѕР№ СЂР°СЃСЃС‹Р»РєРё С‚СЂРµР±СѓРµС‚СЃСЏ scheduled_at"}, 400
+            return {"error": "Для отложенной рассылки требуется scheduled_at"}, 400
         
-        # Р•СЃР»Рё scheduled_at РїРµСЂРµРґР°РЅР° РєР°Рє СЃС‚СЂРѕРєР°, РєРѕРЅРІРµСЂС‚РёСЂСѓРµРј РІ datetime
+        # Если scheduled_at передана как строка, конвертируем в datetime
         if scheduled_at and isinstance(scheduled_at, str):
-            # РЈР±РµР¶РґР°РµРјСЃСЏ С‡С‚Рѕ РµСЃС‚СЊ СЃРµРєСѓРЅРґС‹ РІ СЃС‚СЂРѕРєРµ (datetime-local РјРѕР¶РµС‚ РёС… РЅРµ СЃРѕРґРµСЂР¶Р°С‚СЊ)
+            # Убеждаемся что есть секунды в строке (datetime-local может их не содержать)
             if 'T' in scheduled_at and scheduled_at.count(':') == 1:
-                scheduled_at = scheduled_at + ':00'  # Р”РѕР±Р°РІР»СЏРµРј :00 РґР»СЏ СЃРµРєСѓРЅРґ
+                scheduled_at = scheduled_at + ':00'  # Добавляем :00 для секунд
             try:
                 scheduled_at = datetime.fromisoformat(scheduled_at)
             except ValueError as e:
-                return {"error": f"РќРµРІРµСЂРЅС‹Р№ С„РѕСЂРјР°С‚ РґР°С‚С‹: {e}"}, 400
+                return {"error": f"Неверный формат даты: {e}"}, 400
         
         mailing = Mailing(
             creator_id=data["creator_id"],
@@ -1844,7 +2377,7 @@ def create_mailing():
         db.add(mailing)
         db.commit()
         
-        # Р•СЃР»Рё РЅСѓР¶РЅРѕ РѕС‚РїСЂР°РІРёС‚СЊ СЃРµР№С‡Р°СЃ, РґРѕР±Р°РІР»СЏРµРј РІ РѕС‡РµСЂРµРґСЊ РѕС‚РїСЂР°РІРєРё
+        # Если нужно отправить сейчас, добавляем в очередь отправки
         if send_now:
             from dance_studio.bot.bot import queue_mailing_for_sending
             queue_mailing_for_sending(mailing.mailing_id)
@@ -1866,13 +2399,13 @@ def create_mailing():
     
     except Exception as e:
         db.rollback()
-        print(f"РћС€РёР±РєР° РїСЂРё СЃРѕР·РґР°РЅРёРё СЂР°СЃСЃС‹Р»РєРё: {e}")
+        print(f"Ошибка при создании рассылки: {e}")
         return {"error": str(e)}, 500
 
 
 @bp.route("/mailings/<int:mailing_id>", methods=["GET"])
 def get_mailing(mailing_id):
-    """РџРѕР»СѓС‡Р°РµС‚ РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РєРѕРЅРєСЂРµС‚РЅРѕР№ СЂР°СЃСЃС‹Р»РєРµ"""
+    """Получает информацию о конкретной рассылке"""
     perm_error = require_permission("manage_mailings")
     if perm_error:
         return perm_error
@@ -1900,13 +2433,13 @@ def get_mailing(mailing_id):
         }
     
     except Exception as e:
-        print(f"РћС€РёР±РєР° РїСЂРё РїРѕР»СѓС‡РµРЅРёРё СЂР°СЃСЃС‹Р»РєРё: {e}")
+        print(f"Ошибка при получении рассылки: {e}")
         return {"error": str(e)}, 500
 
 
 @bp.route("/mailings/<int:mailing_id>", methods=["PUT"])
 def update_mailing(mailing_id):
-    """РћР±РЅРѕРІР»СЏРµС‚ СЂР°СЃСЃС‹Р»РєСѓ"""
+    """Обновляет рассылку"""
     perm_error = require_permission("manage_mailings")
     if perm_error:
         return perm_error
@@ -1920,7 +2453,7 @@ def update_mailing(mailing_id):
         if not mailing:
             return {"error": "Рассылка не найдена"}, 404
         
-        # РћР±РЅРѕРІР»СЏРµРј РїРѕР»СЏ
+        # Обновляем поля
         if "name" in data:
             mailing.name = data["name"]
         if "description" in data:
@@ -1959,13 +2492,13 @@ def update_mailing(mailing_id):
     
     except Exception as e:
         db.rollback()
-        print(f"РћС€РёР±РєР° РїСЂРё РѕР±РЅРѕРІР»РµРЅРёРё СЂР°СЃСЃС‹Р»РєРё: {e}")
+        print(f"Ошибка при обновлении рассылки: {e}")
         return {"error": str(e)}, 500
 
 
 @bp.route("/mailings/<int:mailing_id>", methods=["DELETE"])
 def delete_mailing(mailing_id):
-    """РЈРґР°Р»СЏРµС‚ СЂР°СЃСЃС‹Р»РєСѓ (РёР»Рё РѕС‚РјРµРЅСЏРµС‚ РµС‘)"""
+    """Удаляет рассылку (или отменяет её)"""
     perm_error = require_permission("manage_mailings")
     if perm_error:
         return perm_error
@@ -1978,27 +2511,27 @@ def delete_mailing(mailing_id):
         if not mailing:
             return {"error": "Рассылка не найдена"}, 404
         
-        # РЈСЃС‚Р°РЅР°РІР»РёРІР°РµРј СЃС‚Р°С‚СѓСЃ "РѕС‚РјРµРЅРµРЅРѕ" РІРјРµСЃС‚Рѕ СѓРґР°Р»РµРЅРёСЏ
+        # Устанавливаем статус "отменено" вместо удаления
         mailing.status = "cancelled"
         db.commit()
         
-        return {"message": "Р Р°СЃСЃС‹Р»РєР° РѕС‚РјРµРЅРµРЅР°"}, 200
+        return {"message": "Рассылка отменена"}, 200
     
     except Exception as e:
         db.rollback()
-        print(f"РћС€РёР±РєР° РїСЂРё СѓРґР°Р»РµРЅРёРё СЂР°СЃСЃС‹Р»РєРё: {e}")
+        print(f"Ошибка при удалении рассылки: {e}")
         return {"error": str(e)}, 500
 
 
 @bp.route("/mailings/<int:mailing_id>/send", methods=["POST"])
 def send_mailing_endpoint(mailing_id):
-    """РЅРёС†РёРёСЂСѓРµС‚ РѕС‚РїСЂР°РІРєСѓ СЂР°СЃСЃС‹Р»РєРё"""
+    """нициирует отправку рассылки"""
     perm_error = require_permission("manage_mailings")
     if perm_error:
         return perm_error
 
     try:
-        # РјРїРѕСЂС‚РёСЂСѓРµРј С„СѓРЅРєС†РёСЋ РґРѕР±Р°РІР»РµРЅРёСЏ СЂР°СЃСЃС‹Р»РєРё РІ РѕС‡РµСЂРµРґСЊ
+        # мпортируем функцию добавления рассылки в очередь
         from dance_studio.bot.bot import queue_mailing_for_sending
         
         db = g.db
@@ -2007,38 +2540,38 @@ def send_mailing_endpoint(mailing_id):
         if not mailing:
             return {"error": "Рассылка не найдена"}, 404
         
-        # РџСЂРѕРІРµСЂСЏРµРј, РЅРµ РѕС‚РїСЂР°РІР»РµРЅР° Р»Рё СѓР¶Рµ
+        # Проверяем, не отправлена ли уже
         if mailing.status == "sent":
-            return {"error": "Р Р°СЃСЃС‹Р»РєР° СѓР¶Рµ Р±С‹Р»Р° РѕС‚РїСЂР°РІР»РµРЅР°"}, 400
+            return {"error": "Рассылка уже была отправлена"}, 400
         
         if mailing.status == "cancelled":
-            return {"error": "Р Р°СЃСЃС‹Р»РєР° Р±С‹Р»Р° РѕС‚РјРµРЅРµРЅР°"}, 400
+            return {"error": "Рассылка была отменена"}, 400
         
-        # Р”РѕР±Р°РІР»СЏРµРј СЂР°СЃСЃС‹Р»РєСѓ РІ РѕС‡РµСЂРµРґСЊ РЅР° РѕС‚РїСЂР°РІРєСѓ
+        # Добавляем рассылку в очередь на отправку
         queue_mailing_for_sending(mailing_id)
         
-        return {"message": f"Р Р°СЃСЃС‹Р»РєР° '{mailing.name}' РґРѕР±Р°РІР»РµРЅР° РІ РѕС‡РµСЂРµРґСЊ РѕС‚РїСЂР°РІРєРё", "status": "pending"}, 200
+        return {"message": f"Рассылка '{mailing.name}' добавлена в очередь отправки", "status": "pending"}, 200
     
     except Exception as e:
-        print(f"РћС€РёР±РєР° РїСЂРё РѕС‚РїСЂР°РІРєРµ СЂР°СЃСЃС‹Р»РєРё: {e}")
+        print(f"Ошибка при отправке рассылки: {e}")
         return {"error": str(e)}, 500
 
 
 @bp.route("/api/directions", methods=["GET"])
 def get_directions():
-    """РџРѕР»СѓС‡Р°РµС‚ РІСЃРµ Р°РєС‚РёРІРЅС‹Рµ РЅР°РїСЂР°РІР»РµРЅРёСЏ"""
+    """Получает все активные направления"""
     db = g.db
     direction_type = request.args.get("direction_type") or request.args.get("type")
     query = db.query(Direction).filter_by(status="active")
     if direction_type:
         direction_type = direction_type.lower()
         if direction_type not in ALLOWED_DIRECTION_TYPES:
-            return {"error": "direction_type РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ 'dance' РёР»Рё 'sport'"}, 400
+            return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
         query = query.filter(Direction.direction_type == direction_type)
 
     directions = query.order_by(Direction.created_at.desc()).all()
 
-    #print(f"вњ“ РќР°Р№РґРµРЅРѕ {len(directions)} Р°РєС‚РёРІРЅС‹С… РЅР°РїСЂР°РІР»РµРЅРёР№")
+    #print(f"✓ Найдено {len(directions)} активных направлений")
     
     result = []
     for d in directions:
@@ -2062,7 +2595,7 @@ def get_directions():
 
 @bp.route("/api/directions/manage", methods=["GET"])
 def get_directions_manage():
-    """РџРѕР»СѓС‡Р°РµС‚ РІСЃРµ РЅР°РїСЂР°РІР»РµРЅРёСЏ РґР»СЏ СѓРїСЂР°РІР»РµРЅРёСЏ (РІРєР»СЋС‡Р°СЏ РЅРµР°РєС‚РёРІРЅС‹Рµ)"""
+    """Получает все направления для управления (включая неактивные)"""
     perm_error = require_permission("create_direction")
     if perm_error:
         return perm_error
@@ -2072,7 +2605,7 @@ def get_directions_manage():
     if direction_type:
         direction_type = direction_type.lower()
         if direction_type not in ALLOWED_DIRECTION_TYPES:
-            return {"error": "direction_type РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ 'dance' РёР»Рё 'sport'"}, 400
+            return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
         query = query.filter(Direction.direction_type == direction_type)
 
     directions = query.order_by(Direction.created_at.desc()).all()
@@ -2101,7 +2634,7 @@ def get_directions_manage():
 
 @bp.route("/api/directions/<int:direction_id>", methods=["GET"])
 def get_direction(direction_id):
-    """Р’РѕР·РІСЂР°С‰Р°РµС‚ РѕРґРЅРѕ РЅР°РїСЂР°РІР»РµРЅРёРµ РїРѕ ID РґР»СЏ С„РѕСЂРјС‹ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёСЏ"""
+    """Возвращает одно направление по ID для формы редактирования"""
     db = g.db
     direction = db.query(Direction).filter_by(direction_id=direction_id).first()
     if not direction:
@@ -2125,7 +2658,7 @@ def get_direction(direction_id):
 
 @bp.route("/api/directions/<int:direction_id>/groups", methods=["GET"])
 def get_direction_groups(direction_id):
-    """Р’РѕР·РІСЂР°С‰Р°РµС‚ СЃРїРёСЃРѕРє РіСЂСѓРїРї РґР»СЏ РЅР°РїСЂР°РІР»РµРЅРёСЏ"""
+    """Возвращает список групп для направления"""
     db = g.db
     direction = db.query(Direction).filter_by(direction_id=direction_id).first()
     if not direction:
@@ -2160,7 +2693,7 @@ def get_direction_groups(direction_id):
 
 @bp.route("/api/directions/<int:direction_id>/groups", methods=["POST"])
 def create_direction_group(direction_id):
-    """РЎРѕР·РґР°РµС‚ РіСЂСѓРїРїСѓ РІРЅСѓС‚СЂРё РЅР°РїСЂР°РІР»РµРЅРёСЏ"""
+    """Создает группу внутри направления"""
     perm_error = require_permission("create_group")
     if perm_error:
         return perm_error
@@ -2180,24 +2713,24 @@ def create_direction_group(direction_id):
     description = data.get("description")
 
     if not name or not teacher_id or not age_group or not max_students or not duration_minutes:
-        return {"error": "name, teacher_id, age_group, max_students, duration_minutes РѕР±СЏР·Р°С‚РµР»СЊРЅС‹"}, 400
+        return {"error": "name, teacher_id, age_group, max_students, duration_minutes обязательны"}, 400
 
     teacher = db.query(Staff).filter_by(id=teacher_id).first()
     if not teacher:
-        return {"error": "РџСЂРµРїРѕРґР°РІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Преподаватель не найден"}, 404
 
     try:
         max_students_int = int(max_students)
         duration_minutes_int = int(duration_minutes)
     except ValueError:
-        return {"error": "max_students Рё duration_minutes РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ С‡РёСЃР»Р°РјРё"}, 400
+        return {"error": "max_students и duration_minutes должны быть числами"}, 400
 
     lessons_per_week_int = None
     if lessons_per_week is not None and lessons_per_week != "":
         try:
             lessons_per_week_int = int(lessons_per_week)
         except ValueError:
-            return {"error": "lessons_per_week РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С‡РёСЃР»РѕРј"}, 400
+            return {"error": "lessons_per_week должен быть числом"}, 400
 
     group = Group(
         direction_id=direction_id,
@@ -2212,7 +2745,7 @@ def create_direction_group(direction_id):
     db.add(group)
     db.commit()
 
-    # РЎРѕР·РґР°РµРј С‡Р°С‚ Telegram С‡РµСЂРµР· userbot Рё РґРѕР±Р°РІР»СЏРµРј РїСЂРµРїРѕРґР°РІР°С‚РµР»СЏ
+    # Создаем чат Telegram через userbot и добавляем преподавателя
     if teacher.telegram_id:
         try:
             from dance_studio.bot.telegram_userbot import create_group_chat_sync
@@ -2235,23 +2768,18 @@ def create_direction_group(direction_id):
             group.chat_invite_link = chat_info.get("invite_link")
             failed = chat_info.get("failed_user_ids") or []
 
-            # Р’СЃРµРіРґР° С€Р»С‘Рј СЃСЃС‹Р»РєСѓ РїСЂРµРїРѕРґР°РІР°С‚РµР»СЋ, РґР°Р¶Рµ РµСЃР»Рё invite СЃСЂР°Р±РѕС‚Р°Р» вЂ” РЅР° СЃР»СѓС‡Р°Р№ РїСЂРёРІР°С‚РЅРѕСЃС‚Рё.
+            # Всегда шлём ссылку преподавателю, даже если invite сработал — на случай приватности.
             target_ids = {teacher.telegram_id} | {uid for uid in failed if uid}
             for uid in target_ids:
                 try:
-                    resp = requests.post(
-                        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                        json={
-                            "chat_id": int(uid),
-                            "text": f"РџСЂРёСЃРѕРµРґРёРЅРёС‚СЊСЃСЏ Рє С‡Р°С‚Сѓ РіСЂСѓРїРїС‹ \"{name}\" можно по ссылке: {group.chat_invite_link}",
-                            "disable_web_page_preview": True,
-                        },
-                        timeout=10,
+                    msg_text = f"Присоединиться к чату группы \"{name}\" можно по ссылке: {group.chat_invite_link}"
+                    send_user_notification_sync(
+                        user_id=int(uid),
+                        text=msg_text,
+                        context_note="Ссылка на чат группы"
                     )
-                    if resp.status_code != 200:
-                        print(f"[create_direction_group] sendMessage to {uid} failed: {resp.status_code} {resp.text}")
                 except Exception as send_err:
-                    print(f"[create_direction_group] РќРµ СѓРґР°Р»РѕСЃСЊ РѕС‚РїСЂР°РІРёС‚СЊ СЃСЃС‹Р»РєСѓ РїРѕР»СЊР·РѕРІР°С‚РµР»СЋ {uid}: {send_err}")
+                    print(f"[create_direction_group] Не удалось отправить ссылку пользователю {uid}: {send_err}")
             db.commit()
 
     return {
@@ -2274,8 +2802,8 @@ def create_direction_group(direction_id):
 @bp.route("/api/directions/create-session", methods=["POST"])
 def create_direction_upload_session():
     """
-    РЎРѕР·РґР°РµС‚ СЃРµСЃСЃРёСЋ Р·Р°РіСЂСѓР·РєРё РЅР°РїСЂР°РІР»РµРЅРёСЏ.
-    РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ Р·Р°РїРѕР»РЅСЏРµС‚ С„РѕСЂРјСѓ Рё РїРѕР»СѓС‡Р°РµС‚ С‚РѕРєРµРЅ РґР»СЏ Р±РѕС‚Р°.
+    Создает сессию загрузки направления.
+    Администратор заполняет форму и получает токен для бота.
     """
     perm_error = require_permission("create_direction")
     if perm_error:
@@ -2285,7 +2813,7 @@ def create_direction_upload_session():
     
     telegram_user_id = getattr(g, "telegram_id", None)
     if not telegram_user_id:
-        return {"error": "РўСЂРµР±СѓРµС‚СЃСЏ Р°РІС‚РѕСЂРёР·Р°С†РёСЏ"}, 401
+        return {"error": "Требуется авторизация"}, 401
 
     try:
         telegram_user_id = int(telegram_user_id)
@@ -2293,20 +2821,20 @@ def create_direction_upload_session():
         return {"error": "Неверный telegram_id"}, 400
 
     admin = db.query(Staff).filter_by(telegram_id=telegram_user_id).first()
-    if not admin or admin.position not in ["Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ", "СЃС‚Р°СЂС€РёР№ Р°РґРјРёРЅ", "РІР»Р°РґРµР»РµС†", "С‚РµС…. Р°РґРјРёРЅ"]:
-        return {"error": "РЈ РІР°СЃ РЅРµС‚ РїСЂР°РІ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°"}, 403
+    if not admin or admin.position not in ["администратор", "старший админ", "владелец", "тех. админ"]:
+        return {"error": "У вас нет прав администратора"}, 403
     
-    # РћР±СЏР·Р°С‚РµР»СЊРЅС‹Рµ РїРѕР»СЏ
+    # Обязательные поля
     required_fields = ["title", "description", "base_price"]
     for field in required_fields:
         if not data.get(field):
-            return {"error": f"{field} РѕР±СЏР·Р°С‚РµР»РµРЅ"}, 400
+            return {"error": f"{field} обязателен"}, 400
 
     direction_type = (data.get("direction_type") or "dance").lower()
     if direction_type not in ALLOWED_DIRECTION_TYPES:
-        return {"error": "direction_type РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ 'dance' РёР»Рё 'sport'"}, 400
+        return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
     
-    # РЎРѕР·РґР°РµРј СЃРµСЃСЃРёСЋ
+    # Создаем сессию
     session_token = str(uuid.uuid4())
     
     session = DirectionUploadSession(
@@ -2327,20 +2855,20 @@ def create_direction_upload_session():
         "session_id": session.session_id,
         "session_token": session_token,
         "direction_type": direction_type,
-        "message": "РЎРµСЃСЃРёСЏ СЃРѕР·РґР°РЅР°. РћС‚РїСЂР°РІСЊС‚Рµ С‚РѕРєРµРЅ Р±РѕС‚Сѓ РґР»СЏ Р·Р°РіСЂСѓР·РєРё С„РѕС‚РѕРіСЂР°С„РёРё."
+        "message": "Сессия создана. Отправьте токен боту для загрузки фотографии."
     }, 201
 
 
 @bp.route("/api/directions/upload-complete/<token>", methods=["GET"])
 def get_upload_session_status(token):
-    """РџСЂРѕРІРµСЂСЏРµС‚ СЃС‚Р°С‚СѓСЃ Р·Р°РіСЂСѓР·РєРё С„РѕС‚РѕРіСЂР°С„РёРё РїРѕ С‚РѕРєРµРЅСѓ"""
+    """Проверяет статус загрузки фотографии по токену"""
     try:
         db = g.db
 
         session = db.query(DirectionUploadSession).filter_by(session_token=token).first()
         if not session:
             current_app.logger.warning("direction upload status: session not found token=%s", token)
-            return {"error": "РЎРµСЃСЃРёСЏ РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+            return {"error": "Сессия не найдена"}, 404
 
         current_app.logger.info(
             "direction upload status token=%s status=%s image=%s",
@@ -2367,7 +2895,7 @@ def get_upload_session_status(token):
 
 @bp.route("/api/directions", methods=["POST"])
 def create_direction():
-    """РЎРѕР·РґР°РµС‚ РЅР°РїСЂР°РІР»РµРЅРёРµ РїРѕСЃР»Рµ Р·Р°РіСЂСѓР·РєРё С„РѕС‚Рѕ Р±РѕС‚РѕРј"""
+    """Создает направление после загрузки фото ботом"""
     perm_error = require_permission("create_direction")
     if perm_error:
         return perm_error
@@ -2378,21 +2906,21 @@ def create_direction():
 
     session_token = data.get("session_token")
     if not session_token:
-        return {"error": "session_token РѕР±СЏР·Р°С‚РµР»РµРЅ"}, 400
+        return {"error": "session_token обязателен"}, 400
 
     session = db.query(DirectionUploadSession).filter_by(session_token=session_token).first()
     if not session:
         print(f"[create_direction] session not found: {session_token}")
-        return {"error": "РЎРµСЃСЃРёСЏ РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+        return {"error": "Сессия не найдена"}, 404
 
     print(f"[create_direction] session found: status={session.status}, photo={session.image_path}")
 
     if session.status != "photo_received":
-        return {"error": f"РЎРµСЃСЃРёСЏ РЅРµ РіРѕС‚РѕРІР°. РЎС‚Р°С‚СѓСЃ: {session.status}"}, 400
+        return {"error": f"Сессия не готова. Статус: {session.status}"}, 400
 
     direction_type = (data.get("direction_type") or session.direction_type or "dance").lower()
     if direction_type not in ALLOWED_DIRECTION_TYPES:
-        return {"error": "direction_type РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ 'dance' РёР»Рё 'sport'"}, 400
+        return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
 
     direction = Direction(
         title=session.title,
@@ -2422,7 +2950,7 @@ def create_direction():
 
 @bp.route("/api/directions/<int:direction_id>", methods=["PUT"])
 def update_direction(direction_id):
-    """РћР±РЅРѕРІР»СЏРµС‚ РёРЅС„РѕСЂРјР°С†РёСЋ Рѕ РЅР°РїСЂР°РІР»РµРЅРёРё"""
+    """Обновляет информацию о направлении"""
     perm_error = require_permission("create_direction")
     if perm_error:
         return perm_error
@@ -2433,7 +2961,7 @@ def update_direction(direction_id):
     if not direction:
         return {"error": "Направление не найдено"}, 404
     
-    # РћР±РЅРѕРІР»СЏРµРј РїРѕР»СЏ
+    # Обновляем поля
     if "title" in data:
         direction.title = data["title"]
     if "description" in data:
@@ -2443,7 +2971,7 @@ def update_direction(direction_id):
     if "direction_type" in data:
         new_type = (data.get("direction_type") or "").lower()
         if new_type not in ALLOWED_DIRECTION_TYPES:
-            return {"error": "direction_type РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ 'dance' РёР»Рё 'sport'"}, 400
+            return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
         direction.direction_type = new_type
     if "status" in data:
         direction.status = data["status"]
@@ -2455,13 +2983,13 @@ def update_direction(direction_id):
     return {
         "direction_id": direction.direction_id,
         "direction_type": direction.direction_type,
-        "message": "РќР°РїСЂР°РІР»РµРЅРёРµ РѕР±РЅРѕРІР»РµРЅРѕ"
+        "message": "Направление обновлено"
     }
 
 
 @bp.route("/api/directions/<int:direction_id>", methods=["DELETE"])
 def delete_direction(direction_id):
-    """РЈРґР°Р»СЏРµС‚ РЅР°РїСЂР°РІР»РµРЅРёРµ"""
+    """Удаляет направление"""
     perm_error = require_permission("create_direction")
     if perm_error:
         return perm_error
@@ -2474,14 +3002,14 @@ def delete_direction(direction_id):
     direction.status = "inactive"
     db.commit()
     
-    return {"message": "РќР°РїСЂР°РІР»РµРЅРёРµ СѓРґР°Р»РµРЅРѕ"}
+    return {"message": "Направление удалено"}
 
 
 @bp.route("/api/directions/photo/<token>", methods=["POST"])
 def upload_direction_photo(token):
     """
-    API РґР»СЏ Р·Р°РіСЂСѓР·РєРё С„РѕС‚РѕРіСЂР°С„РёРё РЅР°РїСЂР°РІР»РµРЅРёСЏ
-    СЃРїРѕР»СЊР·СѓРµС‚СЃСЏ Р±РѕС‚РѕРј РїСЂРё РїРѕР»СѓС‡РµРЅРёРё С„РѕС‚РѕРіСЂР°С„РёРё РѕС‚ Р°РґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂР°
+    API для загрузки фотографии направления
+    спользуется ботом при получении фотографии от администратора
     """
     db = g.db
 
@@ -2490,7 +3018,7 @@ def upload_direction_photo(token):
     session = db.query(DirectionUploadSession).filter_by(session_token=token).first()
     if not session:
         current_app.logger.warning("direction upload: session not found token=%s", token)
-        return {"error": "РЎРµСЃСЃРёСЏ РЅРµ РЅР°Р№РґРµРЅР°"}, 404
+        return {"error": "Сессия не найдена"}, 404
 
     if "photo" not in request.files:
         current_app.logger.warning("direction upload: no file provided token=%s", token)
@@ -2499,14 +3027,14 @@ def upload_direction_photo(token):
     file = request.files["photo"]
     if file.filename == "":
         current_app.logger.warning("direction upload: empty filename token=%s", token)
-        return {"error": "Р¤Р°Р№Р» РЅРµ РІС‹Р±СЂР°РЅ"}, 400
+        return {"error": "Файл не выбран"}, 400
 
     try:
-        # РЎРѕС…СЂР°РЅСЏРµРј РІ var/media/directions/<session_id>/photo_xxx.ext
+        # Сохраняем в var/media/directions/<session_id>/photo_xxx.ext
         directions_dir = MEDIA_ROOT / "directions" / str(session.session_id)
         os.makedirs(directions_dir, exist_ok=True)
 
-        # РЎРѕС…СЂР°РЅСЏРµРј С„Р°Р№Р» (СЂР°СЃС€РёСЂРµРЅРёРµ Р±РµСЂРµРј РёР· mimetype/РёРјРµРЅРё С„Р°Р№Р»Р°)
+        # Сохраняем файл (расширение берем из mimetype/имени файла)
         mime = (getattr(file, "mimetype", "") or "").lower()
         orig_ext = os.path.splitext(file.filename or "")[1].lower()
         ext = orig_ext
@@ -2517,17 +3045,17 @@ def upload_direction_photo(token):
         elif mime == "image/webp":
             ext = ".webp"
         if not ext:
-            return {"error": "РќРµ СѓРґР°Р»РѕСЃСЊ РѕРїСЂРµРґРµР»РёС‚СЊ С‚РёРї С„Р°Р№Р»Р°"}, 400
+            return {"error": "Не удалось определить тип файла"}, 400
         if ext == ".jpeg":
             ext = ".jpg"
         if ext not in {".jpg", ".png", ".webp"}:
-            return {"error": "РџРѕРґРґРµСЂР¶РёРІР°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ JPG/PNG/WEBP"}, 400
+            return {"error": "Поддерживаются только JPG/PNG/WEBP"}, 400
 
         filename = secure_filename(f"photo_{session.session_id}{ext}")
         filepath = directions_dir / filename
         file.save(filepath)
 
-        # РЎРѕС…СЂР°РЅСЏРµРј РїСѓС‚СЊ РІ Р‘Р” РѕС‚РЅРѕСЃРёС‚РµР»СЊРЅРѕ РєРѕСЂРЅСЏ РїСЂРѕРµРєС‚Р°
+        # Сохраняем путь в БД относительно корня проекта
         relative_path = os.path.relpath(filepath, PROJECT_ROOT)
         session.image_path = relative_path
         session.status = "photo_received"
@@ -2540,7 +3068,7 @@ def upload_direction_photo(token):
         )
 
         return {
-            "message": "Р¤РѕС‚РѕРіСЂР°С„РёСЏ Р·Р°РіСЂСѓР¶РµРЅР°",
+            "message": "Фотография загружена",
             "session_id": session.session_id,
             "status": "photo_received",
             "image_path": _build_image_url(session.image_path),
@@ -2548,7 +3076,7 @@ def upload_direction_photo(token):
 
     except Exception as exc:
         db.rollback()
-        current_app.logger.exception("РћС€РёР±РєР° РїСЂРё Р·Р°РіСЂСѓР·РєРµ С„РѕС‚РѕРіСЂР°С„РёРё РЅР°РїСЂР°РІР»РµРЅРёСЏ: %s", exc)
+        current_app.logger.exception("Ошибка при загрузке фотографии направления: %s", exc)
         return {"error": f"Internal server error while saving photo: {exc}"}, 500
 
 
@@ -2624,8 +3152,8 @@ def admin_get_system_settings_changes():
 @bp.route("/api/admin/group-abonements/<int:abonement_id>/activate", methods=["POST"])
 def admin_activate_abonement(abonement_id):
     """
-    РђРєС‚РёРІР°С†РёСЏ Р°Р±РѕРЅРµРјРµРЅС‚Р° Р°РґРјРёРЅРѕРј (РЅР°РїСЂРёРјРµСЂ, РїРѕСЃР»Рµ РѕРїР»Р°С‚С‹ РІ Telegram).
-    РњРµРЅСЏРµС‚ СЃС‚Р°С‚СѓСЃ Р°Р±РѕРЅРµРјРµРЅС‚Р° РЅР° active Рё, РµСЃР»Рё РµСЃС‚СЊ СЃРІСЏР·Р°РЅРЅР°СЏ С‚СЂР°РЅР·Р°РєС†РёСЏ, СЃС‚Р°РІРёС‚ РµС‘ РІ paid.
+    Активация абонемента админом (например, после оплаты в Telegram).
+    Меняет статус абонемента на active и, если есть связанная транзакция, ставит её в paid.
     """
     perm_error = require_permission("manage_schedule")
     if perm_error:
@@ -2634,9 +3162,9 @@ def admin_activate_abonement(abonement_id):
     db = g.db
     abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
     if not abonement:
-        return {"error": "РђР±РѕРЅРµРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Абонемент не найден"}, 404
 
-    # С‰РµРј СЃРІСЏР·Р°РЅРЅСѓСЋ РѕРїР»Р°С‚Сѓ
+    # щем связанную оплату
     payment = None
     if abonement.id:
         payment = (
@@ -2791,17 +3319,17 @@ def admin_apply_client_sick_leave(user_id: int):
         return {"error": str(exc)}, 400
 
     if date_to < date_from:
-        return {"error": "date_to РЅРµ РјРѕР¶РµС‚ Р±С‹С‚СЊ СЂР°РЅСЊС€Рµ date_from"}, 400
+        return {"error": "date_to не может быть раньше date_from"}, 400
 
     note = (payload.get("note") or "").strip()
     user = db.query(User).filter_by(id=user_id).first()
     if not user:
-        return {"error": "РљР»РёРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Клиент не найден"}, 404
 
     staff = _get_current_staff(db)
     now = datetime.utcnow()
     range_key = f"{date_from.isoformat()}:{date_to.isoformat()}"
-    sick_default_comment = f"Р‘РѕР»РµР»: {date_from.isoformat()} - {date_to.isoformat()}"
+    sick_default_comment = f"Болел: {date_from.isoformat()} - {date_to.isoformat()}"
     extension_days = (date_to - date_from).days + 1
 
     schedules = (
@@ -2886,7 +3414,7 @@ def admin_apply_client_sick_leave(user_id: int):
                 action_type="sick_leave_refund",
                 credits_delta=1,
                 reason="sick_leave",
-                note=f"Р’РѕР·РІСЂР°С‚ Р·Р°РЅСЏС‚РёСЏ Р·Р° Р±РѕР»СЊРЅРёС‡РЅС‹Р№ ({range_key})",
+                note=f"Возврат занятия за больничный ({range_key})",
                 attendance_id=attendance.id,
                 actor_type="staff",
                 actor_id=staff.id if staff else None,
@@ -2924,7 +3452,7 @@ def admin_apply_client_sick_leave(user_id: int):
                 action_type="sick_leave_extend",
                 credits_delta=0,
                 reason=range_key,
-                note=f"РџСЂРѕРґР»РµРЅРёРµ Р°Р±РѕРЅРµРјРµРЅС‚Р° РЅР° {extension_days} РґРЅ. (Р±РѕР»СЊРЅРёС‡РЅС‹Р№)",
+                note=f"Продление абонемента на {extension_days} дн. (больничный)",
                 actor_type="staff",
                 actor_id=staff.id if staff else None,
                 payload=json.dumps(
@@ -2965,7 +3493,7 @@ def admin_get_client_abonements(user_id: int):
     db = g.db
     user = db.query(User).filter_by(id=user_id).first()
     if not user:
-        return {"error": "РљР»РёРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Клиент не найден"}, 404
 
     items = (
         db.query(GroupAbonement)
@@ -2990,7 +3518,7 @@ def admin_get_client_attendance_calendar(user_id: int):
     db = g.db
     user = db.query(User).filter_by(id=user_id).first()
     if not user:
-        return {"error": "РљР»РёРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Клиент не найден"}, 404
 
     month_param = request.args.get("month")
     try:
@@ -3056,13 +3584,13 @@ def admin_get_client_attendance_calendar(user_id: int):
         mark_label = None
         status = attendance.status if attendance else "planned"
         if status in {"present", "late"}:
-            mark_code = "Рџ"
+            mark_code = "П"
             mark_label = "Пришел"
         elif status == "absent":
-            mark_code = "Рќ"
+            mark_code = "Н"
             mark_label = "Неявка"
         elif status == "sick":
-            mark_code = "Р‘"
+            mark_code = "Б"
             mark_label = "Больничный"
         elif status == "planned":
             mark_code = None
@@ -3091,9 +3619,9 @@ def admin_get_client_attendance_calendar(user_id: int):
             "month": month_start.strftime("%Y-%m"),
             "entries": entries,
             "legend": {
-                "Рџ": "Пришел",
-                "Рќ": "Неявка",
-                "Р‘": "Больничный",
+                "П": "Пришел",
+                "Н": "Неявка",
+                "Б": "Больничный",
             },
         }
     )
@@ -3109,17 +3637,17 @@ def admin_extend_group_abonement(abonement_id: int):
     payload = request.json or {}
     abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
     if not abonement:
-        return {"error": "РђР±РѕРЅРµРјРµРЅС‚ РЅРµ РЅР°Р№РґРµРЅ"}, 404
+        return {"error": "Абонемент не найден"}, 404
 
     group = db.query(Group).filter_by(id=abonement.group_id).first()
     lessons_per_week = int(group.lessons_per_week) if group and group.lessons_per_week else None
     if not lessons_per_week or lessons_per_week <= 0:
-        return {"error": "Р”Р»СЏ РіСЂСѓРїРїС‹ РЅРµ РЅР°СЃС‚СЂРѕРµРЅРѕ РєРѕР»РёС‡РµСЃС‚РІРѕ Р·Р°РЅСЏС‚РёР№ РІ РЅРµРґРµР»СЋ"}, 400
+        return {"error": "Для группы не настроено количество занятий в неделю"}, 400
 
     weeks_raw = payload.get("weeks")
     lessons_raw = payload.get("lessons")
     if weeks_raw in (None, "") and lessons_raw in (None, ""):
-        return {"error": "РЈРєР°Р¶РёС‚Рµ weeks РёР»Рё lessons"}, 400
+        return {"error": "Укажите weeks или lessons"}, 400
 
     weeks = None
     lessons = None
@@ -3127,27 +3655,27 @@ def admin_extend_group_abonement(abonement_id: int):
         try:
             weeks = int(weeks_raw)
         except (TypeError, ValueError):
-            return {"error": "weeks РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С†РµР»С‹Рј С‡РёСЃР»РѕРј"}, 400
+            return {"error": "weeks должен быть целым числом"}, 400
         if weeks <= 0:
-            return {"error": "weeks РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0"}, 400
+            return {"error": "weeks должен быть больше 0"}, 400
     if lessons_raw not in (None, ""):
         try:
             lessons = int(lessons_raw)
         except (TypeError, ValueError):
-            return {"error": "lessons РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ С†РµР»С‹Рј С‡РёСЃР»РѕРј"}, 400
+            return {"error": "lessons должен быть целым числом"}, 400
         if lessons <= 0:
-            return {"error": "lessons РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ Р±РѕР»СЊС€Рµ 0"}, 400
+            return {"error": "lessons должен быть больше 0"}, 400
 
     if weeks is None and lessons is not None:
         if lessons % lessons_per_week != 0:
-            return {"error": f"lessons РґРѕР»Р¶РµРЅ Р±С‹С‚СЊ РєСЂР°С‚РµРЅ {lessons_per_week}"}, 400
+            return {"error": f"lessons должен быть кратен {lessons_per_week}"}, 400
         weeks = lessons // lessons_per_week
     elif lessons is None and weeks is not None:
         lessons = weeks * lessons_per_week
     else:
         expected_lessons = weeks * lessons_per_week
         if lessons != expected_lessons:
-            return {"error": f"РќРµСЃРѕРѕС‚РІРµС‚СЃС‚РІРёРµ: РїСЂРё {weeks} РЅРµРґ. РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ {expected_lessons} Р·Р°РЅСЏС‚РёР№"}, 400
+            return {"error": f"Несоответствие: при {weeks} нед. должно быть {expected_lessons} занятий"}, 400
 
     note = (payload.get("note") or "").strip()
     staff = _get_current_staff(db)
@@ -3164,7 +3692,7 @@ def admin_extend_group_abonement(abonement_id: int):
             action_type="manual_extend_abonement",
             credits_delta=lessons,
             reason=f"weeks={weeks};lessons={lessons}",
-            note=note or f"РџСЂРѕРґР»РµРЅРёРµ Р°Р±РѕРЅРµРјРµРЅС‚Р°: +{weeks} РЅРµРґ. / +{lessons} Р·Р°РЅСЏС‚РёР№",
+            note=note or f"Продление абонемента: +{weeks} нед. / +{lessons} занятий",
             actor_type="staff",
             actor_id=staff.id if staff else None,
             payload=json.dumps(
@@ -3193,4 +3721,70 @@ def admin_extend_group_abonement(abonement_id: int):
         }
     )
 
+
+# -------------------- DISCOUNTS --------------------
+
+@bp.route("/api/admin/users/<int:user_id>/discounts", methods=["GET"])
+def admin_get_user_discounts(user_id):
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+    db = g.db
+    discounts = db.query(UserDiscount).filter_by(user_id=user_id).order_by(UserDiscount.created_at.desc()).all()
+    return jsonify([
+        {
+            "id": d.id,
+            "discount_type": d.discount_type,
+            "value": d.value,
+            "is_one_time": d.is_one_time,
+            "is_active": d.is_active,
+            "comment": d.comment,
+            "created_at": d.created_at.isoformat()
+        } for d in discounts
+    ])
+
+
+@bp.route("/api/admin/users/<int:user_id>/discounts", methods=["POST"])
+def admin_add_user_discount(user_id):
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+    db = g.db
+    data = request.json or {}
+
+    discount_type = data.get("discount_type")
+    value = data.get("value")
+
+    if discount_type not in ["percentage", "fixed"]:
+        return {"error": "discount_type должен быть percentage или fixed"}, 400
+    if not isinstance(value, int) or value <= 0:
+        return {"error": "value должен быть положительным числом"}, 400
+
+    discount = UserDiscount(
+        user_id=user_id,
+        discount_type=discount_type,
+        value=value,
+        is_one_time=bool(data.get("is_one_time", True)),
+        is_active=True,
+        comment=data.get("comment")
+    )
+    db.add(discount)
+    db.commit()
+
+    return {"ok": True, "id": discount.id}, 201
+
+
+@bp.route("/api/admin/discounts/<int:discount_id>", methods=["DELETE"])
+def admin_deactivate_discount(discount_id):
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+    db = g.db
+    discount = db.query(UserDiscount).filter_by(id=discount_id).first()
+    if not discount:
+        return {"error": "Скидка не найдена"}, 404
+
+    discount.is_active = False
+    db.commit()
+    return {"ok": True}
 

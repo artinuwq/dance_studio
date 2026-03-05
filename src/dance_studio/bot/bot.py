@@ -59,7 +59,9 @@ from dance_studio.core.abonement_pricing import (
 )
 from dance_studio.core.system_settings_service import update_setting
 from dance_studio.bot.telegram_userbot import send_private_message
+from dance_studio.core.notification_service_async import send_user_notification_async
 from dance_studio.web.services.attendance import _auto_finalize_attendance_from_intentions
+from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
 from sqlalchemy import or_
 from sqlalchemy.engine import make_url
 from datetime import datetime, time as dt_time, timedelta
@@ -2172,10 +2174,10 @@ def _compute_booking_payment_amount(db, booking: BookingRequest) -> int | None:
 
 
 def _build_payment_request_message(db, booking: BookingRequest) -> str:
-    profile = _get_active_payment_profile(db)
-    bank = (getattr(profile, "recipient_bank", None) or "—").strip() or "—"
-    number = (getattr(profile, "recipient_number", None) or "—").strip() or "—"
-    full_name = (getattr(profile, "recipient_full_name", None) or "—").strip() or "—"
+    profile = _resolve_payment_profile_payload_for_booking(db, booking) or {}
+    bank = (str(profile.get("recipient_bank") or "—")).strip() or "—"
+    number = (str(profile.get("recipient_number") or "—")).strip() or "—"
+    full_name = (str(profile.get("recipient_full_name") or "—")).strip() or "—"
     amount = _compute_booking_payment_amount(db, booking)
     amount_text = f"{amount:,} ₽".replace(",", " ") if amount else "уточните у администратора"
 
@@ -2240,12 +2242,15 @@ async def _send_payment_message_from_admin_account(user: User | None, booking: B
             reason = "таймаут отправки сообщения от userbot (15 сек)"
         await _notify_payment_delivery_failed(user, booking, reason, payment_text)
         try:
-            await bot.send_message(
-                chat_id=telegram_id,
-                text=(
-                    "Не получилось отправить реквизиты для оплаты.\n"
-                    f"Пожалуйста, добавьте админский аккаунт в контакты: {PAYMENT_ADMIN_CONTACT_URL}"
-                ),
+            fallback_text = (
+                "Не получилось отправить реквизиты для оплаты.\n"
+                f"Пожалуйста, добавьте админский аккаунт в контакты: {PAYMENT_ADMIN_CONTACT_URL}"
+            )
+            await send_user_notification_async(
+                bot=bot,
+                user_id=telegram_id,
+                text=fallback_text,
+                context_note="Ошибка отправки реквизитов (userbot fail)"
             )
         except Exception:
             pass
@@ -2290,7 +2295,12 @@ async def _notify_user_on_status_change(user: User | None, booking: BookingReque
         return
 
     try:
-        await bot.send_message(chat_id=telegram_id, text=message_text)
+        await send_user_notification_async(
+            bot=bot,
+            user_id=telegram_id,
+            text=message_text,
+            context_note=f"Смена статуса заявки: {status}"
+        )
     except Exception:
         pass
 
@@ -2372,7 +2382,7 @@ async def process_session_token(message, state: FSMContext):
     finally:
         db.close()
 
-
+# TO DO: ВЫРЕЗАТЬ К ХУЯМ
 @dp.message(DirectionUploadStates.waiting_for_photo)
 async def process_direction_photo(message, state: FSMContext):
     """Получает фотографию и загружает её на сервер"""
@@ -2493,6 +2503,8 @@ async def process_staff_photo(message, state: FSMContext):
             f"Попробуйте отправить фото еще раз."
         )
         await state.set_state(StaffPhotoStates.waiting_for_photo)
+
+
 
 
 

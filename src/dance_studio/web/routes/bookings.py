@@ -34,7 +34,11 @@ from dance_studio.web.services.bookings import (
     _send_booking_payment_details_via_userbot,
     get_next_group_date,
 )
-from dance_studio.web.services.payments import _get_active_payment_profile_payload
+from dance_studio.web.services.payments import (
+    _resolve_payment_profile_payload,
+    _resolve_payment_profile_payload_for_booking,
+)
+from dance_studio.web.services.studio_rules import interval_overlaps_service_break
 bp = Blueprint('bookings_routes', __name__)
 
 
@@ -232,7 +236,15 @@ def quote_group_booking_request():
 
     payload = serialize_group_booking_quote(quote)
     payload["bundle_groups"] = bundle_groups
-    payload["payment_info"] = _get_active_payment_profile_payload(db) if quote.requires_payment else None
+    payload["payment_info"] = (
+        _resolve_payment_profile_payload(
+            db,
+            object_type="group",
+            group_direction_type=getattr(quote, "direction_type", None),
+        )
+        if quote.requires_payment
+        else None
+    )
     return jsonify(payload)
 
 
@@ -419,6 +431,8 @@ def create_booking_request():
             return {"error": "Rental date cannot be in the past"}, 400
         if time_from_val >= time_to_val:
             return {"error": "time_from must be earlier than time_to"}, 400
+        if interval_overlaps_service_break(time_from_val, time_to_val):
+            return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
 
         overlaps = _find_booking_overlaps(db, date_val, time_from_val, time_to_val)
         status = "NEW"
@@ -559,7 +573,11 @@ def create_booking_request():
                 "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
                 "valid_until": booking.valid_until.isoformat() if booking.valid_until else None,
                 "quote": quote_payload,
-                "payment_info": _get_active_payment_profile_payload(db) if int(booking.requested_amount or 0) > 0 else None,
+                "payment_info": (
+                    _resolve_payment_profile_payload_for_booking(db, booking)
+                    if int(booking.requested_amount or 0) > 0
+                    else None
+                ),
             }
         )
 
@@ -608,6 +626,8 @@ def create_teacher_individual_booking_request():
 
     if time_from_val >= time_to_val:
         return {"error": "time_from must be earlier than time_to"}, 400
+    if interval_overlaps_service_break(time_from_val, time_to_val):
+        return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
 
     comment_raw = (data.get("comment") or "").strip()
     teacher_note = f"Создано тренером: {staff.name} (staff_id={staff.id})"
@@ -878,7 +898,15 @@ def create_group_abonement():
                 "valid_from": quote.valid_from.isoformat(),
                 "valid_to": quote.valid_to.isoformat(),
                 "payment_id": None,
-                "payment_info": _get_active_payment_profile_payload(db) if quote.requires_payment else None,
+                "payment_info": (
+                    _resolve_payment_profile_payload(
+                        db,
+                        object_type="group",
+                        group_direction_type=getattr(quote, "direction_type", None),
+                    )
+                    if quote.requires_payment
+                    else None
+                ),
             }
         ),
         201,
