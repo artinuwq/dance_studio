@@ -231,6 +231,9 @@ class BookingRequest(Base):
     abonement_type = Column(String, nullable=True)  # single | multi | trial
     bundle_group_ids_json = Column(Text, nullable=True)  # JSON array of group ids for multi bundle
     lessons_count = Column(Integer, nullable=True)
+    amount_before_discount = Column(Integer, nullable=True)
+    applied_discount_id = Column(Integer, ForeignKey("user_discounts.id"), nullable=True)
+    applied_discount_amount = Column(Integer, nullable=True)
     requested_amount = Column(Integer, nullable=True)
     requested_currency = Column(String(8), nullable=True, default="RUB")
     group_start_date = Column(Date, nullable=True)
@@ -246,6 +249,11 @@ class BookingRequest(Base):
 
     teacher = relationship("Staff", foreign_keys=[teacher_id])
     group = relationship("Group", foreign_keys=[group_id])
+    applied_discount = relationship("UserDiscount", foreign_keys=[applied_discount_id])
+
+    __table_args__ = (
+        Index("ix_booking_requests_applied_discount_id", "applied_discount_id"),
+    )
 
 
 class Mailing(Base):
@@ -565,8 +573,15 @@ class UserDiscount(Base):
     value = Column(Integer, nullable=False)
     is_one_time = Column(Boolean, default=True, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    consumed_at = Column(DateTime, nullable=True)
+    consumed_booking_id = Column(Integer, ForeignKey("booking_requests.id"), nullable=True)
     comment = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
     user = relationship("User", foreign_keys=[user_id])
+    consumed_booking = relationship("BookingRequest", foreign_keys=[consumed_booking_id])
+
+    __table_args__ = (
+        Index("ix_user_discounts_user_active_created", "user_id", "is_active", "created_at"),
+    )
 

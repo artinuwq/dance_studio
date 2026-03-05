@@ -58,6 +58,10 @@ from dance_studio.core.abonement_pricing import (
     parse_booking_bundle_group_ids,
 )
 from dance_studio.core.system_settings_service import update_setting
+from dance_studio.core.personal_discounts import (
+    DiscountConsumptionConflictError,
+    consume_one_time_discount_for_booking,
+)
 from dance_studio.bot.telegram_userbot import send_private_message
 from dance_studio.core.notification_service_async import send_user_notification_async
 from dance_studio.web.services.attendance import _auto_finalize_attendance_from_intentions
@@ -2097,6 +2101,22 @@ async def handle_booking_action(callback: CallbackQuery):
         admin_user = callback.from_user
         staff = db.query(Staff).filter_by(telegram_id=admin_user.id, status="active").first()
 
+        if next_status == "PAID":
+            try:
+                consume_one_time_discount_for_booking(db, booking=booking)
+            except DiscountConsumptionConflictError:
+                _logger.warning(
+                    "booking %s: blocked PAID transition due to consumed one-time discount (discount_id=%s, user_id=%s)",
+                    booking.id,
+                    booking.applied_discount_id,
+                    booking.user_id,
+                )
+                await callback.answer(
+                    "Одноразовая скидка уже была использована в другой заявке. Оплату подтвердить нельзя.",
+                    show_alert=True,
+                )
+                return
+
         booking.status = next_status
         booking.status_updated_by_id = staff.id if staff else None
         booking.status_updated_by_username = f"@{admin_user.username}" if admin_user.username else None
@@ -2142,14 +2162,14 @@ def _get_active_payment_profile(db):
 
 
 def _compute_booking_payment_amount(db, booking: BookingRequest) -> int | None:
-    if booking.object_type != "group":
-        return None
     if booking.requested_amount is not None:
         try:
             amount = int(booking.requested_amount)
         except (TypeError, ValueError):
             return None
         return amount if amount >= 0 else None
+    if booking.object_type != "group":
+        return None
     if not booking.group_id or not booking.lessons_count:
         return None
     try:
@@ -2503,7 +2523,6 @@ async def process_staff_photo(message, state: FSMContext):
             f"Попробуйте отправить фото еще раз."
         )
         await state.set_state(StaffPhotoStates.waiting_for_photo)
-
 
 
 

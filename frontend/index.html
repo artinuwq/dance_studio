@@ -87,7 +87,7 @@ body.tg-mobile .header-back {
 .page {
   display: none;
   padding: 16px;
-  padding-bottom: calc(56px + var(--safe-bottom));
+  padding-bottom: calc(56px + var(--safe-bottom) + 14px);
   padding-top: calc(16px + var(--safe-top));
 }
 
@@ -1780,6 +1780,21 @@ textarea.form-input {
   display: block;
 }
 
+.schedule-detail-modal.move-open {
+  overflow: hidden;
+}
+
+.schedule-detail-modal-overlay-panel {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border-radius: inherit;
+  box-shadow: none;
+  z-index: 5;
+}
+
 .modal-fullscreen {
   top: 0;
   left: 0;
@@ -2108,6 +2123,61 @@ textarea.form-input {
   align-items: center;
   gap: 8px;
   font-size: 13px;
+}
+
+.schedule-detail-close-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.schedule-detail-close-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--hint);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.schedule-detail-close-btn:hover {
+  color: var(--text);
+  border-color: var(--hint);
+}
+
+.schedule-detail-back-btn {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.schedule-detail-row--arrow {
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.schedule-detail-row-label {
+  color: var(--hint);
+  font-weight: 600;
+  min-width: 132px;
+}
+
+.schedule-detail-row-arrow {
+  opacity: 0.7;
+  line-height: 1.4;
+}
+
+.schedule-detail-row-value {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .attendance-list {
@@ -2508,9 +2578,13 @@ textarea.form-input {
 }
 
 .public-schedule-action {
+  border: 0;
+  background: transparent;
+  padding: 0;
   font-size: 14px;
   color: var(--hint);
   font-weight: 600;
+  cursor: pointer;
 }
 
 .public-schedule-month {
@@ -3325,17 +3399,13 @@ textarea.form-input {
   display: block;
 }
 
-#teacher-profile-individual-btn,
-#teacher-profile-groups-toggle-btn {
+#teacher-profile-individual-btn {
   -webkit-tap-highlight-color: transparent;
 }
 
 #teacher-profile-individual-btn:focus,
 #teacher-profile-individual-btn:focus-visible,
-#teacher-profile-individual-btn:active,
-#teacher-profile-groups-toggle-btn:focus,
-#teacher-profile-groups-toggle-btn:focus-visible,
-#teacher-profile-groups-toggle-btn:active {
+#teacher-profile-individual-btn:active {
   outline: none;
   box-shadow: none;
 }
@@ -3386,6 +3456,22 @@ textarea.form-input {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+}
+
+.teacher-groups-heading {
+  margin-top: 10px;
+}
+
+.teacher-groups-block {
+  margin-top: 4px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--elevated);
+}
+
+.teacher-groups-list {
+  gap: 8px;
 }
 .group-booking-body label {
   font-size: 12px;
@@ -3838,7 +3924,7 @@ textarea.form-input {
 <div class="page" data-title="🗓 Расписание" id="schedule">
   <div class="public-schedule-header">
     <div class="public-schedule-title"><span>☆</span>Расписание</div>
-    <div class="public-schedule-action" onclick="loadPublicSchedule(true)">Обновить</div>
+    <button type="button" class="public-schedule-action" onclick="loadPublicSchedule(true)">Обновить</button>
   </div>
   <div class="public-type-tabs">
     <div class="public-type-tab active" data-type="all" onclick="setPublicScheduleType('all')">Все</div>
@@ -4023,17 +4109,17 @@ textarea.form-input {
 <div id="schedule-grid-container"></div>
 <div class="schedule-detail-overlay" id="schedule-detail-overlay" onclick="closeScheduleDetail()"></div>
 <div class="schedule-detail-modal" id="schedule-detail-modal">
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+  <div class="schedule-detail-close-wrap">
     <h4 style="margin: 0;">Детали занятия</h4>
-    <button class="save-btn" style="padding: 6px 10px; background: #777;" onclick="closeScheduleDetail()">Закрыть</button>
+    <button type="button" class="schedule-detail-close-btn" onclick="closeScheduleDetail()" aria-label="Закрыть">&times;</button>
   </div>
-  <div id="schedule-detail-content" style="margin-top: 8px;"></div>
+  <div id="schedule-detail-content"></div>
 </div>
 <div class="schedule-detail-overlay" id="schedule-move-overlay" onclick="closeScheduleMoveModal()"></div>
 <div class="schedule-detail-modal" id="schedule-move-modal">
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+  <div class="schedule-detail-close-wrap">
     <h4 style="margin: 0;">Перенос занятия</h4>
-    <button class="save-btn" style="padding: 6px 10px; background: #777;" onclick="closeScheduleMoveModal()">Закрыть</button>
+    <button type="button" class="schedule-detail-close-btn schedule-detail-back-btn" onclick="closeScheduleMoveModal()" aria-label="Назад">&#8592;</button>
   </div>
   <label class="label">Тип переноса</label>
   <select class="form-input" id="schedule-move-type">
@@ -4416,7 +4502,8 @@ textarea.form-input {
 <div class="card" style="margin-top:12px;">
 <h4 style="margin-top:0;">Действия</h4>
 <button class="save-btn" style="width:100%; margin:0 0 8px 0;" onclick="openClientAttendanceCalendarScreen()">Календарь посещаемости</button>
-<button class="save-btn" style="width:100%; margin:0;" onclick="openClientAbonementExtendScreen()">Продлить абонемент</button>
+<button class="save-btn" style="width:100%; margin:0 0 8px 0;" onclick="openClientAbonementExtendScreen()">Продлить абонемент</button>
+<button class="save-btn" style="width:100%; margin:0; background:#444;" onclick="openClientDiscountsScreen()">Персональные скидки</button>
 </div>
 </div>
 <div class="schedule-detail-overlay" id="client-create-overlay" onclick="closeCreateClientModal()"></div>
@@ -4546,6 +4633,46 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== ПРОФИЛЬ ====== -->
+<div class="page" data-title="🏷️ Персональные скидки" id="client-discounts">
+<div class="card">
+<div class="small" style="color:var(--hint);">Клиент</div>
+<div id="client-discounts-screen-name" style="font-weight:700; font-size:16px; margin-top:2px;">—</div>
+<div class="small" id="client-discounts-screen-meta" style="margin-top:6px; color:var(--hint);">—</div>
+</div>
+<div class="card">
+<h4 style="margin-top:0;">Список скидок</h4>
+<div id="client-discounts-list">
+<p class="small" style="color:var(--hint);">Загрузка...</p>
+</div>
+<div class="small" id="client-discounts-status" style="margin-top:8px; color:var(--hint);"></div>
+</div>
+<div class="card">
+<h4 style="margin-top:0;">Добавить скидку</h4>
+<div class="form-group">
+<label>Тип</label>
+<select class="form-input" id="client-discount-type">
+<option value="percentage">Процент (%)</option>
+<option value="fixed">Фиксированная (RUB)</option>
+</select>
+</div>
+<div class="form-group">
+<label>Значение</label>
+<input class="form-input" id="client-discount-value" min="1" step="1" type="number" placeholder="Например, 15 или 500"/>
+</div>
+<div class="form-group">
+<label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+<input id="client-discount-one-time" type="checkbox" checked/>
+<span>Одноразовая скидка</span>
+</label>
+</div>
+<div class="form-group">
+<label>Комментарий</label>
+<textarea class="form-input" id="client-discount-comment" rows="2" placeholder="Необязательно"></textarea>
+</div>
+<button class="save-btn" style="width:100%; margin:0;" onclick="submitClientDiscountCreate()">Создать скидку</button>
+<div class="small" id="client-discounts-form-status" style="margin-top:8px; color:var(--hint);"></div>
+</div>
+</div>
 <div class="page" data-title="👤 Профиль" id="profile">
 <div class="profile">
 <div class="avatar" id="avatar"></div>
@@ -4794,7 +4921,7 @@ textarea.form-input {
 <h4>📝 Биография</h4>
 <p id="staff-detail-bio" style="white-space: pre-wrap; line-height: 1.5;">—</p>
 </div>
-<button class="save-btn" onclick="openStaffProfileEdit(currentDetailStaffId)" style="width: 100%; margin-bottom: 8px;">✏️ Редактировать профиль</button>
+<button class="save-btn" id="staff-detail-edit-btn" onclick="openStaffProfileEdit(currentDetailStaffId)" style="width: 100%; margin-bottom: 8px;">✏️ Редактировать профиль</button>
 <button class="save-btn" id="staff-detail-delete-btn" onclick="deleteCurrentStaff()" style="width: 100%; background: #ff6b6b;">🗑️ Удалить персонал</button>
 </div>
 <!-- ====== ФОРМА СОЗДАНИЯ НАПРАВЛЕНИЯ ====== -->
@@ -4841,7 +4968,7 @@ textarea.form-input {
       📱 Загрузить фото через бот
     </button>
 <p style="font-size: 12px; color: var(--hint); margin: 0; line-height: 1.5;">
-      💡 Можно загрузить фото из галереи или через бота. После загрузки фото кнопка “Создать направление” станет активной.
+      💡 Фото можно загрузить из галереи или через бота, но это необязательно — направление можно создать и без фото.
     </p>
 </div>
 <button class="save-btn" id="direction-create-btn" onclick="createDirection()" style="width: 100%; margin-bottom: 8px; background: #4CAF50;">
@@ -5122,11 +5249,11 @@ textarea.form-input {
     <button class="save-btn" id="teacher-profile-individual-btn" onclick="openIndividualBookingForTeacher()" style="width: 100%; margin-top: 14px; margin-bottom: 8px;">
       Запись на индивидуальное занятие
     </button>
-    <button class="save-btn" id="teacher-profile-groups-toggle-btn" onclick="toggleTeacherGroupsVisibility()" style="width: 100%; margin-bottom: 8px; background: #111;">
-      Просмотр групп
-    </button>
-    <div id="teacher-profile-groups" class="teacher-detail-schedule" style="display: none;">
-      <p class="small">Группы загружаются…</p>
+    <p class="teacher-detail-label teacher-groups-heading">Группы</p>
+    <div class="teacher-groups-block">
+      <div id="teacher-profile-groups" class="teacher-detail-schedule teacher-groups-list">
+        <p class="small">Группы загружаются…</p>
+      </div>
     </div>
   </div>
 </div>
@@ -5313,7 +5440,9 @@ textarea.form-input {
         </div>
 
         <div class="group-booking-quote">
-          <div class="group-booking-meta group-booking-amount-line">Сумма: <span id="group-booking-quote-amount" class="group-booking-amount-value">—</span></div>
+          <div class="group-booking-meta">До скидки: <span id="group-booking-quote-amount-before">—</span></div>
+          <div class="group-booking-meta">Скидка: <span id="group-booking-quote-discount">—</span></div>
+          <div class="group-booking-meta group-booking-amount-line">Итого: <span id="group-booking-quote-amount" class="group-booking-amount-value">—</span></div>
           <div class="group-booking-meta">Занятий в группе: <span id="group-booking-quote-lessons-per-group">—</span></div>
           <div class="group-booking-meta">Всего занятий: <span id="group-booking-quote-total-lessons">—</span></div>
           <div class="group-booking-meta">Следующее занятие: <span id="group-booking-next-session">—</span></div>
@@ -5712,6 +5841,12 @@ function showPage(id) {
   // Загружаем клиентов в одноименной странице
   if (id === 'clients-list') {
     loadAllClients();
+  }
+  if (id === 'client-discounts') {
+    setHeaderTitle('Персональные скидки');
+    if (selectedClientForActions) {
+      loadClientDiscounts();
+    }
   }
   
   // Загружаем расписание для вкладки "Расписание"
@@ -6552,8 +6687,6 @@ function loadInfoDirections(directionType = null) {
         return;
       }
       container.innerHTML = directions.map(d => {
-        const type = (directionType || d.direction_type || 'dance').toLowerCase();
-        const typeBadge = type === 'sport' ? '🏅 Спортивное' : '💃 Танцевальное';
         const imageHtml = d.image_path
           ? `<img src="${d.image_path}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin-bottom: 10px;">`
           : '';
@@ -6563,10 +6696,7 @@ function loadInfoDirections(directionType = null) {
         return `
           <div class="card" style="cursor: pointer;" onclick="openDirectionDetail(${d.direction_id})">
             ${imageHtml}
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px;">
-              <div style="font-weight: 700; font-size: 16px;">${d.title || 'Направление'}</div>
-              <span class="small" style="padding:4px 8px; border-radius:10px; background: var(--accent-soft); color: var(--accent); white-space: nowrap;">${typeBadge}</span>
-            </div>
+            <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">${d.title || 'Направление'}</div>
             <div class="small" style="margin-bottom: 8px;">${d.description || 'Описание отсутствует'}</div>
             ${metaLine ? `<div class="small">${metaLine}</div>` : ''}
           </div>
@@ -7430,12 +7560,10 @@ async function openTeacherDetail(id) {
   document.getElementById('teacher-profile-name').textContent = 'Загрузка...';
   document.getElementById('teacher-profile-specialization').textContent = '';
   document.getElementById('teacher-profile-bio').textContent = '';
-  document.getElementById('teacher-profile-groups').innerHTML = '<p class="small">Группы загружаются...</p>';
-  document.getElementById('teacher-profile-groups').style.display = 'none';
-  const groupsToggleBtn = document.getElementById('teacher-profile-groups-toggle-btn');
-  if (groupsToggleBtn) {
-    groupsToggleBtn.disabled = true;
-    groupsToggleBtn.textContent = 'Просмотр групп';
+  const groupsEl = document.getElementById('teacher-profile-groups');
+  if (groupsEl) {
+    groupsEl.innerHTML = '<p class="small">Группы загружаются...</p>';
+    groupsEl.style.display = 'block';
   }
   document.getElementById('teacher-profile-schedule').innerHTML = '<p class="small">График загружается...</p>';
   const individualBtn = document.getElementById('teacher-profile-individual-btn');
@@ -7451,8 +7579,10 @@ async function openTeacherDetail(id) {
     const specialization = detail.specialization || detail.position || '—';
     document.getElementById('teacher-profile-specialization').textContent = specialization;
     document.getElementById('teacher-profile-bio').textContent = detail.bio || 'Информация о биографии отсутствует.';
-    document.getElementById('teacher-profile-groups').innerHTML = renderTeacherGroups(detail.groups || []);
-    if (groupsToggleBtn) groupsToggleBtn.disabled = false;
+    if (groupsEl) {
+      groupsEl.innerHTML = renderTeacherGroups(detail.groups || []);
+      groupsEl.style.display = 'block';
+    }
     document.getElementById('teacher-profile-schedule').innerHTML = renderTeacherSchedule(schedule);
     const photoContainer = document.getElementById('teacher-profile-photo');
     if (photoContainer) {
@@ -7473,8 +7603,10 @@ async function openTeacherDetail(id) {
     document.getElementById('teacher-profile-name').textContent = 'Ошибка загрузки';
     document.getElementById('teacher-profile-specialization').textContent = '';
     document.getElementById('teacher-profile-bio').textContent = err.message;
-    document.getElementById('teacher-profile-groups').innerHTML = '<p class="small">Не удалось загрузить группы</p>';
-    if (groupsToggleBtn) groupsToggleBtn.disabled = false;
+    if (groupsEl) {
+      groupsEl.innerHTML = '<p class="small">Не удалось загрузить группы</p>';
+      groupsEl.style.display = 'block';
+    }
     document.getElementById('teacher-profile-schedule').innerHTML = '<p class="small">Не удалось загрузить график</p>';
     const photoContainer = document.getElementById('teacher-profile-photo');
     if (photoContainer) {
@@ -7485,20 +7617,17 @@ async function openTeacherDetail(id) {
   }
 }
 
-function toggleTeacherGroupsVisibility() {
-  const groupsEl = document.getElementById('teacher-profile-groups');
-  const btn = document.getElementById('teacher-profile-groups-toggle-btn');
-  if (!groupsEl || !btn) return;
-  const isHidden = groupsEl.style.display === 'none';
-  groupsEl.style.display = isHidden ? 'block' : 'none';
-  btn.textContent = isHidden ? 'Скрыть группы' : 'Просмотр групп';
-}
-
 function renderTeacherGroups(groups) {
   if (!Array.isArray(groups) || !groups.length) {
     return '<p class="small">У этого преподавателя пока нет групп</p>';
   }
+  window.groupDetails = window.groupDetails || {};
   return groups.map(group => {
+    const groupId = Number(group.id);
+    const hasGroupId = Number.isFinite(groupId) && groupId > 0;
+    if (hasGroupId) {
+      window.groupDetails[groupId] = group;
+    }
     const directionTitle = escapeHtml(group.direction_title || '—');
     const lessonsText = group.lessons_per_week ? `${group.lessons_per_week} в неделю` : '—';
     return `
@@ -7510,11 +7639,18 @@ function renderTeacherGroups(groups) {
           <span>⏱️ ${group.duration_minutes ? `${group.duration_minutes} мин` : '—'}</span>
           <span>📆 ${lessonsText}</span>
         </div>
-        <button
-          class="save-btn"
-          style="width: 100%;"
-          ${group.direction_id ? `onclick="openDirectionDetail(${group.direction_id})"` : 'disabled'}
-        >Открыть направление и записаться</button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button
+            class="save-btn"
+            style="flex:1; min-width: 180px;"
+            ${hasGroupId ? `onclick="openGroupBookingForm(${groupId})"` : 'disabled'}
+          >Записаться</button>
+          <button
+            class="save-btn"
+            style="flex:1; min-width: 180px; background: #111;"
+            ${group.direction_id ? `onclick="openDirectionDetail(${group.direction_id})"` : 'disabled'}
+          >Открыть направление</button>
+        </div>
       </div>
     `;
   }).join('');
@@ -7561,25 +7697,14 @@ function openDirectionDetail(directionId) {
       window.groupDetails = window.groupDetails || {};
       window.currentDirectionForBooking = d;
       const groupsHtml = (groups && groups.length)
-        ? groups.map(g => {
-            const teacherName = g.teacher_name || '—';
-            const teacher = teacherName ? ` ${teacherName}` : '';
-            const lessons = g.lessons_per_week ? `${g.lessons_per_week} в неделю` : '—';
-            window.groupDetails[g.id] = g;
+        ? groups.map(group => {
+            const groupId = Number(group?.id);
+            if (Number.isFinite(groupId) && groupId > 0) {
+              window.groupDetails[groupId] = group;
+            }
             return `
               <div class="card" style="margin-bottom: 8px;">
-                <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">${g.name || 'Группа'}</div>
-                <div class="small group-teacher" id="group-teacher-${g.id}" style="margin-bottom: 6px;">${teacher}</div>
-                
-                <div class="small group-summary" id="group-summary-${g.id}" style="display: flex; gap: 8px; flex-wrap: wrap;">
-                  <span>&#x1F388; ${g.age_group || '-'}</span>
-                  <span>&#x23F1; ${g.duration_minutes ? g.duration_minutes + ' min' : '-'}</span>
-                  <span>&#x1F4C6; ${lessons}</span>
-                  <span>&#x1F465; ${g.max_students || '-'}</span>
-                </div>
-
-                <button class="save-btn" id="group-detail-btn-${g.id}" style="width: 100%; margin-top: 8px; background: #111;" onclick="toggleGroupInlineDetails(${g.id})">Подробнее</button>
-                <div class="group-inline-details" id="group-inline-details-${g.id}"></div>
+                ${renderDirectionGroupDetails(group, { includeBookingButton: true })}
               </div>
             `;
           }).join('')
@@ -7604,68 +7729,71 @@ content.innerHTML = `
 
 
 
-function toggleGroupInlineDetails(groupId) {
-  const details = document.getElementById(`group-inline-details-${groupId}`);
-  const button = document.getElementById(`group-detail-btn-${groupId}`);
-  const summary = document.getElementById(`group-summary-${groupId}`);
-  const teacher = document.getElementById(`group-teacher-${groupId}`);
-  if (!details || !button) return;
-
-  if (!details.innerHTML) {
-    const data = (window.groupDetails && window.groupDetails[groupId]) || {};
-    const title = data?.name || 'Группа';
-    const teacherName = data?.teacher_name || '—';
-    const teacherInitials = teacherName
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map(part => part[0].toUpperCase())
-      .join('') || '—';
-    const teacherPhoto = data?.teacher_photo || '';
-    const age = data?.age_group || '—';
-    const duration = data?.duration_minutes ? `${data.duration_minutes} мин` : '—';
-    const lessons = data?.lessons_per_week ? `${data.lessons_per_week} в неделю` : '—';
-    const maxStudents = data?.max_students ? `${data.max_students}` : '—';
-    const description = data?.description || 'Описание отсутствует';
-
-    details.innerHTML = `
-      <div style="font-weight: 700; font-size: 15px;">${title}</div>
-      <div class="group-teacher-link" onclick="openTeacherProfilePlaceholder(${Number(data?.teacher_id) || 0})">
+function renderDirectionGroupDetails(groupData, options = {}) {
+  const data = groupData || {};
+  const includeBookingButton = options.includeBookingButton !== false;
+  const groupId = Number(data.id);
+  const hasGroupId = Number.isFinite(groupId) && groupId > 0;
+  const teacherId = Number(data.teacher_id);
+  const hasTeacherId = Number.isFinite(teacherId) && teacherId > 0;
+  const teacherNameRaw = (data.teacher_name || '—').toString();
+  const teacherName = escapeHtml(teacherNameRaw);
+  const teacherInitials = teacherNameRaw
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0].toUpperCase())
+    .join('') || '—';
+  const teacherPhotoUrl = buildMediaUrl(data.teacher_photo || '');
+  const age = escapeHtml(data.age_group || '—');
+  const duration = data.duration_minutes ? `${data.duration_minutes} мин` : '—';
+  const lessons = data.lessons_per_week ? `${data.lessons_per_week} в неделю` : '—';
+  const maxStudents = data.max_students ? `${data.max_students}` : '—';
+  const description = escapeHtml(data.description || 'Описание отсутствует');
+  const teacherCard = hasTeacherId
+    ? `
+      <div class="group-teacher-link" onclick="openTeacherProfilePlaceholder(${teacherId})">
         <div class="group-teacher-label">Профиль преподавателя</div>
         <div class="group-teacher-row">
           <div class="group-teacher-avatar">
-            ${teacherPhoto ? `<img src="${teacherPhoto}" alt="${teacherName}">` : teacherInitials}
+            ${teacherPhotoUrl ? `<img src="${teacherPhotoUrl}" alt="${teacherName}">` : escapeHtml(teacherInitials)}
           </div>
           <div class="small" style="font-weight: 600;">${teacherName}</div>
         </div>
       </div>
-      <div class="group-detail-grid" style="margin-top: 8px;">
-        <div class="group-detail-row"><span>Возраст:</span><div>${age}</div></div>
-        <div class="group-detail-row"><span>Длительность:</span><div>${duration}</div></div>
-        <div class="group-detail-row"><span>Занятий в неделю:</span><div>${lessons}</div></div>
-        <div class="group-detail-row"><span>Макс. учеников:</span><div>${maxStudents}</div></div>
+    `
+    : `
+      <div class="group-teacher-link" style="cursor: default;">
+        <div class="group-teacher-label">Преподаватель</div>
+        <div class="group-teacher-row">
+          <div class="group-teacher-avatar">${escapeHtml(teacherInitials)}</div>
+          <div class="small" style="font-weight: 600;">${teacherName}</div>
+        </div>
       </div>
-      <div class="small" style="margin-top: 10px;">${description}</div>
+    `;
+  const bookingButton = includeBookingButton
+    ? `
       <button
-        id="group-book-btn-${groupId}"
         type="button"
         class="save-btn"
         style="width: 100%; margin-top: 10px;"
-        onclick="openGroupBookingForm(${groupId})"
+        ${hasGroupId ? `onclick="openGroupBookingForm(${groupId})"` : 'disabled'}
       >Записаться</button>
-    `;
-  }
+    `
+    : '';
 
-  const isOpen = !details.classList.contains('show');
-  details.classList.toggle('show', isOpen);
-  button.textContent = isOpen ? 'Свернуть' : 'Подробнее';
-  if (summary) summary.classList.toggle('hidden', isOpen);
-  if (teacher) teacher.classList.toggle('hidden', isOpen);
-  if (isOpen) {
-    details.style.maxHeight = details.scrollHeight + 'px';
-  } else {
-    details.style.maxHeight = '0px';
-  }
+  return `
+    <div style="font-weight: 700; font-size: 15px;">${escapeHtml(data.name || 'Группа')}</div>
+    ${teacherCard}
+    <div class="group-detail-grid" style="margin-top: 8px;">
+      <div class="group-detail-row"><span>Возраст:</span><div>${age}</div></div>
+      <div class="group-detail-row"><span>Длительность:</span><div>${duration}</div></div>
+      <div class="group-detail-row"><span>Занятий в неделю:</span><div>${lessons}</div></div>
+      <div class="group-detail-row"><span>Макс. учеников:</span><div>${maxStudents}</div></div>
+    </div>
+    <div class="small" style="margin-top: 10px;">${description}</div>
+    ${bookingButton}
+  `;
 }
 
 function formatBookingDisplayDate(value) {
@@ -7720,6 +7848,8 @@ function resetGroupBookingState() {
 
 function resetGroupBookingQuoteView() {
   const map = {
+    'group-booking-quote-amount-before': '-',
+    'group-booking-quote-discount': '-',
     'group-booking-quote-amount': '-',
     'group-booking-quote-lessons-per-group': '-',
     'group-booking-quote-total-lessons': '-',
@@ -7952,8 +8082,30 @@ function applyGroupBookingQuote(quote) {
     return;
   }
 
+  const currency = quote.currency || 'RUB';
+  const amountBeforeNumeric = Number.isFinite(Number(quote.amount_before_discount))
+    ? Number(quote.amount_before_discount)
+    : Number(quote.amount);
+  const discountNumeric = Number.isFinite(Number(quote.discount_amount))
+    ? Number(quote.discount_amount)
+    : Math.max(0, amountBeforeNumeric - Number(quote.amount || 0));
+
+  const amountBeforeNode = document.getElementById('group-booking-quote-amount-before');
+  if (amountBeforeNode) {
+    amountBeforeNode.textContent = Number.isFinite(amountBeforeNumeric)
+      ? formatBookingAmount(amountBeforeNumeric, currency)
+      : '-';
+  }
+
+  const discountNode = document.getElementById('group-booking-quote-discount');
+  if (discountNode) {
+    discountNode.textContent = Number.isFinite(discountNumeric)
+      ? `- ${formatBookingAmount(Math.max(0, discountNumeric), currency)}`
+      : '-';
+  }
+
   const amountNode = document.getElementById('group-booking-quote-amount');
-  if (amountNode) amountNode.textContent = formatBookingAmount(quote.amount, quote.currency || 'RUB');
+  if (amountNode) amountNode.textContent = formatBookingAmount(quote.amount, currency);
 
   const perGroupNode = document.getElementById('group-booking-quote-lessons-per-group');
   if (perGroupNode) perGroupNode.textContent = String(quote.lessons_per_group ?? '-');
@@ -8426,6 +8578,8 @@ const CONFIRMED_STATUS_SET = new Set(['scheduled', 'confirmed', 'approved', 'pai
 const SCHEDULE_POLL_INTERVAL = 15000;
 let scheduleInitialized = false;
 let scheduleConfirmedFilter = false;
+let scheduleMoveModalOriginalParent = null;
+let scheduleMoveModalOriginalNextSibling = null;
 
 const SCHEDULE_TYPE_TITLES = {
   group: 'Групповое занятие',
@@ -9028,9 +9182,19 @@ function openScheduleMoveModal() {
     return;
   }
 
-  const overlay = document.getElementById('schedule-move-overlay');
+  const detailCard = document.getElementById('schedule-detail-modal');
   const modal = document.getElementById('schedule-move-modal');
-  if (!overlay || !modal) return;
+  if (!detailCard || !modal) return;
+  if (!detailCard.classList.contains('show')) return;
+
+  if (!scheduleMoveModalOriginalParent) {
+    scheduleMoveModalOriginalParent = modal.parentElement || null;
+    scheduleMoveModalOriginalNextSibling = modal.nextSibling || null;
+  }
+  if (modal.parentElement !== detailCard) {
+    detailCard.appendChild(modal);
+  }
+  modal.classList.add('schedule-detail-modal-overlay-panel');
 
   const moveTypeEl = document.getElementById('schedule-move-type');
   const moveDateEl = document.getElementById('schedule-move-date');
@@ -9043,15 +9207,25 @@ function openScheduleMoveModal() {
   if (moveToEl) moveToEl.value = item.time_to ? String(item.time_to).slice(0, 5) : '';
 
   setScheduleMoveActionStatus('', 'info');
-  overlay.classList.add('show');
+  detailCard.classList.add('move-open');
   modal.classList.add('show');
 }
 
 function closeScheduleMoveModal() {
-  const overlay = document.getElementById('schedule-move-overlay');
+  const detailCard = document.getElementById('schedule-detail-modal');
   const modal = document.getElementById('schedule-move-modal');
-  if (overlay) overlay.classList.remove('show');
-  if (modal) modal.classList.remove('show');
+  if (detailCard) detailCard.classList.remove('move-open');
+  if (modal) {
+    modal.classList.remove('show');
+    modal.classList.remove('schedule-detail-modal-overlay-panel');
+    if (scheduleMoveModalOriginalParent && modal.parentElement !== scheduleMoveModalOriginalParent) {
+      if (scheduleMoveModalOriginalNextSibling && scheduleMoveModalOriginalNextSibling.parentNode === scheduleMoveModalOriginalParent) {
+        scheduleMoveModalOriginalParent.insertBefore(modal, scheduleMoveModalOriginalNextSibling);
+      } else {
+        scheduleMoveModalOriginalParent.appendChild(modal);
+      }
+    }
+  }
   setScheduleMoveActionStatus('', 'info');
 }
 
@@ -9271,18 +9445,34 @@ function loadGroupScheduleDetails(groupId) {
         }
       }
 
-      extra.innerHTML = `
-        <div class="schedule-detail-row">👥 <strong>Группа:</strong> ${group.name || '—'}</div>
-        <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${directionTitle}</div>
-        <div class="schedule-detail-row">👩‍🏫 <strong>Учитель:</strong> ${teacherName}</div>
-        <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${group.age_group || '—'}</div>
-        ${group.lessons_per_week ? `<div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${group.lessons_per_week}</div>` : ''}
-        <div class="schedule-detail-row">💰 <strong>Цена:</strong> ${directionPrice ? directionPrice + ' ?' : '—'}</div>
-      `;
+      const rows = [
+        renderScheduleDetailArrowRow('👥', 'Группа', group.name || '—'),
+        renderScheduleDetailArrowRow('🎯', 'Направление', directionTitle),
+        renderScheduleDetailArrowRow('👩‍🏫', 'Учитель', teacherName),
+        renderScheduleDetailArrowRow('🎈', 'Возраст', group.age_group || '—'),
+      ];
+      if (group.lessons_per_week) {
+        rows.push(renderScheduleDetailArrowRow('📆', 'Занятий в неделю', group.lessons_per_week));
+      }
+      rows.push(renderScheduleDetailArrowRow('💰', 'Цена', directionPrice ? `${directionPrice} ₽` : '—'));
+      extra.innerHTML = rows.join('');
     })
     .catch(() => {
       extra.innerHTML = '<div class="small">❌ Не удалось загрузить детали группы</div>';
     });
+}
+
+function renderScheduleDetailArrowRow(icon, label, value) {
+  const safeLabel = escapeHtml(label || '—');
+  const safeValue = escapeHtml((value === undefined || value === null || value === '') ? '—' : String(value));
+  const iconText = icon ? `${icon} ` : '';
+  return `
+    <div class="schedule-detail-row schedule-detail-row--arrow">
+      <span class="schedule-detail-row-label">${iconText}${safeLabel}</span>
+      <span class="schedule-detail-row-arrow">→</span>
+      <span class="schedule-detail-row-value">${safeValue}</span>
+    </div>
+  `;
 }
 
 function renderIndividualLessonDetails(item, extra) {
@@ -9302,16 +9492,17 @@ function renderIndividualLessonDetails(item, extra) {
       return res.json();
     })
     .then(detail => {
-      const teacherName = escapeHtml(detail.teacher?.name || '—');
-      const studentName = escapeHtml(detail.student?.name || '—');
+      const teacherName = detail.teacher?.name || '—';
+      const studentName = detail.student?.name || '—';
       const statusCode = detail.status || item.status;
       const statusIcon = getScheduleStatusIcon(statusCode);
       const statusText = formatScheduleStatusLabel(statusCode);
-      extra.innerHTML = `
-        <div class="schedule-detail-row">👩‍🏫 <strong>Преподаватель:</strong> ${teacherName}</div>
-        <div class="schedule-detail-row">🧑‍🎓 <strong>Ученик:</strong> ${studentName}</div>
-        <div class="schedule-detail-row">📌 <strong>Статус:</strong> ${statusIcon ? statusIcon + ' ' : ''}${statusText}</div>
-      `;
+      const statusValue = `${statusIcon ? `${statusIcon} ` : ''}${statusText}`;
+      extra.innerHTML = [
+        renderScheduleDetailArrowRow('👩‍🏫', 'Преподаватель', teacherName),
+        renderScheduleDetailArrowRow('🧑‍🎓', 'Ученик', studentName),
+        renderScheduleDetailArrowRow('📌', 'Статус', statusValue),
+      ].join('');
       const chatLink = buildStudentChatLink(detail.student);
       appendScheduleDetailActionButton(extra, chatLink);
     })
@@ -10458,6 +10649,73 @@ function goBack() {
 /* ====== УПРАВЛЕНИЕ РАСПИСАНИЕМ ПЕРСОНАЛА ====== */
 let currentStaffPosition = '';
 const STAFF_CACHE_KEY = 'staff_status_cache_v1';
+const IMMUTABLE_STAFF_ROLE = 'тех. админ';
+const STAFF_ROLE_RANKS = {
+  'учитель': 10,
+  'модератор': 20,
+  'администратор': 30,
+  'старший админ': 40,
+  'владелец': 50,
+  'тех. админ': 60
+};
+
+function normalizeStaffRole(role) {
+  return String(role || '').trim().toLowerCase();
+}
+
+function getStaffRoleRank(role) {
+  const normalized = normalizeStaffRole(role);
+  if (!(normalized in STAFF_ROLE_RANKS)) {
+    return -1;
+  }
+  return STAFF_ROLE_RANKS[normalized];
+}
+
+function canCurrentStaffEditStaffTarget(targetRole) {
+  const actorRole = normalizeStaffRole(currentStaffPosition);
+  const normalizedTarget = normalizeStaffRole(targetRole);
+  if (normalizedTarget === IMMUTABLE_STAFF_ROLE) {
+    return false;
+  }
+  if (actorRole === IMMUTABLE_STAFF_ROLE) {
+    return true;
+  }
+  const actorRank = getStaffRoleRank(actorRole);
+  const targetRank = getStaffRoleRank(normalizedTarget);
+  return actorRank >= 0 && targetRank >= 0 && actorRank >= targetRank;
+}
+
+function canCurrentStaffAssignRole(targetRole) {
+  const actorRole = normalizeStaffRole(currentStaffPosition);
+  const normalizedTarget = normalizeStaffRole(targetRole);
+  if (normalizedTarget === IMMUTABLE_STAFF_ROLE) {
+    return false;
+  }
+  if (actorRole === IMMUTABLE_STAFF_ROLE) {
+    return true;
+  }
+  const actorRank = getStaffRoleRank(actorRole);
+  const targetRank = getStaffRoleRank(normalizedTarget);
+  return actorRank >= 0 && targetRank >= 0 && actorRank >= targetRank;
+}
+
+function getStaffEditBlockReason(targetRole) {
+  if (normalizeStaffRole(targetRole) === IMMUTABLE_STAFF_ROLE) {
+    return 'Профиль тех. админа нельзя изменять';
+  }
+  return 'Нельзя редактировать сотрудника с ролью выше вашей';
+}
+
+function applyStaffRoleOptionGuards(selectEl, currentValue = '') {
+  if (!selectEl) return;
+  const normalizedCurrent = normalizeStaffRole(currentValue || selectEl.value || '');
+  Array.from(selectEl.options).forEach((opt) => {
+    const role = normalizeStaffRole(opt.value);
+    const isAllowed = canCurrentStaffAssignRole(role) || role === normalizedCurrent;
+    opt.disabled = !isAllowed;
+    opt.hidden = !isAllowed && role !== normalizedCurrent;
+  });
+}
 
 function getCachedStaffStatus() {
   try {
@@ -10563,7 +10821,8 @@ function openStaffDetailCard(staffId) {
     staff.name || '—',
     staff.position || '—',
     staff.specialization || '',
-    staff.bio || ''
+    staff.bio || '',
+    staff
   );
 }
 
@@ -10657,6 +10916,7 @@ function showAddStaffForm() {
   // Очищаем поле поиска и форму
   document.getElementById('staff-user-search').value = '';
   document.getElementById('staff-add-position').value = '';
+  applyStaffRoleOptionGuards(document.getElementById('staff-add-position'));
   document.getElementById('staff-add-specialization').value = '';
   document.getElementById('staff-add-bio').value = '';
   const notifyCheckbox = document.getElementById('staff-add-notify');
@@ -10848,6 +11108,10 @@ async function saveNewStaff() {
     showNotification('⚠️ Выберите должность');
     return;
   }
+  if (!canCurrentStaffAssignRole(position)) {
+    showNotification(getStaffEditBlockReason(position));
+    return;
+  }
   
   try {
     const payload = {
@@ -10947,9 +11211,40 @@ function deleteStaffMember(staffId, name) {
 }
 
 let currentDetailStaffId = null;
+let currentDetailStaffCanEdit = false;
 
-function openStaffDetail(id, name, position, specialization, bio) {
+function applyStaffDetailActionAccess(staff) {
+  const editBtn = document.getElementById('staff-detail-edit-btn');
+  const deleteBtn = document.getElementById('staff-detail-delete-btn');
+  const role = staff ? staff.position : '';
+  const canEdit = Boolean(
+    staff && typeof staff.can_edit === 'boolean'
+      ? staff.can_edit
+      : canCurrentStaffEditStaffTarget(role)
+  );
+  const reason = (staff && staff.edit_block_reason) || getStaffEditBlockReason(role);
+
+  currentDetailStaffCanEdit = canEdit;
+
+  const apply = (btn) => {
+    if (!btn) return;
+    btn.disabled = !canEdit;
+    btn.style.opacity = canEdit ? '1' : '0.55';
+    btn.style.pointerEvents = canEdit ? 'auto' : 'none';
+    if (canEdit) {
+      btn.removeAttribute('title');
+    } else {
+      btn.title = reason;
+    }
+  };
+
+  apply(editBtn);
+  apply(deleteBtn);
+}
+
+function openStaffDetail(id, name, position, specialization, bio, staffMeta = null) {
   currentDetailStaffId = id;
+  applyStaffDetailActionAccess(staffMeta || { position });
 
   document.getElementById('staff-detail-name').innerText = name;
   document.getElementById('staff-detail-position').innerText = position;
@@ -10970,6 +11265,7 @@ function openStaffDetail(id, name, position, specialization, bio) {
     })
     .then(staff => {
       updateStaffDetailAvatar(staff.photo_path, staff.telegram_id);
+      applyStaffDetailActionAccess(staff);
     })
     .catch(() => {
       // если не получилось - оставляем плейсхолдер
@@ -11023,6 +11319,11 @@ function updateStaffDetailAvatar(photoPath, telegramId) {
 
 async function deleteCurrentStaff() {
   if (!currentDetailStaffId) return;
+  if (!currentDetailStaffCanEdit) {
+    const roleText = document.getElementById('staff-detail-position-full')?.innerText || '';
+    showNotification(getStaffEditBlockReason(roleText));
+    return;
+  }
   const name = document.getElementById('staff-detail-name')?.innerText || '';
   openStaffDeleteModal(currentDetailStaffId, name);
 }
@@ -12393,6 +12694,8 @@ function openPublicScheduleDetail(id) {
   const duration = getDurationMinutes(startTime, endTime);
   const lessons = item.lessons_per_week ? item.lessons_per_week : '—';
   const directionImage = item.direction_image || '';
+  const directionId = Number(item.direction_id);
+  const hasDirectionId = Number.isFinite(directionId) && directionId > 0;
 
   content.innerHTML = `
     ${directionImage ? `<div class="card" style="padding:0; overflow:hidden; margin-bottom:8px;"><img src="${directionImage}" alt="Направление" style="width:100%; height:180px; object-fit:cover; display:block;"></div>` : ''}
@@ -12410,7 +12713,12 @@ function openPublicScheduleDetail(id) {
     <div class="schedule-detail-card">
       <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${item.direction || '—'}</div>
       <div class="schedule-detail-row">📝 <strong>Описание направления:</strong> ${item.direction_description || '—'}</div>
-      <button class="save-btn" style="width:100%; margin-top:4px; background:#111;">Перейти в направление</button>
+      <button
+        type="button"
+        class="save-btn"
+        style="width:100%; margin-top:4px; background:#111;"
+        ${hasDirectionId ? `onclick="openDirectionDetail(${directionId})"` : 'disabled'}
+      >Перейти в направление</button>
     </div>
   `;
 
@@ -13016,6 +13324,12 @@ function loadProfileBookingRequests() {
         const amountText = Number.isFinite(Number(item.requested_amount))
           ? `${new Intl.NumberFormat('ru-RU').format(Number(item.requested_amount))} ${item.requested_currency || 'RUB'}`
           : '—';
+        const amountBeforeText = Number.isFinite(Number(item.amount_before_discount))
+          ? `${new Intl.NumberFormat('ru-RU').format(Number(item.amount_before_discount))} ${item.requested_currency || 'RUB'}`
+          : null;
+        const discountAmountText = Number.isFinite(Number(item.applied_discount_amount))
+          ? `${new Intl.NumberFormat('ru-RU').format(Number(item.applied_discount_amount))} ${item.requested_currency || 'RUB'}`
+          : null;
 
         let detailsHtml = '';
         if (item.object_type === 'group') {
@@ -13051,6 +13365,8 @@ function loadProfileBookingRequests() {
             <div style="font-weight: 700; margin-bottom: 6px;">${typeLabel}</div>
             <div class="small" style="margin-bottom: 4px;">Статус: ${statusLabel}</div>
             <div class="small">Создана: ${escapeHtml(createdText)}</div>
+            ${amountBeforeText ? `<div class="small">До скидки: ${escapeHtml(amountBeforeText)}</div>` : ''}
+            ${discountAmountText ? `<div class="small">Скидка: -${escapeHtml(discountAmountText)}</div>` : ''}
             <div class="small">Сумма: ${escapeHtml(amountText)}</div>
             ${detailsHtml}
             ${item.comment ? `<div class="small" style="margin-top: 6px;">Комментарий: ${escapeHtml(item.comment)}</div>` : ''}
@@ -13458,6 +13774,7 @@ function formatDate(dateString) {
 /* ====== УПРАВЛЕНИЕ КЛИЕНТАМИ (ПЕРСОНАЛ) ====== */
 let allClients = [];
 let selectedClientForActions = null;
+let clientDiscounts = [];
 let clientExtendAbonements = [];
 let clientExtendSelectedAbonement = null;
 let clientExtendLessonsPerWeek = 1;
@@ -13914,6 +14231,18 @@ async function openStaffProfileEdit(staffId = null) {
       return;
     }
 
+    const currentSelfStaffId = Number(window.currentStaffProfileId);
+    const isSelfTarget = Number.isFinite(currentSelfStaffId) && currentSelfStaffId > 0
+      ? Number(staff.id) === currentSelfStaffId
+      : !hasRequestedId;
+    const canEditTarget = (typeof staff.can_edit === 'boolean')
+      ? staff.can_edit
+      : (isSelfTarget || canCurrentStaffEditStaffTarget(staff.position));
+    if (!canEditTarget) {
+      showNotification(staff.edit_block_reason || getStaffEditBlockReason(staff.position));
+      return;
+    }
+
     staffProfileEditTargetId = Number(staff.id);
     document.getElementById('staff-profile-name').value = staff.name || '';
     document.getElementById('staff-profile-specialization').value = staff.specialization || '';
@@ -13924,6 +14253,7 @@ async function openStaffProfileEdit(staffId = null) {
     const teachesGroup = document.getElementById('staff-profile-teaches-group');
     const teachesCheckbox = document.getElementById('staff-profile-teaches');
     const canEditPosition = ['владелец', 'старший админ', 'тех. админ'].includes((currentStaffPosition || '').toLowerCase());
+    const canEditPositionForTarget = canEditPosition && canEditTarget;
     if (positionSelect) {
       Array.from(positionSelect.querySelectorAll('option[data-dynamic-position="1"]')).forEach((opt) => opt.remove());
       const normalizedPosition = String(staff.position || '').trim().toLowerCase();
@@ -13937,17 +14267,20 @@ async function openStaffProfileEdit(staffId = null) {
           positionSelect.appendChild(dynamicOption);
         }
         positionSelect.value = normalizedPosition;
+        positionSelect.dataset.currentRole = normalizedPosition;
+        applyStaffRoleOptionGuards(positionSelect, normalizedPosition);
       }
     }
     if (positionGroup) {
-      positionGroup.style.display = canEditPosition ? 'block' : 'none';
+      positionGroup.style.display = canEditPositionForTarget ? 'block' : 'none';
     }
     if (teachesCheckbox) {
       teachesCheckbox.checked = !!staff.teaches;
     }
     if (teachesGroup) {
       const canEditTeaches = ['владелец', 'старший админ', 'тех. админ'].includes((currentStaffPosition || '').toLowerCase());
-      teachesGroup.style.display = canEditTeaches ? 'block' : 'none';
+      const canEditTeachesForTarget = canEditTeaches && canEditTarget;
+      teachesGroup.style.display = canEditTeachesForTarget ? 'block' : 'none';
     }
     updateStaffProfileTeachesToggle();
 
@@ -13972,6 +14305,19 @@ async function saveStaffProfile() {
   const teachesCheckbox = document.getElementById('staff-profile-teaches');
   const canEditPosition = ['владелец', 'старший админ', 'тех. админ'].includes((currentStaffPosition || '').toLowerCase());
   const canEditTeaches = ['владелец', 'старший админ', 'тех. админ'].includes((currentStaffPosition || '').toLowerCase());
+  const currentTargetRole = positionSelect
+    ? normalizeStaffRole(positionSelect.dataset.currentRole || positionSelect.value || '')
+    : '';
+  const currentSelfStaffId = Number(window.currentStaffProfileId);
+  const isSelfTarget = Number.isFinite(currentSelfStaffId) && currentSelfStaffId > 0 && Number(staffId) === currentSelfStaffId;
+  const canEditTarget = isSelfTarget || canCurrentStaffEditStaffTarget(currentTargetRole);
+  const canEditPositionForTarget = canEditPosition && canCurrentStaffAssignRole(currentTargetRole);
+  const canEditTeachesForTarget = canEditTeaches && canEditTarget;
+
+  if (!canEditTarget) {
+    showNotification(getStaffEditBlockReason(currentTargetRole));
+    return;
+  }
 
   try {
     const payload = {
@@ -13979,15 +14325,19 @@ async function saveStaffProfile() {
       specialization: specialization || null,
       bio: bio || null
     };
-    if (canEditPosition && positionSelect) {
+    if (canEditPositionForTarget && positionSelect) {
       const position = (positionSelect.value || '').trim().toLowerCase();
       if (!position) {
         showNotification('Выберите роль');
         return;
       }
+      if (!canCurrentStaffAssignRole(position)) {
+        showNotification(getStaffEditBlockReason(position));
+        return;
+      }
       payload.position = position;
     }
-    if (canEditTeaches && teachesCheckbox) {
+    if (canEditTeachesForTarget && teachesCheckbox) {
       payload.teaches = teachesCheckbox.checked ? 1 : 0;
     }
     const response = await fetch(`/staff/${staffId}`, {
@@ -14018,6 +14368,7 @@ async function saveStaffProfile() {
       document.getElementById('staff-detail-specialization').innerText = data.specialization || '—';
       document.getElementById('staff-detail-bio').innerText = data.bio || '—';
       updateStaffDetailAvatar(data.photo_path, data.telegram_id);
+      applyStaffDetailActionAccess(data);
     }
     loadStaffList();
     goBack();
@@ -14952,6 +15303,195 @@ async function submitClientAbonementExtend() {
     console.error('Ошибка при продлении абонемента:', error);
     if (statusEl) statusEl.textContent = 'Ошибка сети';
     showNotification('❌ Ошибка сети');
+  }
+}
+
+function _setClientDiscountFormStatus(message, isError = false) {
+  const statusEl = document.getElementById('client-discounts-form-status');
+  if (!statusEl) return;
+  statusEl.textContent = message || '';
+  statusEl.style.color = isError ? '#ff6b6b' : 'var(--hint)';
+}
+
+function _formatClientDiscountValue(item) {
+  const value = Number(item?.value);
+  if (!Number.isFinite(value)) return '—';
+  if (String(item?.discount_type || '').toLowerCase() === 'percentage') {
+    return `${value}%`;
+  }
+  return `${new Intl.NumberFormat('ru-RU').format(value)} RUB`;
+}
+
+function _formatClientDiscountUsageState(item) {
+  const state = String(item?.usage_state || '').toLowerCase();
+  if (state === 'consumed') return 'Использована';
+  if (state === 'active') return 'Активна';
+  if (state === 'inactive') return 'Неактивна';
+  return state || '—';
+}
+
+function _renderClientDiscountsList() {
+  const listEl = document.getElementById('client-discounts-list');
+  if (!listEl) return;
+
+  if (!Array.isArray(clientDiscounts) || !clientDiscounts.length) {
+    listEl.innerHTML = '<p class="small" style="color:var(--hint);">Скидок пока нет</p>';
+    return;
+  }
+
+  listEl.innerHTML = clientDiscounts.map((item) => {
+    const type = String(item.discount_type || '').toLowerCase() === 'percentage' ? 'Процент' : 'Фиксированная';
+    const mode = item.is_one_time ? 'Одноразовая' : 'Многоразовая';
+    const stateText = _formatClientDiscountUsageState(item);
+    const valueText = _formatClientDiscountValue(item);
+    const createdText = item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '—';
+    const consumedText = item.consumed_at ? new Date(item.consumed_at).toLocaleString('ru-RU') : null;
+    const canDeactivate = Boolean(item.is_active);
+
+    return `
+      <div class="card" style="margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
+          <div>
+            <div style="font-weight:700;">${escapeHtml(type)} • ${escapeHtml(valueText)}</div>
+            <div class="small" style="color:var(--hint); margin-top:4px;">${escapeHtml(mode)} • ${escapeHtml(stateText)}</div>
+          </div>
+          ${canDeactivate ? `<button class="save-btn" style="width:auto; margin:0; background:#555; padding:6px 10px;" onclick="deactivateClientDiscount(${Number(item.id)})">Отключить</button>` : ''}
+        </div>
+        <div class="small" style="margin-top:6px;">Создана: ${escapeHtml(createdText)}</div>
+        ${consumedText ? `<div class="small">Использована: ${escapeHtml(consumedText)}${item.consumed_booking_id ? ` • booking #${Number(item.consumed_booking_id)}` : ''}</div>` : ''}
+        ${item.comment ? `<div class="small" style="margin-top:6px;">Комментарий: ${escapeHtml(String(item.comment))}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadClientDiscounts() {
+  if (!selectedClientForActions) return;
+  const statusEl = document.getElementById('client-discounts-status');
+  if (statusEl) statusEl.textContent = 'Загрузка...';
+  try {
+    const response = await fetch(`/api/admin/users/${selectedClientForActions.id}/discounts`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (statusEl) statusEl.textContent = data.error || 'Не удалось загрузить скидки';
+      return;
+    }
+    clientDiscounts = Array.isArray(data) ? data : [];
+    _renderClientDiscountsList();
+    if (statusEl) statusEl.textContent = '';
+  } catch (error) {
+    console.error('Ошибка загрузки скидок клиента:', error);
+    if (statusEl) statusEl.textContent = 'Ошибка сети';
+  }
+}
+
+async function openClientDiscountsScreen() {
+  if (!selectedClientForActions) {
+    showNotification('Клиент не выбран');
+    return;
+  }
+
+  const nameEl = document.getElementById('client-discounts-screen-name');
+  const metaEl = document.getElementById('client-discounts-screen-meta');
+  const typeEl = document.getElementById('client-discount-type');
+  const valueEl = document.getElementById('client-discount-value');
+  const oneTimeEl = document.getElementById('client-discount-one-time');
+  const commentEl = document.getElementById('client-discount-comment');
+  const statusEl = document.getElementById('client-discounts-status');
+
+  const client = selectedClientForActions;
+  if (nameEl) nameEl.textContent = client.name || 'Без имени';
+  if (metaEl) metaEl.textContent = _clientActionMetaParts(client).join(' • ') || '—';
+  if (typeEl) typeEl.value = 'percentage';
+  if (valueEl) valueEl.value = '';
+  if (oneTimeEl) oneTimeEl.checked = true;
+  if (commentEl) commentEl.value = '';
+  if (statusEl) statusEl.textContent = '';
+  _setClientDiscountFormStatus('');
+  clientDiscounts = [];
+  _renderClientDiscountsList();
+
+  closeClientDetailModal();
+  showPage('client-discounts');
+  await loadClientDiscounts();
+}
+
+async function submitClientDiscountCreate() {
+  if (!selectedClientForActions) {
+    showNotification('Клиент не выбран');
+    return;
+  }
+
+  const typeEl = document.getElementById('client-discount-type');
+  const valueEl = document.getElementById('client-discount-value');
+  const oneTimeEl = document.getElementById('client-discount-one-time');
+  const commentEl = document.getElementById('client-discount-comment');
+  const discountType = String(typeEl?.value || '').trim();
+  const value = Number.parseInt(valueEl?.value || '', 10);
+  const isOneTime = Boolean(oneTimeEl?.checked);
+  const comment = (commentEl?.value || '').trim();
+
+  if (!['percentage', 'fixed'].includes(discountType)) {
+    _setClientDiscountFormStatus('Выберите тип скидки', true);
+    return;
+  }
+  if (!Number.isInteger(value) || value <= 0) {
+    _setClientDiscountFormStatus('Укажите корректное значение', true);
+    return;
+  }
+  if (discountType === 'percentage' && (value < 1 || value > 100)) {
+    _setClientDiscountFormStatus('Процент должен быть в диапазоне 1..100', true);
+    return;
+  }
+
+  _setClientDiscountFormStatus('Создаем скидку...');
+  try {
+    const response = await fetch(`/api/admin/users/${selectedClientForActions.id}/discounts`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        discount_type: discountType,
+        value,
+        is_one_time: isOneTime,
+        comment: comment || null,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      _setClientDiscountFormStatus(data.error || 'Не удалось создать скидку', true);
+      return;
+    }
+    _setClientDiscountFormStatus('Скидка создана');
+    if (valueEl) valueEl.value = '';
+    if (commentEl) commentEl.value = '';
+    await loadClientDiscounts();
+    showNotification('Скидка добавлена');
+  } catch (error) {
+    console.error('Ошибка создания скидки:', error);
+    _setClientDiscountFormStatus('Ошибка сети', true);
+  }
+}
+
+async function deactivateClientDiscount(discountId) {
+  const parsedId = Number.parseInt(discountId, 10);
+  if (!Number.isInteger(parsedId) || parsedId <= 0) return;
+  try {
+    const response = await fetch(`/api/admin/discounts/${parsedId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      showNotification(data.error || 'Не удалось отключить скидку');
+      return;
+    }
+    await loadClientDiscounts();
+    showNotification('Скидка отключена');
+  } catch (error) {
+    console.error('Ошибка отключения скидки:', error);
+    showNotification('Ошибка сети');
   }
 }
 
@@ -16293,12 +16833,13 @@ async function checkDirectionPhotoStatus(token) {
 }
 
 async function createDirection() {
-  const token = localStorage.getItem('direction_upload_token');
+  let token = localStorage.getItem('direction_upload_token');
   const directionType = document.getElementById('direction-type').value || 'dance';
   
   if (!token) {
-    showDirectionError('Фотография не загружена. Пожалуйста, загрузите фотографию через бота.');
-    return;
+    const session = await createDirectionUploadSessionFromForm();
+    if (!session) return;
+    token = session.token;
   }
   if (!directionType) {
     showDirectionError('Выберите тип направления');
@@ -16348,9 +16889,9 @@ function resetDirectionForm() {
   document.getElementById('direction-price').value = '';
   document.getElementById('direction-type').value = 'dance';
   document.getElementById('direction-photo-status').innerHTML = 
-    '<p style="margin: 0; color: var(--hint); font-size: 14px;">❌ Фотография не загружена</p>';
-  document.getElementById('direction-create-btn').disabled = true;
-  document.getElementById('direction-create-btn').style.opacity = '0.5';
+    '<p style="margin: 0; color: var(--hint); font-size: 14px;">📷 Фотография не загружена (необязательно)</p>';
+  document.getElementById('direction-create-btn').disabled = false;
+  document.getElementById('direction-create-btn').style.opacity = '1';
   document.getElementById('direction-error-msg').style.display = 'none';
   document.getElementById('direction-success-msg').style.display = 'none';
   localStorage.removeItem('direction_upload_token');
@@ -17021,6 +17562,7 @@ function archiveDirection(directionId) {
 </script>
 </body>
 </html>
+
 
 
 

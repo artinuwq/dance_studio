@@ -10,7 +10,8 @@ from sqlalchemy import or_
 from werkzeug.utils import secure_filename
 
 from dance_studio.core.notification_service import send_user_notification_sync
-from dance_studio.core.config import BOT_TOKEN, PROJECT_NAME_FULL, PROJECT_NAME_SHORT
+from dance_studio.core.personal_discounts import resolve_discount_usage_state
+from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, PROJECT_NAME_FULL, PROJECT_NAME_SHORT, TECH_ADMIN_ID
 from dance_studio.core.media_manager import delete_user_photo
 from dance_studio.core.system_settings_service import (
     SettingValidationError,
@@ -81,6 +82,112 @@ SCHEDULE_MOVE_TYPE_LABELS = {
     "low_attendance": "Нехватка людей",
 }
 SCHEDULE_PRESENT_STATUSES = {"present", "late"}
+
+IMMUTABLE_STAFF_ROLE = "тех. админ"
+STAFF_ROLE_RANKS = {
+    "учитель": 10,
+    "модератор": 20,
+    "администратор": 30,
+    "старший админ": 40,
+    "владелец": 50,
+    "тех. админ": 60,
+}
+
+
+def _normalize_staff_role(position: str | None) -> str:
+    return str(position or "").strip().lower()
+
+
+def _staff_role_rank(position: str | None) -> int:
+    return STAFF_ROLE_RANKS.get(_normalize_staff_role(position), -1)
+
+
+def _resolve_actor_staff_role(db) -> str:
+    actor_staff = _get_current_staff(db)
+    if actor_staff and actor_staff.position:
+        return _normalize_staff_role(actor_staff.position)
+
+    actor_telegram_id = getattr(g, "telegram_id", None)
+    try:
+        actor_telegram_id = int(actor_telegram_id)
+    except (TypeError, ValueError):
+        return ""
+
+    if TECH_ADMIN_ID and actor_telegram_id == TECH_ADMIN_ID:
+        return IMMUTABLE_STAFF_ROLE
+    if actor_telegram_id in OWNER_IDS:
+        return "владелец"
+    return ""
+
+
+def _can_edit_staff_by_roles(actor_role: str | None, target_role: str | None) -> bool:
+    normalized_actor = _normalize_staff_role(actor_role)
+    normalized_target = _normalize_staff_role(target_role)
+
+    if normalized_target == IMMUTABLE_STAFF_ROLE:
+        return False
+    if normalized_actor == IMMUTABLE_STAFF_ROLE:
+        return True
+
+    actor_rank = _staff_role_rank(normalized_actor)
+    target_rank = _staff_role_rank(normalized_target)
+    if actor_rank < 0 or target_rank < 0:
+        return False
+    return actor_rank >= target_rank
+
+
+def _can_assign_staff_role_by_roles(actor_role: str | None, new_role: str | None) -> bool:
+    normalized_actor = _normalize_staff_role(actor_role)
+    normalized_new = _normalize_staff_role(new_role)
+
+    if normalized_new == IMMUTABLE_STAFF_ROLE:
+        return False
+    if normalized_actor == IMMUTABLE_STAFF_ROLE:
+        return True
+
+    actor_rank = _staff_role_rank(normalized_actor)
+    target_rank = _staff_role_rank(normalized_new)
+    if actor_rank < 0 or target_rank < 0:
+        return False
+    return actor_rank >= target_rank
+
+
+def _staff_edit_guard(db, target_staff: Staff):
+    actor_role = _resolve_actor_staff_role(db)
+    target_role = _normalize_staff_role(target_staff.position)
+    actor_staff = _get_current_staff(db)
+    is_self_target = bool(actor_staff and target_staff and actor_staff.id == target_staff.id)
+    if target_role == IMMUTABLE_STAFF_ROLE and is_self_target:
+        return None
+    if _can_edit_staff_by_roles(actor_role, target_role):
+        return None
+    if target_role == IMMUTABLE_STAFF_ROLE:
+        return {"error": "Профиль тех. админа нельзя изменять"}, 403
+    return {"error": "Нельзя редактировать сотрудника с ролью выше вашей"}, 403
+
+
+def _staff_assignment_guard(db, new_role: str | None):
+    actor_role = _resolve_actor_staff_role(db)
+    normalized_new_role = _normalize_staff_role(new_role)
+    if _can_assign_staff_role_by_roles(actor_role, normalized_new_role):
+        return None
+    if normalized_new_role == IMMUTABLE_STAFF_ROLE:
+        return {"error": "Роль тех. админ нельзя назначать через персонал"}, 403
+    return {"error": "Нельзя назначить роль выше вашей"}, 403
+
+
+def _staff_editability_payload(db, staff: Staff) -> tuple[bool, str | None]:
+    target_role = _normalize_staff_role(staff.position)
+    actor_staff = _get_current_staff(db)
+    is_self_target = bool(actor_staff and staff and actor_staff.id == staff.id)
+    if target_role == IMMUTABLE_STAFF_ROLE and is_self_target:
+        return True, None
+    can_edit = _can_edit_staff_by_roles(_resolve_actor_staff_role(db), target_role)
+    if can_edit:
+        return True, None
+    if target_role == IMMUTABLE_STAFF_ROLE:
+        return False, "Профиль тех. админа нельзя изменять"
+    return False, "Нельзя редактировать сотрудника с ролью выше вашей"
 
 
 @bp.route("/")
@@ -1259,6 +1366,7 @@ def get_all_staff():
             user = db.query(User).filter_by(telegram_id=s.telegram_id).first()
             if user:
                 username = user.username
+        can_edit, edit_block_reason = _staff_editability_payload(db, s)
         
         result.append({
             "id": s.id,
@@ -1273,7 +1381,10 @@ def get_all_staff():
             "photo_path": s.photo_path,
             "teaches": s.teaches,
             "status": s.status,
-            "created_at": s.created_at.isoformat()
+            "created_at": s.created_at.isoformat(),
+            "can_edit": can_edit,
+            "can_delete": can_edit,
+            "edit_block_reason": edit_block_reason,
         })
     
     return jsonify(result)
@@ -1301,6 +1412,8 @@ def check_staff_by_telegram(telegram_id):
         except:
             user = None
         
+        can_edit, edit_block_reason = _staff_editability_payload(db, staff)
+
         # Если данные персонала неполные, берем из профиля пользователя
         staff_data = {
             "id": staff.id,
@@ -1311,7 +1424,10 @@ def check_staff_by_telegram(telegram_id):
             "teaches": staff.teaches,
             "phone": staff.phone,
             "email": staff.email,
-            "photo_path": staff.photo_path or (user.photo_path if user else None)
+            "photo_path": staff.photo_path or (user.photo_path if user else None),
+            "can_edit": can_edit,
+            "can_delete": can_edit,
+            "edit_block_reason": edit_block_reason,
         }
         
         return jsonify({
@@ -1338,7 +1454,7 @@ def create_staff():
         return perm_error
 
     db = g.db
-    data = request.json
+    data = request.json or {}
     
     # Получаем имя: либо из данных, либо из профиля пользователя
     staff_name = data.get("name")
@@ -1350,10 +1466,16 @@ def create_staff():
     if not staff_name or not data.get("position"):
         return {"error": "name (или telegram_id с профилем) и position обязательны"}, 400
 
+    normalized_position = _normalize_staff_role(data.get("position"))
+
     # Проверяем допустимые должности
-    valid_positions = ["учитель", "администратор", "старший админ", "владелец", "тех. админ"]
-    if data.get("position").lower() not in valid_positions:
+    valid_positions = ["учитель", "модератор", "администратор", "старший админ", "владелец", "тех. админ"]
+    if normalized_position not in valid_positions:
         return {"error": f"Допустимые должности: {', '.join(valid_positions)}"}, 400
+    role_assign_error = _staff_assignment_guard(db, normalized_position)
+    if role_assign_error:
+        return role_assign_error
+    data["position"] = normalized_position
 
     notify_flag = data.get("notify", True)
     notify_user = str(notify_flag).strip().lower() in ["1", "true", "yes", "y", "on"]
@@ -1361,7 +1483,7 @@ def create_staff():
     teaches_value = 0
     teaches_raw = normalize_teaches(data.get("teaches"))
     if teaches_raw is None:
-        teaches_value = 1 if data.get("position").lower() == "учитель" else 0
+        teaches_value = 1 if data.get("position") == "учитель" else 0
     else:
         teaches_value = teaches_raw
 
@@ -1504,6 +1626,7 @@ def get_staff(staff_id):
             username = user.username
             if not photo_path and user.photo_path:
                 photo_path = user.photo_path
+    can_edit, edit_block_reason = _staff_editability_payload(db, staff)
     
     return {
         "id": staff.id,
@@ -1518,7 +1641,10 @@ def get_staff(staff_id):
         "photo_path": photo_path,
         "teaches": staff.teaches,
         "status": staff.status,
-        "created_at": staff.created_at.isoformat()
+        "created_at": staff.created_at.isoformat(),
+        "can_edit": can_edit,
+        "can_delete": can_edit,
+        "edit_block_reason": edit_block_reason,
     }
 
 
@@ -1566,8 +1692,11 @@ def update_staff(staff_id):
     
     if not staff:
         return {"error": "Сотрудник не найден"}, 404
+    edit_guard_error = _staff_edit_guard(db, staff)
+    if edit_guard_error:
+        return edit_guard_error
     
-    data = request.json
+    data = request.json or {}
     
     if "name" in data:
         staff.name = data["name"]
@@ -1582,25 +1711,20 @@ def update_staff(staff_id):
         if position_perm_error:
             return position_perm_error
         valid_positions = {"учитель", "администратор", "старший админ", "модератор", "владелец", "тех. админ"}
-        normalized_position = str(data["position"]).strip().lower()
+        normalized_position = _normalize_staff_role(data["position"])
         if normalized_position not in valid_positions:
             return {"error": f"Допустимые должности: {', '.join(valid_positions)}"}, 400
+        role_assign_error = _staff_assignment_guard(db, normalized_position)
+        if role_assign_error:
+            return role_assign_error
         staff.position = normalized_position
     if "specialization" in data:
         staff.specialization = data["specialization"]
     if "bio" in data:
         staff.bio = data["bio"]
     if "teaches" in data:
-        actor_telegram_id = getattr(g, "telegram_id", None)
-        try:
-            actor_telegram_id = int(actor_telegram_id) if actor_telegram_id is not None else None
-        except (TypeError, ValueError):
-            return {"error": "Неверный telegram_id"}, 400
-        actor_staff = None
-        if actor_telegram_id is not None:
-            actor_staff = db.query(Staff).filter_by(telegram_id=actor_telegram_id, status="active").first()
         allowed_positions = {"администратор", "старший админ", "владелец", "тех. админ"}
-        actor_position = (actor_staff.position or "").strip().lower() if actor_staff else ""
+        actor_position = _resolve_actor_staff_role(db)
         if actor_position not in allowed_positions:
             return {"error": "Нет прав на изменение поля teaches"}, 403
         staff.teaches = normalize_teaches(data["teaches"])
@@ -1609,6 +1733,7 @@ def update_staff(staff_id):
     
     db.commit()
     
+    can_edit, edit_block_reason = _staff_editability_payload(db, staff)
     return {
         "id": staff.id,
         "name": staff.name,
@@ -1621,7 +1746,10 @@ def update_staff(staff_id):
         "photo_path": staff.photo_path,
         "teaches": staff.teaches,
         "status": staff.status,
-        "created_at": staff.created_at.isoformat()
+        "created_at": staff.created_at.isoformat(),
+        "can_edit": can_edit,
+        "can_delete": can_edit,
+        "edit_block_reason": edit_block_reason,
     }
 
 
@@ -1819,6 +1947,9 @@ def delete_staff(staff_id):
     
     if not staff:
         return {"error": "Сотрудник не найден"}, 404
+    edit_guard_error = _staff_edit_guard(db, staff)
+    if edit_guard_error:
+        return edit_guard_error
     
     staff_name = staff.name
     telegram_id = staff.telegram_id
@@ -1863,11 +1994,17 @@ def upload_staff_photo(staff_id):
     """
     Загружает фото сотрудника
     """
+    perm_error = require_permission("manage_staff", allow_self_staff_id=staff_id)
+    if perm_error:
+        return perm_error
     db = g.db
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
     if not staff:
         return {"error": "Сотрудник не найден"}, 404
+    edit_guard_error = _staff_edit_guard(db, staff)
+    if edit_guard_error:
+        return edit_guard_error
     
     if 'photo' not in request.files:
         return {"error": "Файл не предоставлен"}, 400
@@ -1920,11 +2057,17 @@ def delete_staff_photo(staff_id):
     """
     Удаляет фото сотрудника
     """
+    perm_error = require_permission("manage_staff", allow_self_staff_id=staff_id)
+    if perm_error:
+        return perm_error
     db = g.db
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
     if not staff:
         return {"error": "Сотрудник не найден"}, 404
+    edit_guard_error = _staff_edit_guard(db, staff)
+    if edit_guard_error:
+        return edit_guard_error
     
     if not staff.photo_path:
         return {"error": "Фото не найдено"}, 404
@@ -2166,6 +2309,7 @@ def list_all_staff():
             user = db.query(User).filter_by(telegram_id=s.telegram_id).first()
             if user:
                 username = user.username
+        can_edit, edit_block_reason = _staff_editability_payload(db, s)
         
         result.append({
             "id": s.id,
@@ -2179,7 +2323,10 @@ def list_all_staff():
             "photo": s.photo_path,
             "teaches": s.teaches,
             "status": s.status,
-            "bio": s.bio
+            "bio": s.bio,
+            "can_edit": can_edit,
+            "can_delete": can_edit,
+            "edit_block_reason": edit_block_reason,
         })
     
     return jsonify(result)
@@ -2895,7 +3042,7 @@ def get_upload_session_status(token):
 
 @bp.route("/api/directions", methods=["POST"])
 def create_direction():
-    """Создает направление после загрузки фото ботом"""
+    """Создает направление по сессии (с фото или без фото)"""
     perm_error = require_permission("create_direction")
     if perm_error:
         return perm_error
@@ -2915,7 +3062,8 @@ def create_direction():
 
     print(f"[create_direction] session found: status={session.status}, photo={session.image_path}")
 
-    if session.status != "photo_received":
+    allowed_statuses = {"waiting_for_photo", "photo_received"}
+    if session.status not in allowed_statuses:
         return {"error": f"Сессия не готова. Статус: {session.status}"}, 400
 
     direction_type = (data.get("direction_type") or session.direction_type or "dance").lower()
@@ -2927,7 +3075,7 @@ def create_direction():
         direction_type=direction_type,
         description=session.description,
         base_price=session.base_price,
-        image_path=session.image_path,
+        image_path=session.image_path if session.status == "photo_received" else None,
         is_popular=data.get("is_popular", 0),
         status="active"
     )
@@ -3724,6 +3872,44 @@ def admin_extend_group_abonement(abonement_id: int):
 
 # -------------------- DISCOUNTS --------------------
 
+def _serialize_user_discount(discount: UserDiscount) -> dict:
+    return {
+        "id": discount.id,
+        "discount_type": discount.discount_type,
+        "value": discount.value,
+        "is_one_time": bool(discount.is_one_time),
+        "is_active": bool(discount.is_active),
+        "usage_state": resolve_discount_usage_state(discount),
+        "consumed_at": discount.consumed_at.isoformat() if discount.consumed_at else None,
+        "consumed_booking_id": discount.consumed_booking_id,
+        "comment": discount.comment,
+        "created_at": discount.created_at.isoformat() if discount.created_at else None,
+    }
+
+
+def _validate_discount_payload(payload: dict) -> tuple[str, int, bool, str | None]:
+    discount_type = str(payload.get("discount_type") or "").strip().lower()
+    if discount_type not in {"percentage", "fixed"}:
+        raise ValueError("discount_type должен быть percentage или fixed")
+
+    raw_value = payload.get("value")
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        raise ValueError("value должен быть целым числом")
+
+    if discount_type == "percentage":
+        if value < 1 or value > 100:
+            raise ValueError("percentage value должен быть в диапазоне 1..100")
+    elif value < 1:
+        raise ValueError("fixed value должен быть >= 1")
+
+    is_one_time = bool(payload.get("is_one_time", True))
+    comment_raw = payload.get("comment")
+    comment = str(comment_raw).strip() if comment_raw is not None else None
+    return discount_type, value, is_one_time, (comment or None)
+
+
 @bp.route("/api/admin/users/<int:user_id>/discounts", methods=["GET"])
 def admin_get_user_discounts(user_id):
     perm_error = require_permission("manage_staff")
@@ -3731,17 +3917,7 @@ def admin_get_user_discounts(user_id):
         return perm_error
     db = g.db
     discounts = db.query(UserDiscount).filter_by(user_id=user_id).order_by(UserDiscount.created_at.desc()).all()
-    return jsonify([
-        {
-            "id": d.id,
-            "discount_type": d.discount_type,
-            "value": d.value,
-            "is_one_time": d.is_one_time,
-            "is_active": d.is_active,
-            "comment": d.comment,
-            "created_at": d.created_at.isoformat()
-        } for d in discounts
-    ])
+    return jsonify([_serialize_user_discount(d) for d in discounts])
 
 
 @bp.route("/api/admin/users/<int:user_id>/discounts", methods=["POST"])
@@ -3752,26 +3928,27 @@ def admin_add_user_discount(user_id):
     db = g.db
     data = request.json or {}
 
-    discount_type = data.get("discount_type")
-    value = data.get("value")
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        return {"error": "Пользователь не найден"}, 404
 
-    if discount_type not in ["percentage", "fixed"]:
-        return {"error": "discount_type должен быть percentage или fixed"}, 400
-    if not isinstance(value, int) or value <= 0:
-        return {"error": "value должен быть положительным числом"}, 400
+    try:
+        discount_type, value, is_one_time, comment = _validate_discount_payload(data)
+    except ValueError as exc:
+        return {"error": str(exc)}, 400
 
     discount = UserDiscount(
         user_id=user_id,
         discount_type=discount_type,
         value=value,
-        is_one_time=bool(data.get("is_one_time", True)),
+        is_one_time=is_one_time,
         is_active=True,
-        comment=data.get("comment")
+        comment=comment,
     )
     db.add(discount)
     db.commit()
 
-    return {"ok": True, "id": discount.id}, 201
+    return {"ok": True, "discount": _serialize_user_discount(discount)}, 201
 
 
 @bp.route("/api/admin/discounts/<int:discount_id>", methods=["DELETE"])
@@ -3781,10 +3958,8 @@ def admin_deactivate_discount(discount_id):
         return perm_error
     db = g.db
     discount = db.query(UserDiscount).filter_by(id=discount_id).first()
-    if not discount:
-        return {"error": "Скидка не найдена"}, 404
-
-    discount.is_active = False
+    if discount and discount.is_active:
+        discount.is_active = False
     db.commit()
     return {"ok": True}
 

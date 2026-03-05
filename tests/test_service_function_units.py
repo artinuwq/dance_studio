@@ -469,3 +469,33 @@ def test_payment_slot_selection_for_context():
         )
         == PAYMENT_PROFILE_PRIMARY_SLOT
     )
+
+
+def test_admin_discount_payload_validation_rules():
+    payload = {
+        "discount_type": "percentage",
+        "value": 15,
+        "is_one_time": True,
+        "comment": "promo",
+    }
+    assert admin_routes._validate_discount_payload(payload) == ("percentage", 15, True, "promo")
+
+    with pytest.raises(ValueError, match="1..100"):
+        admin_routes._validate_discount_payload({"discount_type": "percentage", "value": 101})
+
+    with pytest.raises(ValueError, match=">= 1"):
+        admin_routes._validate_discount_payload({"discount_type": "fixed", "value": 0})
+
+
+def test_staff_role_hierarchy_edit_rules():
+    assert admin_routes._can_edit_staff_by_roles("тех. админ", "владелец") is True
+    assert admin_routes._can_edit_staff_by_roles("владелец", "старший админ") is True
+    assert admin_routes._can_edit_staff_by_roles("старший админ", "владелец") is False
+    assert admin_routes._can_edit_staff_by_roles("владелец", "тех. админ") is False
+
+
+def test_staff_role_hierarchy_assignment_rules():
+    assert admin_routes._can_assign_staff_role_by_roles("тех. админ", "владелец") is True
+    assert admin_routes._can_assign_staff_role_by_roles("владелец", "старший админ") is True
+    assert admin_routes._can_assign_staff_role_by_roles("старший админ", "владелец") is False
+    assert admin_routes._can_assign_staff_role_by_roles("владелец", "тех. админ") is False

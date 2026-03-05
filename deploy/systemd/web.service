@@ -1,0 +1,19 @@
+[Unit]
+Description=Dance Studio Web
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=dance
+Group=dance
+WorkingDirectory=/opt/dance_studio
+Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH=/opt/dance_studio/src"
+EnvironmentFile=-/opt/dance_studio/.env
+ExecStart=/opt/dance_studio/.venv/bin/python /opt/dance_studio/scripts/run_web.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -3,7 +3,8 @@ from datetime import datetime
 
 from flask import Blueprint, g, jsonify, request
 
-from dance_studio.db.models import GroupAbonement, PaymentTransaction, UserDiscount
+from dance_studio.core.personal_discounts import DiscountConsumptionConflictError, consume_one_time_discount_for_booking
+from dance_studio.db.models import BookingRequest, GroupAbonement, PaymentTransaction
 from dance_studio.web.services.access import get_current_user_from_request, require_permission
 from dance_studio.web.services.payments import (
     PAYMENT_PROFILE_DEFAULT_TITLES,
@@ -126,24 +127,29 @@ def pay_transaction(payment_id):
     if payment.status == "paid":
         return {"status": "already_paid"}
 
-    payment.status = "paid"
-    payment.paid_at = datetime.now()
-
-    db.query(UserDiscount).filter(
-        UserDiscount.user_id == user.id,
-        UserDiscount.is_active.is_(True),
-        UserDiscount.is_one_time.is_(True),
-    ).update({"is_active": False}, synchronize_session=False)
-
+    booking = None
     abonement = None
     if payment.meta:
         try:
             meta = json.loads(payment.meta)
-            abonement_id = meta.get("abonement_id")
-            if abonement_id:
-                abonement = db.query(GroupAbonement).filter_by(id=abonement_id, user_id=user.id).first()
         except Exception:
-            abonement = None
+            meta = {}
+        booking_id = meta.get("booking_id")
+        if booking_id:
+            booking = db.query(BookingRequest).filter_by(id=booking_id, user_id=user.id).first()
+        abonement_id = meta.get("abonement_id")
+        if abonement_id:
+            abonement = db.query(GroupAbonement).filter_by(id=abonement_id, user_id=user.id).first()
+
+    if booking:
+        try:
+            consume_one_time_discount_for_booking(db, booking=booking)
+        except DiscountConsumptionConflictError:
+            db.rollback()
+            return {"error": "One-time discount is already consumed for another booking."}, 409
+
+    payment.status = "paid"
+    payment.paid_at = datetime.now()
 
     if not abonement:
         abonement = (

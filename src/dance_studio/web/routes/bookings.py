@@ -12,7 +12,9 @@ from dance_studio.core.abonement_pricing import (
     serialize_group_booking_quote,
 )
 from dance_studio.core.booking_utils import BOOKING_STATUS_LABELS, BOOKING_TYPE_LABELS
+from dance_studio.core.booking_amounts import compute_non_group_booking_base_amount
 from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID
+from dance_studio.core.personal_discounts import apply_best_discount_for_user
 from dance_studio.core.permissions import has_permission
 from dance_studio.db.models import (
     BookingRequest,
@@ -295,6 +297,9 @@ def list_booking_requests():
             "user_name": booking.user_name,
             "comment": booking.comment,
             "lessons_count": booking.lessons_count,
+            "amount_before_discount": booking.amount_before_discount,
+            "applied_discount_amount": booking.applied_discount_amount,
+            "applied_discount_id": booking.applied_discount_id,
             "requested_amount": booking.requested_amount,
             "requested_currency": booking.requested_currency,
             "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
@@ -362,6 +367,9 @@ def list_my_booking_requests():
                 "bundle_group_names": bundle_group_names,
                 "abonement_type": booking.abonement_type,
                 "lessons_count": booking.lessons_count,
+                "amount_before_discount": booking.amount_before_discount,
+                "applied_discount_amount": booking.applied_discount_amount,
+                "applied_discount_id": booking.applied_discount_id,
                 "requested_amount": booking.requested_amount,
                 "requested_currency": booking.requested_currency,
                 "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
@@ -410,12 +418,16 @@ def create_booking_request():
     lessons_count_val = None
     group_start_date_val = None
     valid_until_val = None
+    amount_before_discount_val = None
+    applied_discount_id_val = None
+    applied_discount_amount_val = None
     requested_amount_val = None
     requested_currency_val = None
     abonement_type_val = None
     bundle_group_ids_json_val = None
     quote_payload = None
     overlaps: list[dict] = []
+    duration_minutes_val = None
 
     if object_type != "group":
         if not date_str or not time_from_str or not time_to_str:
@@ -433,6 +445,24 @@ def create_booking_request():
             return {"error": "time_from must be earlier than time_to"}, 400
         if interval_overlaps_service_break(time_from_val, time_to_val):
             return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
+
+        duration_minutes_val = _compute_duration_minutes(time_from_val, time_to_val)
+        base_amount = compute_non_group_booking_base_amount(
+            db,
+            object_type=object_type,
+            duration_minutes=duration_minutes_val,
+        )
+        if base_amount is not None:
+            discount_application = apply_best_discount_for_user(
+                db,
+                user_id=user.id,
+                base_amount=base_amount,
+            )
+            amount_before_discount_val = discount_application.amount_before_discount
+            applied_discount_amount_val = discount_application.discount_amount
+            applied_discount_id_val = discount_application.discount_id
+            requested_amount_val = discount_application.final_amount
+            requested_currency_val = "RUB"
 
         overlaps = _find_booking_overlaps(db, date_val, time_from_val, time_to_val)
         status = "NEW"
@@ -454,6 +484,9 @@ def create_booking_request():
         lessons_count_val = quote.total_lessons
         group_start_date_val = quote.valid_from.date()
         valid_until_val = quote.valid_to.date()
+        amount_before_discount_val = quote.amount_before_discount
+        applied_discount_amount_val = quote.discount_amount
+        applied_discount_id_val = quote.applied_discount.get("discount_id") if quote.applied_discount else None
         requested_amount_val = quote.amount
         requested_currency_val = quote.currency
         abonement_type_val = quote.abonement_type
@@ -469,7 +502,7 @@ def create_booking_request():
         date=date_val,
         time_from=time_from_val,
         time_to=time_to_val,
-        duration_minutes=_compute_duration_minutes(time_from_val, time_to_val),
+        duration_minutes=duration_minutes_val if duration_minutes_val is not None else _compute_duration_minutes(time_from_val, time_to_val),
         comment=comment,
         overlaps_json=json.dumps(overlaps, ensure_ascii=False),
         status=status,
@@ -478,6 +511,9 @@ def create_booking_request():
         abonement_type=abonement_type_val,
         bundle_group_ids_json=bundle_group_ids_json_val,
         lessons_count=lessons_count_val,
+        amount_before_discount=amount_before_discount_val,
+        applied_discount_id=applied_discount_id_val,
+        applied_discount_amount=applied_discount_amount_val,
         requested_amount=requested_amount_val,
         requested_currency=requested_currency_val,
         group_start_date=group_start_date_val,
@@ -560,6 +596,11 @@ def create_booking_request():
         "id": booking.id,
         "status": booking.status,
         "overlaps": overlaps,
+        "requested_amount": booking.requested_amount,
+        "requested_currency": booking.requested_currency,
+        "amount_before_discount": booking.amount_before_discount,
+        "applied_discount_amount": booking.applied_discount_amount,
+        "applied_discount_id": booking.applied_discount_id,
     }
     if object_type == "group":
         response_payload.update(
@@ -568,8 +609,6 @@ def create_booking_request():
                 "abonement_type": booking.abonement_type,
                 "bundle_group_ids": parse_booking_bundle_group_ids(booking),
                 "lessons_count": booking.lessons_count,
-                "requested_amount": booking.requested_amount,
-                "requested_currency": booking.requested_currency,
                 "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
                 "valid_until": booking.valid_until.isoformat() if booking.valid_until else None,
                 "quote": quote_payload,
@@ -636,6 +675,27 @@ def create_teacher_individual_booking_request():
     overlaps = _find_booking_overlaps(db, date_val, time_from_val, time_to_val)
     status = "NEW"
     duration_minutes = _compute_duration_minutes(time_from_val, time_to_val)
+    requested_amount_val = None
+    requested_currency_val = None
+    amount_before_discount_val = None
+    applied_discount_id_val = None
+    applied_discount_amount_val = None
+    base_amount = compute_non_group_booking_base_amount(
+        db,
+        object_type="individual",
+        duration_minutes=duration_minutes,
+    )
+    if base_amount is not None:
+        discount_application = apply_best_discount_for_user(
+            db,
+            user_id=student.id,
+            base_amount=base_amount,
+        )
+        amount_before_discount_val = discount_application.amount_before_discount
+        applied_discount_amount_val = discount_application.discount_amount
+        applied_discount_id_val = discount_application.discount_id
+        requested_amount_val = discount_application.final_amount
+        requested_currency_val = "RUB"
 
     booking = BookingRequest(
         user_id=student.id,
@@ -651,6 +711,11 @@ def create_teacher_individual_booking_request():
         overlaps_json=json.dumps(overlaps, ensure_ascii=False),
         status=status,
         teacher_id=staff.id,
+        amount_before_discount=amount_before_discount_val,
+        applied_discount_id=applied_discount_id_val,
+        applied_discount_amount=applied_discount_amount_val,
+        requested_amount=requested_amount_val,
+        requested_currency=requested_currency_val,
     )
     db.add(booking)
     db.flush()
@@ -692,6 +757,11 @@ def create_teacher_individual_booking_request():
         "id": booking.id,
         "status": booking.status,
         "overlaps": overlaps,
+        "requested_amount": booking.requested_amount,
+        "requested_currency": booking.requested_currency,
+        "amount_before_discount": booking.amount_before_discount,
+        "applied_discount_amount": booking.applied_discount_amount,
+        "applied_discount_id": booking.applied_discount_id,
         "lesson_id": individual_lesson.id,
         "schedule_id": lesson_schedule.id,
     }, 201
@@ -872,6 +942,9 @@ def create_group_abonement():
         abonement_type=quote.abonement_type,
         bundle_group_ids_json=json.dumps(quote.bundle_group_ids, ensure_ascii=False),
         lessons_count=quote.total_lessons,
+        amount_before_discount=quote.amount_before_discount,
+        applied_discount_id=quote.applied_discount.get("discount_id") if quote.applied_discount else None,
+        applied_discount_amount=quote.discount_amount,
         requested_amount=quote.amount,
         requested_currency=quote.currency,
         group_start_date=quote.valid_from.date(),
@@ -893,6 +966,9 @@ def create_group_abonement():
                 "status": booking.status,
                 "abonement_type": booking.abonement_type,
                 "bundle_group_ids": parse_booking_bundle_group_ids(booking),
+                "amount_before_discount": booking.amount_before_discount,
+                "applied_discount_amount": booking.applied_discount_amount,
+                "applied_discount_id": booking.applied_discount_id,
                 "amount": booking.requested_amount,
                 "currency": booking.requested_currency or "RUB",
                 "valid_from": quote.valid_from.isoformat(),

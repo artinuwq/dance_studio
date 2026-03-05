@@ -93,6 +93,15 @@ SETTING_SPECS: dict[str, SettingSpec] = {
         description="If true, rentals should be approved by admin workflow.",
         is_public=False,
     ),
+    "individual.base_hour_price_rub": SettingSpec(
+        key="individual.base_hour_price_rub",
+        value_type="int",
+        default=2500,
+        description="Base individual lesson price per hour in RUB.",
+        is_public=False,
+        min_value=0,
+        max_value=1_000_000,
+    ),
     "abonements.single_visit_price_rub": SettingSpec(
         key="abonements.single_visit_price_rub",
         value_type="int",

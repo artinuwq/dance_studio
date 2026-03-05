@@ -5,8 +5,9 @@ from typing import Any
 
 from sqlalchemy import or_
 
+from dance_studio.core.personal_discounts import apply_best_discount_for_user, serialize_applied_discount
 from dance_studio.core.system_settings_service import get_setting_value
-from dance_studio.db.models import BookingRequest, Direction, Group, GroupAbonement, Schedule, UserDiscount
+from dance_studio.db.models import BookingRequest, Direction, Group, GroupAbonement, Schedule
 
 
 ABONEMENT_TYPE_SINGLE = "single"
@@ -60,6 +61,9 @@ class GroupBookingQuote:
     direction_type: str
     lessons_per_group: int
     total_lessons: int
+    amount_before_discount: int
+    discount_amount: int
+    applied_discount: dict[str, Any] | None
     amount: int
     currency: str
     valid_from: datetime
@@ -338,21 +342,17 @@ def quote_group_booking(
                     f"Multi bundle price is not configured for {direction_type}/{bundle_size}/{lessons_per_group}."
                 )
 
-    if user_id:
-        active_discounts = (
-            db.query(UserDiscount)
-            .filter(UserDiscount.user_id == user_id, UserDiscount.is_active.is_(True))
-            .all()
-        )
-        if active_discounts:
-            best_discount_amt = 0
-            for d in active_discounts:
-                val = int(amount * (d.value / 100)) if d.discount_type == "percentage" else d.value
-                if val > best_discount_amt:
-                    best_discount_amt = val
-            amount = max(0, amount - best_discount_amt)
+    discount_application = apply_best_discount_for_user(
+        db,
+        user_id=int(user_id) if user_id else None,
+        base_amount=amount,
+    )
+    amount_before_discount = discount_application.amount_before_discount
+    amount = discount_application.final_amount
+    discount_amount = discount_application.discount_amount
+    applied_discount = serialize_applied_discount(discount_application)
 
-    if amount < 0:
+    if amount < 0 or amount_before_discount < 0:
         raise AbonementPricingError("Calculated amount must be >= 0.")
 
     next_group_date = get_next_group_date(db, main_group_id)
@@ -371,6 +371,9 @@ def quote_group_booking(
         direction_type=direction_type,
         lessons_per_group=lessons_per_group,
         total_lessons=total_lessons,
+        amount_before_discount=amount_before_discount,
+        discount_amount=discount_amount,
+        applied_discount=applied_discount,
         amount=amount,
         currency="RUB",
         valid_from=valid_from,
@@ -388,6 +391,9 @@ def serialize_group_booking_quote(quote: GroupBookingQuote) -> dict[str, Any]:
         "direction_type": quote.direction_type,
         "lessons_per_group": quote.lessons_per_group,
         "total_lessons": quote.total_lessons,
+        "amount_before_discount": quote.amount_before_discount,
+        "discount_amount": quote.discount_amount,
+        "applied_discount": quote.applied_discount,
         "amount": quote.amount,
         "currency": quote.currency,
         "valid_from": quote.valid_from.isoformat() if quote.valid_from else None,

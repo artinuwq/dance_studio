@@ -1,13 +1,16 @@
 import pytest
+from datetime import datetime
 
 from dance_studio.core.abonement_pricing import (
     AbonementPricingError,
+    GroupBookingQuote,
     _normalize_abonement_type,
     _normalize_direction_type,
     _normalize_multi_lessons_per_group,
     _resolve_multi_lessons_per_group,
     _resolve_multi_single_amount_with_fallback,
     normalize_bundle_group_ids,
+    serialize_group_booking_quote,
 )
 
 
@@ -78,3 +81,34 @@ def test_bundle_default_matrix_contains_expected_tariffs():
     assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["3"]["4"] == 8400
     assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["3"]["8"] == 16800
     assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["3"]["12"] == 25200
+
+
+def test_serialize_group_booking_quote_contains_discount_snapshot_fields():
+    quote = GroupBookingQuote(
+        group_id=10,
+        abonement_type="multi",
+        bundle_group_ids=[10, 11],
+        bundle_size=2,
+        direction_type="dance",
+        lessons_per_group=4,
+        total_lessons=8,
+        amount_before_discount=6400,
+        discount_amount=400,
+        applied_discount={
+            "discount_id": 3,
+            "discount_type": "fixed",
+            "discount_value": 400,
+            "is_one_time": True,
+            "discount_amount": 400,
+        },
+        amount=6000,
+        currency="RUB",
+        valid_from=datetime(2026, 3, 5, 0, 0, 0),
+        valid_to=datetime(2026, 4, 2, 23, 59, 59),
+        requires_payment=True,
+    )
+    payload = serialize_group_booking_quote(quote)
+    assert payload["amount_before_discount"] == 6400
+    assert payload["discount_amount"] == 400
+    assert payload["applied_discount"]["discount_id"] == 3
+    assert payload["amount"] == 6000
