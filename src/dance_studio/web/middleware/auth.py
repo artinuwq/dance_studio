@@ -14,9 +14,11 @@ from dance_studio.core.tg_replay import store_used_init_data
 from dance_studio.db import get_session
 from dance_studio.db.models import SessionRecord
 from dance_studio.web.services.auth_session import (
+    CSRF_COOKIE_NAME,
     CSRF_EXEMPT_PATHS,
     CSRF_EXEMPT_PREFIXES,
     STATE_CHANGING_METHODS,
+    _clear_csrf_cookie,
     _clear_sid_cookie,
     _create_session,
     _enforce_session_limit,
@@ -24,6 +26,7 @@ from dance_studio.web.services.auth_session import (
     _extract_ip_prefix,
     _is_csrf_valid,
     _is_sensitive_endpoint,
+    _set_csrf_cookie,
     _set_sid_cookie,
     _sid_hash,
 )
@@ -134,9 +137,17 @@ def teardown_request(exception):
 def refresh_sid_cookie(response):
     if getattr(g, "clear_sid_cookie", False):
         _clear_sid_cookie(response)
+        _clear_csrf_cookie(response)
     rotate_sid = getattr(g, "rotate_sid", None)
     if rotate_sid:
         _set_sid_cookie(response, rotate_sid)
+        _set_csrf_cookie(response)
+        return response
+
+    sid_cookie = request.cookies.get("sid", "")
+    csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME, "")
+    if sid_cookie and not csrf_cookie:
+        _set_csrf_cookie(response)
     return response
 
 

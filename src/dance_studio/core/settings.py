@@ -59,8 +59,13 @@ _load_dotenv(_ROOT / '.env')
 
 BOT_TOKEN = os.getenv('BOT_TOKEN', '')
 WEB_APP_URL = os.getenv('WEB_APP_URL', '')
+API_INTERNAL_BASE_URL = os.getenv('API_INTERNAL_BASE_URL', 'http://127.0.0.1:3000').strip().rstrip('/')
 
 DATABASE_URL = os.getenv('DATABASE_URL')
+DATABASE_POOL_SIZE = max(1, _parse_int(os.getenv('DATABASE_POOL_SIZE', '3'), 3) or 3)
+DATABASE_MAX_OVERFLOW = max(0, _parse_int(os.getenv('DATABASE_MAX_OVERFLOW', '2'), 2) or 2)
+DATABASE_POOL_TIMEOUT_SECONDS = max(1, _parse_int(os.getenv('DATABASE_POOL_TIMEOUT_SECONDS', '30'), 30) or 30)
+DATABASE_POOL_RECYCLE_SECONDS = max(30, _parse_int(os.getenv('DATABASE_POOL_RECYCLE_SECONDS', '1800'), 1800) or 1800)
 ENV = os.getenv('ENV', 'dev').strip().lower()
 
 _migrate_default = '1' if ENV == 'dev' else '0'
@@ -94,4 +99,3 @@ TECH_STATUS_MESSAGE_ID = _parse_int(os.getenv('TECH_STATUS_MESSAGE_ID', ''), Non
 TECH_ABONEMENTS_TOPIC_ID = _parse_int(os.getenv('TECH_ABONEMENTS_TOPIC_ID', ''), None)
 TECH_NOTIFICATIONS_TOPIC_ID = _parse_int(os.getenv('TECH_NOTIFICATIONS_TOPIC_ID', ''), None)
 BOOKINGS_ADMIN_CHAT_ID = _parse_int(os.getenv('BOOKINGS_ADMIN_CHAT_ID', ''), None)
-BOOKING_ADMIN_TOPIC_ID = _parse_int(os.getenv('BOOKING_ADMIN_TOPIC_ID', ''), None)

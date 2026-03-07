@@ -344,7 +344,7 @@ def test_schedule_route_send_group_chat_message_success_and_error(monkeypatch):
     monkeypatch.setattr(admin_routes.requests, "post", _post_fail)
     ok_fail, err_fail = admin_routes._send_group_chat_message(987654321, "hello")
     assert ok_fail is False
-    assert err_fail == "TG_ERROR"
+    assert err_fail == "telegram_send_failed"
 
 
 def test_schedule_route_group_conflict_helper_detects_overlap():

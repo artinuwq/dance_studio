@@ -99,6 +99,10 @@ body.tg-mobile .header-back {
   padding-top: calc(56px + var(--safe-top));
 }
 
+#schedule {
+  padding-top: calc(56px + var(--safe-top));
+}
+
 /* Минимальная высота для страниц */
 #staff {
   min-height: calc(100vh - 100px);
@@ -309,6 +313,8 @@ body.tg-mobile .header-back {
 .schedule-nav .nav-btn-mini:focus-visible,
 #personal-schedule-refresh-capsule:focus,
 #personal-schedule-refresh-capsule:focus-visible,
+#public-schedule-refresh-capsule:focus,
+#public-schedule-refresh-capsule:focus-visible,
 #personal-individual-toggle-btn:focus,
 #personal-individual-toggle-btn:focus-visible {
   outline: none;
@@ -1562,6 +1568,7 @@ textarea.form-input {
 }
 
 .schedule-grid {
+  --schedule-cell-size: 42px;
   display: grid;
   grid-template-columns: 64px repeat(7, 1fr);
   border: 1px solid var(--border);
@@ -1581,12 +1588,14 @@ textarea.form-input {
 .schedule-cell {
   border-bottom: 1px solid var(--border);
   border-right: 1px solid var(--border);
-  min-height: 24px;
+  min-height: var(--schedule-cell-size);
+  height: var(--schedule-cell-size);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 11px;
   padding: 2px 4px;
+  overflow: hidden;
 }
 
 /* Убираем горизонтальные линии сетки внутри склеенных слотов */
@@ -1631,13 +1640,15 @@ textarea.form-input {
 .schedule-slot {
   background: var(--card);
   cursor: pointer;
-  min-height: 42px;
+  min-height: var(--schedule-cell-size);
+  height: var(--schedule-cell-size);
   border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
   transition: all 0.15s ease;
+  overflow: hidden;
 }
 
 /* Визуальное объединение многослойных слотов одной заявки */
@@ -1709,6 +1720,58 @@ textarea.form-input {
 }
 
 /* Схлопываем части одной заявки в единую колонку */
+.schedule-grid.day .schedule-slot-picker-enabled {
+  touch-action: manipulation;
+}
+
+.schedule-slot-picker-enabled {
+  background: rgba(255, 255, 255, 0.04);
+  cursor: ns-resize;
+}
+
+.schedule-slot-picker-enabled:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.schedule-slot-picker-blocked {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.schedule-slot-picker-selected {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.75) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.75) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.schedule-slot-picker-pending {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 2px solid rgba(255, 255, 255, 0.8) !important;
+  border-radius: 10px !important;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.12) !important;
+  transform: none !important;
+}
+
+.schedule-slot-picker-start {
+  border-top: 2px solid rgba(255, 255, 255, 0.85) !important;
+  border-top-left-radius: 10px !important;
+  border-top-right-radius: 10px !important;
+}
+
+.schedule-slot-picker-middle,
+.schedule-slot-picker-end {
+  margin-top: -2px;
+}
+
+.schedule-slot-picker-end {
+  border-bottom: 2px solid rgba(255, 255, 255, 0.85) !important;
+  border-bottom-left-radius: 10px !important;
+  border-bottom-right-radius: 10px !important;
+}
+
 .schedule-cell.slot-grouped {
   border-top: 0;
   border-bottom: 0;
@@ -1742,9 +1805,21 @@ textarea.form-input {
 }
 
 .schedule-event {
-  font-size: 11px;
+  width: 100%;
+  max-width: 100%;
+  font-size: clamp(8px, 1.8vw, 11px);
+  line-height: 1.1;
   font-weight: 600;
   text-align: center;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  padding: 0 2px;
 }
 
 .schedule-form {
@@ -1829,7 +1904,7 @@ textarea.form-input {
   border: 1px solid rgba(255, 255, 255, 0.16);
   color: #fff;
   padding: 8px 12px;
-  border-radius: 12px;
+  border-radius: 16px;
   font-size: 13px;
   font-weight: 600;
   backdrop-filter: blur(8px);
@@ -1856,15 +1931,25 @@ textarea.form-input {
   background: rgba(0, 0, 0, 0.35);
   display: none;
   z-index: 1001;
+  transition: background 0.34s ease, opacity 0.28s ease;
 }
 
 .group-schedule-overlay.show {
   display: block;
 }
 
+.group-schedule-overlay.picker-mode {
+  background: transparent;
+  pointer-events: none;
+}
+
 .group-schedule-modal {
+  --group-picker-height: 220px;
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: var(--bg);
   color: var(--text);
   border-radius: 0;
@@ -1872,21 +1957,56 @@ textarea.form-input {
   padding: 0;
   display: none;
   z-index: 1002;
-  overflow-y: auto;
+  overflow: hidden;
+  transform: translateY(0);
+  will-change: top, border-radius, box-shadow, background, transform;
+  transition: top 0.42s cubic-bezier(0.22, 1, 0.36, 1), border-radius 0.34s ease, box-shadow 0.34s ease, background 0.34s ease, transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .group-schedule-modal.show {
   display: block;
 }
 
+.group-schedule-modal.picker-mode {
+  top: max(72px, calc(100dvh - var(--group-picker-height)));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--card);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -18px 32px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
+  transform: translateY(0);
+}
+
 .group-schedule-shell {
-  min-height: 100vh;
+  height: 100%;
+  min-height: 100%;
   max-width: 860px;
+  width: 100%;
   margin: 0 auto;
   padding: calc(var(--safe-top) + 10px) 16px calc(var(--safe-bottom) + 14px);
   display: flex;
   flex-direction: column;
   gap: 12px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  transition: min-height 0.28s ease, padding 0.28s ease, gap 0.28s ease;
+}
+
+.group-schedule-shell > * {
+  flex-shrink: 0;
+}
+
+.group-schedule-modal:not(.picker-mode) .group-schedule-shell {
+  padding-bottom: calc(var(--safe-bottom) + 14px);
+}
+
+.group-schedule-modal.picker-mode .group-schedule-shell {
+  height: auto;
+  min-height: 0;
+  padding: 14px 16px calc(var(--safe-bottom) + 6px);
+  gap: 10px;
 }
 
 .group-schedule-header {
@@ -1900,12 +2020,14 @@ textarea.form-input {
   margin: 0;
   font-size: 22px;
   line-height: 1.1;
+  visibility: hidden;
 }
 
 .group-schedule-subtitle {
   margin-top: 3px;
   color: var(--hint);
   font-size: 13px;
+  visibility: hidden;
 }
 
 .group-close-btn {
@@ -1918,6 +2040,7 @@ textarea.form-input {
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.28s ease;
 }
 
 .group-section {
@@ -1925,6 +2048,11 @@ textarea.form-input {
   border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--card);
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 1200px;
+  overflow: hidden;
+  transition: opacity 0.2s ease, transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), max-height 0.34s cubic-bezier(0.22, 1, 0.36, 1), padding 0.3s ease, border-width 0.24s ease, margin 0.3s ease;
 }
 
 .group-section-head {
@@ -2060,6 +2188,16 @@ textarea.form-input {
   display: flex;
   gap: 8px;
   background: linear-gradient(to top, var(--bg) 70%, rgba(0, 0, 0, 0));
+  transition: opacity 0.2s ease, transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), max-height 0.34s cubic-bezier(0.22, 1, 0.36, 1), padding 0.3s ease, margin 0.3s ease;
+}
+
+.group-form-actions {
+  position: static;
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px 0 0;
+  background: transparent;
+  border-top: 0;
 }
 
 @media (max-width: 560px) {
@@ -2144,6 +2282,115 @@ textarea.form-input {
   line-height: 1;
   padding: 0;
   cursor: pointer;
+}
+
+.group-schedule-picker-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  transform: translateY(-18px);
+  max-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+  transition: opacity 0.22s ease, transform 0.42s cubic-bezier(0.22, 1, 0.36, 1), max-height 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.group-schedule-modal.picker-mode .group-schedule-picker-panel {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 240px;
+  pointer-events: auto;
+  transition-delay: 0.06s;
+}
+
+.group-schedule-modal.picker-mode .group-schedule-picker-panel .group-modal-actions {
+  margin-top: -2px;
+  padding-top: 4px;
+  bottom: 0;
+}
+
+.group-schedule-modal.picker-mode .group-section,
+.group-schedule-modal.picker-mode .group-form-actions {
+  opacity: 0;
+  transform: translateY(-20px);
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  pointer-events: none;
+}
+
+.group-schedule-modal.picker-mode .group-close-btn {
+  opacity: 0;
+  transform: translateY(-10px) scale(0.92);
+  pointer-events: none;
+}
+
+.group-picker-trigger {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.group-schedule-picker-card {
+  background: rgba(254, 88, 21, 0.08);
+  border: 1px solid rgba(254, 88, 21, 0.18);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.group-schedule-picker-inline {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.group-schedule-picker-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.group-schedule-picker-pill strong {
+  display: inline-block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+.group-schedule-picker-icon {
+  line-height: 1;
+}
+
+@media (max-width: 420px) {
+  .group-schedule-picker-inline {
+    gap: 8px;
+    font-size: 13px;
+  }
+
+  .group-schedule-picker-pill {
+    gap: 4px;
+  }
+}
+
+.group-schedule-picker-note {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.group-schedule-picker-note:empty {
+  display: none;
+}
+
+.group-schedule-picker-note.ok {
+  color: #2e7d32;
 }
 
 .schedule-detail-close-btn:hover {
@@ -2523,6 +2770,13 @@ textarea.form-input {
   gap: 12px;
   margin-bottom: 12px;
 }
+.public-schedule-switches {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 6px 0 8px;
+}
 .public-type-tabs {
   display: flex;
   gap: 8px;
@@ -2552,6 +2806,29 @@ textarea.form-input {
   margin: 8px 0 4px;
 }
 
+.public-schedule-switches .public-type-tabs,
+.public-schedule-switches .public-view-tabs {
+  margin: 0;
+  flex-wrap: nowrap;
+}
+
+.public-schedule-switches .public-view-tabs {
+  margin-left: auto;
+}
+
+@media (max-width: 360px) {
+  .public-schedule-switches {
+    gap: 8px;
+  }
+
+  .public-schedule-switches .public-type-tab,
+  .public-schedule-switches .public-view-tab {
+    padding: 6px 8px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+}
+
 .public-view-tab {
   padding: 8px 12px;
   border-radius: 12px;
@@ -2564,9 +2841,10 @@ textarea.form-input {
 }
 
 .public-view-tab.active {
-  background: #111;
-  color: #fff;
-  border-color: #111;
+  background: var(--accent);
+  color: #111;
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
 }
 
 .public-schedule-title {
@@ -2722,7 +3000,7 @@ textarea.form-input {
   gap: 8px;
 }
 
-#personal-calendar-nav .public-calendar-nav-label {
+.public-calendar-nav .public-calendar-nav-label {
   flex: 1;
   margin: 0;
   text-align: center;
@@ -3274,6 +3552,14 @@ textarea.form-input {
 }
 
 .group-booking-capsule.hidden {
+  display: none;
+}
+
+.group-schedule-capsule {
+  z-index: 2201;
+}
+
+.group-schedule-capsule.hidden {
   display: none;
 }
 
@@ -3921,18 +4207,16 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== РАСПИСАНИЕ ====== -->
-<div class="page" data-title="🗓 Расписание" id="schedule">
-  <div class="public-schedule-header">
-    <div class="public-schedule-title"><span>☆</span>Расписание</div>
-    <button type="button" class="public-schedule-action" onclick="loadPublicSchedule(true)">Обновить</button>
-  </div>
-  <div class="public-type-tabs">
-    <div class="public-type-tab active" data-type="all" onclick="setPublicScheduleType('all')">Все</div>
-    <div class="public-type-tab" data-type="mine" onclick="setPublicScheduleType('mine')">Мое</div>
-  </div>
-  <div class="public-view-tabs">
-    <div class="public-view-tab active" data-view="list" onclick="setPublicScheduleView('list')">Список</div>
-    <div class="public-view-tab" data-view="calendar" onclick="setPublicScheduleView('calendar')">Календарь</div>
+<div class="page" id="schedule">
+  <div class="public-schedule-switches">
+    <div class="public-type-tabs">
+      <div class="public-type-tab active" data-type="all" onclick="setPublicScheduleType('all')">Все</div>
+      <div class="public-type-tab" data-type="mine" onclick="setPublicScheduleType('mine')">Мое</div>
+    </div>
+    <div class="public-view-tabs">
+      <div class="public-view-tab active" data-view="list" onclick="setPublicScheduleView('list')">Список</div>
+      <div class="public-view-tab" data-view="calendar" onclick="setPublicScheduleView('calendar')">Календарь</div>
+    </div>
   </div>
   <div class="public-schedule-month" id="public-schedule-month">—</div>
   <div class="public-week-nav" id="public-week-nav">
@@ -3942,6 +4226,7 @@ textarea.form-input {
   </div>
   <div class="public-calendar-nav" id="public-calendar-nav">
     <button type="button" onclick="shiftPublicScheduleMonth(-1)">‹</button>
+    <div class="public-schedule-month public-calendar-nav-label" id="public-calendar-nav-label">—</div>
     <button type="button" onclick="shiftPublicScheduleMonth(1)">›</button>
   </div>
   <div class="public-schedule-strip" id="public-schedule-strip"></div>
@@ -4176,10 +4461,24 @@ textarea.form-input {
   <div class="group-schedule-shell">
     <div class="group-schedule-header">
       <div>
-        <h3 class="group-schedule-title">Групповое занятие</h3>
-        <div class="group-schedule-subtitle">Создание</div>
+        <h3 class="group-schedule-title" id="group-schedule-title-text">Групповое занятие</h3>
+        <div class="group-schedule-subtitle" id="group-schedule-subtitle-text">Создание</div>
       </div>
-      <button class="group-close-btn" onclick="toggleGroupScheduleForm(false)" aria-label="Закрыть">✕</button>
+      <button class="group-close-btn" onclick="handleGroupScheduleCloseAction()" aria-label="Закрыть">✕</button>
+    </div>
+
+    <div class="group-schedule-picker-panel" id="group-schedule-picker-panel">
+      <div class="group-schedule-picker-card">
+        <div class="group-schedule-picker-inline">
+          <span class="group-schedule-picker-pill"><span class="group-schedule-picker-icon">📅</span><strong id="group-schedule-picker-date">—</strong></span>
+          <span class="group-schedule-picker-pill"><span class="group-schedule-picker-icon">🕒</span><strong id="group-schedule-picker-time">—</strong></span>
+        </div>
+      </div>
+      <div class="group-schedule-picker-note" id="group-schedule-picker-note"></div>
+      <div class="group-modal-actions">
+        <button class="save-btn" id="group-schedule-picker-confirm" type="button" style="flex: 1;" onclick="confirmGroupSchedulePicker()" disabled>Подтвердить</button>
+        <button class="save-btn" type="button" style="flex: 1; background: #777;" onclick="closeGroupSchedulePicker()">Отмена</button>
+      </div>
     </div>
 
     <div class="group-section">
@@ -4219,6 +4518,7 @@ textarea.form-input {
           <div class="inline-error" id="group-schedule-time-to-error"></div>
         </div>
       </div>
+      <button class="save-btn group-picker-trigger" type="button" onclick="openGroupSchedulePicker()">Выбрать в расписании</button>
     </div>
 
     <div class="group-section">
@@ -4227,8 +4527,8 @@ textarea.form-input {
         <div class="repeat-row">
           <span style="font-size: 12px; font-weight: 600;">Повторять</span>
           <select class="form-input" id="repeat-mode" style="flex: 1;">
-            <option value="none">Не повторять</option>
-            <option value="weekly" selected>По неделям</option>
+            <option value="none" selected>Не повторять</option>
+            <option value="weekly">По неделям</option>
             <option value="daily">По дням</option>
             <option value="monthly">По месяцам</option>
           </select>
@@ -4270,11 +4570,11 @@ textarea.form-input {
       <div class="repeat-summary" id="repeat-summary">Без повторения</div>
     </div>
 
-    <div class="group-modal-actions">
-      <button class="save-btn" style="flex: 1;" onclick="createGroupSchedule()">Создать</button>
-      <button class="save-btn" style="flex: 1; background: #777;" onclick="toggleGroupScheduleForm(false)">Отмена</button>
-    </div>
+  <div class="group-modal-actions group-form-actions">
+    <button class="save-btn" style="flex: 1;" onclick="createGroupSchedule()">Создать</button>
+    <button class="save-btn" style="flex: 1; background: #777;" onclick="toggleGroupScheduleForm(false)">Отмена</button>
   </div>
+</div>
 </div>
 </div>
 </div>
@@ -5417,6 +5717,8 @@ textarea.form-input {
 <div class="nav-btn" onclick="showPage('profile')">👤<br/>Профиль</div>
 </div>
 <div id="group-booking-capsule" class="action-title-popup group-booking-capsule hidden"></div>
+<div id="group-schedule-capsule" class="action-title-popup group-schedule-capsule hidden"></div>
+<div id="public-schedule-refresh-capsule" class="action-title-popup personal-schedule-refresh-capsule hidden" onclick="handlePublicScheduleRefreshCapsuleClick()"></div>
 <div id="personal-schedule-refresh-capsule" class="action-title-popup personal-schedule-refresh-capsule hidden" onclick="handlePersonalScheduleRefreshCapsuleClick()"></div>
 <div id="group-booking-overlay" class="group-booking-overlay">
   <div class="group-booking-backdrop" onclick="closeGroupBookingForm()"></div>
@@ -5477,9 +5779,14 @@ if (tg && typeof tg.ready === 'function') {
 }
 
 function getSidCookie() {
+  return getCookie('sid');
+}
+
+function getCookie(name) {
   if (typeof document === 'undefined') return '';
-  const m = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith('sid='));
-  return m ? m.slice(4) : '';
+  const prefix = `${name}=`;
+  const m = document.cookie.split(';').map(s => s.trim()).find(s => s.startsWith(prefix));
+  return m ? m.slice(prefix.length) : '';
 }
 
 async function ensureAuthSession() {
@@ -5524,6 +5831,10 @@ function getAuthHeaders(extraHeaders = {}) {
   }
   // Нужен sid cookie для защищённых эндпоинтов
   headers['X-Requested-With'] = 'XMLHttpRequest';
+  const csrfToken = getCookie('csrf_token');
+  if (csrfToken) {
+    headers['X-CSRF-Token'] = csrfToken;
+  }
   return headers;
 }
 
@@ -5745,8 +6056,8 @@ function applyHeaderForPage(pageId) {
   const page = document.getElementById(pageId);
   if (!page) return;
   const dataTitle = page.getAttribute('data-title');
+  let brandEl = page.querySelector('.brand-header');
   if (dataTitle) {
-    let brandEl = page.querySelector('.brand-header');
     if (!brandEl) {
       brandEl = document.createElement('div');
       brandEl.className = 'brand-header';
@@ -5770,6 +6081,8 @@ function applyHeaderForPage(pageId) {
       titleEl.style.display = 'none';
     }
     pageTitleCache[pageId] = dataTitle;
+  } else if (brandEl) {
+    brandEl.remove();
   }
 }
 
@@ -5851,7 +6164,10 @@ function showPage(id) {
   
   // Загружаем расписание для вкладки "Расписание"
   if (id === 'schedule') {
+    showPublicScheduleRefreshCapsule();
     loadPublicSchedule();
+  } else {
+    hidePublicScheduleRefreshCapsule();
   }
 
   // Личное расписание (для преподавателя)
@@ -6687,14 +7003,19 @@ function loadInfoDirections(directionType = null) {
         return;
       }
       container.innerHTML = directions.map(d => {
+        const directionId = Number(d.direction_id);
+        const safeTitle = toSafeText(d.title, 'Направление');
+        const safeDescription = toSafeText(d.description, 'Описание отсутствует');
+        const safeImagePath = toSafeUrl(d.image_path);
+        const openAction = Number.isFinite(directionId) && directionId > 0 ? `onclick="openDirectionDetail(${directionId})"` : '';
         const imageHtml = d.image_path
-          ? `<img src="${d.image_path}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin-bottom: 10px;">`
+          ? `<img src="${safeImagePath}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin-bottom: 10px;">`
           : '';
         const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
         const groupsCount = typeof d.groups_count === 'number' ? `👥 ${d.groups_count} групп` : '';
         const metaLine = [price, groupsCount].filter(Boolean).join(' • ');
         return `
-          <div class="card" style="cursor: pointer;" onclick="openDirectionDetail(${d.direction_id})">
+          <div class="card" style="cursor: pointer;" ${openAction}>
             ${imageHtml}
             <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">${d.title || 'Направление'}</div>
             <div class="small" style="margin-bottom: 8px;">${d.description || 'Описание отсутствует'}</div>
@@ -7817,6 +8138,22 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+function toSafeText(value, fallback = '') {
+  const text = value === null || value === undefined || value === '' ? fallback : String(value);
+  return escapeHtml(text);
+}
+
+function toSafeUrl(value) {
+  if (!value) return '';
+  return escapeHtml(String(value));
+}
+
+function toSafePreviewText(value, limit = 100) {
+  const text = value === null || value === undefined ? '' : String(value);
+  const clipped = text.slice(0, limit);
+  return escapeHtml(text.length > limit ? `${clipped}...` : clipped);
+}
+
 let activeGroupBookingId = null;
 let groupBookingState = {
   mainGroup: null,
@@ -7918,6 +8255,89 @@ function hideGroupBookingCapsule() {
   if (!capsule) return;
   capsule.classList.remove('show');
   capsule.classList.add('hidden');
+}
+
+function getGroupScheduleCapsuleText() {
+  if (groupSchedulePickerState.active) {
+    return isGroupSchedulePickerTapMode() ? 'Выбор времени в расписании' : 'Выбор в расписании';
+  }
+  return 'Групповое занятие';
+}
+
+function showGroupScheduleCapsule(text) {
+  const capsule = document.getElementById('group-schedule-capsule');
+  if (!capsule) return;
+  capsule.textContent = String(text || '').trim() || 'Групповое занятие';
+  const wasHidden = capsule.classList.contains('hidden');
+  capsule.classList.remove('hidden');
+  if (wasHidden) {
+    requestAnimationFrame(() => capsule.classList.add('show'));
+  } else {
+    capsule.classList.add('show');
+  }
+}
+
+function hideGroupScheduleCapsule() {
+  const capsule = document.getElementById('group-schedule-capsule');
+  if (!capsule) return;
+  capsule.classList.remove('show');
+  capsule.classList.add('hidden');
+}
+
+function syncGroupScheduleCapsule() {
+  const modal = document.getElementById('group-schedule-modal');
+  if (!modal || !modal.classList.contains('show')) {
+    hideGroupScheduleCapsule();
+    return;
+  }
+  showGroupScheduleCapsule(getGroupScheduleCapsuleText());
+}
+
+function renderPublicScheduleRefreshCapsule(capsule) {
+  if (!capsule) return;
+  const stateIcon = publicScheduleRefreshLoading ? '⏳' : '🔄';
+  capsule.innerHTML = `
+    <span class="personal-schedule-refresh-row">
+      <span class="personal-schedule-refresh-avatar" aria-hidden="true">🗓</span>
+      <span class="personal-schedule-refresh-name">Расписание</span>
+      <span class="personal-schedule-refresh-state" aria-hidden="true">${stateIcon}</span>
+    </span>
+  `;
+  capsule.setAttribute(
+    'aria-label',
+    publicScheduleRefreshLoading ? 'Расписание обновляется' : 'Расписание, обновить'
+  );
+}
+
+function showPublicScheduleRefreshCapsule() {
+  const capsule = document.getElementById('public-schedule-refresh-capsule');
+  if (!capsule) return;
+  renderPublicScheduleRefreshCapsule(capsule);
+  capsule.classList.remove('hidden');
+  requestAnimationFrame(() => capsule.classList.add('show'));
+}
+
+function hidePublicScheduleRefreshCapsule() {
+  const capsule = document.getElementById('public-schedule-refresh-capsule');
+  if (!capsule) return;
+  capsule.classList.remove('show');
+  capsule.classList.add('hidden');
+}
+
+function updatePublicScheduleRefreshCapsule() {
+  const capsule = document.getElementById('public-schedule-refresh-capsule');
+  if (!capsule) return;
+  renderPublicScheduleRefreshCapsule(capsule);
+}
+
+function setPublicScheduleRefreshLoading(isLoading) {
+  publicScheduleRefreshLoading = !!isLoading;
+  updatePublicScheduleRefreshCapsule();
+}
+
+function handlePublicScheduleRefreshCapsuleClick() {
+  if (publicScheduleRefreshLoading) return;
+  loadPublicSchedule(true);
 }
 
 function renderPersonalScheduleRefreshCapsule(capsule) {
@@ -8566,6 +8986,8 @@ function openTeacherProfilePlaceholder(teacherId) {
 let scheduleView = 'week';
 let scheduleFocusDate = toLocalDayStart(new Date());
 let scheduleItems = [];
+const scheduleGroupNameCache = new Map();
+const scheduleGroupNamePending = new Set();
 window.publicScheduleType = 'all';
 window.publicScheduleView = 'list';
 window.publicScheduleCache = {};
@@ -8580,6 +9002,26 @@ let scheduleInitialized = false;
 let scheduleConfirmedFilter = false;
 let scheduleMoveModalOriginalParent = null;
 let scheduleMoveModalOriginalNextSibling = null;
+let groupSchedulePickerResizeBound = false;
+let groupSchedulePickerSyncTimer = null;
+let groupSchedulePickerLastTouchAt = 0;
+const groupSchedulePickerState = {
+  active: false,
+  originalView: null,
+  originalFocusDate: null,
+  originalValues: null,
+  draftDate: '',
+  draftTimeFrom: '',
+  draftTimeTo: '',
+  dragActive: false,
+  dragAnchorDate: '',
+  dragAnchorTime: '',
+  dragPointerId: null,
+  suppressClick: false,
+  tapStartDate: '',
+  tapStartTime: '',
+  selectionMode: 'drag'
+};
 
 const SCHEDULE_TYPE_TITLES = {
   group: 'Групповое занятие',
@@ -8610,10 +9052,28 @@ function initScheduleControl() {
   if (!scheduleInitialized) {
     scheduleInitialized = true;
   }
+  if (!groupSchedulePickerResizeBound) {
+    groupSchedulePickerResizeBound = true;
+    window.addEventListener('resize', () => {
+      if (groupSchedulePickerState.active) {
+        updateGroupScheduleHeader();
+      }
+      syncGroupSchedulePickerSheetHeightDeferred();
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => {
+        if (groupSchedulePickerState.active) {
+          updateGroupScheduleHeader();
+        }
+        syncGroupSchedulePickerSheetHeightDeferred();
+      });
+    }
+  }
   updateScheduleControlsUI();
   loadScheduleV2();
   startSchedulePolling();
   initGroupScheduleForm();
+  bindGroupSchedulePickerDrag();
 }
 
 function startSchedulePolling() {
@@ -8644,6 +9104,11 @@ function shiftScheduleDate(delta) {
   const next = toLocalDayStart(scheduleFocusDate);
   next.setDate(next.getDate() + delta * stepDays);
   scheduleFocusDate = next;
+  if (groupSchedulePickerState.active) {
+    clearGroupSchedulePickerPendingStart();
+    clearGroupSchedulePickerDraft();
+    setGroupSchedulePickerHint('');
+  }
   updateScheduleControlsUI();
   loadScheduleV2();
 }
@@ -8759,6 +9224,7 @@ function loadScheduleV2() {
     })
     .then(data => {
       scheduleItems = Array.isArray(data) ? data : [];
+      scheduleItems.forEach(rememberScheduleGroupName);
       renderScheduleGrid();
     })
     .catch(err => {
@@ -8774,6 +9240,8 @@ function loadScheduleV2() {
 function renderScheduleGrid() {
   const container = document.getElementById('schedule-grid-container');
   if (!container) return;
+
+   container.classList.toggle('group-schedule-picker-active', groupSchedulePickerState.active);
 
   const slots = [];
   for (let t = WORK_START_HOUR * 60; t < WORK_END_HOUR * 60; t += SLOT_MINUTES) {
@@ -8819,6 +9287,7 @@ function renderScheduleGrid() {
   }
   bindSlotHoverGrouping(container);
   renderScheduleNowIndicator(container);
+  paintGroupSchedulePickerSelection();
 }
 
 function renderScheduleNowIndicator(container) {
@@ -8916,7 +9385,9 @@ function renderSlotCell(dateStr, timeStr, confirmedItem) {
   if (confirmedItem) {
     return renderConfirmedSlotCell(confirmedItem, timeStr);
   }
-  return `<div class="schedule-cell schedule-slot" onclick="openScheduleForm('${dateStr}', '${timeStr}')"></div>`;
+  const pickerAttrs = ` data-schedule-picker-slot="1" data-date="${dateStr}" data-time="${timeStr}"`;
+  const pickerClass = groupSchedulePickerState.active ? ' schedule-slot-picker-enabled' : '';
+  return `<div class="schedule-cell schedule-slot${pickerClass}"${pickerAttrs} onclick="openScheduleForm('${dateStr}', '${timeStr}')"></div>`;
 }
 
 function renderConfirmedSlotCell(item, timeStr) {
@@ -8927,10 +9398,73 @@ function renderConfirmedSlotCell(item, timeStr) {
   const stateClass = isCancelled
     ? 'cancelled'
     : (item.status && item.status !== 'scheduled' ? 'pending' : 'confirmed');
+  const pickerClass = groupSchedulePickerState.active ? ' schedule-slot-picker-blocked' : '';
   const groupKey = item.id ? `schedule-${item.id}` : '';
   const dataAttr = groupKey ? ` data-slot-group="${groupKey}"` : '';
   const styleAttr = isCancelled ? '' : ` style="background: ${color};"`;
-  return `<div class="schedule-cell schedule-slot confirmed ${stateClass} ${item.object_type}"${styleAttr}${dataAttr} onclick="openScheduleDetailById(${item.id})">${labelHtml}</div>`;
+  return `<div class="schedule-cell schedule-slot confirmed ${stateClass} ${item.object_type}${pickerClass}"${styleAttr}${dataAttr} onclick="openScheduleDetailById(${item.id})">${labelHtml}</div>`;
+}
+
+function getScheduleGroupNameInline(item) {
+  return String(
+    item?.group_name ||
+    item?.title ||
+    item?.group_title ||
+    item?.group?.name ||
+    item?.name ||
+    ''
+  ).trim();
+}
+
+function rememberScheduleGroupName(item) {
+  if (String(item?.object_type || '').toLowerCase() !== 'group') return;
+  const groupId = Number(item?.object_id || item?.group_id);
+  if (!Number.isFinite(groupId) || groupId <= 0) return;
+  const inlineName = getScheduleGroupNameInline(item);
+  if (inlineName) {
+    scheduleGroupNameCache.set(groupId, inlineName);
+  }
+}
+
+function requestScheduleGroupName(groupId) {
+  const id = Number(groupId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  if (scheduleGroupNameCache.has(id) || scheduleGroupNamePending.has(id)) return;
+
+  scheduleGroupNamePending.add(id);
+  fetch(`/api/groups/${id}`, { headers: getAuthHeaders() })
+    .then(async res => {
+      if (!res.ok) throw new Error('group-not-found');
+      return res.json();
+    })
+    .then(group => {
+      const fetchedName = String(group?.name || '').trim() || 'Группа';
+      scheduleGroupNameCache.set(id, fetchedName);
+      renderScheduleGrid();
+    })
+    .catch(() => {
+      scheduleGroupNameCache.set(id, 'Группа');
+    })
+    .finally(() => {
+      scheduleGroupNamePending.delete(id);
+    });
+}
+
+function getScheduleGroupLabel(item) {
+  const inlineName = getScheduleGroupNameInline(item);
+  if (inlineName) {
+    rememberScheduleGroupName(item);
+    return inlineName;
+  }
+
+  const groupId = Number(item?.object_id || item?.group_id);
+  if (Number.isFinite(groupId) && groupId > 0) {
+    const cachedName = scheduleGroupNameCache.get(groupId);
+    if (cachedName) return cachedName;
+    requestScheduleGroupName(groupId);
+  }
+
+  return 'Группа';
 }
 
 function getScheduleLabel(item) {
@@ -8939,8 +9473,13 @@ function getScheduleLabel(item) {
     individual: 'Индив.',
     rental: 'Аренда'
   };
+  const groupName = getScheduleGroupLabel(item);
   const prefix = isScheduleCancelledStatus(item.status) ? '🚫 ' : '';
   const statusIcon = getScheduleStatusIcon(item.status);
+  if (String(item?.object_type || '').toLowerCase() === 'group') {
+    const label = groupName ? escapeHtml(groupName) : 'Группа';
+    return `${prefix}${label}${statusIcon ? ' ' + statusIcon : ''}`;
+  }
   return `${prefix}${typeMap[item.object_type] || 'Событие'} #${item.object_id}${statusIcon ? ' ' + statusIcon : ''}`;
 }
 
@@ -9826,6 +10365,19 @@ function openAttendanceScreen(item) {
 }
 
 function openScheduleForm(dateStr, timeStr) {
+  if (groupSchedulePickerState.active) {
+    if (groupSchedulePickerState.suppressClick) {
+      groupSchedulePickerState.suppressClick = false;
+      return;
+    }
+    if (isGroupSchedulePickerTapMode()) {
+      handleGroupSchedulePickerTapSelection(dateStr, timeStr);
+      return;
+    }
+    selectGroupSchedulePickerRangeFromSlots(dateStr, timeStr, timeStr);
+    return;
+  }
+
   const form = document.getElementById('schedule-admin-form');
   if (!form) return;
   form.classList.add('show');
@@ -9900,8 +10452,580 @@ function hasScheduleConflict(dateStr, timeFrom, timeTo) {
     if (!s.time_from || !s.time_to) return false;
     const sStart = timeToMinutes(s.time_from);
     const sEnd = timeToMinutes(s.time_to);
-    return start < sEnd && end > sStart && s.status !== 'cancelled';
+    return start < sEnd && end > sStart && !isScheduleCancelledStatus(s.status);
   });
+}
+
+function handleGroupScheduleCloseAction() {
+  if (groupSchedulePickerState.active) {
+    closeGroupSchedulePicker();
+    const modal = document.getElementById('group-schedule-modal');
+    if (modal?.classList.contains('show')) {
+      setModalBackHandler(handleGroupScheduleCloseAction);
+    }
+    return;
+  }
+  toggleGroupScheduleForm(false);
+}
+
+function updateGroupScheduleHeader() {
+  const titleEl = document.getElementById('group-schedule-title-text');
+  const subtitleEl = document.getElementById('group-schedule-subtitle-text');
+  if (titleEl) {
+    titleEl.textContent = groupSchedulePickerState.active ? 'Выбор в расписании' : 'Групповое занятие';
+  }
+  if (subtitleEl) {
+    subtitleEl.textContent = groupSchedulePickerState.active
+      ? (isGroupSchedulePickerTapMode() ? 'Выберите начало и конец' : 'Потяните по свободному времени')
+      : 'Создание';
+  }
+  syncGroupScheduleCapsule();
+}
+
+function isGroupSchedulePickerTapMode() {
+  if (groupSchedulePickerState.selectionMode === 'tap') {
+    return true;
+  }
+  if (groupSchedulePickerState.selectionMode === 'drag') {
+    return false;
+  }
+  return getDefaultGroupSchedulePickerSelectionMode() === 'tap';
+}
+
+function getDefaultGroupSchedulePickerSelectionMode() {
+  const coarsePointer = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(pointer: coarse)').matches
+    : false;
+  const noHover = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(hover: none)').matches
+    : false;
+  return coarsePointer || (noHover && (navigator.maxTouchPoints || 0) > 0) ? 'tap' : 'drag';
+}
+
+function setGroupSchedulePickerSelectionMode(mode) {
+  if (groupSchedulePickerState.selectionMode === mode) return;
+  groupSchedulePickerState.selectionMode = mode;
+  if (groupSchedulePickerState.active) {
+    updateGroupScheduleHeader();
+    syncGroupSchedulePickerSheetHeightDeferred();
+  }
+}
+
+function setGroupSchedulePickerHint(message, tone = 'info') {
+  const noteEl = document.getElementById('group-schedule-picker-note');
+  if (!noteEl) return;
+  noteEl.textContent = message || '';
+  noteEl.classList.toggle('ok', tone === 'ok');
+  syncGroupSchedulePickerSheetHeightDeferred();
+}
+
+function hasGroupSchedulePickerPendingStart() {
+  return Boolean(groupSchedulePickerState.tapStartDate && groupSchedulePickerState.tapStartTime);
+}
+
+function clearGroupSchedulePickerPendingStart() {
+  groupSchedulePickerState.tapStartDate = '';
+  groupSchedulePickerState.tapStartTime = '';
+  paintGroupSchedulePickerSelection();
+}
+
+function setGroupSchedulePickerPendingStart(dateStr, timeStr) {
+  groupSchedulePickerState.tapStartDate = dateStr || '';
+  groupSchedulePickerState.tapStartTime = timeStr || '';
+  paintGroupSchedulePickerSelection();
+}
+
+function measureGroupSchedulePickerContentHeight(modal) {
+  const header = modal?.querySelector('.group-schedule-header');
+  const pickerPanel = modal?.querySelector('.group-schedule-picker-panel');
+  if (!header || !pickerPanel) return null;
+
+  const safeBottomVar = getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom').trim();
+  const safeBottom = parseFloat(safeBottomVar || '0') || 0;
+  const pickerPaddingTop = 14;
+  const pickerPaddingBottom = 6;
+  const pickerGap = 10;
+  const headerHeight = Math.ceil(header.getBoundingClientRect().height || header.scrollHeight || 0);
+  const pickerPanelHeight = Math.ceil(pickerPanel.scrollHeight || 0);
+
+  return pickerPaddingTop + pickerPaddingBottom + safeBottom + pickerGap + headerHeight + pickerPanelHeight;
+}
+
+function syncGroupSchedulePickerSheetHeight() {
+  const modal = document.getElementById('group-schedule-modal');
+  if (!modal) return;
+
+  if (!groupSchedulePickerState.active) {
+    modal.style.removeProperty('--group-picker-height');
+    return;
+  }
+
+  const viewportHeight = Math.max(
+    window.visualViewport?.height || 0,
+    window.innerHeight || 0,
+    document.documentElement?.clientHeight || 0,
+  );
+  const minHeight = 170;
+  const maxHeight = Math.max(minHeight, viewportHeight - 72);
+  const contentHeight = Math.ceil(measureGroupSchedulePickerContentHeight(modal) || minHeight);
+  const targetHeight = Math.min(maxHeight, Math.max(minHeight, contentHeight));
+  modal.style.setProperty('--group-picker-height', `${targetHeight}px`);
+}
+
+function syncGroupSchedulePickerSheetHeightDeferred() {
+  if (!groupSchedulePickerState.active) return;
+  if (groupSchedulePickerSyncTimer) {
+    clearTimeout(groupSchedulePickerSyncTimer);
+    groupSchedulePickerSyncTimer = null;
+  }
+  window.requestAnimationFrame(() => {
+    syncGroupSchedulePickerSheetHeight();
+    window.requestAnimationFrame(() => {
+      syncGroupSchedulePickerSheetHeight();
+    });
+  });
+  groupSchedulePickerSyncTimer = window.setTimeout(() => {
+    groupSchedulePickerSyncTimer = null;
+    syncGroupSchedulePickerSheetHeight();
+  }, 420);
+}
+
+function hasGroupSchedulePickerDraft() {
+  return Boolean(
+    groupSchedulePickerState.draftDate &&
+    groupSchedulePickerState.draftTimeFrom &&
+    groupSchedulePickerState.draftTimeTo
+  );
+}
+
+function clearGroupSchedulePickerDraft() {
+  groupSchedulePickerState.draftDate = '';
+  groupSchedulePickerState.draftTimeFrom = '';
+  groupSchedulePickerState.draftTimeTo = '';
+  updateGroupSchedulePickerPanel();
+  paintGroupSchedulePickerSelection();
+}
+
+function updateGroupSchedulePickerPanel() {
+  const dateEl = document.getElementById('group-schedule-picker-date');
+  const timeEl = document.getElementById('group-schedule-picker-time');
+  const confirmBtn = document.getElementById('group-schedule-picker-confirm');
+  const hasDraft = hasGroupSchedulePickerDraft();
+
+  if (dateEl) {
+    dateEl.textContent = hasDraft ? formatRuDate(groupSchedulePickerState.draftDate) : '—';
+  }
+  if (timeEl) {
+    timeEl.textContent = hasDraft
+      ? `${groupSchedulePickerState.draftTimeFrom} - ${groupSchedulePickerState.draftTimeTo}`
+      : '—';
+  }
+  if (confirmBtn) {
+    confirmBtn.disabled = !hasDraft;
+  }
+  syncGroupSchedulePickerSheetHeightDeferred();
+}
+
+function setGroupSchedulePickerDraft(dateStr, timeFrom, timeTo) {
+  groupSchedulePickerState.draftDate = dateStr || '';
+  groupSchedulePickerState.draftTimeFrom = timeFrom || '';
+  groupSchedulePickerState.draftTimeTo = timeTo || '';
+  updateGroupSchedulePickerPanel();
+  paintGroupSchedulePickerSelection();
+}
+
+function handleGroupSchedulePickerTapSelection(dateStr, timeStr) {
+  if (!groupSchedulePickerState.active) return false;
+  if (!dateStr || !timeStr) return false;
+
+  if (!hasGroupSchedulePickerPendingStart()) {
+    clearGroupSchedulePickerDraft();
+    setGroupSchedulePickerPendingStart(dateStr, timeStr);
+    setGroupSchedulePickerHint(`Начало: ${formatRuDate(dateStr)}, ${timeStr}. Теперь выберите конец в этом же дне.`);
+    return true;
+  }
+
+  if (dateStr !== groupSchedulePickerState.tapStartDate) {
+    setGroupSchedulePickerHint('Конец нужно выбрать в том же дне, что и начало.');
+    return false;
+  }
+
+  const success = selectGroupSchedulePickerRangeFromSlots(
+    dateStr,
+    groupSchedulePickerState.tapStartTime,
+    timeStr,
+  );
+  if (success) {
+    clearGroupSchedulePickerPendingStart();
+  }
+  return success;
+}
+
+function buildGroupSchedulePickerRange(dateStr, anchorTime, targetTime) {
+  if (!dateStr || !anchorTime || !targetTime) return null;
+
+  const anchorMinutes = timeToMinutes(anchorTime);
+  const targetMinutes = timeToMinutes(targetTime);
+  const startMinutes = Math.min(anchorMinutes, targetMinutes);
+  const endMinutes = Math.max(anchorMinutes, targetMinutes) + SLOT_MINUTES;
+  const workStartMinutes = WORK_START_HOUR * 60;
+  const workEndMinutes = WORK_END_HOUR * 60;
+
+  if (startMinutes < workStartMinutes || endMinutes > workEndMinutes) {
+    return null;
+  }
+
+  return {
+    date: dateStr,
+    timeFrom: minutesToTime(startMinutes),
+    timeTo: minutesToTime(endMinutes),
+  };
+}
+
+function selectGroupSchedulePickerRangeFromSlots(dateStr, anchorTime, targetTime) {
+  if (!groupSchedulePickerState.active) return false;
+
+  const range = buildGroupSchedulePickerRange(dateStr, anchorTime, targetTime);
+  if (!range) {
+    setGroupSchedulePickerHint('Интервал выходит за пределы рабочего времени.');
+    return false;
+  }
+
+  if (hasScheduleConflict(range.date, range.timeFrom, range.timeTo)) {
+    setGroupSchedulePickerHint('Этот интервал пересекается с занятым временем.');
+    return false;
+  }
+
+  setGroupSchedulePickerDraft(range.date, range.timeFrom, range.timeTo);
+  setGroupSchedulePickerHint('');
+  return true;
+}
+
+function paintGroupSchedulePickerSelection() {
+  const container = document.getElementById('schedule-grid-container');
+  if (!container) return;
+
+  const slots = container.querySelectorAll('[data-schedule-picker-slot="1"]');
+  const hasDraft = groupSchedulePickerState.active && hasGroupSchedulePickerDraft();
+  const hasPendingStart = groupSchedulePickerState.active && hasGroupSchedulePickerPendingStart();
+  const draftStart = hasDraft ? timeToMinutes(groupSchedulePickerState.draftTimeFrom) : null;
+  const draftEnd = hasDraft ? timeToMinutes(groupSchedulePickerState.draftTimeTo) : null;
+  const lastSlotStart = hasDraft ? draftEnd - SLOT_MINUTES : null;
+
+  slots.forEach((slot) => {
+    slot.classList.toggle('schedule-slot-picker-enabled', groupSchedulePickerState.active);
+    slot.classList.remove(
+      'schedule-slot-picker-selected',
+      'schedule-slot-picker-pending',
+      'schedule-slot-picker-start',
+      'schedule-slot-picker-middle',
+      'schedule-slot-picker-end',
+    );
+
+    if (hasPendingStart) {
+      const slotDate = slot.dataset.date || '';
+      const slotTime = slot.dataset.time || '';
+      const isPendingStart = (
+        slotDate === groupSchedulePickerState.tapStartDate &&
+        slotTime === groupSchedulePickerState.tapStartTime
+      );
+      if (isPendingStart) {
+        slot.classList.add('schedule-slot-picker-pending');
+      }
+    }
+
+    if (!hasDraft) return;
+
+    const slotDate = slot.dataset.date || '';
+    const slotTime = slot.dataset.time || '';
+    const slotStart = timeToMinutes(slotTime);
+    const isSelected = (
+      slotDate === groupSchedulePickerState.draftDate &&
+      slotStart >= draftStart &&
+      slotStart < draftEnd
+    );
+
+    if (!isSelected) return;
+
+    slot.classList.add('schedule-slot-picker-selected');
+    if (slotStart === draftStart) {
+      slot.classList.add('schedule-slot-picker-start');
+    }
+    if (slotStart === lastSlotStart) {
+      slot.classList.add('schedule-slot-picker-end');
+    }
+    if (slotStart !== draftStart && slotStart !== lastSlotStart) {
+      slot.classList.add('schedule-slot-picker-middle');
+    }
+  });
+}
+
+function restoreScheduleStateAfterGroupPicker() {
+  if (!groupSchedulePickerState.originalView || !groupSchedulePickerState.originalFocusDate) {
+    return;
+  }
+
+  scheduleView = groupSchedulePickerState.originalView;
+  scheduleFocusDate = toLocalDayStart(new Date(groupSchedulePickerState.originalFocusDate));
+  updateScheduleControlsUI();
+  loadScheduleV2();
+}
+
+function deactivateGroupSchedulePicker() {
+  const modal = document.getElementById('group-schedule-modal');
+  const overlay = document.getElementById('group-schedule-overlay');
+
+  groupSchedulePickerState.active = false;
+  groupSchedulePickerState.dragActive = false;
+  groupSchedulePickerState.dragAnchorDate = '';
+  groupSchedulePickerState.dragAnchorTime = '';
+  groupSchedulePickerState.dragPointerId = null;
+  groupSchedulePickerState.suppressClick = false;
+  groupSchedulePickerState.tapStartDate = '';
+  groupSchedulePickerState.tapStartTime = '';
+  groupSchedulePickerState.selectionMode = getDefaultGroupSchedulePickerSelectionMode();
+  groupSchedulePickerLastTouchAt = 0;
+  if (groupSchedulePickerSyncTimer) {
+    clearTimeout(groupSchedulePickerSyncTimer);
+    groupSchedulePickerSyncTimer = null;
+  }
+
+  if (modal) modal.classList.remove('picker-mode');
+  if (overlay) overlay.classList.remove('picker-mode');
+  if (modal) modal.style.removeProperty('--group-picker-height');
+
+  updateGroupScheduleHeader();
+  clearGroupSchedulePickerDraft();
+  setGroupSchedulePickerHint('');
+}
+
+function openGroupSchedulePicker() {
+  const modal = document.getElementById('group-schedule-modal');
+  const overlay = document.getElementById('group-schedule-overlay');
+  if (!modal || !overlay) return;
+
+  const dateValue = (document.getElementById('group-schedule-date')?.value || '').trim();
+  const timeFromValue = (document.getElementById('group-schedule-time-from')?.value || '').trim();
+  const timeToValue = (document.getElementById('group-schedule-time-to')?.value || '').trim();
+
+  groupSchedulePickerState.originalView = scheduleView;
+  groupSchedulePickerState.originalFocusDate = new Date(scheduleFocusDate);
+  groupSchedulePickerState.originalValues = {
+    date: dateValue,
+    timeFrom: timeFromValue,
+    timeTo: timeToValue,
+  };
+  groupSchedulePickerState.active = true;
+  groupSchedulePickerState.dragActive = false;
+  groupSchedulePickerState.dragAnchorDate = '';
+  groupSchedulePickerState.dragAnchorTime = '';
+  groupSchedulePickerState.dragPointerId = null;
+  groupSchedulePickerState.suppressClick = false;
+  groupSchedulePickerState.tapStartDate = '';
+  groupSchedulePickerState.tapStartTime = '';
+  groupSchedulePickerState.selectionMode = getDefaultGroupSchedulePickerSelectionMode();
+  groupSchedulePickerLastTouchAt = 0;
+  updateGroupScheduleHeader();
+
+  if (dateValue && !Number.isNaN(new Date(dateValue).getTime())) {
+    scheduleFocusDate = toLocalDayStart(new Date(dateValue));
+  }
+
+  if (dateValue && timeFromValue && timeToValue) {
+    setGroupSchedulePickerDraft(dateValue, timeFromValue, timeToValue);
+    setGroupSchedulePickerHint('');
+  } else {
+    clearGroupSchedulePickerDraft();
+    setGroupSchedulePickerHint('');
+  }
+
+  syncGroupSchedulePickerSheetHeight();
+  modal.classList.add('picker-mode');
+  overlay.classList.add('picker-mode');
+  updateScheduleControlsUI();
+  loadScheduleV2();
+  syncGroupSchedulePickerSheetHeightDeferred();
+}
+
+function closeGroupSchedulePicker() {
+  if (!groupSchedulePickerState.active) return;
+  deactivateGroupSchedulePicker();
+  restoreScheduleStateAfterGroupPicker();
+}
+
+function confirmGroupSchedulePicker() {
+  if (!hasGroupSchedulePickerDraft()) return;
+
+  const dateInput = document.getElementById('group-schedule-date');
+  const timeFromInput = document.getElementById('group-schedule-time-from');
+  const timeToInput = document.getElementById('group-schedule-time-to');
+
+  if (dateInput) dateInput.value = groupSchedulePickerState.draftDate;
+  if (timeFromInput) timeFromInput.value = groupSchedulePickerState.draftTimeFrom;
+  if (timeToInput) timeToInput.value = groupSchedulePickerState.draftTimeTo;
+
+  validateGroupField('group-schedule-date', true);
+  validateGroupField('group-schedule-time-from', true);
+  validateGroupField('group-schedule-time-to', true);
+  updateGroupFormDefaults();
+  updateRepeatSummary();
+
+  deactivateGroupSchedulePicker();
+  restoreScheduleStateAfterGroupPicker();
+}
+
+function bindGroupSchedulePickerDrag() {
+  const container = document.getElementById('schedule-grid-container');
+  if (!container || container.dataset.groupPickerBound === '1') return;
+  container.dataset.groupPickerBound = '1';
+
+  const resolvePickerSlotFromNode = (node) => {
+    if (!node || typeof node.closest !== 'function') return null;
+    return node.closest('[data-schedule-picker-slot="1"]');
+  };
+
+  const resolvePickerSlot = (event) => {
+    if (typeof document.elementFromPoint === 'function') {
+      const pointed = document.elementFromPoint(event.clientX, event.clientY);
+      if (pointed) {
+        const slotFromPoint = resolvePickerSlotFromNode(pointed);
+        if (slotFromPoint) return slotFromPoint;
+      }
+    }
+    return resolvePickerSlotFromNode(event.target);
+  };
+
+  const startDrag = (slot, pointerId = null) => {
+    if (!slot) return;
+    clearGroupSchedulePickerPendingStart();
+    groupSchedulePickerState.dragActive = true;
+    groupSchedulePickerState.dragAnchorDate = slot.dataset.date || '';
+    groupSchedulePickerState.dragAnchorTime = slot.dataset.time || '';
+    groupSchedulePickerState.dragPointerId = pointerId;
+
+    if (
+      pointerId !== null &&
+      typeof container.setPointerCapture === 'function'
+    ) {
+      try {
+        container.setPointerCapture(pointerId);
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    selectGroupSchedulePickerRangeFromSlots(
+      groupSchedulePickerState.dragAnchorDate,
+      groupSchedulePickerState.dragAnchorTime,
+      groupSchedulePickerState.dragAnchorTime,
+    );
+  };
+
+  const extendDrag = (slot) => {
+    if (!slot) return;
+
+    const slotDate = slot.dataset.date || '';
+    const slotTime = slot.dataset.time || '';
+    if (!slotDate || !slotTime) return;
+
+    if (slotDate !== groupSchedulePickerState.dragAnchorDate) {
+      setGroupSchedulePickerHint('Нельзя выбирать интервал сразу в двух днях.');
+      return;
+    }
+
+    selectGroupSchedulePickerRangeFromSlots(
+      slotDate,
+      groupSchedulePickerState.dragAnchorTime,
+      slotTime,
+    );
+  };
+
+  const finishDrag = () => {
+    if (!groupSchedulePickerState.dragActive) return;
+
+    if (
+      groupSchedulePickerState.dragPointerId !== null &&
+      typeof container.releasePointerCapture === 'function'
+    ) {
+      try {
+        container.releasePointerCapture(groupSchedulePickerState.dragPointerId);
+      } catch (error) {
+        // ignore
+      }
+    }
+
+    groupSchedulePickerState.dragActive = false;
+    groupSchedulePickerState.dragAnchorDate = '';
+    groupSchedulePickerState.dragAnchorTime = '';
+    groupSchedulePickerState.dragPointerId = null;
+    groupSchedulePickerState.suppressClick = true;
+    window.setTimeout(() => {
+      groupSchedulePickerState.suppressClick = false;
+    }, 120);
+  };
+
+  container.addEventListener('touchstart', () => {
+    if (!groupSchedulePickerState.active) return;
+    groupSchedulePickerLastTouchAt = Date.now();
+    setGroupSchedulePickerSelectionMode('tap');
+  }, { passive: true });
+
+  container.addEventListener('pointerdown', (event) => {
+    if (!groupSchedulePickerState.active) return;
+    if (event.pointerType && event.pointerType !== 'mouse') {
+      groupSchedulePickerLastTouchAt = Date.now();
+      setGroupSchedulePickerSelectionMode('tap');
+    }
+    if (event.pointerType === 'mouse') return;
+    if (isGroupSchedulePickerTapMode()) return;
+    const slot = resolvePickerSlot(event);
+    if (!slot) return;
+
+    event.preventDefault();
+    startDrag(slot, event.pointerId);
+  });
+
+  container.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'mouse') return;
+    if (isGroupSchedulePickerTapMode()) return;
+    if (!groupSchedulePickerState.active || !groupSchedulePickerState.dragActive) return;
+    extendDrag(resolvePickerSlot(event));
+  });
+
+  container.addEventListener('mousedown', (event) => {
+    if (!groupSchedulePickerState.active || event.button !== 0) return;
+    if (Date.now() - groupSchedulePickerLastTouchAt < 900) return;
+    setGroupSchedulePickerSelectionMode('drag');
+    const slot = resolvePickerSlot(event);
+    if (!slot) return;
+    event.preventDefault();
+    startDrag(slot);
+  });
+
+  container.addEventListener('mouseover', (event) => {
+    if (!groupSchedulePickerState.active || !groupSchedulePickerState.dragActive) return;
+    extendDrag(resolvePickerSlotFromNode(event.target));
+  });
+
+  window.addEventListener('mousemove', (event) => {
+    if (!groupSchedulePickerState.active || !groupSchedulePickerState.dragActive) return;
+    if ((event.buttons & 1) !== 1) {
+      finishDrag();
+      return;
+    }
+    extendDrag(resolvePickerSlot(event));
+  });
+
+  container.addEventListener('pointerup', finishDrag);
+  container.addEventListener('pointercancel', finishDrag);
+  container.addEventListener('dragstart', (event) => {
+    if (groupSchedulePickerState.active) {
+      event.preventDefault();
+    }
+  });
+  window.addEventListener('pointerup', finishDrag);
+  window.addEventListener('mouseup', finishDrag);
+  window.addEventListener('blur', finishDrag);
 }
 
 const GROUP_SCHEDULE_FIELD_MAP = {
@@ -10034,13 +11158,41 @@ function getLessonWord(count) {
   return 'занятий';
 }
 
+function getSelectedDateWeekday() {
+  const dateStr = (document.getElementById('group-schedule-date')?.value || '').trim();
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getDay();
+}
+
+function syncRepeatWeekdaysToSelectedDate() {
+  const weekdayRow = document.getElementById('repeat-weekdays-row');
+  const repeatMode = document.getElementById('repeat-mode');
+  if (!weekdayRow || !repeatMode || repeatMode.value !== 'weekly') return false;
+
+  const weekday = getSelectedDateWeekday();
+  if (weekday === null) return false;
+
+  const chips = weekdayRow.querySelectorAll('.chip');
+  chips.forEach(chip => {
+    chip.classList.toggle('active', chip.dataset.day === String(weekday));
+  });
+  weekdayRow.dataset.autoWeekday = '1';
+  return true;
+}
+
 function hasScheduleConflictInItems(items, dateStr, timeFrom, timeTo) {
   const start = timeToMinutes(timeFrom);
   const end = timeToMinutes(timeTo);
   return items.some(s => {
     if (s.date !== dateStr) return false;
     if (!s.time_from || !s.time_to) return false;
-    if (s.status === 'cancelled') return false;
+    if (isScheduleCancelledStatus(s.status)) return false;
     const sStart = timeToMinutes(s.time_from);
     const sEnd = timeToMinutes(s.time_to);
     return start < sEnd && end > sStart;
@@ -10137,8 +11289,12 @@ function initGroupScheduleForm() {
     const dateInput = document.getElementById('group-schedule-date');
     if (dateInput) {
       const handleDateChange = () => {
+        const weekdayRow = document.getElementById('repeat-weekdays-row');
         updateGroupFormDefaults();
         validateGroupField('group-schedule-date', true);
+        if (document.getElementById('repeat-mode')?.value === 'weekly' && weekdayRow?.dataset.autoWeekday === '1') {
+          syncRepeatWeekdaysToSelectedDate();
+        }
         updateRepeatSummary();
       };
       dateInput.addEventListener('change', handleDateChange);
@@ -10172,6 +11328,7 @@ function initGroupScheduleForm() {
         const target = e.target;
         if (target.classList.contains('chip')) {
           target.classList.toggle('active');
+          weekdayRow.dataset.autoWeekday = '0';
           updateRepeatSummary();
         }
       });
@@ -10183,7 +11340,18 @@ function initGroupScheduleForm() {
     const intervalMinus = document.getElementById('repeat-interval-minus');
     const intervalPlus = document.getElementById('repeat-interval-plus');
 
-    if (repeatMode) repeatMode.addEventListener('change', updateRepeatSummary);
+    if (repeatMode) {
+      repeatMode.addEventListener('change', () => {
+        const weekdayRow = document.getElementById('repeat-weekdays-row');
+        if (repeatMode.value === 'weekly') {
+          if (weekdayRow) weekdayRow.dataset.autoWeekday = '1';
+          syncRepeatWeekdaysToSelectedDate();
+        } else if (weekdayRow) {
+          weekdayRow.dataset.autoWeekday = '0';
+        }
+        updateRepeatSummary();
+      });
+    }
     if (repeatInterval) {
       const handleIntervalInput = () => {
         repeatInterval.value = String(sanitizeRepeatInterval(repeatInterval.value));
@@ -10243,16 +11411,28 @@ function initGroupScheduleForm() {
 function toggleGroupScheduleForm(force) {
   const modal = document.getElementById('group-schedule-modal');
   const overlay = document.getElementById('group-schedule-overlay');
+  const shell = modal?.querySelector('.group-schedule-shell');
   if (!modal || !overlay) return;
   const shouldShow = typeof force === 'boolean' ? force : !modal.classList.contains('show');
   if (shouldShow) {
     resetGroupScheduleForm();
+    updateGroupScheduleHeader();
+    if (shell) shell.scrollTop = 0;
     modal.classList.add('show');
     overlay.classList.add('show');
+    setModalBackHandler(handleGroupScheduleCloseAction);
+    updateGroupScheduleHeader();
     updateGroupLiveResult();
   } else {
+    if (groupSchedulePickerState.active) {
+      deactivateGroupSchedulePicker();
+      restoreScheduleStateAfterGroupPicker();
+    }
     modal.classList.remove('show');
     overlay.classList.remove('show');
+    hideGroupScheduleCapsule();
+    setModalBackHandler(null);
+    if (shell) shell.scrollTop = 0;
   }
 }
 
@@ -10399,6 +11579,7 @@ function createGroupSchedule() {
     })
     .then(data => {
       scheduleItems = Array.isArray(data) ? data : [];
+      scheduleItems.forEach(rememberScheduleGroupName);
       const conflict = dates.some(d => hasScheduleConflict(d, timeFrom, timeTo));
       if (conflict) {
         showNotification('? В выбранные даты уже есть занятия');
@@ -10504,17 +11685,28 @@ function resetGroupScheduleForm() {
   if (timeFromInput) timeFromInput.value = '';
   if (timeToInput) timeToInput.value = '';
   if (repeatInterval) repeatInterval.value = '1';
-  if (repeatMode) repeatMode.value = 'weekly';
+  if (repeatMode) repeatMode.value = 'none';
   if (repeatUntil) repeatUntil.value = '';
 
+  const weekdayRow = document.getElementById('repeat-weekdays-row');
   const chips = document.querySelectorAll('#repeat-weekdays-row .chip');
   chips.forEach(c => c.classList.remove('active'));
+  if (weekdayRow) weekdayRow.dataset.autoWeekday = '0';
 
   if (groupScheduleConflictPreviewTimer) {
     clearTimeout(groupScheduleConflictPreviewTimer);
     groupScheduleConflictPreviewTimer = null;
   }
   groupScheduleConflictPreviewRequestId += 1;
+  if (groupSchedulePickerState.active) {
+    deactivateGroupSchedulePicker();
+    restoreScheduleStateAfterGroupPicker();
+  } else {
+    clearGroupSchedulePickerPendingStart();
+    clearGroupSchedulePickerDraft();
+    updateGroupScheduleHeader();
+    setGroupSchedulePickerHint('');
+  }
   clearGroupScheduleValidation();
   updateRepeatSummary();
   updateGroupLiveResult();
@@ -10635,6 +11827,11 @@ function goBack() {
     if (index >= 0) document.querySelectorAll('.nav-btn')[index].classList.add('active');
     
     applyHeaderForPage(previousPageId);
+    if (previousPageId === 'schedule') {
+      showPublicScheduleRefreshCapsule();
+    } else {
+      hidePublicScheduleRefreshCapsule();
+    }
     if (previousPageId === 'personal-schedule') {
       showPersonalScheduleRefreshCapsule();
     } else {
@@ -12279,6 +13476,7 @@ async function loadTeacherStats() {
 }
 
 async function loadPublicSchedule(force = false) {
+  setPublicScheduleRefreshLoading(true);
   try {
     const container = document.getElementById('schedule-container');
     if (container) {
@@ -12322,18 +13520,19 @@ async function loadPublicSchedule(force = false) {
       window.publicScheduleMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
     }
 
-    preloadPublicDirections().then(() => {
-      initPublicScheduleStrip();
-      updatePublicTypeTabs();
-      updatePublicViewTabs();
-      renderPublicScheduleList();
-    });
+    await preloadPublicDirections();
+    initPublicScheduleStrip();
+    updatePublicTypeTabs();
+    updatePublicViewTabs();
+    renderPublicScheduleList();
   } catch (error) {
     console.error('Ошибка при загрузке расписания:', error);
     const container = document.getElementById('schedule-container');
     if (container) {
       container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка сети</p>';
     }
+  } finally {
+    setPublicScheduleRefreshLoading(false);
   }
 }
 
@@ -12369,6 +13568,7 @@ function initPublicScheduleStrip() {
   const strip = document.getElementById('public-schedule-strip');
   const monthLabel = document.getElementById('public-schedule-month');
   const calendarNav = document.getElementById('public-calendar-nav');
+  const calendarNavLabel = document.getElementById('public-calendar-nav-label');
   const weekNav = document.getElementById('public-week-nav');
   const weekLabel = document.getElementById('public-week-label');
   if (!strip) return;
@@ -12392,7 +13592,10 @@ function initPublicScheduleStrip() {
     if (calendarNav) calendarNav.classList.add('active');
     if (weekNav) weekNav.classList.remove('active');
     if (monthLabel) {
-      monthLabel.textContent = window.publicScheduleMonthDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+      monthLabel.style.display = 'none';
+    }
+    if (calendarNavLabel) {
+      calendarNavLabel.textContent = window.publicScheduleMonthDate.toLocaleDateString('ru-RU', { month: 'long' });
     }
     strip.innerHTML = '';
     return;
@@ -12403,7 +13606,7 @@ function initPublicScheduleStrip() {
   if (weekNav) weekNav.classList.add('active');
 
   if (monthLabel) {
-    monthLabel.textContent = selectedDateObj.toLocaleDateString('ru-RU', { month: 'long' });
+    monthLabel.style.display = 'none';
   }
 
   const labels = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
@@ -13038,6 +14241,7 @@ let personalScheduleDate = null;
 let personalScheduleMonthDate = null;
 let personalScheduleTodaySyncDate = null;
 let personalScheduleItems = [];
+let publicScheduleRefreshLoading = false;
 let personalScheduleRefreshLoading = false;
 let personalIndividualBookingExpanded = false;
 let personalIndividualBookingState = {
@@ -15711,9 +16915,18 @@ async function registerUserIfNeeded(user) {
 console.log("Mini App version:", new URLSearchParams(location.search).get("v"));
 
 /* ====== STAFF PROFILE ====== */
-const NEWS_CACHE_KEY = 'news_cache_v1';
-const NEWS_ETAG_KEY = 'news_etag_v1';
+const NEWS_CACHE_KEY = 'news_cache_v2';
+const NEWS_ETAG_KEY = 'news_etag_v2';
 let cachedNews = null;
+
+function clearLegacyNewsCache() {
+  try {
+    localStorage.removeItem('news_cache_v1');
+    localStorage.removeItem('news_etag_v1');
+  } catch (err) {
+    // ignore cache cleanup errors
+  }
+}
 
 function getCachedNews() {
   if (cachedNews) return cachedNews;
@@ -15750,15 +16963,21 @@ function renderNewsList(news) {
     return;
   }
 
-  container.innerHTML = news.map(n => `
-    <div class="news-item" onclick="showNewsDetail(${n.id})">
+  container.innerHTML = news.map((n) => {
+    const newsId = Number(n.id) || 0;
+    const safeTitle = toSafeText(n.title);
+    const safePhotoPath = toSafeUrl(n.photo_path);
+    return `
+      <div class="news-item" onclick="showNewsDetail(${newsId})">
       ${n.photo_path ? `<img src="${n.photo_path}" alt="Новость">` : ''}
-      <div class="news-item-title">${n.title}</div>
-    </div>
-  `).join('');
+      <div class="news-item-title">${safeTitle}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 // Показать кэш сразу, если есть
+clearLegacyNewsCache();
 const initialCachedNews = getCachedNews();
 if (initialCachedNews) {
   renderNewsList(initialCachedNews);
@@ -17545,6 +18764,298 @@ function saveDirectionChanges() {
       loadDirections();
     })
     .catch(err => alert('? Ошибка: ' + err.message));
+}
+
+function loadInfoDirections(directionType = null) {
+  const container = document.getElementById('info-section-content');
+  const placeholder = document.getElementById('info-placeholder');
+  if (!container) return;
+  container.style.display = 'block';
+  if (placeholder) placeholder.style.display = 'none';
+
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">⏳ Загрузка направлений...</p>';
+
+  const url = directionType ? `/api/directions?direction_type=${directionType}` : '/api/directions';
+
+  fetch(url)
+    .then(async (res) => {
+      if (!res.ok) throw new Error('Не удалось загрузить направления');
+      return res.json();
+    })
+    .then((directions) => {
+      if (!directions || directions.length === 0) {
+        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">📭 Направлений нет</p>';
+        return;
+      }
+      container.innerHTML = directions.map((d) => {
+        const directionId = Number(d.direction_id);
+        const safeTitle = toSafeText(d.title, 'Направление');
+        const safeDescription = toSafeText(d.description, 'Описание отсутствует');
+        const safeImagePath = toSafeUrl(d.image_path);
+        const openAction = Number.isFinite(directionId) && directionId > 0 ? `onclick="openDirectionDetail(${directionId})"` : '';
+        const imageHtml = d.image_path
+          ? `<img src="${safeImagePath}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin-bottom: 10px;">`
+          : '';
+        const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
+        const groupsCount = typeof d.groups_count === 'number' ? `👥 ${d.groups_count} групп` : '';
+        const metaLine = [price, groupsCount].filter(Boolean).join(' • ');
+        return `
+          <div class="card" style="cursor: pointer;" ${openAction}>
+            ${imageHtml}
+            <div style="font-weight: 700; font-size: 16px; margin-bottom: 6px;">${safeTitle}</div>
+            <div class="small" style="margin-bottom: 8px;">${safeDescription}</div>
+            ${metaLine ? `<div class="small">${metaLine}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    })
+    .catch((err) => {
+      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 12px;">❌ ${toSafeText(err.message, 'Ошибка')}</p>`;
+    });
+}
+
+function openDirectionDetail(directionId) {
+  if (!directionId) return;
+  const content = document.getElementById('direction-detail-content');
+  if (!content) return;
+  content.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px;">⏳ Загрузка...</p>';
+  showPage('direction-detail');
+
+  Promise.all([
+    fetch(`/api/directions/${directionId}`).then((res) => res.ok ? res.json() : Promise.reject(new Error('Не удалось загрузить направление'))),
+    fetch(`/api/directions/${directionId}/groups`).then((res) => res.ok ? res.json() : []),
+  ])
+    .then(([d, groups]) => {
+      const safeTitle = toSafeText(d.title, 'Направление');
+      const safeDescription = toSafeText(d.description, 'Описание отсутствует');
+      const safeImagePath = toSafeUrl(d.image_path);
+      const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
+      const status = d.status === 'active' ? '✅ Активно' : '⏸️ Неактивно';
+      const type = (d.direction_type || 'dance').toLowerCase();
+      const typeLabel = type === 'sport' ? '🏅 Спортивное' : '💃 Танцевальное';
+      const metaLine = [typeLabel, status, price].filter(Boolean).join(' • ');
+      const photoBlock = d.image_path
+        ? `<div class="direction-detail-photo"><img src="${safeImagePath}" alt="Направление"></div>`
+        : '';
+
+      window.groupDetails = window.groupDetails || {};
+      window.currentDirectionForBooking = d;
+      const groupsHtml = (groups && groups.length)
+        ? groups.map((group) => {
+            const groupId = Number(group?.id);
+            if (Number.isFinite(groupId) && groupId > 0) {
+              window.groupDetails[groupId] = group;
+            }
+            return `
+              <div class="card" style="margin-bottom: 8px;">
+                ${renderDirectionGroupDetails(group, { includeBookingButton: true })}
+              </div>
+            `;
+          }).join('')
+        : '<p class="small" style="text-align: center; color: var(--hint); padding: 10px;">Групп пока нет</p>';
+
+      content.innerHTML = `
+        ${photoBlock}
+        <div class="direction-detail-content">
+          <div style="font-weight: 700; font-size: 20px; margin-bottom: 6px;">${safeTitle}</div>
+          <div class="small" style="margin-bottom: 8px;">${metaLine}</div>
+          <div class="small" style="margin-bottom: 10px;">${safeDescription}</div>
+          <div style="font-weight: 700; font-size: 16px; margin: 12px 0 8px 0;">Группы</div>
+          ${groupsHtml}
+        </div>
+      `;
+    })
+    .catch((err) => {
+      content.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 12px;">❌ ${toSafeText(err.message, 'Ошибка')}</p>`;
+    });
+}
+
+function renderNewsList(news) {
+  const container = document.getElementById('news-container');
+  if (!container) return;
+
+  if (!news || news.length === 0) {
+    container.innerHTML = '<p class="news-empty">Новостей пока нет v-v</p>';
+    return;
+  }
+
+  container.innerHTML = news.map((n) => {
+    const newsId = Number(n.id) || 0;
+    const safeTitle = toSafeText(n.title);
+    const safePhotoPath = toSafeUrl(n.photo_path);
+    return `
+      <div class="news-item" onclick="showNewsDetail(${newsId})">
+        ${n.photo_path ? `<img src="${safePhotoPath}" alt="Новость">` : ''}
+        <div class="news-item-title">${safeTitle}</div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadNewsManage() {
+  try {
+    const response = await fetch('/news/manage', {
+      headers: getAuthHeaders()
+    });
+    const news = await response.json();
+    const container = document.getElementById('news-manage-container');
+    const items = Array.isArray(news) ? news : [];
+
+    if (!items.length) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 Новостей пока нет</p>';
+      return;
+    }
+
+    container.innerHTML = items.map((n) => {
+      const newsId = Number(n.id) || 0;
+      const safeTitle = toSafeText(n.title);
+      const safePreview = toSafePreviewText(n.content, 100);
+      const safePhotoPath = toSafeUrl(n.photo_path);
+      return `
+        <div class="card" style="cursor: pointer; margin-bottom: 12px;">
+          ${n.photo_path ? `<div style="width: 100%; height: 150px; background: var(--hint); border-radius: 8px 8px 0 0; overflow: hidden; margin: -12px -12px 8px -12px;"><img src="${safePhotoPath}" style="width: 100%; height: 100%; object-fit: cover;"></div>` : ''}
+          <div style="font-weight: 600; font-size: 16px;">${safeTitle}</div>
+          <div style="font-size: 12px; color: var(--hint); margin-top: 4px;">${new Date(n.created_at).toLocaleDateString('ru-RU')} ${n.status === 'archived' ? '📦 В архиве' : ''}</div>
+          <div style="font-size: 13px; margin-top: 8px; color: var(--text);">${safePreview}</div>
+          <div style="display: flex; gap: 8px; margin-top: 8px;">
+            ${n.status === 'active' ? `<button class="save-btn" onclick="archiveNews(${newsId})" style="flex: 1; background: #ffa940; margin: 0;">📦 Архив</button>` : `<button class="save-btn" onclick="restoreNews(${newsId})" style="flex: 1; background: #52c41a; margin: 0;">↩️ Вернуть</button>`}
+            <button class="save-btn" onclick="deleteNews(${newsId})" style="flex: 1; background: #ff6b6b; margin: 0;">🗑️ Удалить</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (error) {
+    console.error('Ошибка загрузки новостей:', error);
+    document.getElementById('news-manage-container').innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">❌ Ошибка при загрузке</p>';
+  }
+}
+
+function renderNewsDetail(newsItem) {
+  document.getElementById('news-detail-title').innerText = newsItem.title;
+  document.getElementById('news-detail-date').innerText = new Date(newsItem.created_at).toLocaleDateString('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const photoContainer = document.getElementById('news-detail-photo-container');
+  if (newsItem.photo_path) {
+    photoContainer.innerHTML = `<img src="${toSafeUrl(newsItem.photo_path)}" alt="Фото новости">`;
+    photoContainer.style.height = '';
+    photoContainer.style.marginBottom = '';
+  } else {
+    photoContainer.innerHTML = '';
+    photoContainer.style.height = '0';
+    photoContainer.style.marginBottom = '0';
+  }
+
+  document.getElementById('news-detail-content').innerText = newsItem.content;
+  showPage('news-detail');
+}
+
+function renderDirections(directions) {
+  const container = document.getElementById('directions-groups-container');
+
+  if (!directions || directions.length === 0) {
+    const emptyText = currentDirectionTab === 'active' ? 'Активных направлений нет' : 'Архив пуст';
+    container.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 ${emptyText}</p>`;
+    return;
+  }
+
+  let html = '';
+
+  directions.forEach((direction) => {
+    const directionId = Number(direction.direction_id) || 0;
+    const safeTitle = toSafeText(direction.title, 'Направление');
+    const safeDescription = toSafeText(direction.description, 'Нет описания');
+    const safeImagePath = toSafeUrl(direction.image_path);
+    const safePrice = toSafeText(direction.base_price ? `${direction.base_price} ₽` : '—');
+    const statusColor = direction.status === 'active' ? '#4CAF50' : '#fe5815';
+    const statusText = direction.status === 'active' ? '✅ Активное' : '⏸️ Неактивное';
+    const popularBadge = direction.is_popular ? '⭐ Популярное' : '';
+    const typeBadge = direction.direction_type === 'sport' ? '🏅 Спортивное' : '💃 Танцевальное';
+
+    const imageHtml = direction.image_path
+      ? `<img src="${safeImagePath}" style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 12px;">`
+      : `<div style="width: 100%; height: 120px; background: #1f1f1f; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: var(--hint);">📸 Нет фото</div>`;
+
+    html += `
+      <div class="card" style="margin-bottom: 12px; border-left: 4px solid ${statusColor}; position: relative;">
+        ${imageHtml}
+        <h4 style="margin: 0 0 8px 0;">${safeTitle}</h4>
+        <p style="font-size: 13px; color: var(--hint); margin: 0 0 8px 0; line-height: 1.4;">${safeDescription}</p>
+
+        <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+          <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${typeBadge}</span>
+          <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">💰 ${safePrice}</span>
+          <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: ${statusColor};">${statusText}</span>
+          ${popularBadge ? `<span style="background: var(--accent-soft); color: var(--accent); padding: 4px 8px; border-radius: 4px; font-size: 12px;">${popularBadge}</span>` : ''}
+        </div>
+
+        <div style="font-size: 11px; color: var(--hint); margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border);">
+          Создано: ${new Date(direction.created_at).toLocaleDateString('ru-RU')}
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center; justify-content: space-between;">
+          <button class="save-btn" style="flex: 0 0 calc(100% - 48px); height: 40px; padding: 8px; font-size: 12px; background: var(--accent); border-radius: 8px;" onclick="editDirection(${directionId})">✏️ Редактировать</button>
+          <button class="save-btn" style="width: 40px; height: 40px; padding: 0; font-size: 18px; background: #fe5815; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" onclick="archiveDirection(${directionId})">🗑️</button>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function openPublicScheduleDetail(id) {
+  const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
+  const item = items.find((entry) => entry.id === id);
+  if (!item) return;
+
+  const content = document.getElementById('public-schedule-detail-content');
+  if (!content) return;
+
+  const startTime = formatTimeShort(item.start);
+  const endTime = formatTimeShort(item.end);
+  const duration = getDurationMinutes(startTime, endTime);
+  const lessons = item.lessons_per_week ? item.lessons_per_week : '—';
+  const directionImage = item.direction_image || '';
+  const safeDirectionImage = toSafeUrl(directionImage);
+  const directionId = Number(item.direction_id);
+  const hasDirectionId = Number.isFinite(directionId) && directionId > 0;
+  const safeTitle = toSafeText(item.title, '—');
+  const safeTeacherName = toSafeText(item.teacher_name, '—');
+  const safeAgeGroup = toSafeText(item.age_group, '—');
+  const safeDirectionTitle = toSafeText(item.direction, '—');
+  const safeDirectionDescription = toSafeText(item.direction_description, '—');
+  const safeLessons = toSafeText(lessons, '—');
+
+  content.innerHTML = `
+    ${directionImage ? `<div class="card" style="padding:0; overflow:hidden; margin-bottom:8px;"><img src="${safeDirectionImage}" alt="Направление" style="width:100%; height:180px; object-fit:cover; display:block;"></div>` : ''}
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+      <div class="schedule-detail-chip">📅 ${item.date ? new Date(item.date).toLocaleDateString('ru-RU') : '—'}</div>
+      <div class="schedule-detail-chip">🕰 ${startTime || '—'} — ${endTime || '—'}</div>
+      <div class="schedule-detail-chip">⏳ ${duration ? `${duration} мин` : '—'}</div>
+    </div>
+    <div class="schedule-detail-card">
+      <div class="schedule-detail-row">👥 <strong>Группа:</strong> ${safeTitle}</div>
+      <div class="schedule-detail-row">👩‍🏫 <strong>Преподаватель:</strong> ${safeTeacherName}</div>
+      <div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${safeLessons}</div>
+      <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${safeAgeGroup}</div>
+    </div>
+    <div class="schedule-detail-card">
+      <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${safeDirectionTitle}</div>
+      <div class="schedule-detail-row">📝 <strong>Описание направления:</strong> ${safeDirectionDescription}</div>
+      <button
+        type="button"
+        class="save-btn"
+        style="width:100%; margin-top:4px; background:#111;"
+        ${hasDirectionId ? `onclick="openDirectionDetail(${directionId})"` : 'disabled'}
+      >Перейти в направление</button>
+    </div>
+  `;
+
+  showPage('public-schedule-detail');
 }
 
 function archiveDirection(directionId) {

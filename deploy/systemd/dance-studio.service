@@ -8,12 +8,25 @@ Type=simple
 User=dance
 Group=dance
 WorkingDirectory=/opt/dance_studio
+
 Environment="PYTHONUNBUFFERED=1"
 Environment="PYTHONPATH=/opt/dance_studio/src"
 EnvironmentFile=-/opt/dance_studio/.env
+
 ExecStart=/opt/dance_studio/.venv/bin/python /opt/dance_studio/scripts/run_all.py
-Restart=on-failure
+
+Restart=always
 RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=20
+
+# Логи в journal
+StandardOutput=journal
+StandardError=journal
+
+# Чуть харденига (без фанатизма)
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target

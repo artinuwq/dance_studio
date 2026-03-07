@@ -11,15 +11,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_ROOT="${DEPLOY_ROOT:-/opt/dance_studio}"
 CURRENT_LINK="${CURRENT_LINK:-${DEPLOY_ROOT}/current}"
 PREVIOUS_LINK="${PREVIOUS_LINK:-${DEPLOY_ROOT}/previous}"
-SERVICE_NAME="${SERVICE_NAME:-run_all}"
 APP_USER="${APP_USER:-dance}"
 APP_GROUP="${APP_GROUP:-dance}"
 ENV_FILE="${ENV_FILE:-${DEPLOY_ROOT}/.env}"
+HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:3000/health}"
+DEFAULT_SERVICES="web bot"
+
+SERVICES_RAW="${SERVICES:-${DEFAULT_SERVICES}}"
+SERVICE_NAMES=()
+if [[ -n "${SERVICES_RAW// }" ]]; then
+  read -r -a SERVICE_NAMES <<< "${SERVICES_RAW}"
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --service)
-      SERVICE_NAME="$2"
+      SERVICE_NAMES+=("$2")
+      shift 2
+      ;;
+    --services)
+      read -r -a SERVICE_NAMES <<< "$2"
       shift 2
       ;;
     --deploy-root)
@@ -40,12 +51,20 @@ while [[ $# -gt 0 ]]; do
       ENV_FILE="$2"
       shift 2
       ;;
+    --healthcheck-url)
+      HEALTHCHECK_URL="$2"
+      shift 2
+      ;;
     *)
       echo "[rollback] unknown argument: $1" >&2
       exit 2
       ;;
   esac
 done
+
+if [[ ${#SERVICE_NAMES[@]} -eq 0 ]]; then
+  read -r -a SERVICE_NAMES <<< "${DEFAULT_SERVICES}"
+fi
 
 if [[ ! -L "${PREVIOUS_LINK}" ]]; then
   echo "[rollback] previous symlink not found: ${PREVIOUS_LINK}" >&2
@@ -68,19 +87,26 @@ if [[ -n "${CURRENT_TARGET}" && "${CURRENT_TARGET}" != "${PREVIOUS_TARGET}" && -
   ln -sfn "${CURRENT_TARGET}" "${PREVIOUS_LINK}"
 fi
 
-"${SCRIPT_DIR}/install-service.sh" "${SERVICE_NAME}" \
-  --app-dir "${CURRENT_LINK}" \
-  --app-user "${APP_USER}" \
-  --app-group "${APP_GROUP}" \
-  --env-file "${ENV_FILE}"
+for service in "${SERVICE_NAMES[@]}"; do
+  "${SCRIPT_DIR}/install-service.sh" "${service}" \
+    --app-dir "${CURRENT_LINK}" \
+    --app-user "${APP_USER}" \
+    --app-group "${APP_GROUP}" \
+    --env-file "${ENV_FILE}"
+done
 
-systemctl restart "${SERVICE_NAME}.service"
+for service in "${SERVICE_NAMES[@]}"; do
+  systemctl restart "${service}.service"
+done
 
-if "${SCRIPT_DIR}/healthcheck.sh"; then
+if HEALTHCHECK_URL="${HEALTHCHECK_URL}" "${SCRIPT_DIR}/healthcheck.sh"; then
   echo "[rollback] rollback successful"
   echo "[rollback] current -> $(readlink -f "${CURRENT_LINK}")"
   exit 0
 fi
 
 echo "[rollback] healthcheck failed after rollback" >&2
+for service in "${SERVICE_NAMES[@]}"; do
+  journalctl -u "${service}.service" -n 80 --no-pager || true
+done
 exit 5

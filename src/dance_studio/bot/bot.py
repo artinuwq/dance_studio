@@ -14,6 +14,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
 from dance_studio.core.config import (
+    API_INTERNAL_BASE_URL,
     BOT_TOKEN,
     WEB_APP_URL,
     PROJECT_NAME_FULL,
@@ -57,11 +58,12 @@ from dance_studio.core.abonement_pricing import (
     is_free_trial_booking,
     parse_booking_bundle_group_ids,
 )
-from dance_studio.core.system_settings_service import update_setting
+from dance_studio.core.system_settings_service import get_setting_value, update_setting
 from dance_studio.core.personal_discounts import (
     DiscountConsumptionConflictError,
     consume_one_time_discount_for_booking,
 )
+from dance_studio.bot.upload_sessions import direction_upload_session_validation_error
 from dance_studio.bot.telegram_userbot import send_private_message
 from dance_studio.core.notification_service_async import send_user_notification_async
 from dance_studio.web.services.attendance import _auto_finalize_attendance_from_intentions
@@ -85,6 +87,7 @@ TECH_BACKUPS_TOPIC_ID_RUNTIME = TECH_BACKUPS_TOPIC_ID
 TECH_STATUS_TOPIC_ID_RUNTIME = TECH_STATUS_TOPIC_ID
 TECH_CRITICAL_TOPIC_ID_RUNTIME = TECH_CRITICAL_TOPIC_ID
 TECH_STATUS_MESSAGE_ID_RUNTIME = TECH_STATUS_MESSAGE_ID
+BOOKINGS_ADMIN_CHAT_ID_RUNTIME = BOOKINGS_ADMIN_CHAT_ID
 
 BACKUP_KEEP_COUNT = 3
 BACKUP_LOCK = asyncio.Lock()
@@ -103,6 +106,8 @@ BOT_USERNAME_GLOBAL: str | None = None
 
 
 PAYMENT_ADMIN_CONTACT_URL = "https://t.me/ShebaSport_LissaDance"
+API_INTERNAL_BASE_URL_CLEAN = (API_INTERNAL_BASE_URL or "http://127.0.0.1:3000").strip().rstrip("/")
+WEB_APP_URL_CLEAN = (WEB_APP_URL or "").strip()
 INACTIVE_SCHEDULE_STATUSES = {
     "cancelled",
     "deleted",
@@ -115,35 +120,110 @@ INACTIVE_SCHEDULE_STATUSES = {
 }
 RENTAL_CREATE_SCHEDULE_STATUSES = {"APPROVED", "AWAITING_PAYMENT", "PAID"}
 
+TECH_LOGS_CHAT_ID_SETTING_KEY = "tech.logs_chat_id"
+TECH_BACKUPS_TOPIC_ID_SETTING_KEY = "tech.backups_topic_id"
+TECH_STATUS_TOPIC_ID_SETTING_KEY = "tech.status_topic_id"
+TECH_CRITICAL_TOPIC_ID_SETTING_KEY = "tech.critical_topic_id"
+TECH_STATUS_MESSAGE_ID_SETTING_KEY = "tech.status_message_id"
+BOOKINGS_ADMIN_CHAT_ID_SETTING_KEY = "bookings.admin_chat_id"
+NO_GROUPS_LAST_NOTIFIED_SETTING_KEY = "alerts.no_groups_last_notified_at"
+NO_GROUPS_ALERT_COOLDOWN = timedelta(hours=6)
 
-def _env_file_path() -> Path:
-    return Path(__file__).resolve().parents[3] / ".env"
 
-
-def _upsert_env_value(key: str, value: int) -> None:
-    if value is None:
-        return
-    env_path = _env_file_path()
+def _to_int_or_none(value) -> int | None:
     try:
-        lines = env_path.read_text(encoding="utf-8").splitlines()
-    except FileNotFoundError:
-        lines = []
-    updated = False
-    new_lines = []
-    for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("#") or "=" not in line:
-            new_lines.append(line)
-            continue
-        existing_key = line.split("=", 1)[0].strip()
-        if existing_key == key:
-            new_lines.append(f"{key}={value}")
-            updated = True
-        else:
-            new_lines.append(line)
-    if not updated:
-        new_lines.append(f"{key}={value}")
-    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed == 0:
+        return None
+    return parsed
+
+
+def _get_runtime_id_with_fallback(db, setting_key: str, env_fallback: int | None) -> int | None:
+    configured = None
+    try:
+        configured = _to_int_or_none(get_setting_value(db, setting_key))
+    except Exception:
+        configured = None
+    if configured is not None:
+        return configured
+
+    fallback = _to_int_or_none(env_fallback)
+    if fallback is None:
+        return None
+
+    try:
+        update_setting(
+            db,
+            key=setting_key,
+            raw_value=fallback,
+            changed_by_staff_id=None,
+            reason="Seeded from .env fallback during runtime bootstrap",
+            source="bot_runtime",
+        )
+    except Exception:
+        _logger.exception("Failed to persist fallback for setting %s", setting_key)
+    return fallback
+
+
+def _persist_runtime_id_setting(setting_key: str, value: int | None, reason: str) -> None:
+    normalized = _to_int_or_none(value)
+    if normalized is None:
+        return
+
+    db = get_session()
+    try:
+        update_setting(
+            db,
+            key=setting_key,
+            raw_value=normalized,
+            changed_by_staff_id=None,
+            reason=reason,
+            source="bot_runtime",
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        _logger.exception("Failed to persist runtime setting %s=%s", setting_key, normalized)
+    finally:
+        db.close()
+
+
+def _load_runtime_chat_targets() -> None:
+    global TECH_LOGS_CHAT_ID_RUNTIME
+    global TECH_BACKUPS_TOPIC_ID_RUNTIME
+    global TECH_STATUS_TOPIC_ID_RUNTIME
+    global TECH_CRITICAL_TOPIC_ID_RUNTIME
+    global TECH_STATUS_MESSAGE_ID_RUNTIME
+    global BOOKINGS_ADMIN_CHAT_ID_RUNTIME
+
+    db = get_session()
+    try:
+        TECH_LOGS_CHAT_ID_RUNTIME = _get_runtime_id_with_fallback(
+            db, TECH_LOGS_CHAT_ID_SETTING_KEY, TECH_LOGS_CHAT_ID
+        )
+        TECH_BACKUPS_TOPIC_ID_RUNTIME = _get_runtime_id_with_fallback(
+            db, TECH_BACKUPS_TOPIC_ID_SETTING_KEY, TECH_BACKUPS_TOPIC_ID
+        )
+        TECH_STATUS_TOPIC_ID_RUNTIME = _get_runtime_id_with_fallback(
+            db, TECH_STATUS_TOPIC_ID_SETTING_KEY, TECH_STATUS_TOPIC_ID
+        )
+        TECH_CRITICAL_TOPIC_ID_RUNTIME = _get_runtime_id_with_fallback(
+            db, TECH_CRITICAL_TOPIC_ID_SETTING_KEY, TECH_CRITICAL_TOPIC_ID
+        )
+        TECH_STATUS_MESSAGE_ID_RUNTIME = _get_runtime_id_with_fallback(
+            db, TECH_STATUS_MESSAGE_ID_SETTING_KEY, TECH_STATUS_MESSAGE_ID
+        )
+        BOOKINGS_ADMIN_CHAT_ID_RUNTIME = _get_runtime_id_with_fallback(
+            db, BOOKINGS_ADMIN_CHAT_ID_SETTING_KEY, BOOKINGS_ADMIN_CHAT_ID
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        _logger.exception("Failed to load runtime chat targets from settings")
+    finally:
+        db.close()
 
 
 def _sync_bot_username_setting(bot_username: str) -> None:
@@ -169,7 +249,79 @@ def _sync_bot_username_setting(bot_username: str) -> None:
         db.close()
 
 
-async def _ensure_forum_topic(name: str, current_id: int | None, env_key: str) -> int | None:
+def _is_tech_admin_position(value: str | None) -> bool:
+    return str(value or "").strip().lower() == "тех. админ"
+
+
+async def _alert_if_groups_missing() -> None:
+    db = get_session()
+    try:
+        groups_count = db.query(Group).count()
+        if groups_count > 0:
+            return
+
+        now_utc = datetime.utcnow()
+        last_sent_raw = ""
+        try:
+            last_sent_raw = str(get_setting_value(db, NO_GROUPS_LAST_NOTIFIED_SETTING_KEY) or "").strip()
+        except Exception:
+            last_sent_raw = ""
+
+        if last_sent_raw:
+            try:
+                last_sent_at = datetime.fromisoformat(last_sent_raw)
+                if now_utc - last_sent_at < NO_GROUPS_ALERT_COOLDOWN:
+                    return
+            except Exception:
+                pass
+
+        recipients: set[int] = set()
+        staff_rows = db.query(Staff).filter(Staff.status == "active").all()
+        for staff in staff_rows:
+            if not _is_tech_admin_position(getattr(staff, "position", None)):
+                continue
+            telegram_id = _to_int_or_none(getattr(staff, "telegram_id", None))
+            if telegram_id is not None:
+                recipients.add(telegram_id)
+
+        tech_admin_fallback = _to_int_or_none(TECH_ADMIN_ID)
+        if tech_admin_fallback is not None:
+            recipients.add(tech_admin_fallback)
+
+        if not recipients:
+            return
+
+        alert_text = (
+            "⚠️ ВНИМАНИЕ: в системе пока нет ни одной группы.\n"
+            "Создайте группы и добавьте их в настройки."
+        )
+
+        sent_any = False
+        for telegram_id in sorted(recipients):
+            try:
+                await bot.send_message(chat_id=telegram_id, text=alert_text)
+                sent_any = True
+            except Exception as exc:
+                _logger.warning("Failed to send no-groups alert to %s: %s", telegram_id, exc)
+
+        if sent_any:
+            update_setting(
+                db,
+                key=NO_GROUPS_LAST_NOTIFIED_SETTING_KEY,
+                raw_value=now_utc.isoformat(timespec="seconds"),
+                changed_by_staff_id=None,
+                reason="Startup alert: no groups configured",
+                source="bot_runtime",
+            )
+            db.commit()
+    except Exception:
+        db.rollback()
+        _logger.exception("Failed to process startup no-groups alert")
+    finally:
+        db.close()
+
+
+async def _ensure_forum_topic(name: str, current_id: int | None, setting_key: str) -> int | None:
     if current_id:
         return current_id
     if not TECH_LOGS_CHAT_ID_RUNTIME:
@@ -177,18 +329,22 @@ async def _ensure_forum_topic(name: str, current_id: int | None, env_key: str) -
     try:
         topic = await bot.create_forum_topic(chat_id=TECH_LOGS_CHAT_ID_RUNTIME, name=name)
         topic_id = topic.message_thread_id
-        _upsert_env_value(env_key, topic_id)
+        _persist_runtime_id_setting(
+            setting_key,
+            topic_id,
+            reason=f"Auto-created forum topic '{name}'",
+        )
         return topic_id
     except Exception as e:
         print(f"⚠️ Не удалось создать тему '{name}': {e}")
         return None
 
-async def _ensure_topic_name(topic_id: int | None, name: str, env_key: str | None = None) -> int | None:
+async def _ensure_topic_name(topic_id: int | None, name: str, setting_key: str | None = None) -> int | None:
     if not TECH_LOGS_CHAT_ID_RUNTIME:
         return topic_id
     if not topic_id:
-        if env_key:
-            return await _ensure_forum_topic(name, None, env_key)
+        if setting_key:
+            return await _ensure_forum_topic(name, None, setting_key)
         return None
     try:
         await bot.edit_forum_topic(
@@ -198,8 +354,8 @@ async def _ensure_topic_name(topic_id: int | None, name: str, env_key: str | Non
         )
         return topic_id
     except Exception as e:
-        if "message thread not found" in str(e).lower() and env_key:
-            return await _ensure_forum_topic(name, None, env_key)
+        if "message thread not found" in str(e).lower() and setting_key:
+            return await _ensure_forum_topic(name, None, setting_key)
         if "TOPIC_NOT_MODIFIED" in str(e):
             return topic_id
         print(f"WARN: topic rename failed for {name}: {e}")
@@ -226,17 +382,17 @@ async def ensure_tech_topics() -> None:
         return
 
     TECH_BACKUPS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
-        "Бэкапы", TECH_BACKUPS_TOPIC_ID_RUNTIME, "TECH_BACKUPS_TOPIC_ID"
+        "Бэкапы", TECH_BACKUPS_TOPIC_ID_RUNTIME, TECH_BACKUPS_TOPIC_ID_SETTING_KEY
     )
     TECH_STATUS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
-        "Статус бота", TECH_STATUS_TOPIC_ID_RUNTIME, "TECH_STATUS_TOPIC_ID"
+        "Статус бота", TECH_STATUS_TOPIC_ID_RUNTIME, TECH_STATUS_TOPIC_ID_SETTING_KEY
     )
     TECH_CRITICAL_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
-        "Критичные ошибки", TECH_CRITICAL_TOPIC_ID_RUNTIME, "TECH_CRITICAL_TOPIC_ID"
+        "Критичные ошибки", TECH_CRITICAL_TOPIC_ID_RUNTIME, TECH_CRITICAL_TOPIC_ID_SETTING_KEY
     )
-    TECH_BACKUPS_TOPIC_ID_RUNTIME = await _ensure_topic_name(TECH_BACKUPS_TOPIC_ID_RUNTIME, "Бэкапы", "TECH_BACKUPS_TOPIC_ID")
-    TECH_STATUS_TOPIC_ID_RUNTIME = await _ensure_topic_name(TECH_STATUS_TOPIC_ID_RUNTIME, "Статус бота", "TECH_STATUS_TOPIC_ID")
-    TECH_CRITICAL_TOPIC_ID_RUNTIME = await _ensure_topic_name(TECH_CRITICAL_TOPIC_ID_RUNTIME, "Критичные ошибки", "TECH_CRITICAL_TOPIC_ID")
+    TECH_BACKUPS_TOPIC_ID_RUNTIME = await _ensure_topic_name(TECH_BACKUPS_TOPIC_ID_RUNTIME, "Бэкапы", TECH_BACKUPS_TOPIC_ID_SETTING_KEY)
+    TECH_STATUS_TOPIC_ID_RUNTIME = await _ensure_topic_name(TECH_STATUS_TOPIC_ID_RUNTIME, "Статус бота", TECH_STATUS_TOPIC_ID_SETTING_KEY)
+    TECH_CRITICAL_TOPIC_ID_RUNTIME = await _ensure_topic_name(TECH_CRITICAL_TOPIC_ID_RUNTIME, "Критичные ошибки", TECH_CRITICAL_TOPIC_ID_SETTING_KEY)
 
 
 async def _send_tech_message(
@@ -245,13 +401,13 @@ async def _send_tech_message(
     parse_mode: str | None = None,
     *,
     topic_name: str | None = None,
-    env_key: str | None = None,
+    setting_key: str | None = None,
 ) -> int | None:
     if not TECH_LOGS_CHAT_ID_RUNTIME:
         return topic_id
     if not topic_id:
-        if topic_name and env_key:
-            topic_id = await _ensure_forum_topic(topic_name, None, env_key)
+        if topic_name and setting_key:
+            topic_id = await _ensure_forum_topic(topic_name, None, setting_key)
         if not topic_id:
             return None
     try:
@@ -263,8 +419,8 @@ async def _send_tech_message(
         )
         return topic_id
     except Exception as e:
-        if topic_name and env_key and "message thread not found" in str(e).lower():
-            topic_id = await _ensure_forum_topic(topic_name, None, env_key)
+        if topic_name and setting_key and "message thread not found" in str(e).lower():
+            topic_id = await _ensure_forum_topic(topic_name, None, setting_key)
             if topic_id:
                 try:
                     await bot.send_message(
@@ -286,7 +442,7 @@ async def send_tech_backup(text: str) -> None:
         TECH_BACKUPS_TOPIC_ID_RUNTIME,
         text,
         topic_name="Бэкапы",
-        env_key="TECH_BACKUPS_TOPIC_ID"
+        setting_key=TECH_BACKUPS_TOPIC_ID_SETTING_KEY
     )
 
 
@@ -296,7 +452,7 @@ async def send_tech_critical(text: str) -> None:
         TECH_CRITICAL_TOPIC_ID_RUNTIME,
         text,
         topic_name="Критичные ошибки",
-        env_key="TECH_CRITICAL_TOPIC_ID"
+        setting_key=TECH_CRITICAL_TOPIC_ID_SETTING_KEY
     )
 
 
@@ -307,7 +463,7 @@ async def update_bot_status(text: str) -> None:
         return
     if not TECH_STATUS_TOPIC_ID_RUNTIME:
         TECH_STATUS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
-            "Статус бота", None, "TECH_STATUS_TOPIC_ID"
+            "Статус бота", None, TECH_STATUS_TOPIC_ID_SETTING_KEY
         )
         if not TECH_STATUS_TOPIC_ID_RUNTIME:
             return
@@ -330,11 +486,15 @@ async def update_bot_status(text: str) -> None:
             text=text
         )
         TECH_STATUS_MESSAGE_ID_RUNTIME = msg.message_id
-        _upsert_env_value("TECH_STATUS_MESSAGE_ID", msg.message_id)
+        _persist_runtime_id_setting(
+            TECH_STATUS_MESSAGE_ID_SETTING_KEY,
+            msg.message_id,
+            reason="Stored latest status message id",
+        )
     except Exception as e:
         if "message thread not found" in str(e).lower():
             TECH_STATUS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
-                "Статус бота", None, "TECH_STATUS_TOPIC_ID"
+                "Статус бота", None, TECH_STATUS_TOPIC_ID_SETTING_KEY
             )
             if TECH_STATUS_TOPIC_ID_RUNTIME:
                 try:
@@ -344,7 +504,11 @@ async def update_bot_status(text: str) -> None:
                         text=text
                     )
                     TECH_STATUS_MESSAGE_ID_RUNTIME = msg.message_id
-                    _upsert_env_value("TECH_STATUS_MESSAGE_ID", msg.message_id)
+                    _persist_runtime_id_setting(
+                        TECH_STATUS_MESSAGE_ID_SETTING_KEY,
+                        msg.message_id,
+                        reason="Stored latest status message id after topic recreation",
+                    )
                     return
                 except Exception:
                     pass
@@ -473,7 +637,7 @@ async def _ensure_backup_topic() -> int | None:
     global TECH_BACKUPS_TOPIC_ID_RUNTIME
     if not TECH_BACKUPS_TOPIC_ID_RUNTIME:
         TECH_BACKUPS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
-            "Бэкапы", None, "TECH_BACKUPS_TOPIC_ID"
+            "Бэкапы", None, TECH_BACKUPS_TOPIC_ID_SETTING_KEY
         )
     return TECH_BACKUPS_TOPIC_ID_RUNTIME
 
@@ -656,7 +820,6 @@ async def start(message, state: FSMContext):
     parts = message.text.split(maxsplit=1)
     start_param = parts[1] if len(parts) > 1 else None
     
-    print(f"DEBUG: start_param = {start_param}")  # Для отладки
     
     # Проверяем параметры
     if start_param == "create_news":
@@ -703,11 +866,13 @@ async def start(message, state: FSMContext):
         # Извлекаем токен из параметра (upload_TOKEN)
         token = start_param[7:]  # Убираем "upload_" префикс
         
-        print(f"DEBUG: token = {token}")  # Для отладки
-        
         db = get_session()
         try:
             session = db.query(DirectionUploadSession).filter_by(session_token=token).first()
+            validation_error = direction_upload_session_validation_error(session, user_id)
+            if validation_error:
+                await message.answer(validation_error)
+                return
             
             if not session:
                 await message.answer(
@@ -1465,6 +1630,8 @@ async def process_attendance_reminders() -> None:
 
 
 async def run_bot():
+    _load_runtime_chat_targets()
+
     # Получаем информацию о боте при старте
     try:
         me = await bot.get_me()
@@ -1481,6 +1648,7 @@ async def run_bot():
     backup_task = None
     queue_task = None
     reminder_task = None
+    await _alert_if_groups_missing()
     await ensure_tech_topics()
     await update_bot_status(f"✅ Бот запущен {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
     await create_and_send_backup("startup")
@@ -1990,7 +2158,7 @@ async def handle_booking_action(callback: CallbackQuery):
     if not callback.data or not callback.message:
         return
 
-    if BOOKINGS_ADMIN_CHAT_ID and callback.message.chat.id != BOOKINGS_ADMIN_CHAT_ID:
+    if BOOKINGS_ADMIN_CHAT_ID_RUNTIME and callback.message.chat.id != BOOKINGS_ADMIN_CHAT_ID_RUNTIME:
         await callback.answer("Эта кнопка доступна только для админ-группы.", show_alert=True)
         return
 
@@ -2214,7 +2382,7 @@ def _build_payment_request_message(db, booking: BookingRequest) -> str:
 
 
 async def _notify_payment_delivery_failed(user: User | None, booking: BookingRequest, reason: str, failed_text: str) -> None:
-    if not BOOKINGS_ADMIN_CHAT_ID:
+    if not BOOKINGS_ADMIN_CHAT_ID_RUNTIME:
         return
     user_label = "неизвестный пользователь"
     if user:
@@ -2231,8 +2399,8 @@ async def _notify_payment_delivery_failed(user: User | None, booking: BookingReq
         "По возможности отправьте сообщение вручную."
     )
     try:
-        await bot.send_message(chat_id=BOOKINGS_ADMIN_CHAT_ID, text=alert)
-        await bot.send_message(chat_id=BOOKINGS_ADMIN_CHAT_ID, text=failed_text)
+        await bot.send_message(chat_id=BOOKINGS_ADMIN_CHAT_ID_RUNTIME, text=alert)
+        await bot.send_message(chat_id=BOOKINGS_ADMIN_CHAT_ID_RUNTIME, text=failed_text)
     except Exception:
         pass
 
@@ -2368,6 +2536,13 @@ async def process_session_token(message, state: FSMContext):
     db = get_session()
     try:
         session = db.query(DirectionUploadSession).filter_by(session_token=token).first()
+        validation_error = direction_upload_session_validation_error(
+            session,
+            message.from_user.id,
+        )
+        if validation_error:
+            await message.answer(validation_error)
+            return
         
         if not session:
             await message.answer(
@@ -2436,19 +2611,21 @@ async def process_direction_photo(message, state: FSMContext):
                 form.add_field('photo', file_content, filename=f'photo_{session_id}.jpg', content_type='image/jpeg')
                 
                 async with session.post(
-                    f"http://localhost:5000/api/directions/photo/{token}",
+                    f"{API_INTERNAL_BASE_URL_CLEAN}/api/directions/photo/{token}",
                     data=form
                 ) as resp:
                     if resp.status == 200:
                         result = await resp.json()
                         
                         # Создаем кнопку для возврата к веб-приложению
-                        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                            [InlineKeyboardButton(
-                                text="🩰 Вернуться на сайт",
-                                web_app=WebAppInfo(url="https://lumica.duckdns.org/")
-                            )]
-                        ])
+                        keyboard = None
+                        if WEB_APP_URL_CLEAN:
+                            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                                [InlineKeyboardButton(
+                                    text="🩰 Вернуться на сайт",
+                                    web_app=WebAppInfo(url=WEB_APP_URL_CLEAN)
+                                )]
+                            ])
                         
                         # Отправляем сообщение об успехе с кнопкой возврата
                         await message.answer(
@@ -2505,7 +2682,7 @@ async def process_staff_photo(message, state: FSMContext):
             form.add_field('photo', file_content, filename=f'photo_{staff_id}.jpg', content_type='image/jpeg')
 
             async with session.post(
-                f"http://localhost:5000/staff/{staff_id}/photo",
+                f"{API_INTERNAL_BASE_URL_CLEAN}/staff/{staff_id}/photo",
                 data=form
             ) as resp:
                 if resp.status in (200, 201):
@@ -2523,7 +2700,3 @@ async def process_staff_photo(message, state: FSMContext):
             f"Попробуйте отправить фото еще раз."
         )
         await state.set_state(StaffPhotoStates.waiting_for_photo)
-
-
-
-

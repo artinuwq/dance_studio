@@ -5,6 +5,7 @@ from datetime import date, datetime, time
 
 import requests
 from flask import current_app
+from sqlalchemy.orm import object_session
 
 from dance_studio.core.abonement_pricing import (
     ABONEMENT_TYPE_MULTI,
@@ -17,6 +18,7 @@ from dance_studio.core.abonement_pricing import (
 from dance_studio.core.booking_utils import build_booking_keyboard_data, format_booking_message
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.config import PROJECT_NAME_FULL
+from dance_studio.core.system_settings_service import get_setting_value
 from dance_studio.db.models import BookingRequest, HallRental, IndividualLesson, Schedule, User
 from dance_studio.web.constants import INACTIVE_SCHEDULE_STATUSES
 from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
@@ -30,6 +32,34 @@ def _compute_duration_minutes(time_from, time_to) -> int | None:
     delta = datetime.combine(date.today(), time_to) - datetime.combine(date.today(), time_from)
     minutes = int(delta.total_seconds() // 60)
     return minutes if minutes > 0 else None
+
+
+def _to_int_or_none(value) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed == 0:
+        return None
+    return parsed
+
+
+def _resolve_bookings_admin_chat_id(booking: BookingRequest):
+    try:
+        from dance_studio.core.config import BOOKINGS_ADMIN_CHAT_ID
+    except Exception:
+        BOOKINGS_ADMIN_CHAT_ID = None
+
+    fallback = _to_int_or_none(BOOKINGS_ADMIN_CHAT_ID)
+    db = object_session(booking)
+    if not db:
+        return fallback
+
+    try:
+        configured = _to_int_or_none(get_setting_value(db, "bookings.admin_chat_id"))
+        return configured if configured is not None else fallback
+    except Exception:
+        return fallback
 
 def _find_booking_overlaps(db, date_val, time_from, time_to) -> list[dict]:
     overlaps = []
@@ -79,11 +109,12 @@ def _find_booking_overlaps(db, date_val, time_from, time_to) -> list[dict]:
 
 def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
     try:
-        from dance_studio.core.config import BOT_TOKEN, BOOKINGS_ADMIN_CHAT_ID
+        from dance_studio.core.config import BOT_TOKEN
     except Exception:
         return
 
-    if not BOT_TOKEN or not BOOKINGS_ADMIN_CHAT_ID:
+    admin_chat_id = _resolve_bookings_admin_chat_id(booking)
+    if not BOT_TOKEN or not admin_chat_id:
         return
 
     text = format_booking_message(booking, user)
@@ -100,7 +131,7 @@ def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
     )
 
     payload = {
-        "chat_id": BOOKINGS_ADMIN_CHAT_ID,
+        "chat_id": admin_chat_id,
         "text": text,
         "parse_mode": "HTML",
     }
@@ -227,9 +258,10 @@ def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user:
     except Exception as exc:
         current_app.logger.exception("booking %s: failed to deliver payment details via userbot", booking.id)
         try:
-            from dance_studio.core.config import BOT_TOKEN, BOOKINGS_ADMIN_CHAT_ID
+            from dance_studio.core.config import BOT_TOKEN
+            admin_chat_id = _resolve_bookings_admin_chat_id(booking)
 
-            if BOT_TOKEN and BOOKINGS_ADMIN_CHAT_ID:
+            if BOT_TOKEN and admin_chat_id:
                 username = f"@{user_target['username']}" if user_target.get("username") else "—"
                 reason = _humanize_userbot_error(str(exc))
                 alert_text = (
@@ -241,7 +273,7 @@ def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user:
                 )
                 requests.post(
                     f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={"chat_id": BOOKINGS_ADMIN_CHAT_ID, "text": alert_text},
+                    json={"chat_id": admin_chat_id, "text": alert_text},
                     timeout=5,
                 )
         except Exception:

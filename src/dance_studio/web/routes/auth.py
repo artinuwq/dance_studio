@@ -8,6 +8,7 @@ from dance_studio.core.tg_auth import validate_init_data
 from dance_studio.core.tg_replay import store_used_init_data
 from dance_studio.db.models import SessionRecord
 from dance_studio.web.services.auth_session import (
+    _clear_csrf_cookie,
     _clear_sid_cookie,
     _create_session,
     _delete_expired_sessions_for_user,
@@ -15,6 +16,7 @@ from dance_studio.web.services.auth_session import (
     _extract_init_data_from_request,
     _extract_ip_prefix,
     _hash_user_agent,
+    _set_csrf_cookie,
     _set_sid_cookie,
     _sid_hash,
 )
@@ -58,6 +60,7 @@ def auth_telegram():
 
     response = jsonify({"ok": True, "telegram_id": telegram_id})
     _set_sid_cookie(response, sid)
+    _set_csrf_cookie(response)
     return response
 
 
@@ -76,4 +79,5 @@ def auth_logout():
 
     response = jsonify({"ok": True})
     _clear_sid_cookie(response)
+    _clear_csrf_cookie(response)
     return response

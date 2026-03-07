@@ -34,10 +34,12 @@ from .attendance import (
     _serialize_attendance_intention_with_lock,
 )
 from .auth_session import (
+    CSRF_COOKIE_NAME,
     CSRF_EXEMPT_PATHS,
     CSRF_EXEMPT_PREFIXES,
     SENSITIVE_PATH_PREFIXES,
     STATE_CHANGING_METHODS,
+    _clear_csrf_cookie,
     _clear_sid_cookie,
     _create_session,
     _delete_expired_sessions_for_user,
@@ -47,6 +49,7 @@ from .auth_session import (
     _hash_user_agent,
     _is_csrf_valid,
     _is_sensitive_endpoint,
+    _set_csrf_cookie,
     _set_sid_cookie,
     _sid_hash,
 )
@@ -68,6 +71,7 @@ from .payments import (
 __all__ = [
     "CSRF_EXEMPT_PATHS",
     "CSRF_EXEMPT_PREFIXES",
+    "CSRF_COOKIE_NAME",
     "PAYMENT_PROFILE_SLOTS",
     "SENSITIVE_PATH_PREFIXES",
     "STATE_CHANGING_METHODS",
@@ -78,6 +82,7 @@ __all__ = [
     "_build_image_url",
     "_can_edit_schedule_attendance",
     "_can_user_set_absence_for_schedule",
+    "_clear_csrf_cookie",
     "_clear_sid_cookie",
     "_collect_busy_intervals",
     "_compute_duration_minutes",
@@ -109,6 +114,7 @@ __all__ = [
     "_serialize_attendance_intention_with_lock",
     "_serialize_client_abonement_for_admin",
     "_serialize_payment_profile",
+    "_set_csrf_cookie",
     "_set_sid_cookie",
     "_sid_hash",
     "_subtract_busy_intervals",

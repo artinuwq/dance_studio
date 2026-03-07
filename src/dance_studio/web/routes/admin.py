@@ -48,6 +48,11 @@ from dance_studio.web.constants import (
     MEDIA_ROOT,
     PROJECT_ROOT,
 )
+from dance_studio.web.services.api_errors import (
+    internal_server_error_response,
+    safe_client_error_message,
+    token_fingerprint,
+)
 from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
 from dance_studio.web.services.admin import (
     _append_merge_note,
@@ -73,6 +78,7 @@ from dance_studio.web.services.studio_rules import (
     SERVICE_BREAK_START,
     interval_overlaps_service_break,
 )
+from dance_studio.web.services.text import sanitize_plain_text
 
 bp = Blueprint('admin_routes', __name__)
 
@@ -81,6 +87,34 @@ SCHEDULE_MOVE_TYPE_LABELS = {
     "absence_people": "Отсутствие людей",
     "low_attendance": "Нехватка людей",
 }
+
+
+def _sanitize_direction_title(value):
+    return sanitize_plain_text(value, multiline=False) or ""
+
+
+def _sanitize_direction_description(value):
+    return sanitize_plain_text(value) or ""
+
+
+def _serialize_direction_payload(direction, *, groups_count=None, include_status=False, include_updated_at=False):
+    payload = {
+        "direction_id": direction.direction_id,
+        "direction_type": direction.direction_type or "dance",
+        "title": _sanitize_direction_title(direction.title),
+        "description": _sanitize_direction_description(direction.description),
+        "base_price": direction.base_price,
+        "is_popular": direction.is_popular,
+        "image_path": _build_image_url(direction.image_path),
+        "created_at": direction.created_at.isoformat(),
+    }
+    if groups_count is not None:
+        payload["groups_count"] = groups_count
+    if include_status:
+        payload["status"] = direction.status
+    if include_updated_at:
+        payload["updated_at"] = direction.updated_at.isoformat()
+    return payload
 SCHEDULE_PRESENT_STATUSES = {"present", "late"}
 
 IMMUTABLE_STAFF_ROLE = "тех. админ"
@@ -366,9 +400,10 @@ def _send_group_chat_message(chat_id: int | None, text: str) -> tuple[bool, str 
         )
         if resp.ok:
             return True, None
-        return False, resp.text or "telegram_send_failed"
-    except Exception as exc:
-        return False, str(exc)
+        return False, "telegram_send_failed"
+    except Exception:
+        current_app.logger.exception("Failed to notify group chat")
+        return False, "telegram_send_failed"
 
 
 def _has_group_schedule_conflict(
@@ -510,8 +545,8 @@ def schedule_public():
                     direction_id = group.direction_id
                     direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
                     if direction:
-                        direction_title = direction.title
-                        direction_description = direction.description
+                        direction_title = _sanitize_direction_title(direction.title)
+                        direction_description = _sanitize_direction_description(direction.description)
                         direction_image = _build_image_url(direction.image_path)
                 if group.teacher_id:
                     teacher = db.query(Staff).filter_by(id=group.teacher_id).first()
@@ -1233,6 +1268,10 @@ def register_user():
 
 @bp.route("/users/<int:user_id>", methods=["GET"])
 def get_user(user_id):
+    perm_error = require_permission("view_all_users")
+    if perm_error:
+        return perm_error
+
     db = g.db
     user = db.query(User).filter_by(id=user_id).first()
     
@@ -1612,6 +1651,10 @@ def get_staff(staff_id):
     """
     Получить информацию о сотруднике
     """
+    perm_error = require_permission("manage_staff", allow_self_staff_id=staff_id)
+    if perm_error:
+        return perm_error
+
     db = g.db
     staff = db.query(Staff).filter_by(id=staff_id).first()
     
@@ -1653,8 +1696,12 @@ def update_staff_from_telegram(telegram_id):
     """
     Обновляет имя и другие данные персонала из Telegram профиля
     """
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+
     db = g.db
-    data = request.json
+    data = request.json or {}
     
     staff = db.query(Staff).filter_by(telegram_id=telegram_id).first()
     
@@ -2047,9 +2094,11 @@ def upload_staff_photo(staff_id):
             "message": "Фото успешно загружено"
         }, 201
     
-    except Exception as e:
-        print(f"Ошибка при загрузке фото: {e}")
-        return {"error": str(e)}, 500
+    except Exception:
+        return internal_server_error_response(
+            context="Failed to upload staff photo",
+            db=db,
+        )
 
 
 @bp.route("/staff/<int:staff_id>/photo", methods=["DELETE"])
@@ -2079,9 +2128,11 @@ def delete_staff_photo(staff_id):
         
         return {"ok": True, "message": "Фото удалено"}
     
-    except Exception as e:
-        print(f"Ошибка при удалении фото: {e}")
-        return {"error": str(e)}, 500
+    except Exception:
+        return internal_server_error_response(
+            context="Failed to delete staff photo",
+            db=db,
+        )
 
 
 @bp.route("/api/teachers", methods=["GET"])
@@ -2340,6 +2391,10 @@ def search_staff():
     - q: строка поиска (если не указана, возвращает всех пользователей)
     - by_username: если True, ищет только по юзернейму (используется при @username)
     """
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+
     try:
         db = g.db
         search_query = request.args.get('q', '').strip().lower()
@@ -2394,14 +2449,17 @@ def search_staff():
                         })
         
         return jsonify(result)
-    except Exception as e:
-        print(f"Ошибка при поиске пользователей: {e}")
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return internal_server_error_response(context="Failed to search users")
 
 
 @bp.route("/search-users")
 def search_users():
     """Поиск пользователей для рассылок"""
+    perm_error = require_permission("manage_mailings")
+    if perm_error:
+        return perm_error
+
     db = g.db
     try:
         search_query = request.args.get('query', '').strip().lower()
@@ -2426,9 +2484,8 @@ def search_users():
                 })
         
         return jsonify(result)
-    except Exception as e:
-        print(f"Ошибка при поиске пользователей: {e}")
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return internal_server_error_response(context="Failed to search users")
 
 
 @bp.route("/mailings", methods=["GET"])
@@ -2460,9 +2517,8 @@ def get_mailings():
             })
         
         return jsonify(result)
-    except Exception as e:
-        print(f"Ошибка при получении рассылок: {e}")
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return internal_server_error_response(context="Failed to list mailings")
 
 
 @bp.route("/mailings", methods=["POST"])
@@ -2473,7 +2529,7 @@ def create_mailing():
         return perm_error
 
     db = g.db
-    data = request.json
+    data = request.json or {}
     
     try:
         # Обязательные поля
@@ -2544,10 +2600,11 @@ def create_mailing():
             "created_at": mailing.created_at.isoformat()
         }, 201
     
-    except Exception as e:
-        db.rollback()
-        print(f"Ошибка при создании рассылки: {e}")
-        return {"error": str(e)}, 500
+    except Exception:
+        return internal_server_error_response(
+            context="Failed to create mailing",
+            db=db,
+        )
 
 
 @bp.route("/mailings/<int:mailing_id>", methods=["GET"])
@@ -2579,9 +2636,8 @@ def get_mailing(mailing_id):
             "created_at": mailing.created_at.isoformat()
         }
     
-    except Exception as e:
-        print(f"Ошибка при получении рассылки: {e}")
-        return {"error": str(e)}, 500
+    except Exception:
+        return internal_server_error_response(context="Failed to get mailing")
 
 
 @bp.route("/mailings/<int:mailing_id>", methods=["PUT"])
@@ -2637,10 +2693,11 @@ def update_mailing(mailing_id):
             "created_at": mailing.created_at.isoformat()
         }
     
-    except Exception as e:
-        db.rollback()
-        print(f"Ошибка при обновлении рассылки: {e}")
-        return {"error": str(e)}, 500
+    except Exception:
+        return internal_server_error_response(
+            context="Failed to update mailing",
+            db=db,
+        )
 
 
 @bp.route("/mailings/<int:mailing_id>", methods=["DELETE"])
@@ -2664,10 +2721,11 @@ def delete_mailing(mailing_id):
         
         return {"message": "Рассылка отменена"}, 200
     
-    except Exception as e:
-        db.rollback()
-        print(f"Ошибка при удалении рассылки: {e}")
-        return {"error": str(e)}, 500
+    except Exception:
+        return internal_server_error_response(
+            context="Failed to delete mailing",
+            db=db,
+        )
 
 
 @bp.route("/mailings/<int:mailing_id>/send", methods=["POST"])
@@ -2699,9 +2757,8 @@ def send_mailing_endpoint(mailing_id):
         
         return {"message": f"Рассылка '{mailing.name}' добавлена в очередь отправки", "status": "pending"}, 200
     
-    except Exception as e:
-        print(f"Ошибка при отправке рассылки: {e}")
-        return {"error": str(e)}, 500
+    except Exception:
+        return internal_server_error_response(context="Failed to enqueue mailing")
 
 
 @bp.route("/api/directions", methods=["GET"])
@@ -2722,21 +2779,10 @@ def get_directions():
     
     result = []
     for d in directions:
-        image_url = _build_image_url(d.image_path)
         groups_count = db.query(Group).filter_by(direction_id=d.direction_id).count()
-        
-        result.append({
-            "direction_id": d.direction_id,
-            "direction_type": d.direction_type or "dance",
-            "title": d.title,
-            "description": d.description,
-            "base_price": d.base_price,
-            "is_popular": d.is_popular,
-            "image_path": image_url,
-            "created_at": d.created_at.isoformat(),
-            "groups_count": groups_count
-        })
-    
+
+        result.append(_serialize_direction_payload(d, groups_count=groups_count))
+
     return jsonify(result)
 
 
@@ -2759,23 +2805,17 @@ def get_directions_manage():
     
     result = []
     for d in directions:
-        image_url = _build_image_url(d.image_path)
         groups_count = db.query(Group).filter_by(direction_id=d.direction_id).count()
-        
-        result.append({
-            "direction_id": d.direction_id,
-            "direction_type": d.direction_type or "dance",
-            "title": d.title,
-            "description": d.description,
-            "base_price": d.base_price,
-            "is_popular": d.is_popular,
-            "status": d.status,
-            "image_path": image_url,
-            "created_at": d.created_at.isoformat(),
-            "updated_at": d.updated_at.isoformat(),
-            "groups_count": groups_count
-        })
-    
+
+        result.append(
+            _serialize_direction_payload(
+                d,
+                groups_count=groups_count,
+                include_status=True,
+                include_updated_at=True,
+            )
+        )
+
     return jsonify(result)
 
 
@@ -2787,20 +2827,7 @@ def get_direction(direction_id):
     if not direction:
         return {"error": "Направление не найдено"}, 404
 
-    image_url = _build_image_url(direction.image_path)
-
-    return jsonify({
-        "direction_id": direction.direction_id,
-        "direction_type": direction.direction_type or "dance",
-        "title": direction.title,
-        "description": direction.description,
-        "base_price": direction.base_price,
-        "is_popular": direction.is_popular,
-        "status": direction.status,
-        "image_path": image_url,
-        "created_at": direction.created_at.isoformat(),
-        "updated_at": direction.updated_at.isoformat()
-    })
+    return jsonify(_serialize_direction_payload(direction, include_status=True, include_updated_at=True))
 
 
 @bp.route("/api/directions/<int:direction_id>/groups", methods=["GET"])
@@ -2822,7 +2849,7 @@ def get_direction_groups(direction_id):
             "id": gr.id,
             "direction_id": gr.direction_id,
             "direction_type": direction.direction_type,
-            "direction_title": direction.title,
+            "direction_title": _sanitize_direction_title(direction.title),
             "teacher_id": gr.teacher_id,
             "teacher_name": teacher_name,
             "teacher_photo": teacher_photo,
@@ -2971,11 +2998,14 @@ def create_direction_upload_session():
     if not admin or admin.position not in ["администратор", "старший админ", "владелец", "тех. админ"]:
         return {"error": "У вас нет прав администратора"}, 403
     
-    # Обязательные поля
-    required_fields = ["title", "description", "base_price"]
-    for field in required_fields:
-        if not data.get(field):
-            return {"error": f"{field} обязателен"}, 400
+    title = _sanitize_direction_title(data.get("title"))
+    description = _sanitize_direction_description(data.get("description"))
+    if not title:
+        return {"error": "title обязателен"}, 400
+    if not description:
+        return {"error": "description обязателен"}, 400
+    if not data.get("base_price"):
+        return {"error": "base_price обязателен"}, 400
 
     direction_type = (data.get("direction_type") or "dance").lower()
     if direction_type not in ALLOWED_DIRECTION_TYPES:
@@ -2987,9 +3017,9 @@ def create_direction_upload_session():
     session = DirectionUploadSession(
         admin_id=admin.id,
         telegram_user_id=telegram_user_id,
-        title=data["title"],
+        title=title,
         direction_type=direction_type,
-        description=data["description"],
+        description=description,
         base_price=data["base_price"],
         session_token=session_token,
         status="waiting_for_photo"
@@ -3011,15 +3041,16 @@ def get_upload_session_status(token):
     """Проверяет статус загрузки фотографии по токену"""
     try:
         db = g.db
+        token_fp = token_fingerprint(token)
 
         session = db.query(DirectionUploadSession).filter_by(session_token=token).first()
         if not session:
-            current_app.logger.warning("direction upload status: session not found token=%s", token)
+            current_app.logger.warning("direction upload status: session not found token_fp=%s", token_fp)
             return {"error": "Сессия не найдена"}, 404
 
         current_app.logger.info(
-            "direction upload status token=%s status=%s image=%s",
-            token[:8],
+            "direction upload status token_fp=%s status=%s image=%s",
+            token_fp,
             session.status,
             session.image_path,
         )
@@ -3029,15 +3060,13 @@ def get_upload_session_status(token):
             "status": session.status,
             "direction_type": session.direction_type or "dance",
             "image_path": _build_image_url(session.image_path),
-            "title": session.title,
-            "description": session.description,
+            "title": _sanitize_direction_title(session.title),
+            "description": _sanitize_direction_description(session.description),
             "base_price": session.base_price
         }
-    except Exception as exc:
-        import traceback, json
-        trace = traceback.format_exc()
-        current_app.logger.error("upload-complete error: %s\n%s", exc, trace)
-        return {"error": "internal", "exception": str(exc), "trace": trace}, 500
+    except Exception:
+        current_app.logger.exception("upload-complete error")
+        return {"error": "internal"}, 500
 
 
 @bp.route("/api/directions", methods=["POST"])
@@ -3047,20 +3076,30 @@ def create_direction():
     if perm_error:
         return perm_error
     db = g.db
-    data = request.json
-
-    print(f"[create_direction] request: {data}")
+    data = request.json or {}
 
     session_token = data.get("session_token")
     if not session_token:
         return {"error": "session_token обязателен"}, 400
 
+    session_token_fp = token_fingerprint(session_token)
+    current_app.logger.info(
+        "create_direction request token_fp=%s direction_type=%s",
+        session_token_fp,
+        data.get("direction_type"),
+    )
+
     session = db.query(DirectionUploadSession).filter_by(session_token=session_token).first()
     if not session:
-        print(f"[create_direction] session not found: {session_token}")
+        current_app.logger.warning("create_direction session not found token_fp=%s", session_token_fp)
         return {"error": "Сессия не найдена"}, 404
 
-    print(f"[create_direction] session found: status={session.status}, photo={session.image_path}")
+    current_app.logger.info(
+        "create_direction session found token_fp=%s status=%s has_photo=%s",
+        session_token_fp,
+        session.status,
+        bool(session.image_path),
+    )
 
     allowed_statuses = {"waiting_for_photo", "photo_received"}
     if session.status not in allowed_statuses:
@@ -3071,9 +3110,9 @@ def create_direction():
         return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
 
     direction = Direction(
-        title=session.title,
+        title=_sanitize_direction_title(session.title),
         direction_type=direction_type,
-        description=session.description,
+        description=_sanitize_direction_description(session.description),
         base_price=session.base_price,
         image_path=session.image_path if session.status == "photo_received" else None,
         is_popular=data.get("is_popular", 0),
@@ -3086,11 +3125,16 @@ def create_direction():
     session.status = "completed"
     db.commit()
 
-    print(f"[create_direction] created id={direction.direction_id}, title={direction.title}, type={direction.direction_type}")
+    current_app.logger.info(
+        "create_direction created id=%s type=%s token_fp=%s",
+        direction.direction_id,
+        direction.direction_type,
+        session_token_fp,
+    )
 
     return {
         "direction_id": direction.direction_id,
-        "title": direction.title,
+        "title": _sanitize_direction_title(direction.title),
         "direction_type": direction.direction_type,
         "message": "Направление успешно создано"
     }, 201
@@ -3111,9 +3155,12 @@ def update_direction(direction_id):
     
     # Обновляем поля
     if "title" in data:
-        direction.title = data["title"]
+        title = _sanitize_direction_title(data["title"])
+        if not title:
+            return {"error": "title обязателен"}, 400
+        direction.title = title
     if "description" in data:
-        direction.description = data["description"]
+        direction.description = _sanitize_direction_description(data["description"])
     if "base_price" in data:
         direction.base_price = data["base_price"]
     if "direction_type" in data:
@@ -3160,21 +3207,22 @@ def upload_direction_photo(token):
     спользуется ботом при получении фотографии от администратора
     """
     db = g.db
+    token_fp = token_fingerprint(token)
 
-    current_app.logger.info("direction photo upload start token=%s", token)
+    current_app.logger.info("direction photo upload start token_fp=%s", token_fp)
 
     session = db.query(DirectionUploadSession).filter_by(session_token=token).first()
     if not session:
-        current_app.logger.warning("direction upload: session not found token=%s", token)
+        current_app.logger.warning("direction upload: session not found token_fp=%s", token_fp)
         return {"error": "Сессия не найдена"}, 404
 
     if "photo" not in request.files:
-        current_app.logger.warning("direction upload: no file provided token=%s", token)
+        current_app.logger.warning("direction upload: no file provided token_fp=%s", token_fp)
         return {"error": "Файл не загружен"}, 400
 
     file = request.files["photo"]
     if file.filename == "":
-        current_app.logger.warning("direction upload: empty filename token=%s", token)
+        current_app.logger.warning("direction upload: empty filename token_fp=%s", token_fp)
         return {"error": "Файл не выбран"}, 400
 
     try:
@@ -3222,10 +3270,11 @@ def upload_direction_photo(token):
             "image_path": _build_image_url(session.image_path),
         }, 200
 
-    except Exception as exc:
-        db.rollback()
-        current_app.logger.exception("Ошибка при загрузке фотографии направления: %s", exc)
-        return {"error": f"Internal server error while saving photo: {exc}"}, 500
+    except Exception:
+        return internal_server_error_response(
+            context="Failed to upload direction photo",
+            db=db,
+        )
 
 
 @bp.route("/api/system-settings/public", methods=["GET"])
@@ -3271,9 +3320,9 @@ def admin_update_system_setting(key):
             source="admin_api",
         )
     except KeyError as exc:
-        return {"error": str(exc)}, 404
+        return {"error": safe_client_error_message(exc)}, 404
     except SettingValidationError as exc:
-        return {"error": str(exc)}, 400
+        return {"error": safe_client_error_message(exc)}, 400
 
     db.commit()
     return jsonify({"setting": setting_payload})
@@ -3353,7 +3402,7 @@ def admin_merge_clients():
         source_user_id = _parse_user_id_for_merge(payload, "source_user_id")
         target_user_id = _parse_user_id_for_merge(payload, "target_user_id")
     except ValueError as exc:
-        return {"error": str(exc)}, 400
+        return {"error": safe_client_error_message(exc)}, 400
 
     if source_user_id == target_user_id:
         return {"error": "source_user_id and target_user_id must be different"}, 400
@@ -3464,7 +3513,7 @@ def admin_apply_client_sick_leave(user_id: int):
         date_from = _parse_iso_date(payload.get("date_from"), "date_from")
         date_to = _parse_iso_date(payload.get("date_to"), "date_to")
     except ValueError as exc:
-        return {"error": str(exc)}, 400
+        return {"error": safe_client_error_message(exc)}, 400
 
     if date_to < date_from:
         return {"error": "date_to не может быть раньше date_from"}, 400
@@ -3672,7 +3721,7 @@ def admin_get_client_attendance_calendar(user_id: int):
     try:
         month_start = _parse_month_start(month_param)
     except ValueError as exc:
-        return {"error": str(exc)}, 400
+        return {"error": safe_client_error_message(exc)}, 400
 
     if month_start.month == 12:
         month_end = date(month_start.year + 1, 1, 1)
@@ -3935,7 +3984,7 @@ def admin_add_user_discount(user_id):
     try:
         discount_type, value, is_one_time, comment = _validate_discount_payload(data)
     except ValueError as exc:
-        return {"error": str(exc)}, 400
+        return {"error": safe_client_error_message(exc)}, 400
 
     discount = UserDiscount(
         user_id=user_id,

@@ -1,60 +1,83 @@
 # Deploy Scripts
 
-Скрипты:
-- `install-service.sh` — установка/обновление одного `systemd` unit с подстановкой путей и пользователя.
-- `deploy.sh` — рабочий деплой: `fetch/checkout/pull`, зависимости, build, миграции, рестарт, healthcheck, rollback при ошибке.
-- `rollback.sh` — переключение `current` на `previous`, рестарт сервиса, healthcheck.
-- `healthcheck.sh` — проверка URL с таймаутом и ретраями.
+Scripts:
+- `install-service.sh` installs/updates one `systemd` unit with path/user substitution.
+- `deploy.sh` does fetch/checkout/pull, restarts services, runs healthcheck.
+- `rollback.sh` switches `current` to `previous`, reinstalls unit files, restarts services, runs healthcheck.
+- `healthcheck.sh` checks a URL with timeout and retries.
 
-## Ожидаемая структура на сервере
+## Default Service Mode
 
-По умолчанию:
+By default, deploy/rollback work with split services:
+- `web`
+- `bot`
+
+Legacy combined unit `dance-studio.service` is kept only for backward compatibility.
+
+You can override with:
+- `--service <name>` (repeatable)
+- `--services "name1 name2"`
+
+## Expected Server Layout
+
+Defaults:
 - `DEPLOY_ROOT=/opt/dance_studio`
-- `REPO_DIR=/opt/dance_studio/repo`
-- `RELEASES_DIR=/opt/dance_studio/releases`
 - `CURRENT_LINK=/opt/dance_studio/current`
 - `PREVIOUS_LINK=/opt/dance_studio/previous`
 - `ENV_FILE=/opt/dance_studio/.env`
 
-## Примеры
+## Examples
 
-Установка unit:
+Install units:
 
 ```bash
-sudo ./deploy/install-service.sh run_all \
+sudo ./deploy/install-service.sh web \
+  --app-dir /opt/dance_studio/current \
+  --app-user dance \
+  --app-group dance \
+  --env-file /opt/dance_studio/.env
+
+sudo ./deploy/install-service.sh bot \
   --app-dir /opt/dance_studio/current \
   --app-user dance \
   --app-group dance \
   --env-file /opt/dance_studio/.env
 ```
 
-Деплой ветки `main`:
+Deploy `main` (web + bot):
 
 ```bash
 sudo ./deploy/deploy.sh \
   --branch main \
-  --service run_all \
-  --deploy-root /opt/dance_studio
+  --services "web bot"
 ```
 
-Ручной rollback:
+Deploy only web:
+
+```bash
+sudo ./deploy/deploy.sh \
+  --branch main \
+  --service web
+```
+
+Manual rollback (web + bot):
 
 ```bash
 sudo ./deploy/rollback.sh \
-  --service run_all \
+  --services "web bot" \
   --deploy-root /opt/dance_studio
 ```
 
-Проверка health вручную:
+Run healthcheck manually:
 
 ```bash
 HEALTHCHECK_URL="http://127.0.0.1:3000/health" ./deploy/healthcheck.sh
 ```
 
-## Важно
+## Notes
 
-- Скрипты `deploy.sh`, `rollback.sh`, `install-service.sh` требуют `root` (пишут в `/etc/systemd/system`, делают `systemctl`).
-- Сделайте их исполняемыми на сервере:
+- `deploy.sh`, `rollback.sh`, `install-service.sh` require `root`.
+- Make scripts executable on server:
 
 ```bash
 chmod +x deploy/*.sh

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from flask import Blueprint, g, request
 
-from dance_studio.db.models import Attendance, AttendanceIntention, IndividualLesson, Schedule, User
+from dance_studio.db.models import Attendance, AttendanceIntention, Group, IndividualLesson, Schedule, User
 from dance_studio.web.constants import (
     ATTENDANCE_ALLOWED_STATUSES,
     ATTENDANCE_INTENTION_LOCKED_MESSAGE,
@@ -22,12 +22,56 @@ from dance_studio.web.services.attendance import (
 bp = Blueprint('attendance_routes', __name__)
 
 
+def _is_teacher_of_schedule(db, schedule: Schedule, staff) -> bool:
+    if not staff:
+        return False
+
+    if schedule.teacher_id and schedule.teacher_id == staff.id:
+        return True
+
+    if schedule.object_type == "group":
+        group_id = schedule.group_id or schedule.object_id
+        if not group_id:
+            return False
+        group = db.query(Group).filter_by(id=group_id).first()
+        return bool(group and group.teacher_id == staff.id)
+
+    if schedule.object_type == "individual" and schedule.object_id:
+        lesson = db.query(IndividualLesson).filter_by(id=schedule.object_id).first()
+        return bool(lesson and lesson.teacher_id == staff.id)
+
+    return False
+
+
+def _attendance_view_permission_error(db, schedule: Schedule):
+    if getattr(g, "telegram_id", None) is None:
+        return {"error": "Требуется аутентификация"}, 401
+
+    perm_error = require_permission("manage_schedule")
+    if not perm_error:
+        return None
+
+    status_code = perm_error[1] if isinstance(perm_error, tuple) and len(perm_error) > 1 else None
+    if status_code in (400, 401):
+        return perm_error
+
+    staff = _get_current_staff(db)
+    if _is_teacher_of_schedule(db, schedule, staff):
+        return None
+
+    return perm_error
+
+
 @bp.route("/api/attendance/<int:schedule_id>", methods=["GET"])
 def get_attendance(schedule_id):
     db = g.db
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
         return {"error": "Занятие не найдено"}, 404
+
+    perm_error = _attendance_view_permission_error(db, schedule)
+    if perm_error:
+        return perm_error
 
     window = _attendance_marking_window_info(schedule)
 

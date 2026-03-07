@@ -23,6 +23,8 @@ STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/logout", "/health"}
 CSRF_EXEMPT_PREFIXES = ("/api/directions/photo/",)
 SENSITIVE_PATH_PREFIXES = ("/schedule", "/api/bookings", "/api/payments", "/mailings", "/news")
+CSRF_COOKIE_NAME = "csrf_token"
+CSRF_HEADER_NAMES = ("X-CSRF-Token", "X-XSRF-Token")
 
 def _hash_user_agent(user_agent: str | None) -> str | None:
     if not user_agent:
@@ -114,9 +116,6 @@ def _build_csrf_trusted_origins() -> set[str]:
     if web_origin:
         trusted.add(web_origin)
 
-    if request.scheme and request.host:
-        trusted.add(f"{request.scheme}://{request.host}")
-
     for origin in CSRF_TRUSTED_ORIGINS.split(','):
         normalized = _normalize_origin(origin)
         if normalized:
@@ -124,18 +123,55 @@ def _build_csrf_trusted_origins() -> set[str]:
 
     return trusted
 
-def _is_csrf_valid() -> bool:
+def _extract_request_origin() -> str | None:
+    origin = request.headers.get("Origin", "").strip()
+    if origin:
+        return _normalize_origin(origin)
+
+    referer = request.headers.get("Referer", "").strip()
+    if referer:
+        return _origin_from_url(referer)
+
+    return None
+
+
+def _is_csrf_origin_valid() -> bool:
     trusted = _build_csrf_trusted_origins()
     if not trusted:
         return False
 
-    origin = request.headers.get("Origin", "")
-    referer = request.headers.get("Referer", "")
+    request_origin = _extract_request_origin()
+    if not request_origin:
+        return False
 
-    for allowed in trusted:
-        if origin.startswith(allowed) or referer.startswith(allowed):
-            return True
-    return False
+    return request_origin in trusted
+
+
+def _extract_csrf_header_token() -> str:
+    for header_name in CSRF_HEADER_NAMES:
+        token = request.headers.get(header_name, "").strip()
+        if token:
+            return token
+    return ""
+
+
+def _is_double_submit_token_valid() -> bool:
+    cookie_token = request.cookies.get(CSRF_COOKIE_NAME, "").strip()
+    header_token = _extract_csrf_header_token()
+    if not cookie_token or not header_token:
+        return False
+    return secrets.compare_digest(cookie_token, header_token)
+
+
+def _is_csrf_valid() -> bool:
+    if not _is_csrf_origin_valid():
+        return False
+
+    sid = request.cookies.get("sid", "").strip()
+    if not sid:
+        return True
+
+    return _is_double_submit_token_valid()
 
 def _delete_expired_sessions_for_user(db, telegram_id: int) -> None:
     db.query(SessionRecord).filter(
@@ -162,6 +198,21 @@ def _set_sid_cookie(response, sid: str) -> None:
         path="/",
     )
 
+
+def _set_csrf_cookie(response, token: str | None = None) -> str:
+    csrf_token = token or secrets.token_hex(32)
+    response.set_cookie(
+        CSRF_COOKIE_NAME,
+        csrf_token,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=False,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+    return csrf_token
+
+
 def _clear_sid_cookie(response) -> None:
     response.set_cookie(
         "sid",
@@ -173,6 +224,19 @@ def _clear_sid_cookie(response) -> None:
         path="/",
     )
 
+
+def _clear_csrf_cookie(response) -> None:
+    response.set_cookie(
+        CSRF_COOKIE_NAME,
+        "",
+        max_age=0,
+        httponly=False,
+        secure=COOKIE_SECURE,
+        samesite=COOKIE_SAMESITE,
+        path="/",
+    )
+
+
 def _get_init_data_from_auth_header() -> str | None:
     auth_header = request.headers.get("Authorization", "").strip()
     if not auth_header:
@@ -182,10 +246,12 @@ def _get_init_data_from_auth_header() -> str | None:
     return auth_header
 
 __all__ = [
+    "CSRF_COOKIE_NAME",
     "CSRF_EXEMPT_PATHS",
     "CSRF_EXEMPT_PREFIXES",
     "SENSITIVE_PATH_PREFIXES",
     "STATE_CHANGING_METHODS",
+    "_clear_csrf_cookie",
     "_clear_sid_cookie",
     "_create_session",
     "_delete_expired_sessions_for_user",
@@ -195,6 +261,7 @@ __all__ = [
     "_hash_user_agent",
     "_is_csrf_valid",
     "_is_sensitive_endpoint",
+    "_set_csrf_cookie",
     "_set_sid_cookie",
     "_sid_hash",
 ]

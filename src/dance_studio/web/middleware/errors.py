@@ -1,10 +1,9 @@
-import traceback
-
 import requests
 from flask import Flask, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 
 from dance_studio.core.tech_notifier import send_critical_sync
+from dance_studio.web.services.api_errors import INTERNAL_SERVER_ERROR_CODE
 
 
 def handle_unhandled_exception(error):
@@ -16,13 +15,12 @@ def handle_unhandled_exception(error):
     except (RuntimeError, ValueError, requests.RequestException):
         current_app.logger.exception("Failed to send critical error notification")
 
-    payload = {
-        "error": "Internal server error",
-        "exception": f"{type(error).__name__}: {error}",
-        "trace": traceback.format_exc(),
-    }
-    current_app.logger.error("Unhandled exception: %s\n%s", error, payload["trace"])
-    return jsonify(payload), 500
+    current_app.logger.exception(
+        "Unhandled exception: method=%s path=%s",
+        request.method,
+        request.path,
+    )
+    return jsonify({"error": INTERNAL_SERVER_ERROR_CODE}), 500
 
 
 def handle_file_too_large(error):

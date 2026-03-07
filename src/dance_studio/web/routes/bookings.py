@@ -29,6 +29,7 @@ from dance_studio.db.models import (
 )
 from dance_studio.web.constants import ALLOWED_DIRECTION_TYPES, INACTIVE_SCHEDULE_STATUSES
 from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
+from dance_studio.web.services.api_errors import safe_client_error_message
 from dance_studio.web.services.bookings import (
     _compute_duration_minutes,
     _find_booking_overlaps,
@@ -64,6 +65,26 @@ def _can_view_full_hall_occupancy(db) -> bool:
 
     role = str(staff.position).strip().lower()
     return has_permission(role, "manage_schedule") or has_permission(role, "view_personal_lessons")
+
+
+def _individual_lesson_view_permission_error(db, lesson: IndividualLesson):
+    perm_error = require_permission("manage_schedule")
+    if not perm_error:
+        return None
+
+    status_code = perm_error[1] if isinstance(perm_error, tuple) and len(perm_error) > 1 else None
+    if status_code in (400, 401):
+        return perm_error
+
+    staff = _get_current_staff(db)
+    if staff and lesson.teacher_id and staff.id == lesson.teacher_id:
+        return None
+
+    user = get_current_user_from_request(db)
+    if user and lesson.student_id and user.id == lesson.student_id:
+        return None
+
+    return perm_error
 
 
 @bp.route("/api/groups/<int:group_id>", methods=["GET"])
@@ -213,7 +234,7 @@ def quote_group_booking_request():
             multi_lessons_per_group=data.get("multi_lessons_per_group"),
         )
     except AbonementPricingError as exc:
-        return {"error": str(exc)}, 400
+        return {"error": safe_client_error_message(exc)}, 400
 
     groups = db.query(Group).filter(Group.id.in_(quote.bundle_group_ids)).all()
     groups_by_id = {row.id: row for row in groups}
@@ -477,7 +498,7 @@ def create_booking_request():
                 multi_lessons_per_group=data.get("multi_lessons_per_group"),
             )
         except AbonementPricingError as exc:
-            return {"error": str(exc)}, 400
+            return {"error": safe_client_error_message(exc)}, 400
 
         quote_payload = serialize_group_booking_quote(quote)
         group_id_val = quote.group_id
@@ -851,9 +872,16 @@ def hall_occupancy():
 @bp.route("/api/individual-lessons/<int:lesson_id>")
 def get_individual_lesson(lesson_id):
     db = g.db
+    if getattr(g, "telegram_id", None) is None:
+        return {"error": "Authentication required"}, 401
+
     lesson = db.query(IndividualLesson).filter_by(id=lesson_id).first()
     if not lesson:
         return {"error": "Индивидуальное занятие не найдено"}, 404
+
+    perm_error = _individual_lesson_view_permission_error(db, lesson)
+    if perm_error:
+        return perm_error
 
     teacher = db.query(Staff).filter_by(id=lesson.teacher_id).first()
     student = db.query(User).filter_by(id=lesson.student_id).first()
@@ -916,7 +944,7 @@ def create_group_abonement():
             multi_lessons_per_group=data.get("multi_lessons_per_group"),
         )
     except AbonementPricingError as exc:
-        return {"error": str(exc)}, 400
+        return {"error": safe_client_error_message(exc)}, 400
 
     legacy_lessons_count = data.get("lessons_count")
     if legacy_lessons_count not in (None, ""):

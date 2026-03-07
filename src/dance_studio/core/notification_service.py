@@ -4,8 +4,13 @@ from typing import Any
 
 import requests
 
-from dance_studio.core.config import BOT_TOKEN, TECH_LOGS_CHAT_ID, TECH_NOTIFICATIONS_TOPIC_ID
-from dance_studio.core.tech_notifier import _ensure_forum_topic
+from dance_studio.core.config import BOT_TOKEN
+from dance_studio.core.tech_notifier import (
+    TECH_NOTIFICATIONS_TOPIC_ID_SETTING_KEY,
+    _ensure_forum_topic,
+    resolve_tech_logs_chat_id,
+    resolve_tech_notifications_topic_id,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -35,13 +40,14 @@ def _post_telegram_sync(payload: dict, timeout: int = 5) -> tuple[bool, str]:
         return False, str(exc)
 
 
-def _send_to_tech_chat_sync(text: str, topic_id: int | None) -> bool:
+def _send_to_tech_chat_sync(text: str, topic_id: int | None, tech_chat_id: int | None = None) -> bool:
     """Send duplicated message to tech chat with robust fallbacks."""
-    if not TECH_LOGS_CHAT_ID:
+    chat_id = tech_chat_id if tech_chat_id is not None else resolve_tech_logs_chat_id()
+    if not chat_id:
         return False
 
     base_payload = {
-        "chat_id": TECH_LOGS_CHAT_ID,
+        "chat_id": chat_id,
         "text": text,
         "parse_mode": "HTML",
     }
@@ -58,7 +64,7 @@ def _send_to_tech_chat_sync(text: str, topic_id: int | None) -> bool:
         recreated_topic_id = _ensure_forum_topic(
             "Уведомления юзерам",
             None,
-            "TECH_NOTIFICATIONS_TOPIC_ID",
+            TECH_NOTIFICATIONS_TOPIC_ID_SETTING_KEY,
         )
         if recreated_topic_id:
             retry_payload = dict(base_payload)
@@ -112,22 +118,23 @@ def send_user_notification_sync(
     try:
         topic_id = _ensure_forum_topic(
             "Уведомления юзерам",
-            TECH_NOTIFICATIONS_TOPIC_ID,
-            "TECH_NOTIFICATIONS_TOPIC_ID",
+            resolve_tech_notifications_topic_id(),
+            TECH_NOTIFICATIONS_TOPIC_ID_SETTING_KEY,
         )
 
-        if TECH_LOGS_CHAT_ID:
+        tech_chat_id = resolve_tech_logs_chat_id()
+        if tech_chat_id:
             safe_context = html.escape(str(context_note or "Уведомление пользователю"))
             info_text = (
                 f"<b>🔔 {safe_context}</b>\n"
                 f"👤 Кому: <code>{user_id}</code>\n"
                 f"✅ Статус: {'Отправлено' if user_ok else '❌ ОШИБКА'}"
             )
-            _send_to_tech_chat_sync(info_text, topic_id)
+            _send_to_tech_chat_sync(info_text, topic_id, tech_chat_id)
 
             safe_text = html.escape(str(text or ""))
             quoted_text = f"<blockquote>{safe_text}</blockquote>" if safe_text else "<blockquote>—</blockquote>"
-            _send_to_tech_chat_sync(quoted_text, topic_id)
+            _send_to_tech_chat_sync(quoted_text, topic_id, tech_chat_id)
     except Exception:
         _logger.exception("Failed to duplicate notification to tech group")
 

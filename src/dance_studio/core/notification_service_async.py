@@ -4,19 +4,26 @@ from typing import Any
 
 from aiogram import Bot
 
-from dance_studio.core.config import TECH_LOGS_CHAT_ID, TECH_NOTIFICATIONS_TOPIC_ID
-from dance_studio.core.tech_notifier import _ensure_forum_topic
+from dance_studio.core.tech_notifier import (
+    TECH_NOTIFICATIONS_TOPIC_ID_SETTING_KEY,
+    _ensure_forum_topic,
+    resolve_tech_logs_chat_id,
+    resolve_tech_notifications_topic_id,
+)
 
 _logger = logging.getLogger(__name__)
 
 
-async def _send_to_tech_chat_async(bot: Bot, text: str, topic_id: int | None) -> bool:
+async def _send_to_tech_chat_async(
+    bot: Bot, text: str, topic_id: int | None, tech_chat_id: int | None = None
+) -> bool:
     """Send duplicated message to tech chat with robust fallbacks."""
-    if not bot or not TECH_LOGS_CHAT_ID:
+    chat_id = tech_chat_id if tech_chat_id is not None else resolve_tech_logs_chat_id()
+    if not bot or not chat_id:
         return False
 
     payload = {
-        "chat_id": TECH_LOGS_CHAT_ID,
+        "chat_id": chat_id,
         "text": text,
         "parse_mode": "HTML",
     }
@@ -33,11 +40,11 @@ async def _send_to_tech_chat_async(bot: Bot, text: str, topic_id: int | None) ->
         recreated_topic_id = _ensure_forum_topic(
             "Уведомления юзерам",
             None,
-            "TECH_NOTIFICATIONS_TOPIC_ID",
+            TECH_NOTIFICATIONS_TOPIC_ID_SETTING_KEY,
         )
         if recreated_topic_id:
             retry_payload = {
-                "chat_id": TECH_LOGS_CHAT_ID,
+                "chat_id": chat_id,
                 "message_thread_id": recreated_topic_id,
                 "text": text,
                 "parse_mode": "HTML",
@@ -51,7 +58,7 @@ async def _send_to_tech_chat_async(bot: Bot, text: str, topic_id: int | None) ->
     if topic_id:
         # Fallback for non-forum chats or broken thread id.
         fallback_payload = {
-            "chat_id": TECH_LOGS_CHAT_ID,
+            "chat_id": chat_id,
             "text": text,
             "parse_mode": "HTML",
         }
@@ -92,22 +99,23 @@ async def send_user_notification_async(
     try:
         topic_id = _ensure_forum_topic(
             "Уведомления юзерам",
-            TECH_NOTIFICATIONS_TOPIC_ID,
-            "TECH_NOTIFICATIONS_TOPIC_ID",
+            resolve_tech_notifications_topic_id(),
+            TECH_NOTIFICATIONS_TOPIC_ID_SETTING_KEY,
         )
 
-        if TECH_LOGS_CHAT_ID:
+        tech_chat_id = resolve_tech_logs_chat_id()
+        if tech_chat_id:
             safe_context = html.escape(str(context_note or "Уведомление пользователю"))
             info_text = (
                 f"<b>🔔 {safe_context}</b>\n"
                 f"👤 Кому: <code>{user_id}</code>\n"
                 f"✅ Статус: {'Отправлено' if user_ok else '❌ ОШИБКА'}"
             )
-            await _send_to_tech_chat_async(bot, info_text, topic_id)
+            await _send_to_tech_chat_async(bot, info_text, topic_id, tech_chat_id)
 
             safe_text = html.escape(str(text or ""))
             quoted_text = f"<blockquote>{safe_text}</blockquote>" if safe_text else "<blockquote>—</blockquote>"
-            await _send_to_tech_chat_async(bot, quoted_text, topic_id)
+            await _send_to_tech_chat_async(bot, quoted_text, topic_id, tech_chat_id)
     except Exception:
         _logger.exception("Failed to duplicate notification to tech group")
 
