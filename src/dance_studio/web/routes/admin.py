@@ -2176,6 +2176,18 @@ def get_public_teacher(teacher_id):
     )
     if not teacher:
         return {"error": "Преподаватель не найден"}, 404
+    teacher_username = None
+    contact_link = None
+    if teacher.telegram_id:
+        teacher_user = db.query(User).filter_by(telegram_id=teacher.telegram_id).first()
+        teacher_username = (getattr(teacher_user, "username", None) or "").strip() or None
+        if teacher_username:
+            normalized_username = teacher_username[1:] if teacher_username.startswith("@") else teacher_username
+            if normalized_username:
+                contact_link = f"https://t.me/{normalized_username}"
+        if not contact_link:
+            contact_link = f"tg://user?id={teacher.telegram_id}"
+
     groups = (
         db.query(Group)
         .filter(Group.teacher_id == teacher.id)
@@ -2206,6 +2218,8 @@ def get_public_teacher(teacher_id):
         "specialization": teacher.specialization,
         "bio": teacher.bio,
         "photo": teacher.photo_path,
+        "username": teacher_username,
+        "contact_link": contact_link,
         "groups": group_items,
     }
 

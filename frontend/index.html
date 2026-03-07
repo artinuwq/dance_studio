@@ -4294,6 +4294,15 @@ textarea.form-input {
 <div class="card personal-individual-form" id="personal-individual-booking-card" style="display: none;">
   <h4 style="margin: 0 0 8px 0;">Индивидуальное занятие</h4>
   <p class="small" style="margin: 0 0 10px 0; color: var(--hint);">Дата: <b id="personal-individual-selected-date">—</b></p>
+  <div class="rental-occupancy-panel personal-individual-occupancy-panel">
+    <div class="rental-occupancy-header">
+      <span>Занятость на день</span>
+      <span id="personal-individual-occupancy-date">—</span>
+    </div>
+    <div class="rental-occupancy-list" id="personal-individual-occupancy-list">
+      <div class="small" id="personal-individual-occupancy-placeholder">Выберите день, чтобы увидеть занятость</div>
+    </div>
+  </div>
   <div style="display: flex; gap: 8px; margin-bottom: 10px;">
     <div style="flex: 1;">
       <label class="label">Время от</label>
@@ -4310,15 +4319,6 @@ textarea.form-input {
   </div>
   <div class="personal-individual-user-results" id="personal-individual-user-results">
     <p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска клиента...</p>
-  </div>
-  <div class="rental-occupancy-panel personal-individual-occupancy-panel">
-    <div class="rental-occupancy-header">
-      <span>Занятость на день</span>
-      <span id="personal-individual-occupancy-date">—</span>
-    </div>
-    <div class="rental-occupancy-list" id="personal-individual-occupancy-list">
-      <div class="small" id="personal-individual-occupancy-placeholder">Выберите день, чтобы увидеть занятость</div>
-    </div>
   </div>
   <div class="form-group" style="margin-bottom: 0;">
     <label>Комментарий для админов (опционально)</label>
@@ -5555,6 +5555,15 @@ textarea.form-input {
         <p class="small">Группы загружаются…</p>
       </div>
     </div>
+  </div>
+</div>
+<div class="confirm-modal-overlay" id="teacher-contact-overlay" onclick="closeTeacherContactModal()"></div>
+<div class="confirm-modal" id="teacher-contact-modal">
+  <h4 style="margin: 0 0 8px 0;">Внимание</h4>
+  <p class="small" id="teacher-contact-modal-text" style="margin: 0 0 12px 0; color: var(--hint);">Чтобы записаться на индивидуальную тренировку, вам необходимо написать тренеру.</p>
+  <div style="display: flex; gap: 8px;">
+    <button class="save-btn" id="teacher-contact-write-btn" onclick="proceedTeacherContactAction()" style="flex: 1;">Написать</button>
+    <button class="save-btn" onclick="closeTeacherContactModal()" style="flex: 1; background: var(--card); color: var(--text);">Назад</button>
   </div>
 </div>
 <div class="page" data-title="🎯 Направление" id="direction-detail">
@@ -7878,6 +7887,7 @@ async function openTeacherDetail(id) {
   showPage('teacher-profile-page');
   setHeaderTitle('Преподаватель');
   window.currentTeacherProfileId = id;
+  window.currentTeacherProfileData = null;
   document.getElementById('teacher-profile-name').textContent = 'Загрузка...';
   document.getElementById('teacher-profile-specialization').textContent = '';
   document.getElementById('teacher-profile-bio').textContent = '';
@@ -7896,6 +7906,7 @@ async function openTeacherDetail(id) {
       fetch(`/api/teachers/${id}/schedule`).then(res => res.ok ? res.json() : []),
     ]);
     window.currentTeacherProfileId = detail.id || id;
+    window.currentTeacherProfileData = detail;
     document.getElementById('teacher-profile-name').textContent = detail.name || '—';
     const specialization = detail.specialization || detail.position || '—';
     document.getElementById('teacher-profile-specialization').textContent = specialization;
@@ -7921,6 +7932,7 @@ async function openTeacherDetail(id) {
     }
     if (individualBtn) individualBtn.disabled = false;
   } catch (err) {
+    window.currentTeacherProfileData = null;
     document.getElementById('teacher-profile-name').textContent = 'Ошибка загрузки';
     document.getElementById('teacher-profile-specialization').textContent = '';
     document.getElementById('teacher-profile-bio').textContent = err.message;
@@ -7936,6 +7948,73 @@ async function openTeacherDetail(id) {
     }
     if (individualBtn) individualBtn.disabled = true;
   }
+}
+
+function buildTeacherContactLink(teacherData) {
+  const teacher = teacherData || {};
+  const directLink = String(teacher.contact_link || '').trim();
+  if (directLink) return directLink;
+  const rawUsername = String(teacher.username || '').trim();
+  if (rawUsername) {
+    const normalizedUsername = rawUsername.startsWith('@') ? rawUsername.slice(1) : rawUsername;
+    if (normalizedUsername) {
+      return `https://t.me/${encodeURIComponent(normalizedUsername)}`;
+    }
+  }
+  const telegramId = Number(teacher.telegram_id);
+  if (Number.isFinite(telegramId) && telegramId > 0) {
+    return `tg://user?id=${telegramId}`;
+  }
+  return '';
+}
+
+function openTeacherContactModal(teacherId = null) {
+  const targetTeacherId = Number(teacherId || window.currentTeacherProfileId);
+  if (!Number.isFinite(targetTeacherId) || targetTeacherId <= 0) {
+    showNotification('Не удалось определить преподавателя');
+    return;
+  }
+
+  const overlay = document.getElementById('teacher-contact-overlay');
+  const modal = document.getElementById('teacher-contact-modal');
+  const text = document.getElementById('teacher-contact-modal-text');
+  const writeBtn = document.getElementById('teacher-contact-write-btn');
+  if (!overlay || !modal) return;
+
+  const teacherName = String(window.currentTeacherProfileData?.name || 'тренеру').trim();
+  if (text) {
+    text.textContent = `Чтобы записаться на индивидуальную тренировку, вам необходимо написать ${teacherName}.`;
+  }
+
+  window.currentTeacherContactLink = buildTeacherContactLink(window.currentTeacherProfileData);
+  if (writeBtn) {
+    const hasContact = Boolean(window.currentTeacherContactLink);
+    writeBtn.disabled = !hasContact;
+    writeBtn.style.opacity = hasContact ? '1' : '0.6';
+    writeBtn.title = hasContact ? '' : 'Контакт преподавателя недоступен';
+  }
+
+  overlay.classList.add('show');
+  modal.classList.add('show');
+  setModalBackHandler(closeTeacherContactModal);
+}
+
+function closeTeacherContactModal() {
+  const overlay = document.getElementById('teacher-contact-overlay');
+  const modal = document.getElementById('teacher-contact-modal');
+  if (overlay) overlay.classList.remove('show');
+  if (modal) modal.classList.remove('show');
+  setModalBackHandler(null);
+}
+
+function proceedTeacherContactAction() {
+  const link = String(window.currentTeacherContactLink || '').trim();
+  if (!link) {
+    showNotification('У преподавателя не указан контакт для связи');
+    return;
+  }
+  closeTeacherContactModal();
+  openClientChat(link);
 }
 
 function renderTeacherGroups(groups) {
@@ -7983,7 +8062,7 @@ function openIndividualBookingForTeacher(teacherId = null) {
     showNotification('Не удалось определить преподавателя');
     return;
   }
-  openIndividualBookingPage(targetTeacherId);
+  openTeacherContactModal(targetTeacherId);
 }
 
 function closeTeacherDetail() {
