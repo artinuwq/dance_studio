@@ -9,6 +9,7 @@ from flask import Blueprint, current_app, g, jsonify, request, send_from_directo
 from sqlalchemy import or_
 from werkzeug.utils import secure_filename
 
+from dance_studio.core.booking_amounts import compute_non_group_booking_base_amount
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.personal_discounts import resolve_discount_usage_state
 from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, PROJECT_NAME_FULL, PROJECT_NAME_SHORT, TECH_ADMIN_ID
@@ -116,6 +117,8 @@ def _serialize_direction_payload(direction, *, groups_count=None, include_status
         payload["updated_at"] = direction.updated_at.isoformat()
     return payload
 SCHEDULE_PRESENT_STATUSES = {"present", "late"}
+NEGATIVE_BOOKING_STATUSES = {"REJECTED", "CANCELLED", "PAYMENT_FAILED"}
+ACTIVE_NON_GROUP_BOOKING_STATUSES = {"NEW", "APPROVED", "AWAITING_PAYMENT", "PAID"}
 
 IMMUTABLE_STAFF_ROLE = "тех. админ"
 STAFF_ROLE_RANKS = {
@@ -168,6 +171,96 @@ def _can_edit_staff_by_roles(actor_role: str | None, target_role: str | None) ->
     if actor_rank < 0 or target_rank < 0:
         return False
     return actor_rank >= target_rank
+
+
+def _parse_stats_date_range(date_from_raw: str | None, date_to_raw: str | None) -> tuple[date | None, date | None]:
+    try:
+        date_from_val = datetime.strptime(date_from_raw, "%Y-%m-%d").date() if date_from_raw else None
+        date_to_val = datetime.strptime(date_to_raw, "%Y-%m-%d").date() if date_to_raw else None
+    except ValueError as exc:
+        raise ValueError("Неверный формат даты, используйте YYYY-MM-DD") from exc
+
+    if date_from_val and date_to_val and date_from_val > date_to_val:
+        raise ValueError("date_from не должен быть позже date_to")
+
+    return date_from_val, date_to_val
+
+
+def _stats_datetime_bounds(date_from_val: date | None, date_to_val: date | None) -> tuple[datetime | None, datetime | None]:
+    start_dt = datetime.combine(date_from_val, dt_time.min) if date_from_val else None
+    end_dt = datetime.combine(date_to_val, dt_time.max) if date_to_val else None
+    return start_dt, end_dt
+
+
+def _safe_non_negative_int(value) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed < 0:
+        return None
+    return parsed
+
+
+def _booking_duration_minutes(booking: BookingRequest) -> int | None:
+    direct_duration = _safe_non_negative_int(getattr(booking, "duration_minutes", None))
+    if direct_duration:
+        return direct_duration
+    if not booking.time_from or not booking.time_to:
+        return None
+    start_dt = datetime.combine(date.today(), booking.time_from)
+    end_dt = datetime.combine(date.today(), booking.time_to)
+    delta_minutes = int((end_dt - start_dt).total_seconds() // 60)
+    return delta_minutes if delta_minutes > 0 else None
+
+
+def _safe_int_setting_value(db, key: str) -> int | None:
+    try:
+        return int(get_setting_value(db, key))
+    except (TypeError, ValueError):
+        return None
+
+
+def _booking_expected_amount_rub(db, booking: BookingRequest) -> int | None:
+    requested_amount = _safe_non_negative_int(getattr(booking, "requested_amount", None))
+    if requested_amount is not None:
+        return requested_amount
+
+    object_type = str(getattr(booking, "object_type", "") or "").strip().lower()
+    if object_type in {"individual", "rental"}:
+        duration_minutes = _booking_duration_minutes(booking)
+        if duration_minutes is None:
+            return None
+        return compute_non_group_booking_base_amount(
+            db,
+            object_type=object_type,
+            duration_minutes=duration_minutes,
+        )
+
+    if object_type != "group":
+        return None
+
+    lessons_count = _safe_non_negative_int(getattr(booking, "lessons_count", None))
+    if not lessons_count:
+        return 0 if lessons_count == 0 else None
+
+    group_id = getattr(booking, "group_id", None)
+    if not group_id:
+        return None
+
+    group = db.query(Group).filter_by(id=group_id).first()
+    if not group:
+        return None
+
+    direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
+    if not direction:
+        return None
+
+    base_price = _safe_non_negative_int(direction.base_price)
+    if base_price is None:
+        return None
+
+    return lessons_count * base_price
 
 
 def _can_assign_staff_role_by_roles(actor_role: str | None, new_role: str | None) -> bool:
@@ -1844,13 +1937,13 @@ def get_teacher_stats():
     if not teacher_id:
         return {"error": "teacher_id обязателен"}, 400
 
-    date_from = request.args.get("date_from")
-    date_to = request.args.get("date_to")
     try:
-        date_from_val = datetime.strptime(date_from, "%Y-%m-%d").date() if date_from else None
-        date_to_val = datetime.strptime(date_to, "%Y-%m-%d").date() if date_to else None
-    except ValueError:
-        return {"error": "Неверный формат даты, используйте YYYY-MM-DD"}, 400
+        date_from_val, date_to_val = _parse_stats_date_range(
+            request.args.get("date_from"),
+            request.args.get("date_to"),
+        )
+    except ValueError as exc:
+        return {"error": str(exc)}, 400
 
     schedules_q = db.query(Schedule).filter(
         Schedule.teacher_id == teacher_id,
@@ -1866,8 +1959,8 @@ def get_teacher_stats():
 
     stats = {
         "teacher_id": teacher_id,
-        "date_from": date_from,
-        "date_to": date_to,
+        "date_from": date_from_val.isoformat() if date_from_val else None,
+        "date_to": date_to_val.isoformat() if date_to_val else None,
         "lessons_count": len(schedules),
         "students_total": 0,
         "present": 0,
@@ -1891,6 +1984,159 @@ def get_teacher_stats():
             else:
                 stats["absent"] += 1
 
+    return jsonify(stats)
+
+
+@bp.route("/api/stats/studio", methods=["GET"])
+def get_studio_stats():
+    perm_error = require_permission("view_stats")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    try:
+        date_from_val, date_to_val = _parse_stats_date_range(
+            request.args.get("date_from"),
+            request.args.get("date_to"),
+        )
+    except ValueError as exc:
+        return {"error": str(exc)}, 400
+
+    start_dt, end_dt = _stats_datetime_bounds(date_from_val, date_to_val)
+
+    stats = {
+        "date_from": date_from_val.isoformat() if date_from_val else None,
+        "date_to": date_to_val.isoformat() if date_to_val else None,
+        "new_clients": 0,
+        "active_clients": 0,
+        "abonements_sold": 0,
+        "visits_total": 0,
+        "lesson_cancellations": 0,
+        "lesson_cancellations_by_type": {"group": 0, "individual": 0, "rental": 0, "other": 0},
+        "booking_requests_created": 0,
+        "booking_requests_by_type": {"group": 0, "individual": 0, "rental": 0},
+        "expected_revenue_rub": 0,
+        "expected_revenue_breakdown_rub": {"group": 0, "individual": 0, "rental": 0},
+        "pricing_snapshot": {
+            "individual_hour_price_rub": _safe_int_setting_value(db, "individual.base_hour_price_rub"),
+            "rental_hour_price_rub": _safe_int_setting_value(db, "rental.base_hour_price_rub"),
+        },
+    }
+
+    users_q = db.query(User)
+    if start_dt:
+        users_q = users_q.filter(User.registered_at >= start_dt)
+    if end_dt:
+        users_q = users_q.filter(User.registered_at <= end_dt)
+    stats["new_clients"] = users_q.count()
+
+    created_requests_q = db.query(BookingRequest)
+    if start_dt:
+        created_requests_q = created_requests_q.filter(BookingRequest.created_at >= start_dt)
+    if end_dt:
+        created_requests_q = created_requests_q.filter(BookingRequest.created_at <= end_dt)
+    created_requests = created_requests_q.all()
+    stats["booking_requests_created"] = len(created_requests)
+
+    for booking in created_requests:
+        object_type = str(booking.object_type or "").strip().lower()
+        if object_type in stats["booking_requests_by_type"]:
+            stats["booking_requests_by_type"][object_type] += 1
+        if object_type != "group" or booking.status in NEGATIVE_BOOKING_STATUSES:
+            continue
+        amount = _booking_expected_amount_rub(db, booking)
+        if amount:
+            stats["expected_revenue_breakdown_rub"]["group"] += amount
+
+    paid_group_bookings = (
+        db.query(BookingRequest)
+        .filter(
+            BookingRequest.object_type == "group",
+            BookingRequest.status == "PAID",
+        )
+        .all()
+    )
+    paid_group_total = 0
+    for booking in paid_group_bookings:
+        paid_at = booking.status_updated_at or booking.created_at
+        if start_dt and (not paid_at or paid_at < start_dt):
+            continue
+        if end_dt and (not paid_at or paid_at > end_dt):
+            continue
+        paid_group_total += 1
+    stats["abonements_sold"] = paid_group_total
+
+    attendance_q = (
+        db.query(Attendance.user_id, Attendance.status)
+        .join(Schedule, Attendance.schedule_id == Schedule.id)
+        .filter(Schedule.date.isnot(None))
+    )
+    if date_from_val:
+        attendance_q = attendance_q.filter(Schedule.date >= date_from_val)
+    if date_to_val:
+        attendance_q = attendance_q.filter(Schedule.date <= date_to_val)
+    attendance_rows = attendance_q.all()
+
+    active_user_ids: set[int] = set()
+    visits_total = 0
+    for user_id, status in attendance_rows:
+        normalized_status = str(status or "").strip().lower()
+        if normalized_status not in SCHEDULE_PRESENT_STATUSES:
+            continue
+        if user_id:
+            active_user_ids.add(int(user_id))
+        visits_total += 1
+
+    non_group_bookings_q = (
+        db.query(BookingRequest)
+        .filter(
+            BookingRequest.object_type.in_(["individual", "rental"]),
+            BookingRequest.status.in_(list(ACTIVE_NON_GROUP_BOOKING_STATUSES)),
+            BookingRequest.date.isnot(None),
+        )
+    )
+    if date_from_val:
+        non_group_bookings_q = non_group_bookings_q.filter(BookingRequest.date >= date_from_val)
+    if date_to_val:
+        non_group_bookings_q = non_group_bookings_q.filter(BookingRequest.date <= date_to_val)
+    non_group_bookings = non_group_bookings_q.all()
+
+    for booking in non_group_bookings:
+        if booking.user_id:
+            active_user_ids.add(int(booking.user_id))
+        visits_total += 1
+        object_type = str(booking.object_type or "").strip().lower()
+        if object_type not in stats["expected_revenue_breakdown_rub"]:
+            continue
+        amount = _booking_expected_amount_rub(db, booking)
+        if amount:
+            stats["expected_revenue_breakdown_rub"][object_type] += amount
+
+    stats["active_clients"] = len(active_user_ids)
+    stats["visits_total"] = visits_total
+
+    cancelled_schedules_q = (
+        db.query(Schedule.object_type)
+        .filter(
+            Schedule.date.isnot(None),
+            Schedule.status.in_(list(INACTIVE_SCHEDULE_STATUSES)),
+        )
+    )
+    if date_from_val:
+        cancelled_schedules_q = cancelled_schedules_q.filter(Schedule.date >= date_from_val)
+    if date_to_val:
+        cancelled_schedules_q = cancelled_schedules_q.filter(Schedule.date <= date_to_val)
+    cancelled_schedule_rows = cancelled_schedules_q.all()
+
+    stats["lesson_cancellations"] = len(cancelled_schedule_rows)
+    for (object_type,) in cancelled_schedule_rows:
+        normalized_type = str(object_type or "").strip().lower()
+        if normalized_type in stats["lesson_cancellations_by_type"]:
+            stats["lesson_cancellations_by_type"][normalized_type] += 1
+        else:
+            stats["lesson_cancellations_by_type"]["other"] += 1
+
+    stats["expected_revenue_rub"] = sum(stats["expected_revenue_breakdown_rub"].values())
     return jsonify(stats)
 
 
@@ -3718,6 +3964,79 @@ def admin_get_client_abonements(user_id: int):
             "items": [_serialize_client_abonement_for_admin(db, item) for item in items],
         }
     )
+
+
+@bp.route("/api/admin/clients/<int:user_id>/telegram-photo", methods=["GET"])
+def admin_get_client_telegram_photo(user_id: int):
+    perm_error = require_permission("view_all_users")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        return {"error": "Клиент не найден"}, 404
+    if not user.telegram_id:
+        return {"error": "У клиента нет telegram_id"}, 404
+    if not BOT_TOKEN:
+        return {"error": "Telegram Bot API не настроен"}, 503
+
+    try:
+        profile_resp = requests.get(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos",
+            params={"user_id": user.telegram_id, "limit": 1},
+            timeout=5,
+        )
+        profile_resp.raise_for_status()
+        profile_data = profile_resp.json()
+        photos = profile_data.get("result", {}).get("photos") or []
+        if not profile_data.get("ok") or not photos or not photos[0]:
+            return {"error": "Фото профиля Telegram не найдено"}, 404
+
+        file_id = (photos[0][-1] or {}).get("file_id")
+        if not file_id:
+            return {"error": "Фото профиля Telegram не найдено"}, 404
+
+        file_resp = requests.get(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
+            params={"file_id": file_id},
+            timeout=5,
+        )
+        file_resp.raise_for_status()
+        file_data = file_resp.json()
+        file_path = ((file_data.get("result") or {}).get("file_path") or "").strip()
+        if not file_data.get("ok") or not file_path:
+            return {"error": "Не удалось получить файл фото из Telegram"}, 404
+
+        image_resp = requests.get(
+            f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}",
+            timeout=10,
+        )
+        image_resp.raise_for_status()
+        if not image_resp.content:
+            return {"error": "Пустой ответ от Telegram"}, 404
+    except requests.RequestException:
+        current_app.logger.exception(
+            "Failed to proxy client telegram photo user_id=%s telegram_id=%s",
+            user_id,
+            user.telegram_id,
+        )
+        return {"error": "Не удалось получить фото из Telegram"}, 502
+    except ValueError:
+        current_app.logger.exception(
+            "Failed to decode telegram photo response user_id=%s telegram_id=%s",
+            user_id,
+            user.telegram_id,
+        )
+        return {"error": "Некорректный ответ Telegram"}, 502
+
+    response = current_app.response_class(
+        image_resp.content,
+        mimetype=(image_resp.headers.get("Content-Type") or "image/jpeg"),
+    )
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 @bp.route("/api/admin/clients/<int:user_id>/attendance-calendar", methods=["GET"])

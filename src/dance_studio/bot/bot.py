@@ -2202,9 +2202,6 @@ async def handle_booking_action(callback: CallbackQuery):
             action = "request_payment"
             if prefix == "booking_confirm":
                 prefix = "booking"
-        if booking.object_type == "group" and prefix == "booking_confirm":
-            prefix = "booking"
-
         if prefix == "booking_confirm":
             if action not in {"approve", "reject"}:
                 await callback.answer("Неверное подтверждение.", show_alert=True)

@@ -20,6 +20,9 @@
   --accent-strong: rgba(254, 88, 21, 0.22);
   --safe-top: 0px;
   --safe-bottom: 0px;
+  --bottom-nav-static-gap: 0px;
+  --android-nav-gap: 0px;
+  --bottom-nav-offset: calc(var(--bottom-nav-static-gap) + var(--android-nav-gap));
 }
 
 /* ====== БАЗА ====== */
@@ -36,6 +39,19 @@ body {
 
 body.group-booking-open {
   overflow: hidden;
+}
+
+body.tg-mobile {
+  --bottom-nav-static-gap: 10px;
+}
+
+body.android-webview {
+  --bottom-nav-static-gap: 28px;
+}
+
+body.bottom-nav-air-gap-disabled {
+  --bottom-nav-static-gap: 0px;
+  --android-nav-gap: 0px;
 }
 
 #schedule-grid-container {
@@ -87,7 +103,7 @@ body.tg-mobile .header-back {
 .page {
   display: none;
   padding: 16px;
-  padding-bottom: calc(56px + var(--safe-bottom) + 14px);
+  padding-bottom: calc(56px + var(--safe-bottom) + 14px + var(--bottom-nav-offset));
   padding-top: calc(16px + var(--safe-top));
 }
 
@@ -259,7 +275,7 @@ body.tg-mobile .header-back {
 /* ====== НИЖНЕЕ МЕНЮ ====== */
 .bottom-nav {
   position: fixed;
-  bottom: 0;
+  bottom: var(--bottom-nav-offset);
   left: 0;
   right: 0;
   min-height: 45px;
@@ -1188,6 +1204,152 @@ textarea.form-input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.client-detail-modal {
+  background:
+    radial-gradient(120% 120% at 50% 0%, rgba(254, 88, 21, 0.14), transparent 42%),
+    var(--bg);
+}
+
+.client-detail-shell {
+  min-height: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 12px) 18px calc(var(--safe-bottom) + 20px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.client-detail-topbar {
+  position: relative;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.client-detail-pill {
+  max-width: calc(100% - 88px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(20, 20, 20, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.client-detail-local-back {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.client-detail-local-back:active {
+  opacity: 0.75;
+}
+
+.client-detail-profile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.client-detail-avatar {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+    var(--card);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.client-detail-avatar.is-loading {
+  opacity: 0.82;
+}
+
+.client-detail-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.client-detail-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  color: var(--hint);
+}
+
+.client-detail-name {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #fff;
+}
+
+.client-detail-username {
+  font-size: 15px;
+  line-height: 1.25;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.client-detail-meta {
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--hint);
+}
+
+.client-detail-actions {
+  margin-top: auto;
+}
+
+.client-detail-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.client-detail-actions-list .save-btn {
+  width: 100%;
+  margin: 0;
 }
 
 /* ====== СПИСОК ПЕРСОНАЛА (В СТИЛЕ КЛИЕНТОВ) ====== */
@@ -4345,6 +4507,23 @@ textarea.form-input {
 <div class="card" id="stats-result">
   <p class="small" style="color: var(--hint); margin:0;">Выберите преподавателя и период, чтобы увидеть статистику.</p>
 </div>
+  <div class="card" style="margin-top: 12px; margin-bottom: 12px;">
+    <h4 style="margin: 0 0 8px;">Сводка по студии</h4>
+    <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:180px;">
+        <label class="label">С даты</label>
+        <input class="form-input" id="studio-stats-date-from" type="date">
+      </div>
+      <div style="flex:1; min-width:180px;">
+        <label class="label">По дату</label>
+        <input class="form-input" id="studio-stats-date-to" type="date">
+      </div>
+    </div>
+    <button class="save-btn" style="width:100%; margin-top:12px;" onclick="loadStudioStats()">Показать сводку</button>
+  </div>
+<div class="card" id="studio-stats-result">
+  <p class="small" style="color: var(--hint); margin:0;">Выберите период, чтобы увидеть сводку по студии.</p>
+</div>
 </div>
 <!-- ====== ПАРАМЕТРЫ НАСТРОЙКИ (РАБОТА) ====== -->
 <div class="page" data-title="⚙️ Параметры настройки" id="work-settings">
@@ -5235,7 +5414,7 @@ textarea.form-input {
   <option value="sport">🏅 Спортивное</option>
 </select>
 <!-- Цена -->
-<label class="label" style="font-weight: 600;">Базовая цена (?) *</label>
+<label class="label" style="font-weight: 600;">Базовая цена (₽) *</label>
 <input class="form-input" id="direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
 </div>
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid #4CAF50;">
@@ -5265,7 +5444,7 @@ textarea.form-input {
     ✅ Создать направление
   </button>
 <button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
-    ? Отменить
+    ↩️ Отменить
   </button>
 <!-- Сообщение об ошибке -->
 <div id="direction-error-msg" style="margin-top: 12px; padding: 12px; background: rgba(244, 67, 54, 0.18); border-radius: 8px; color: #ffb3b3; display: none;">
@@ -5314,7 +5493,7 @@ textarea.form-input {
   <option value="sport">🏅 Спортивное</option>
 </select>
 <!-- Цена -->
-<label class="label" style="font-weight: 600;">Базовая цена (?) *</label>
+<label class="label" style="font-weight: 600;">Базовая цена (₽) *</label>
 <input class="form-input direction-editable" id="edit-direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
 <!-- Статус -->
 <label class="label" style="font-weight: 600;">Статус</label>
@@ -5341,10 +5520,10 @@ textarea.form-input {
 <div class="direction-lockable" style="margin-bottom: 12px;">
 <div aria-hidden="true" class="lock-overlay"></div>
 <button class="save-btn direction-editable" id="direction-save-btn" onclick="saveDirectionChanges()" style="width: 100%; margin-bottom: 8px; background: #4CAF50;">
-      ? Сохранить изменения
+      💾 Сохранить изменения
     </button>
 <button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
-      ? Отменить
+      ↩️ Отменить
     </button>
 </div>
 <!-- Сообщение об ошибке -->
@@ -5861,14 +6040,98 @@ function updateSafeAreaVars() {
   const bottom = Number(inset.bottom) || 0;
   document.documentElement.style.setProperty('--safe-top', `${top}px`);
   document.documentElement.style.setProperty('--safe-bottom', `${bottom}px`);
+  scheduleAndroidNavGapUpdate();
 }
 
 const DISPLAY_MODE_KEY = 'display_mode_pref';
 let fullscreenRetryTimer = null;
+let androidNavGapRaf = null;
+let androidNavGapListenersBound = false;
+let bottomNavAirGapEnabled = true;
 
 function isMobileTelegramPlatform() {
   const platform = (tg?.platform || '').toLowerCase();
   return platform === 'android' || platform === 'ios';
+}
+
+function isAndroidClient() {
+  const platform = (tg?.platform || '').toLowerCase();
+  if (platform === 'android') return true;
+  const userAgent = (navigator.userAgent || '').toLowerCase();
+  return userAgent.includes('android');
+}
+
+function clampNumber(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function setBottomNavAirGapEnabled(enabled = true) {
+  bottomNavAirGapEnabled = enabled !== false;
+  if (document.body) {
+    document.body.classList.toggle('bottom-nav-air-gap-disabled', !bottomNavAirGapEnabled);
+  }
+  if (!bottomNavAirGapEnabled) {
+    document.documentElement.style.setProperty('--android-nav-gap', '0px');
+    return;
+  }
+  scheduleAndroidNavGapUpdate();
+}
+
+window.setBottomNavAirGapEnabled = setBottomNavAirGapEnabled;
+
+function applyAndroidNavGap() {
+  const root = document.documentElement;
+  if (!root || !bottomNavAirGapEnabled || !isAndroidClient()) {
+    root?.style?.setProperty('--android-nav-gap', '0px');
+    return;
+  }
+  const vv = window.visualViewport;
+  if (!vv) {
+    root.style.setProperty('--android-nav-gap', '0px');
+    return;
+  }
+
+  const layoutHeight = Number(window.innerHeight || document.documentElement.clientHeight || 0);
+  const viewportBottom = Number((vv.offsetTop || 0) + (vv.height || 0));
+  const overlap = Math.max(0, layoutHeight - viewportBottom);
+  const safeBottom = Number.parseFloat(getComputedStyle(root).getPropertyValue('--safe-bottom')) || 0;
+  const activeTag = (document.activeElement?.tagName || '').toUpperCase();
+  const textInputFocused = /^(INPUT|TEXTAREA|SELECT)$/.test(activeTag) || Boolean(document.activeElement?.isContentEditable);
+  const keyboardLikelyOpen = textInputFocused && vv.height < layoutHeight * 0.82;
+
+  if (keyboardLikelyOpen) {
+    root.style.setProperty('--android-nav-gap', '0px');
+    return;
+  }
+
+  const dynamicGap = clampNumber(Math.round(overlap - safeBottom), 0, 28);
+  root.style.setProperty('--android-nav-gap', `${dynamicGap}px`);
+}
+
+function scheduleAndroidNavGapUpdate() {
+  if (androidNavGapRaf) {
+    cancelAnimationFrame(androidNavGapRaf);
+  }
+  androidNavGapRaf = requestAnimationFrame(() => {
+    androidNavGapRaf = null;
+    applyAndroidNavGap();
+  });
+}
+
+function initAndroidNavGapHandlers() {
+  if (androidNavGapListenersBound || !isAndroidClient()) {
+    scheduleAndroidNavGapUpdate();
+    return;
+  }
+  androidNavGapListenersBound = true;
+  scheduleAndroidNavGapUpdate();
+
+  if (window.visualViewport && typeof window.visualViewport.addEventListener === 'function') {
+    window.visualViewport.addEventListener('resize', scheduleAndroidNavGapUpdate, { passive: true });
+    window.visualViewport.addEventListener('scroll', scheduleAndroidNavGapUpdate, { passive: true });
+  }
+  window.addEventListener('resize', scheduleAndroidNavGapUpdate, { passive: true });
+  window.addEventListener('orientationchange', scheduleAndroidNavGapUpdate, { passive: true });
 }
 
 function getDisplayModePref() {
@@ -5961,9 +6224,16 @@ function initDisplaySettingsPage() {
 
 function initMobileViewport() {
   const isMobile = isMobileTelegramPlatform();
-  if (!isMobile) return;
+  if (isAndroidClient()) {
+    document.body.classList.add('android-webview');
+  }
+  if (!isMobile) {
+    initAndroidNavGapHandlers();
+    return;
+  }
 
   document.body.classList.add('tg-mobile');
+  initAndroidNavGapHandlers();
 
   try {
     if (!tg.isExpanded) {
@@ -5982,6 +6252,7 @@ updateSafeAreaVars();
 if (typeof tg.onEvent === 'function') {
   tg.onEvent('viewportChanged', () => {
     updateSafeAreaVars();
+    scheduleAndroidNavGapUpdate();
     // Если пользователь выбрал fullscreen, пытаемся вернуть его после изменений viewport.
     if (isMobileTelegramPlatform() && getDisplayModePref() === 'fullscreen' && !tg?.isFullscreen && typeof tg.requestFullscreen === 'function' && tg.isVersionAtLeast?.('8.0')) {
       if (fullscreenRetryTimer) clearTimeout(fullscreenRetryTimer);
@@ -5992,6 +6263,7 @@ if (typeof tg.onEvent === 'function') {
     renderDisplayModeStatus();
   });
 }
+scheduleAndroidNavGapUpdate();
 applyDisplayModePref();
 
 // Bootstrap auth session once WebApp is ready.
@@ -13488,13 +13760,17 @@ function openPersonalAttendance(scheduleId) {
 
 /* ====== СТАТИСТИКА ====== */
 async function initStatsPageDefaults() {
-  const from = document.getElementById('stats-date-from');
-  const to = document.getElementById('stats-date-to');
   const today = new Date();
   const start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0,10);
   const end = today.toISOString().slice(0,10);
+  const from = document.getElementById('stats-date-from');
+  const to = document.getElementById('stats-date-to');
+  const studioFrom = document.getElementById('studio-stats-date-from');
+  const studioTo = document.getElementById('studio-stats-date-to');
   if (from) from.value = start;
   if (to) to.value = end;
+  if (studioFrom) studioFrom.value = start;
+  if (studioTo) studioTo.value = end;
 }
 
 async function loadStatsTeachers() {
@@ -13509,6 +13785,10 @@ async function loadStatsTeachers() {
   } catch (err) {
     select.innerHTML = '<option value=\"\">❌ Не удалось загрузить</option>';
   }
+}
+
+function renderStatsCard(label, value) {
+  return `<div class=\"stats-card\"><div class=\"stats-label\">${label}</div><div class=\"stats-value\">${value}</div></div>`;
 }
 
 async function loadTeacherStats() {
@@ -13541,6 +13821,48 @@ async function loadTeacherStats() {
     `;
   } catch (err) {
     if (result) result.innerHTML = `<p class=\"small\" style=\"color:var(--hint); margin:0;\">❌ ${err.message}</p>`;
+  }
+}
+
+async function loadStudioStats() {
+  const dateFrom = document.getElementById('studio-stats-date-from')?.value;
+  const dateTo = document.getElementById('studio-stats-date-to')?.value;
+  const result = document.getElementById('studio-stats-result');
+  if (result) result.innerHTML = '<p class=\"small\" style=\"color:var(--hint); margin:0;\">вЏі РЎС‡РёС‚Р°РµРј...</p>';
+  try {
+    const params = new URLSearchParams();
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    const res = await fetch(`/api/stats/studio?${params.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'РћС€РёР±РєР°');
+    const period = `${data.date_from || 'вЂ”'} вЂ” ${data.date_to || 'вЂ”'}`;
+    const requestsByType = data.booking_requests_by_type || {};
+    const cancellationsByType = data.lesson_cancellations_by_type || {};
+    const revenueByType = data.expected_revenue_breakdown_rub || {};
+    result.innerHTML = `
+      <div class=\"stats-grid\">
+        ${renderStatsCard('РџРµСЂРёРѕРґ', period)}
+        ${renderStatsCard('РќРѕРІС‹Рµ РєР»РёРµРЅС‚С‹', data.new_clients ?? 0)}
+        ${renderStatsCard('РђРєС‚РёРІРЅС‹Рµ РєР»РёРµРЅС‚С‹', data.active_clients ?? 0)}
+        ${renderStatsCard('РџСЂРѕРґР°РЅРѕ Р°Р±РѕРЅРµРјРµРЅС‚РѕРІ', data.abonements_sold ?? 0)}
+        ${renderStatsCard('РџРѕСЃРµС‰РµРЅРёР№', data.visits_total ?? 0)}
+        ${renderStatsCard('РћС‚РјРµРЅ Р·Р°РЅСЏС‚РёР№', data.lesson_cancellations ?? 0)}
+        ${renderStatsCard('Р—Р°СЏРІРѕРє СЃРѕР·РґР°РЅРѕ', data.booking_requests_created ?? 0)}
+        ${renderStatsCard('РћР¶РёРґР°РµРјР°СЏ СЃСѓРјРјР°', formatBookingAmount(data.expected_revenue_rub ?? 0, 'RUB'))}
+      </div>
+      <p class=\"small\" style=\"color: var(--hint); margin: 10px 0 0 0;\">
+        Р—Р°СЏРІРєРё: РіСЂСѓРїРїС‹ ${requestsByType.group ?? 0} вЂў РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹Рµ ${requestsByType.individual ?? 0} вЂў Р°СЂРµРЅРґР° ${requestsByType.rental ?? 0}
+      </p>
+      <p class=\"small\" style=\"color: var(--hint); margin: 6px 0 0 0;\">
+        РћС‚РјРµРЅС‹: РіСЂСѓРїРїС‹ ${cancellationsByType.group ?? 0} вЂў РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹Рµ ${cancellationsByType.individual ?? 0} вЂў Р°СЂРµРЅРґР° ${cancellationsByType.rental ?? 0}
+      </p>
+      <p class=\"small\" style=\"color: var(--hint); margin: 6px 0 0 0;\">
+        РћР¶РёРґР°РµРјР°СЏ СЃСѓРјРјР°: Р°Р±РѕРЅРµРјРµРЅС‚С‹ ${formatBookingAmount(revenueByType.group ?? 0, 'RUB')} вЂў РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹Рµ ${formatBookingAmount(revenueByType.individual ?? 0, 'RUB')} вЂў Р°СЂРµРЅРґР° ${formatBookingAmount(revenueByType.rental ?? 0, 'RUB')}
+      </p>
+    `;
+  } catch (err) {
+    if (result) result.innerHTML = `<p class=\"small\" style=\"color:var(--hint); margin:0;\">вќЊ ${err.message}</p>`;
   }
 }
 
@@ -15047,6 +15369,8 @@ function formatDate(dateString) {
 /* ====== УПРАВЛЕНИЕ КЛИЕНТАМИ (ПЕРСОНАЛ) ====== */
 let allClients = [];
 let selectedClientForActions = null;
+let clientDetailAvatarObjectUrl = null;
+let clientDetailAvatarLoadToken = 0;
 let clientDiscounts = [];
 let clientExtendAbonements = [];
 let clientExtendSelectedAbonement = null;
@@ -15967,7 +16291,118 @@ function displayClients(clients) {
   `).join('');
 }
 
-function viewClientDetails(userId) {
+function initClientDetailModalLayout() {
+  const modalEl = document.getElementById('client-detail-modal');
+  if (!modalEl) return;
+
+  modalEl.classList.add('client-detail-modal');
+  modalEl.innerHTML = `
+    <div class="client-detail-shell">
+      <div class="client-detail-topbar">
+        <button aria-label="Назад" class="client-detail-local-back" id="client-detail-local-back" onclick="closeClientDetailModal()">&#8592;</button>
+        <div class="client-detail-pill">Клиент</div>
+      </div>
+      <div class="client-detail-profile">
+        <div class="client-detail-avatar" id="client-detail-avatar">
+          <img alt="Фото клиента" id="client-detail-avatar-img" src="" />
+          <div class="client-detail-avatar-placeholder" id="client-detail-avatar-placeholder">👤</div>
+        </div>
+        <div class="client-detail-name" id="client-detail-name">—</div>
+        <div class="client-detail-username" id="client-detail-username">—</div>
+        <div class="client-detail-meta" id="client-detail-meta">—</div>
+      </div>
+      <div class="card client-detail-actions">
+        <h4 style="margin-top:0;">Действия</h4>
+        <div class="client-detail-actions-list">
+          <button class="save-btn" onclick="openClientAttendanceCalendarScreen()">Календарь посещаемости</button>
+          <button class="save-btn" onclick="openClientAbonementExtendScreen()">Продлить абонемент</button>
+          <button class="save-btn" style="background:#444;" onclick="openClientDiscountsScreen()">Персональные скидки</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function _clientDetailUsernameText(client) {
+  const rawUsername = String(client?.username || '').trim();
+  if (rawUsername) {
+    return rawUsername.startsWith('@') ? rawUsername : `@${rawUsername}`;
+  }
+  if (client?.telegram_id) {
+    return 'Без username';
+  }
+  return 'Telegram не привязан';
+}
+
+function _setClientDetailBackFallbackVisible(isVisible) {
+  const backBtn = document.getElementById('client-detail-local-back');
+  if (!backBtn) return;
+  backBtn.style.display = isVisible ? 'inline-flex' : 'none';
+}
+
+function _revokeClientDetailAvatarUrl() {
+  if (!clientDetailAvatarObjectUrl) return;
+  URL.revokeObjectURL(clientDetailAvatarObjectUrl);
+  clientDetailAvatarObjectUrl = null;
+}
+
+function _resetClientDetailAvatar() {
+  const avatarEl = document.getElementById('client-detail-avatar');
+  const imgEl = document.getElementById('client-detail-avatar-img');
+  const placeholderEl = document.getElementById('client-detail-avatar-placeholder');
+  _revokeClientDetailAvatarUrl();
+  if (avatarEl) avatarEl.classList.remove('is-loading');
+  if (imgEl) {
+    imgEl.style.display = 'none';
+    imgEl.removeAttribute('src');
+  }
+  if (placeholderEl) {
+    placeholderEl.style.display = 'flex';
+  }
+}
+
+async function loadClientDetailAvatar(client) {
+  const avatarEl = document.getElementById('client-detail-avatar');
+  const imgEl = document.getElementById('client-detail-avatar-img');
+  const placeholderEl = document.getElementById('client-detail-avatar-placeholder');
+  if (!avatarEl || !imgEl || !placeholderEl) return;
+
+  _resetClientDetailAvatar();
+  if (!client?.telegram_id) return;
+
+  const requestToken = ++clientDetailAvatarLoadToken;
+  avatarEl.classList.add('is-loading');
+
+  try {
+    const response = await authFetch(`/api/admin/clients/${client.id}/telegram-photo`);
+    if (!response.ok) {
+      throw new Error(`avatar_http_${response.status}`);
+    }
+
+    const avatarBlob = await response.blob();
+    if (requestToken !== clientDetailAvatarLoadToken) return;
+
+    _revokeClientDetailAvatarUrl();
+    clientDetailAvatarObjectUrl = URL.createObjectURL(avatarBlob);
+    imgEl.src = clientDetailAvatarObjectUrl;
+    imgEl.style.display = 'block';
+    placeholderEl.style.display = 'none';
+  } catch (error) {
+    console.debug('Не удалось загрузить фото клиента из Telegram:', error);
+    if (requestToken !== clientDetailAvatarLoadToken) return;
+    imgEl.style.display = 'none';
+    imgEl.removeAttribute('src');
+    placeholderEl.style.display = 'flex';
+  } finally {
+    if (requestToken === clientDetailAvatarLoadToken) {
+      avatarEl.classList.remove('is-loading');
+    }
+  }
+}
+
+initClientDetailModalLayout();
+
+function _legacyViewClientDetails(userId) {
   const client = allClients.find(c => Number(c.id) === Number(userId));
   if (!client) {
     showNotification('Клиент не найден');
@@ -15977,18 +16412,19 @@ function viewClientDetails(userId) {
   selectedClientForActions = client;
 
   const nameEl = document.getElementById('client-detail-name');
+  const usernameEl = document.getElementById('client-detail-username');
   const metaEl = document.getElementById('client-detail-meta');
   const modalEl = document.getElementById('client-detail-modal');
   const overlayEl = document.getElementById('client-detail-overlay');
 
-  if (!nameEl || !metaEl || !modalEl || !overlayEl) {
+  if (!nameEl || !usernameEl || !metaEl || !modalEl || !overlayEl) {
     showNotification('Окно клиента недоступно');
     return;
   }
 
   const metaParts = [
-    `ID: ${client.id}`,
-    client.username ? `@${client.username}` : null,
+    client.telegram_id ? `Telegram ID: ${client.telegram_id}` : null,
+    `ID клиента: ${client.id}`,
     client.phone || null,
     client.email || null,
   ].filter(Boolean);
@@ -16000,11 +16436,59 @@ function viewClientDetails(userId) {
   modalEl.classList.add('show');
 }
 
-function closeClientDetailModal() {
+function _legacyCloseClientDetailModal() {
   const modalEl = document.getElementById('client-detail-modal');
   const overlayEl = document.getElementById('client-detail-overlay');
   if (overlayEl) overlayEl.classList.remove('show');
   if (modalEl) modalEl.classList.remove('show');
+}
+
+function viewClientDetails(userId) {
+  const client = allClients.find(c => Number(c.id) === Number(userId));
+  if (!client) {
+    showNotification('Клиент не найден');
+    return;
+  }
+
+  selectedClientForActions = client;
+
+  const nameEl = document.getElementById('client-detail-name');
+  const usernameEl = document.getElementById('client-detail-username');
+  const metaEl = document.getElementById('client-detail-meta');
+  const modalEl = document.getElementById('client-detail-modal');
+  const overlayEl = document.getElementById('client-detail-overlay');
+
+  if (!nameEl || !usernameEl || !metaEl || !modalEl || !overlayEl) {
+    showNotification('Окно клиента недоступно');
+    return;
+  }
+
+  const metaParts = [
+    client.telegram_id ? `Telegram ID: ${client.telegram_id}` : null,
+    `ID клиента: ${client.id}`,
+    client.phone || null,
+    client.email || null,
+  ].filter(Boolean);
+
+  nameEl.textContent = client.name || 'Без имени';
+  usernameEl.textContent = _clientDetailUsernameText(client);
+  metaEl.textContent = metaParts.join(' • ') || '—';
+  _setClientDetailBackFallbackVisible(!hasTelegramBackButton);
+
+  overlayEl.classList.add('show');
+  modalEl.classList.add('show');
+  setModalBackHandler(closeClientDetailModal);
+  loadClientDetailAvatar(client);
+}
+
+function closeClientDetailModal() {
+  const modalEl = document.getElementById('client-detail-modal');
+  const overlayEl = document.getElementById('client-detail-overlay');
+  clientDetailAvatarLoadToken += 1;
+  _resetClientDetailAvatar();
+  if (overlayEl) overlayEl.classList.remove('show');
+  if (modalEl) modalEl.classList.remove('show');
+  setModalBackHandler(null);
 }
 
 function _clientActionMetaParts(client) {
@@ -18072,7 +18556,7 @@ async function generateDirectionUploadToken() {
       window.open(botLink, '_blank');
     }
 
-    showDirectionSuccess('? Бот открыт! Загрузите фотографию.');
+    showDirectionSuccess('📱 Бот открыт! Загрузите фотографию.');
     checkDirectionPhotoStatus(token);
   } catch (err) {
     console.error('Ошибка при открытии бота:', err);
@@ -18158,7 +18642,7 @@ async function createDirection() {
     localStorage.removeItem('direction_session_token');
     localStorage.removeItem('direction_session_id');
     
-    showDirectionSuccess(`? Направление "${data.title}" успешно создано!`);
+    showDirectionSuccess(`✅ Направление "${data.title}" успешно создано!`);
     
     // Возвращаемся в меню
     setTimeout(() => {

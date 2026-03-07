@@ -185,6 +185,53 @@ def test_admin_parse_month_start():
         _parse_month_start("2026/03")
 
 
+def test_admin_parse_stats_date_range():
+    assert admin_routes._parse_stats_date_range("2026-03-01", "2026-03-31") == (
+        date(2026, 3, 1),
+        date(2026, 3, 31),
+    )
+    assert admin_routes._parse_stats_date_range(None, None) == (None, None)
+
+    with pytest.raises(ValueError):
+        admin_routes._parse_stats_date_range("2026-03-31", "2026-03-01")
+
+    with pytest.raises(ValueError):
+        admin_routes._parse_stats_date_range("bad-date", "2026-03-01")
+
+
+def test_admin_booking_expected_amount_prefers_requested_amount():
+    booking = SimpleNamespace(
+        requested_amount="2750",
+        object_type="individual",
+        duration_minutes=60,
+        time_from=None,
+        time_to=None,
+        lessons_count=None,
+        group_id=None,
+    )
+
+    assert admin_routes._booking_expected_amount_rub(object(), booking) == 2750
+
+
+def test_admin_booking_expected_amount_falls_back_to_non_group_rate(monkeypatch):
+    monkeypatch.setattr(
+        admin_routes,
+        "compute_non_group_booking_base_amount",
+        lambda db, *, object_type, duration_minutes: 3600 if object_type == "individual" and duration_minutes == 90 else None,
+    )
+    booking = SimpleNamespace(
+        requested_amount=None,
+        object_type="individual",
+        duration_minutes=90,
+        time_from=None,
+        time_to=None,
+        lessons_count=None,
+        group_id=None,
+    )
+
+    assert admin_routes._booking_expected_amount_rub(object(), booking) == 3600
+
+
 def test_admin_schedule_group_id_and_merge_note():
     assert _schedule_group_id(_schedule(group_id=5, object_type="group", object_id=7)) == 5
     assert _schedule_group_id(_schedule(group_id=None, object_type="group", object_id=7)) == 7
