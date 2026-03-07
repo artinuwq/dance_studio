@@ -564,6 +564,33 @@ class GroupAbonementActionLog(Base):
     payment = relationship("PaymentTransaction", foreign_keys=[payment_id])
 
 
+class NotificationDispatchLog(Base):
+    __tablename__ = "notification_dispatch_logs"
+
+    id = Column(Integer, primary_key=True)
+    notification_key = Column(String(64), nullable=False)
+    entity_type = Column(String(32), nullable=False)
+    entity_ref = Column(String(128), nullable=False)
+    recipient_type = Column(String(32), nullable=False, default="telegram_user")
+    recipient_ref = Column(String(128), nullable=False)
+    status = Column(String(32), nullable=False, default="sent")
+    payload = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
+
+    __table_args__ = (
+        Index(
+            "ix_notification_dispatch_logs_unique",
+            "notification_key",
+            "entity_type",
+            "entity_ref",
+            "recipient_type",
+            "recipient_ref",
+            unique=True,
+        ),
+        Index("ix_notification_dispatch_logs_created_at", "created_at"),
+    )
+
+
 class UserDiscount(Base):
     __tablename__ = "user_discounts"
 

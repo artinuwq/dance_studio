@@ -55,10 +55,18 @@ def test_set_attendance_requires_manage_schedule():
 def test_schedule_v2_cancel_route_exists_with_compensation_flow():
     source = ADMIN_ROUTES.read_text(encoding="utf-8")
     marker = '@bp.route("/schedule/v2/<int:schedule_id>/cancel", methods=["POST"])'
-    route_window = _window(source, marker, size=3000)
+    route_window = _window(source, marker, size=9200)
 
     assert "def cancel_schedule_v2(schedule_id):" in route_window
     assert 'require_permission("manage_schedule")' in route_window
+    assert 'if object_type == "rental":' in route_window
+    assert "_load_rental_for_schedule(db, schedule)" in route_window
+    assert "_sync_rental_with_schedule(" in route_window
+    assert "_notify_rental_creator(" in route_window
+    assert 'if object_type == "individual":' in route_window
+    assert "_load_individual_lesson_for_schedule(db, schedule)" in route_window
+    assert "_sync_individual_lesson_with_schedule(" in route_window
+    assert "_notify_individual_student(" in route_window
     assert "_extend_abonement_by_week(" in route_window
     assert "_refund_schedule_attendance_credit(" in route_window
     assert '_send_group_chat_message(' in route_window
@@ -67,10 +75,18 @@ def test_schedule_v2_cancel_route_exists_with_compensation_flow():
 def test_schedule_v2_move_route_exists_with_transfer_modes():
     source = ADMIN_ROUTES.read_text(encoding="utf-8")
     marker = '@bp.route("/schedule/v2/<int:schedule_id>/move", methods=["POST"])'
-    route_window = _window(source, marker, size=5000)
+    route_window = _window(source, marker, size=15000)
 
     assert "def move_schedule_v2(schedule_id):" in route_window
     assert 'require_permission("manage_schedule")' in route_window
+    assert 'if object_type == "rental":' in route_window
+    assert "move_type not in RENTAL_SCHEDULE_MOVE_TYPE_LABELS" in route_window
+    assert "_has_hall_schedule_conflict(" in route_window
+    assert "_notify_rental_creator(" in route_window
+    assert 'if object_type == "individual":' in route_window
+    assert "move_type not in INDIVIDUAL_SCHEDULE_MOVE_TYPE_LABELS" in route_window
+    assert "_has_teacher_schedule_conflict(" in route_window
+    assert "_notify_individual_student(" in route_window
     assert "move_type not in SCHEDULE_MOVE_TYPE_LABELS" in route_window
     assert "if move_type in {\"studio_fault\", \"absence_people\"}" in route_window
     assert "if low_attendance_present_count >= 3" in route_window

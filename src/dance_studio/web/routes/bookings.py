@@ -1,7 +1,9 @@
 import json
 from datetime import date, datetime
 
+import requests
 from flask import Blueprint, current_app, g, jsonify, request
+from sqlalchemy import and_, or_
 
 from dance_studio.core.abonement_pricing import (
     ABONEMENT_TYPE_MULTI,
@@ -13,7 +15,7 @@ from dance_studio.core.abonement_pricing import (
 )
 from dance_studio.core.booking_utils import BOOKING_STATUS_LABELS, BOOKING_TYPE_LABELS
 from dance_studio.core.booking_amounts import compute_non_group_booking_base_amount
-from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID
+from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, TECH_ADMIN_ID
 from dance_studio.core.personal_discounts import apply_best_discount_for_user
 from dance_studio.core.permissions import has_permission
 from dance_studio.db.models import (
@@ -43,6 +45,90 @@ from dance_studio.web.services.payments import (
 )
 from dance_studio.web.services.studio_rules import interval_overlaps_service_break
 bp = Blueprint('bookings_routes', __name__)
+
+
+def _send_group_chat_message(chat_id: int | None, text: str) -> tuple[bool, str | None]:
+    if not chat_id:
+        return False, "group_chat_not_configured"
+    if not BOT_TOKEN:
+        return False, "bot_token_not_set"
+
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={
+                "chat_id": int(chat_id),
+                "text": text,
+            },
+            timeout=10,
+        )
+        if resp.ok:
+            return True, None
+        return False, "telegram_send_failed"
+    except Exception:
+        current_app.logger.exception("Failed to notify group chat")
+        return False, "telegram_send_failed"
+
+
+def _collect_group_delete_dependencies(db, group_id: int) -> dict[str, int]:
+    schedule_count = (
+        db.query(Schedule)
+        .filter(
+            or_(
+                Schedule.group_id == group_id,
+                and_(Schedule.object_type == "group", Schedule.object_id == group_id),
+            )
+        )
+        .count()
+    )
+
+    booking_ids = {
+        booking_id
+        for (booking_id,) in db.query(BookingRequest.id).filter(BookingRequest.group_id == group_id).all()
+    }
+    bundle_rows = (
+        db.query(BookingRequest.id, BookingRequest.bundle_group_ids_json)
+        .filter(BookingRequest.bundle_group_ids_json.isnot(None))
+        .all()
+    )
+    for booking_id, bundle_json in bundle_rows:
+        if not bundle_json:
+            continue
+        try:
+            bundle_ids = json.loads(bundle_json)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if not isinstance(bundle_ids, list):
+            continue
+
+        normalized_ids = set()
+        for value in bundle_ids:
+            try:
+                normalized_ids.add(int(value))
+            except (TypeError, ValueError):
+                continue
+        if group_id in normalized_ids:
+            booking_ids.add(booking_id)
+
+    abonement_count = db.query(GroupAbonement).filter(GroupAbonement.group_id == group_id).count()
+    return {
+        "schedules": schedule_count,
+        "booking_requests": len(booking_ids),
+        "abonements": abonement_count,
+    }
+
+
+def _format_group_delete_blockers(dependencies: dict[str, int]) -> str | None:
+    parts: list[str] = []
+    if int(dependencies.get("schedules") or 0) > 0:
+        parts.append(f'расписании ({int(dependencies["schedules"])})')
+    if int(dependencies.get("booking_requests") or 0) > 0:
+        parts.append(f'заявках ({int(dependencies["booking_requests"])})')
+    if int(dependencies.get("abonements") or 0) > 0:
+        parts.append(f'абонементах ({int(dependencies["abonements"])})')
+    if not parts:
+        return None
+    return "Группу нельзя удалить: есть связанные записи в " + ", ".join(parts) + "."
 
 
 def _can_view_full_hall_occupancy(db) -> bool:
@@ -213,6 +299,49 @@ def update_group(group_id):
     return {
         "id": group.id,
         "message": "Группа обновлена"
+    }
+
+
+@bp.route("/api/groups/<int:group_id>", methods=["DELETE"])
+def delete_group(group_id):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    group = db.query(Group).filter_by(id=group_id).first()
+    if not group:
+        return {"error": "Группа не найдена"}, 404
+
+    dependencies = _collect_group_delete_dependencies(db, group_id)
+    blocker_message = _format_group_delete_blockers(dependencies)
+    if blocker_message:
+        return {"error": blocker_message, "dependencies": dependencies}, 409
+
+    chat_notified = False
+    chat_notify_error = None
+    if group.chat_id:
+        chat_notified, chat_notify_error = _send_group_chat_message(
+            group.chat_id,
+            "Данная группа была удалена. Чат остается доступным, но новых уведомлений по этой группе больше не будет.",
+        )
+
+    group_name = group.name
+
+    try:
+        db.delete(group)
+        db.commit()
+    except Exception:
+        db.rollback()
+        current_app.logger.exception("Failed to delete group %s", group_id)
+        return {"error": "Не удалось удалить группу"}, 500
+
+    return {
+        "id": group_id,
+        "name": group_name,
+        "message": "Группа удалена",
+        "chat_notified": chat_notified,
+        "chat_notify_error": chat_notify_error,
     }
 
 

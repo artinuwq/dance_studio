@@ -7,9 +7,20 @@ from datetime import date, datetime, time as dt_time, timedelta
 import requests
 from flask import Blueprint, current_app, g, jsonify, request, send_from_directory
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from werkzeug.utils import secure_filename
 
+from dance_studio.core.abonement_notifications import (
+    build_abonement_dispatch_ref,
+    build_group_access_message,
+    collect_group_access_items,
+    resolve_group_ids_for_abonement,
+)
 from dance_studio.core.booking_amounts import compute_non_group_booking_base_amount
+from dance_studio.core.notification_dispatch import (
+    notification_dispatch_exists,
+    record_notification_dispatch,
+)
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.personal_discounts import resolve_discount_usage_state
 from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, PROJECT_NAME_FULL, PROJECT_NAME_SHORT, TECH_ADMIN_ID
@@ -88,6 +99,12 @@ SCHEDULE_MOVE_TYPE_LABELS = {
     "absence_people": "Отсутствие людей",
     "low_attendance": "Нехватка людей",
 }
+INDIVIDUAL_SCHEDULE_MOVE_TYPE_LABELS = {
+    "reschedule": "Перенос занятия",
+}
+RENTAL_SCHEDULE_MOVE_TYPE_LABELS = {
+    "reschedule": "Перенос аренды",
+}
 
 
 def _sanitize_direction_title(value):
@@ -119,6 +136,7 @@ def _serialize_direction_payload(direction, *, groups_count=None, include_status
 SCHEDULE_PRESENT_STATUSES = {"present", "late"}
 NEGATIVE_BOOKING_STATUSES = {"REJECTED", "CANCELLED", "PAYMENT_FAILED"}
 ACTIVE_NON_GROUP_BOOKING_STATUSES = {"NEW", "APPROVED", "AWAITING_PAYMENT", "PAID"}
+GROUP_ACCESS_NOTIFICATION_KEY = "group_access_links"
 
 IMMUTABLE_STAFF_ROLE = "тех. админ"
 STAFF_ROLE_RANKS = {
@@ -531,6 +549,349 @@ def _has_group_schedule_conflict(
     return False
 
 
+def _load_individual_lesson_for_schedule(db, schedule: Schedule) -> IndividualLesson | None:
+    if str(schedule.object_type or "").strip().lower() != "individual":
+        return None
+    if not schedule.object_id:
+        return None
+    return db.query(IndividualLesson).filter_by(id=schedule.object_id).first()
+
+
+def _load_rental_for_schedule(db, schedule: Schedule) -> HallRental | None:
+    if str(schedule.object_type or "").strip().lower() != "rental":
+        return None
+    if not schedule.object_id:
+        return None
+    return db.query(HallRental).filter_by(id=schedule.object_id).first()
+
+
+def _duration_minutes_between(time_from: dt_time | None, time_to: dt_time | None) -> int | None:
+    if not time_from or not time_to:
+        return None
+    start_min = _time_to_minutes(time_from)
+    end_min = _time_to_minutes(time_to)
+    if end_min <= start_min:
+        return None
+    return end_min - start_min
+
+
+def _sync_individual_lesson_with_schedule(
+    lesson: IndividualLesson,
+    *,
+    target_date: date | None = None,
+    target_time_from: dt_time | None = None,
+    target_time_to: dt_time | None = None,
+    status: str | None = None,
+    staff: Staff | None = None,
+) -> None:
+    if target_date is not None:
+        lesson.date = target_date
+    if target_time_from is not None:
+        lesson.time_from = target_time_from
+    if target_time_to is not None:
+        lesson.time_to = target_time_to
+
+    if target_time_from is not None or target_time_to is not None:
+        lesson.duration_minutes = _duration_minutes_between(lesson.time_from, lesson.time_to)
+
+    if status is not None:
+        lesson.status = status
+        lesson.status_updated_at = datetime.now()
+        lesson.status_updated_by_id = staff.id if staff else None
+
+
+def _sync_rental_with_schedule(
+    rental: HallRental,
+    *,
+    target_date: date | None = None,
+    target_time_from: dt_time | None = None,
+    target_time_to: dt_time | None = None,
+    status: str | None = None,
+    cancelled: bool = False,
+) -> None:
+    if target_date is not None:
+        rental.date = target_date
+    if target_time_from is not None:
+        rental.time_from = target_time_from
+    if target_time_to is not None:
+        rental.time_to = target_time_to
+
+    if rental.date and rental.time_from:
+        rental.start_time = datetime.combine(rental.date, rental.time_from)
+    if rental.date and rental.time_to:
+        rental.end_time = datetime.combine(rental.date, rental.time_to)
+    if target_time_from is not None or target_time_to is not None:
+        rental.duration_minutes = _duration_minutes_between(rental.time_from, rental.time_to)
+
+    if status is not None:
+        rental.status = status
+    if cancelled:
+        rental.activity_status = "cancelled"
+    else:
+        current_activity_status = str(getattr(rental, "activity_status", "") or "").strip().lower()
+        if current_activity_status == "cancelled":
+            rental.activity_status = "active"
+
+
+def _has_teacher_schedule_conflict(
+    db,
+    *,
+    schedule_id: int,
+    teacher_id: int,
+    target_date: date,
+    target_time_from: dt_time,
+    target_time_to: dt_time,
+    lesson_id: int | None = None,
+) -> bool:
+    rows = (
+        db.query(Schedule)
+        .filter(
+            Schedule.id != schedule_id,
+            Schedule.teacher_id == teacher_id,
+            Schedule.date == target_date,
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
+        )
+        .all()
+    )
+    start_target = _time_to_minutes(target_time_from)
+    end_target = _time_to_minutes(target_time_to)
+    for row in rows:
+        row_from, row_to = _schedule_time_bounds(row)
+        if not row_from or not row_to:
+            continue
+        start_row = _time_to_minutes(row_from)
+        end_row = _time_to_minutes(row_to)
+        if start_target < end_row and start_row < end_target:
+            return True
+
+    lessons = (
+        db.query(IndividualLesson)
+        .filter(
+            IndividualLesson.teacher_id == teacher_id,
+            IndividualLesson.date == target_date,
+        )
+        .all()
+    )
+    for lesson in lessons:
+        if lesson_id and lesson.id == lesson_id:
+            continue
+        if str(lesson.status or "").strip().lower() in {"cancelled", "canceled"}:
+            continue
+        if not lesson.time_from or not lesson.time_to:
+            continue
+        start_row = _time_to_minutes(lesson.time_from)
+        end_row = _time_to_minutes(lesson.time_to)
+        if start_target < end_row and start_row < end_target:
+            return True
+
+    return False
+
+
+def _has_hall_schedule_conflict(
+    db,
+    *,
+    schedule_id: int,
+    target_date: date,
+    target_time_from: dt_time,
+    target_time_to: dt_time,
+) -> bool:
+    rows = (
+        db.query(Schedule)
+        .filter(
+            Schedule.id != schedule_id,
+            Schedule.date == target_date,
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
+        )
+        .all()
+    )
+    start_target = _time_to_minutes(target_time_from)
+    end_target = _time_to_minutes(target_time_to)
+    for row in rows:
+        row_from, row_to = _schedule_time_bounds(row)
+        if not row_from or not row_to:
+            continue
+        start_row = _time_to_minutes(row_from)
+        end_row = _time_to_minutes(row_to)
+        if start_target < end_row and start_row < end_target:
+            return True
+    return False
+
+
+def _notify_individual_student(
+    db,
+    lesson: IndividualLesson,
+    text: str,
+    *,
+    context_note: str,
+) -> tuple[bool, str | None]:
+    if not lesson.student_id:
+        return False, "student_not_found"
+
+    student = db.query(User).filter_by(id=lesson.student_id).first()
+    if not student:
+        return False, "student_not_found"
+    if not student.telegram_id:
+        return False, "student_telegram_not_configured"
+
+    try:
+        notified = send_user_notification_sync(
+            user_id=int(student.telegram_id),
+            text=text,
+            context_note=context_note,
+        )
+        if notified:
+            return True, None
+        return False, "telegram_send_failed"
+    except Exception:
+        current_app.logger.exception("Failed to notify individual student")
+        return False, "telegram_send_failed"
+
+
+def _notify_rental_creator(
+    db,
+    rental: HallRental,
+    text: str,
+    *,
+    context_note: str,
+) -> tuple[bool, str | None]:
+    creator_type = str(rental.creator_type or "").strip().lower()
+    telegram_id = None
+
+    if creator_type == "user":
+        creator = db.query(User).filter_by(id=rental.creator_id).first()
+        telegram_id = creator.telegram_id if creator else None
+    elif creator_type == "teacher":
+        creator = db.query(Staff).filter_by(id=rental.creator_id).first()
+        telegram_id = creator.telegram_id if creator else None
+    else:
+        return False, "creator_not_supported"
+
+    if not telegram_id:
+        return False, "creator_telegram_not_configured"
+
+    try:
+        notified = send_user_notification_sync(
+            user_id=int(telegram_id),
+            text=text,
+            context_note=context_note,
+        )
+        if notified:
+            return True, None
+        return False, "telegram_send_failed"
+    except Exception:
+        current_app.logger.exception("Failed to notify rental creator")
+        return False, "telegram_send_failed"
+
+
+def _notify_abonement_group_access_links(
+    db,
+    abonement: GroupAbonement,
+) -> tuple[bool, str | None]:
+    user = db.query(User).filter_by(id=abonement.user_id).first()
+    if not user:
+        return False, "user_not_found"
+    if not user.telegram_id:
+        return False, "user_telegram_not_configured"
+
+    entity_ref = build_abonement_dispatch_ref(abonement)
+    if notification_dispatch_exists(
+        db,
+        notification_key=GROUP_ACCESS_NOTIFICATION_KEY,
+        entity_type="abonement",
+        entity_ref=entity_ref,
+        recipient_ref=user.telegram_id,
+        statuses={"sent"},
+    ):
+        return True, "already_sent"
+
+    group_ids = resolve_group_ids_for_abonement(db, abonement)
+    group_items = collect_group_access_items(db, group_ids)
+    message_text = build_group_access_message(group_items)
+    if not message_text:
+        return False, "group_access_message_empty"
+
+    try:
+        notified = send_user_notification_sync(
+            user_id=int(user.telegram_id),
+            text=message_text,
+            context_note=f"Ссылки на чаты групп по абонементу #{abonement.id}",
+        )
+        record_notification_dispatch(
+            db,
+            notification_key=GROUP_ACCESS_NOTIFICATION_KEY,
+            entity_type="abonement",
+            entity_ref=entity_ref,
+            recipient_ref=user.telegram_id,
+            status="sent" if notified else "failed",
+            payload={"abonement_id": abonement.id},
+        )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return True, "already_sent"
+    except Exception:
+        db.rollback()
+        current_app.logger.exception("Failed to notify abonement owner about group access links")
+        return False, "telegram_send_failed"
+
+    if notified:
+        return True, None
+    return False, "telegram_send_failed"
+
+
+def _resolve_rental_creator_summary(db, rental: HallRental | None) -> dict:
+    payload = {
+        "creator_id": rental.creator_id if rental else None,
+        "creator_type": rental.creator_type if rental else None,
+        "creator_name": None,
+        "creator_username": None,
+        "creator_telegram_id": None,
+        "purpose_text": None,
+        "contact_text": None,
+    }
+    if not rental:
+        return payload
+
+    raw_lines: list[str] = []
+    for raw_text in (rental.purpose, rental.comment):
+        if not raw_text:
+            continue
+        for line in str(raw_text).splitlines():
+            cleaned = line.strip()
+            if cleaned:
+                raw_lines.append(cleaned)
+
+    purpose_lines: list[str] = []
+    seen_purpose_lines: set[str] = set()
+    for line in raw_lines:
+        normalized = line.casefold()
+        if normalized.startswith("контакт:"):
+            contact_value = line.split(":", 1)[1].strip() if ":" in line else ""
+            if contact_value and not payload["contact_text"]:
+                payload["contact_text"] = contact_value
+            continue
+        if normalized not in seen_purpose_lines:
+            seen_purpose_lines.add(normalized)
+            purpose_lines.append(line)
+    if purpose_lines:
+        payload["purpose_text"] = "\n".join(purpose_lines)
+
+    creator_type = str(rental.creator_type or "").strip().lower()
+    if creator_type == "user":
+        creator = db.query(User).filter_by(id=rental.creator_id).first()
+        if creator:
+            payload["creator_name"] = creator.name
+            payload["creator_username"] = creator.username
+            payload["creator_telegram_id"] = creator.telegram_id
+    elif creator_type == "teacher":
+        creator = db.query(Staff).filter_by(id=rental.creator_id).first()
+        if creator:
+            payload["creator_name"] = creator.name
+            payload["creator_telegram_id"] = creator.telegram_id
+
+    return payload
+
+
 @bp.route("/schedule")
 def schedule():
     perm_error = require_permission("manage_schedule")
@@ -670,10 +1031,9 @@ def schedule_public():
             rental = db.query(HallRental).filter_by(id=s.object_id).first() if s.object_id else None
             entry.update({
                 "title": s.title or "Аренда зала",
-                "creator_id": rental.creator_id if rental else None,
-                "creator_type": rental.creator_type if rental else None,
                 "status": s.status,
             })
+            entry.update(_resolve_rental_creator_summary(db, rental))
         else:
             entry["title"] = s.title
 
@@ -734,7 +1094,15 @@ def schedule_v2_list():
                      )
 
     data = query.all()
-    return jsonify([format_schedule_v2(s) for s in data])
+    result = []
+    for s in data:
+        payload = format_schedule_v2(s)
+        if s.object_type == "rental":
+            rental = db.query(HallRental).filter_by(id=s.object_id).first() if s.object_id else None
+            payload["title"] = s.title or "Аренда зала"
+            payload.update(_resolve_rental_creator_summary(db, rental))
+        result.append(payload)
+    return jsonify(result)
 
 
 @bp.route("/schedule", methods=["POST"])
@@ -1022,6 +1390,94 @@ def cancel_schedule_v2(schedule_id):
     if not schedule:
         return {"error": "Занятие не найдено"}, 404
 
+    object_type = str(schedule.object_type or "").strip().lower()
+    if object_type == "rental":
+        rental = _load_rental_for_schedule(db, schedule)
+        if not rental:
+            return {"error": "Аренда не найдена"}, 404
+
+        note = (payload.get("note") or "Отмена аренды зала").strip()
+        cancelled_slot = _format_schedule_slot_label(schedule)
+
+        schedule.status = "cancelled"
+        schedule.status_comment = (payload.get("status_comment") or f"Отменено: {note}").strip()
+        _sync_rental_with_schedule(
+            rental,
+            status="CANCELLED",
+            cancelled=True,
+        )
+
+        notify_creator_raw = payload.get("notify_creator", True)
+        notify_creator = str(notify_creator_raw).strip().lower() not in {"0", "false", "no", "off"}
+        creator_notified = False
+        creator_notify_error = None
+        if notify_creator:
+            creator_notified, creator_notify_error = _notify_rental_creator(
+                db,
+                rental,
+                (
+                    "Аренда зала отменена.\n\n"
+                    f"Слот: {cancelled_slot}.\n"
+                    "Если нужно, свяжитесь со студией для нового времени."
+                ),
+                context_note="Отмена аренды зала",
+            )
+
+        db.commit()
+        return jsonify(
+            {
+                "ok": True,
+                "schedule_id": schedule.id,
+                "status": schedule.status,
+                "creator_notified": creator_notified,
+                "creator_notify_error": creator_notify_error,
+            }
+        )
+
+    if object_type == "individual":
+        lesson = _load_individual_lesson_for_schedule(db, schedule)
+        if not lesson:
+            return {"error": "Индивидуальное занятие не найдено"}, 404
+
+        staff = _get_current_staff(db)
+        note = (payload.get("note") or "Отмена индивидуального занятия").strip()
+        cancelled_slot = _format_schedule_slot_label(schedule)
+
+        schedule.status = "cancelled"
+        schedule.status_comment = (payload.get("status_comment") or f"Отменено: {note}").strip()
+        _sync_individual_lesson_with_schedule(
+            lesson,
+            status="cancelled",
+            staff=staff,
+        )
+
+        notify_student_raw = payload.get("notify_student", True)
+        notify_student = str(notify_student_raw).strip().lower() not in {"0", "false", "no", "off"}
+        student_notified = False
+        student_notify_error = None
+        if notify_student:
+            student_notified, student_notify_error = _notify_individual_student(
+                db,
+                lesson,
+                (
+                    "Индивидуальное занятие отменено.\n\n"
+                    f"Слот: {cancelled_slot}.\n"
+                    "Если нужно, свяжитесь со студией для нового времени."
+                ),
+                context_note="Отмена индивидуального занятия",
+            )
+
+        db.commit()
+        return jsonify(
+            {
+                "ok": True,
+                "schedule_id": schedule.id,
+                "status": schedule.status,
+                "student_notified": student_notified,
+                "student_notify_error": student_notify_error,
+            }
+        )
+
     group_id = _schedule_group_id(schedule)
     if not group_id:
         return {"error": "Отмена по этой механике доступна только для группового занятия"}, 400
@@ -1113,6 +1569,187 @@ def move_schedule_v2(schedule_id):
     schedule = db.query(Schedule).filter_by(id=schedule_id).first()
     if not schedule:
         return {"error": "Занятие не найдено"}, 404
+
+    object_type = str(schedule.object_type or "").strip().lower()
+    if object_type == "rental":
+        rental = _load_rental_for_schedule(db, schedule)
+        if not rental:
+            return {"error": "Аренда не найдена"}, 404
+
+        move_type = str(payload.get("move_type") or "reschedule").strip().lower()
+        if move_type not in RENTAL_SCHEDULE_MOVE_TYPE_LABELS:
+            return {"error": "move_type должен быть одним из: reschedule"}, 400
+
+        target_date_raw = payload.get("target_date")
+        target_time_from_raw = payload.get("target_time_from")
+        target_time_to_raw = payload.get("target_time_to")
+        if not target_date_raw or not target_time_from_raw or not target_time_to_raw:
+            return {"error": "target_date, target_time_from, target_time_to обязательны"}, 400
+
+        try:
+            target_date = datetime.strptime(str(target_date_raw), "%Y-%m-%d").date()
+            target_time_from = datetime.strptime(str(target_time_from_raw), "%H:%M").time()
+            target_time_to = datetime.strptime(str(target_time_to_raw), "%H:%M").time()
+        except ValueError:
+            return {"error": "Неверный формат даты/времени. Используйте YYYY-MM-DD и HH:MM"}, 400
+
+        if target_time_from >= target_time_to:
+            return {"error": "target_time_from должен быть меньше target_time_to"}, 400
+        if interval_overlaps_service_break(target_time_from, target_time_to):
+            return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
+
+        if _has_hall_schedule_conflict(
+            db,
+            schedule_id=schedule.id,
+            target_date=target_date,
+            target_time_from=target_time_from,
+            target_time_to=target_time_to,
+        ):
+            return {"error": "На выбранный слот зал уже занят"}, 409
+
+        move_label = RENTAL_SCHEDULE_MOVE_TYPE_LABELS[move_type]
+        old_slot = _format_schedule_slot_label(schedule)
+        new_slot = f"{target_date.strftime('%d.%m.%Y')} {target_time_from.strftime('%H:%M')}–{target_time_to.strftime('%H:%M')}"
+        active_status = str(rental.status or schedule.status or "scheduled").strip() or "scheduled"
+        if active_status.lower() in {"cancelled", "canceled"}:
+            active_status = "scheduled"
+
+        schedule.date = target_date
+        schedule.time_from = target_time_from
+        schedule.time_to = target_time_to
+        schedule.start_time = target_time_from
+        schedule.end_time = target_time_to
+        schedule.status = active_status
+        schedule.status_comment = f"{move_label}: {old_slot} -> {new_slot}"
+
+        _sync_rental_with_schedule(
+            rental,
+            target_date=target_date,
+            target_time_from=target_time_from,
+            target_time_to=target_time_to,
+            status=active_status,
+        )
+
+        notify_creator_raw = payload.get("notify_creator", True)
+        notify_creator = str(notify_creator_raw).strip().lower() not in {"0", "false", "no", "off"}
+        creator_notified = False
+        creator_notify_error = None
+        if notify_creator:
+            creator_notified, creator_notify_error = _notify_rental_creator(
+                db,
+                rental,
+                (
+                    "Аренда зала перенесена.\n\n"
+                    f"Было: {old_slot}.\n"
+                    f"Теперь: {new_slot}."
+                ),
+                context_note="Перенос аренды зала",
+            )
+
+        db.commit()
+        return jsonify(
+            {
+                "ok": True,
+                "schedule": format_schedule_v2(schedule),
+                "move_type": move_type,
+                "creator_notified": creator_notified,
+                "creator_notify_error": creator_notify_error,
+            }
+        )
+
+    if object_type == "individual":
+        lesson = _load_individual_lesson_for_schedule(db, schedule)
+        if not lesson:
+            return {"error": "Индивидуальное занятие не найдено"}, 404
+
+        move_type = str(payload.get("move_type") or "reschedule").strip().lower()
+        if move_type not in INDIVIDUAL_SCHEDULE_MOVE_TYPE_LABELS:
+            return {"error": "move_type должен быть одним из: reschedule"}, 400
+
+        target_date_raw = payload.get("target_date")
+        target_time_from_raw = payload.get("target_time_from")
+        target_time_to_raw = payload.get("target_time_to")
+        if not target_date_raw or not target_time_from_raw or not target_time_to_raw:
+            return {"error": "target_date, target_time_from, target_time_to обязательны"}, 400
+
+        try:
+            target_date = datetime.strptime(str(target_date_raw), "%Y-%m-%d").date()
+            target_time_from = datetime.strptime(str(target_time_from_raw), "%H:%M").time()
+            target_time_to = datetime.strptime(str(target_time_to_raw), "%H:%M").time()
+        except ValueError:
+            return {"error": "Неверный формат даты/времени. Используйте YYYY-MM-DD и HH:MM"}, 400
+
+        if target_time_from >= target_time_to:
+            return {"error": "target_time_from должен быть меньше target_time_to"}, 400
+        if interval_overlaps_service_break(target_time_from, target_time_to):
+            return {"error": "Selected interval overlaps service break 14:30-15:00"}, 400
+
+        teacher_id = lesson.teacher_id or schedule.teacher_id
+        if not teacher_id:
+            return {"error": "У индивидуального занятия не указан преподаватель"}, 400
+
+        if _has_teacher_schedule_conflict(
+            db,
+            schedule_id=schedule.id,
+            teacher_id=teacher_id,
+            target_date=target_date,
+            target_time_from=target_time_from,
+            target_time_to=target_time_to,
+            lesson_id=lesson.id,
+        ):
+            return {"error": "У преподавателя уже есть занятие на выбранный слот"}, 409
+
+        staff = _get_current_staff(db)
+        move_label = INDIVIDUAL_SCHEDULE_MOVE_TYPE_LABELS[move_type]
+        old_slot = _format_schedule_slot_label(schedule)
+        new_slot = f"{target_date.strftime('%d.%m.%Y')} {target_time_from.strftime('%H:%M')}–{target_time_to.strftime('%H:%M')}"
+        active_status = str(lesson.status or schedule.status or "scheduled").strip() or "scheduled"
+        if active_status.lower() in {"cancelled", "canceled"}:
+            active_status = "scheduled"
+
+        schedule.date = target_date
+        schedule.time_from = target_time_from
+        schedule.time_to = target_time_to
+        schedule.start_time = target_time_from
+        schedule.end_time = target_time_to
+        schedule.status = active_status
+        schedule.status_comment = f"{move_label}: {old_slot} -> {new_slot}"
+
+        _sync_individual_lesson_with_schedule(
+            lesson,
+            target_date=target_date,
+            target_time_from=target_time_from,
+            target_time_to=target_time_to,
+            status=active_status,
+            staff=staff,
+        )
+
+        notify_student_raw = payload.get("notify_student", True)
+        notify_student = str(notify_student_raw).strip().lower() not in {"0", "false", "no", "off"}
+        student_notified = False
+        student_notify_error = None
+        if notify_student:
+            student_notified, student_notify_error = _notify_individual_student(
+                db,
+                lesson,
+                (
+                    "Индивидуальное занятие перенесено.\n\n"
+                    f"Было: {old_slot}.\n"
+                    f"Теперь: {new_slot}."
+                ),
+                context_note="Перенос индивидуального занятия",
+            )
+
+        db.commit()
+        return jsonify(
+            {
+                "ok": True,
+                "schedule": format_schedule_v2(schedule),
+                "move_type": move_type,
+                "student_notified": student_notified,
+                "student_notify_error": student_notify_error,
+            }
+        )
 
     group_id = _schedule_group_id(schedule)
     if not group_id:
@@ -3641,10 +4278,14 @@ def admin_activate_abonement(abonement_id):
     abonement.status = "active"
     db.commit()
 
+    group_access_notified, group_access_notify_error = _notify_abonement_group_access_links(db, abonement)
+
     return {
         "status": "active",
         "abonement_id": abonement.id,
         "payment_id": payment.id if payment else None,
+        "group_access_notified": group_access_notified,
+        "group_access_notify_error": group_access_notify_error,
     }
 
 

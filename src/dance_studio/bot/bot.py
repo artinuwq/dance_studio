@@ -1,4 +1,5 @@
 import asyncio
+import html
 import aiohttp
 import time
 import zipfile
@@ -58,6 +59,18 @@ from dance_studio.core.abonement_pricing import (
     is_free_trial_booking,
     parse_booking_bundle_group_ids,
 )
+from dance_studio.core.abonement_notifications import (
+    build_abonement_dispatch_ref,
+    build_group_access_message,
+    collect_group_access_items,
+    is_bundle_expiry_notice_due,
+    is_one_left_group_abonement_notice_due,
+    resolve_group_ids_for_booking,
+)
+from dance_studio.core.notification_dispatch import (
+    notification_dispatch_exists,
+    record_notification_dispatch,
+)
 from dance_studio.core.system_settings_service import get_setting_value, update_setting
 from dance_studio.core.personal_discounts import (
     DiscountConsumptionConflictError,
@@ -69,6 +82,7 @@ from dance_studio.core.notification_service_async import send_user_notification_
 from dance_studio.web.services.attendance import _auto_finalize_attendance_from_intentions
 from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.engine import make_url
 from datetime import datetime, time as dt_time, timedelta
 import os
@@ -100,8 +114,14 @@ _logger = logging.getLogger(__name__)
 ATTENDANCE_REMINDER_WINDOW_HOURS = 24
 ATTENDANCE_REMINDER_POLL_SECONDS = 60
 ATTENDANCE_WILL_MISS_STATUS = "will_miss"
+ATTENDANCE_WILL_ATTEND_STATUS = "will_attend"
+ATTENDANCE_WILL_ATTEND_AUTO_STATUS = "will_attend_auto"
 ATTENDANCE_LOCK_DELTA = timedelta(hours=2, minutes=30)
 ATTENDANCE_LOCKED_MESSAGE = "Отметка закрыта. Напишите админу в случае чего-либо."
+GROUP_ACCESS_NOTIFICATION_KEY = "group_access_links"
+ABONEMENT_ONE_LEFT_NOTIFICATION_KEY = "abonement_one_left"
+ABONEMENT_BUNDLE_EXPIRY_NOTIFICATION_KEY = "abonement_bundle_expiring_7d"
+TEACHER_ATTENDANCE_SUMMARY_NOTIFICATION_KEY = "teacher_attendance_summary_2h"
 BOT_USERNAME_GLOBAL: str | None = None
 
 
@@ -1418,6 +1438,10 @@ def _reminder_markup(schedule_id: int) -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(
+                    text="Приду",
+                    callback_data=f"attcome:{schedule_id}",
+                ),
+                InlineKeyboardButton(
                     text="Не приду",
                     callback_data=f"attmiss:{schedule_id}",
                 )
@@ -1475,6 +1499,202 @@ def _load_schedule_participants(db, schedule: Schedule) -> list[User]:
 def _is_user_participant_of_schedule(db, schedule: Schedule, user_id: int) -> bool:
     users = _load_schedule_participants(db, schedule)
     return any(u.id == user_id for u in users)
+
+
+def _schedule_time_label(schedule: Schedule) -> str:
+    time_from = schedule.time_from or schedule.start_time
+    time_to = schedule.time_to or schedule.end_time
+    if time_from and time_to:
+        return f"{time_from.strftime('%H:%M')}–{time_to.strftime('%H:%M')}"
+    if time_from:
+        return time_from.strftime("%H:%M")
+    return "—"
+
+
+def _schedule_display_title(db, schedule: Schedule) -> str:
+    title = (schedule.title or "").strip()
+    if title:
+        return title
+    if schedule.object_type == "group":
+        group_id = _schedule_group_id(schedule)
+        if group_id:
+            group = db.query(Group).filter_by(id=group_id).first()
+            if group and group.name:
+                return group.name
+        return "Групповое занятие"
+    if schedule.object_type == "individual":
+        return "Индивидуальное занятие"
+    if schedule.object_type == "rental":
+        return "Аренда"
+    return "Занятие"
+
+
+def _load_schedule_teacher(db, schedule: Schedule) -> Staff | None:
+    teacher_id = schedule.teacher_id
+    if not teacher_id and schedule.object_type == "group":
+        group_id = _schedule_group_id(schedule)
+        if group_id:
+            group = db.query(Group).filter_by(id=group_id).first()
+            teacher_id = group.teacher_id if group else None
+    if not teacher_id and schedule.object_type == "individual" and schedule.object_id:
+        lesson = db.query(IndividualLesson).filter_by(id=schedule.object_id).first()
+        teacher_id = lesson.teacher_id if lesson else None
+    if not teacher_id:
+        return None
+    return db.query(Staff).filter_by(id=teacher_id).first()
+
+
+def _participant_label(user: User) -> str:
+    name = html.escape((user.name or "").strip() or f"Клиент #{user.id}")
+    username = (user.username or "").strip()
+    if username:
+        return f"{name} (@{html.escape(username)})"
+    return name
+
+
+def _attendance_response_bucket(
+    reminder: AttendanceReminder | None,
+    intention: AttendanceIntention | None,
+) -> str:
+    reminder_action = str(getattr(reminder, "response_action", "") or "").strip().lower()
+    intention_status = str(getattr(intention, "status", "") or "").strip().lower()
+    if reminder_action == ATTENDANCE_WILL_MISS_STATUS or intention_status == ATTENDANCE_WILL_MISS_STATUS:
+        return ATTENDANCE_WILL_MISS_STATUS
+    if reminder_action == ATTENDANCE_WILL_ATTEND_STATUS:
+        return ATTENDANCE_WILL_ATTEND_STATUS
+    return "no_response"
+
+
+def _append_name_section(lines: list[str], heading: str, names: list[str]) -> None:
+    lines.append(f"{heading} ({len(names)}):")
+    if names:
+        for name in names:
+            lines.append(f"• {name}")
+    else:
+        lines.append("• —")
+    lines.append("")
+
+
+def _build_teacher_attendance_summary_text(db, schedule: Schedule, participants: list[User]) -> str | None:
+    if not participants:
+        return None
+
+    reminder_rows = db.query(AttendanceReminder).filter_by(schedule_id=schedule.id).all()
+    intention_rows = db.query(AttendanceIntention).filter_by(schedule_id=schedule.id).all()
+    reminder_by_user_id = {row.user_id: row for row in reminder_rows}
+    intention_by_user_id = {row.user_id: row for row in intention_rows}
+
+    will_attend_names: list[str] = []
+    will_miss_names: list[str] = []
+    no_response_names: list[str] = []
+    for user in participants:
+        bucket = _attendance_response_bucket(
+            reminder_by_user_id.get(user.id),
+            intention_by_user_id.get(user.id),
+        )
+        label = _participant_label(user)
+        if bucket == ATTENDANCE_WILL_ATTEND_STATUS:
+            will_attend_names.append(label)
+        elif bucket == ATTENDANCE_WILL_MISS_STATUS:
+            will_miss_names.append(label)
+        else:
+            no_response_names.append(label)
+
+    date_text = schedule.date.strftime("%d.%m.%Y") if schedule.date else "—"
+    lines = [
+        "<b>Сводка по ответам на занятие</b>",
+        "",
+        f"Занятие: <b>{html.escape(_schedule_display_title(db, schedule))}</b>",
+        f"Дата: {date_text}",
+        f"Время: {_schedule_time_label(schedule)}",
+        "",
+    ]
+    _append_name_section(lines, "Приду", will_attend_names)
+    _append_name_section(lines, "Не приду", will_miss_names)
+    _append_name_section(lines, "Без ответа", no_response_names)
+    return "\n".join(lines).strip()
+
+
+def _build_one_left_abonement_message(db, abonement: GroupAbonement) -> str | None:
+    group = db.query(Group).filter_by(id=abonement.group_id).first()
+    if not group:
+        return None
+    next_session_date = collect_group_access_items(db, [group.id])
+    next_date = next_session_date[0]["next_session_date"] if next_session_date else None
+    lines = [
+        "<b>По вашему абонементу осталось 1 занятие.</b>",
+        "",
+        f"Группа: <b>{html.escape(group.name or f'Группа #{group.id}')}</b>",
+    ]
+    if next_date:
+        lines.append(f"Ближайшее занятие: {next_date.strftime('%d.%m.%Y')}")
+    lines.append("")
+    lines.append("Если хотите продолжить занятия без паузы, напишите администратору заранее.")
+    return "\n".join(lines)
+
+
+def _build_bundle_expiry_message(db, rows: list[GroupAbonement]) -> str | None:
+    if not rows:
+        return None
+    first_row = rows[0]
+    group_items = collect_group_access_items(db, [row.group_id for row in rows if row.group_id])
+    if not group_items:
+        return None
+    valid_to = first_row.valid_to
+    lines = [
+        "<b>Срок действия вашего абонемента скоро закончится.</b>",
+    ]
+    if valid_to:
+        lines.append(f"Действует до: {valid_to.strftime('%d.%m.%Y')}")
+    lines.append("")
+    lines.append("Группы в абонементе:")
+    for item in group_items:
+        lines.append(f"• <b>{html.escape(item['group_name'])}</b>")
+    lines.append("")
+    lines.append("Если хотите продлить абонемент, лучше сделать это заранее.")
+    return "\n".join(lines)
+
+
+def _store_attendance_callback_response(
+    db,
+    *,
+    schedule_id: int,
+    user_id: int,
+    action: str,
+    callback_message=None,
+) -> None:
+    now = datetime.now()
+    intention = db.query(AttendanceIntention).filter_by(schedule_id=schedule_id, user_id=user_id).first()
+    if action == ATTENDANCE_WILL_MISS_STATUS:
+        if not intention:
+            intention = AttendanceIntention(
+                schedule_id=schedule_id,
+                user_id=user_id,
+                status=ATTENDANCE_WILL_MISS_STATUS,
+                source="telegram_bot",
+            )
+            db.add(intention)
+        else:
+            intention.status = ATTENDANCE_WILL_MISS_STATUS
+            intention.source = "telegram_bot"
+    elif intention:
+        db.delete(intention)
+
+    reminder = db.query(AttendanceReminder).filter_by(schedule_id=schedule_id, user_id=user_id).first()
+    if not reminder:
+        reminder = AttendanceReminder(
+            schedule_id=schedule_id,
+            user_id=user_id,
+            send_status="sent",
+        )
+        db.add(reminder)
+
+    reminder.responded_at = now
+    reminder.response_action = action
+    reminder.button_closed_at = now
+    if callback_message:
+        reminder.telegram_chat_id = callback_message.chat.id
+        reminder.telegram_message_id = callback_message.message_id
 
 
 async def _send_attendance_reminder_to_user(db, schedule: Schedule, user: User) -> None:
@@ -1588,11 +1808,221 @@ async def close_locked_attendance_reminders() -> None:
 
             row.button_closed_at = now
             if not row.responded_at and not row.response_action:
-                row.response_action = "will_attend_auto"
+                row.response_action = ATTENDANCE_WILL_ATTEND_AUTO_STATUS
                 row.responded_at = now
         db.commit()
     except Exception as e:
         print(f"⚠️ attendance reminder close failed: {e}")
+    finally:
+        db.close()
+
+
+async def send_due_teacher_attendance_summaries() -> None:
+    db = get_session()
+    try:
+        now = datetime.now()
+        schedules = db.query(Schedule).filter(
+            Schedule.object_type.in_(["group", "individual"]),
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
+            Schedule.date.isnot(None),
+        ).all()
+        for schedule in schedules:
+            start_at = _schedule_start_dt(schedule)
+            if not start_at:
+                continue
+            summary_at = start_at - timedelta(hours=2)
+            if not (summary_at <= now < start_at):
+                continue
+
+            teacher = _load_schedule_teacher(db, schedule)
+            if not teacher or not teacher.telegram_id:
+                continue
+            if notification_dispatch_exists(
+                db,
+                notification_key=TEACHER_ATTENDANCE_SUMMARY_NOTIFICATION_KEY,
+                entity_type="schedule",
+                entity_ref=schedule.id,
+                recipient_ref=teacher.telegram_id,
+            ):
+                continue
+
+            participants = _load_schedule_participants(db, schedule)
+            message_text = _build_teacher_attendance_summary_text(db, schedule, participants)
+            if not message_text:
+                continue
+
+            sent_ok = await send_user_notification_async(
+                bot=bot,
+                user_id=teacher.telegram_id,
+                text=message_text,
+                context_note=f"Сводка посещаемости за 2 часа: schedule #{schedule.id}",
+            )
+            try:
+                record_notification_dispatch(
+                    db,
+                    notification_key=TEACHER_ATTENDANCE_SUMMARY_NOTIFICATION_KEY,
+                    entity_type="schedule",
+                    entity_ref=schedule.id,
+                    recipient_ref=teacher.telegram_id,
+                    status="sent" if sent_ok else "failed",
+                )
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+    except Exception as e:
+        print(f"⚠️ teacher attendance summary sender failed: {e}")
+    finally:
+        db.close()
+
+
+async def send_due_abonement_notifications() -> None:
+    db = get_session()
+    try:
+        now = datetime.now()
+        rows = db.query(GroupAbonement).filter(GroupAbonement.status == "active").all()
+        processed_bundle_refs: set[str] = set()
+
+        for row in rows:
+            user = db.query(User).filter_by(id=row.user_id).first()
+            if not user or not user.telegram_id:
+                continue
+
+            entity_ref = build_abonement_dispatch_ref(row)
+
+            if is_one_left_group_abonement_notice_due(row):
+                if not notification_dispatch_exists(
+                    db,
+                    notification_key=ABONEMENT_ONE_LEFT_NOTIFICATION_KEY,
+                    entity_type="abonement",
+                    entity_ref=entity_ref,
+                    recipient_ref=user.telegram_id,
+                ):
+                    message_text = _build_one_left_abonement_message(db, row)
+                    if message_text:
+                        sent_ok = await send_user_notification_async(
+                            bot=bot,
+                            user_id=user.telegram_id,
+                            text=message_text,
+                            context_note=f"Осталось 1 занятие по абонементу #{row.id}",
+                        )
+                        try:
+                            record_notification_dispatch(
+                                db,
+                                notification_key=ABONEMENT_ONE_LEFT_NOTIFICATION_KEY,
+                                entity_type="abonement",
+                                entity_ref=entity_ref,
+                                recipient_ref=user.telegram_id,
+                                status="sent" if sent_ok else "failed",
+                            )
+                            db.commit()
+                        except IntegrityError:
+                            db.rollback()
+
+            if not is_bundle_expiry_notice_due(row, now=now):
+                continue
+            if entity_ref in processed_bundle_refs:
+                continue
+            processed_bundle_refs.add(entity_ref)
+            if notification_dispatch_exists(
+                db,
+                notification_key=ABONEMENT_BUNDLE_EXPIRY_NOTIFICATION_KEY,
+                entity_type="abonement",
+                entity_ref=entity_ref,
+                recipient_ref=user.telegram_id,
+            ):
+                continue
+
+            bundle_rows = [row]
+            if row.bundle_id:
+                bundle_rows = (
+                    db.query(GroupAbonement)
+                    .filter(
+                        GroupAbonement.user_id == row.user_id,
+                        GroupAbonement.bundle_id == row.bundle_id,
+                    )
+                    .order_by(GroupAbonement.group_id.asc(), GroupAbonement.id.asc())
+                    .all()
+                )
+            message_text = _build_bundle_expiry_message(db, bundle_rows)
+            if not message_text:
+                continue
+
+            sent_ok = await send_user_notification_async(
+                bot=bot,
+                user_id=user.telegram_id,
+                text=message_text,
+                context_note=f"Абонемент скоро закончится: {entity_ref}",
+            )
+            try:
+                record_notification_dispatch(
+                    db,
+                    notification_key=ABONEMENT_BUNDLE_EXPIRY_NOTIFICATION_KEY,
+                    entity_type="abonement",
+                    entity_ref=entity_ref,
+                    recipient_ref=user.telegram_id,
+                    status="sent" if sent_ok else "failed",
+                )
+                db.commit()
+            except IntegrityError:
+                db.rollback()
+    except Exception as e:
+        print(f"⚠️ abonement reminder sender failed: {e}")
+    finally:
+        db.close()
+
+
+async def _notify_group_access_after_booking(booking_id: int, activated_abonement_id: int | None) -> None:
+    if not activated_abonement_id:
+        return
+
+    db = get_session()
+    try:
+        booking = db.query(BookingRequest).filter_by(id=booking_id).first()
+        activated_abonement = db.query(GroupAbonement).filter_by(id=activated_abonement_id).first()
+        if not booking or not activated_abonement:
+            return
+
+        user = db.query(User).filter_by(id=booking.user_id).first()
+        if not user or not user.telegram_id:
+            return
+
+        entity_ref = build_abonement_dispatch_ref(activated_abonement)
+        if notification_dispatch_exists(
+            db,
+            notification_key=GROUP_ACCESS_NOTIFICATION_KEY,
+            entity_type="abonement",
+            entity_ref=entity_ref,
+            recipient_ref=user.telegram_id,
+            statuses={"sent"},
+        ):
+            return
+
+        group_items = collect_group_access_items(db, resolve_group_ids_for_booking(booking))
+        message_text = build_group_access_message(group_items)
+        if not message_text:
+            return
+
+        sent_ok = await send_user_notification_async(
+            bot=bot,
+            user_id=user.telegram_id,
+            text=message_text,
+            context_note=f"Ссылки на группы после активации заявки #{booking.id}",
+        )
+        try:
+            record_notification_dispatch(
+                db,
+                notification_key=GROUP_ACCESS_NOTIFICATION_KEY,
+                entity_type="abonement",
+                entity_ref=entity_ref,
+                recipient_ref=user.telegram_id,
+                status="sent" if sent_ok else "failed",
+                payload={"booking_id": booking.id},
+            )
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+    except Exception as e:
+        print(f"⚠️ group access notification sender failed: {e}")
     finally:
         db.close()
 
@@ -1626,6 +2056,8 @@ async def process_attendance_reminders() -> None:
         await close_locked_attendance_reminders()
         await finalize_closed_attendance_windows()
         await send_due_attendance_reminders()
+        await send_due_teacher_attendance_summaries()
+        await send_due_abonement_notifications()
         await asyncio.sleep(ATTENDANCE_REMINDER_POLL_SECONDS)
 
 
@@ -2057,8 +2489,12 @@ def _activate_group_abonement_from_booking(db, booking: BookingRequest) -> Group
     return activated[0] if activated else None
 
 
-@dp.callback_query(F.data.startswith("attmiss:"))
-async def handle_attendance_absence_callback(callback: CallbackQuery):
+async def _handle_attendance_response_callback(
+    callback: CallbackQuery,
+    *,
+    response_action: str,
+    success_text: str,
+) -> None:
     if not callback.data:
         return
 
@@ -2110,36 +2546,13 @@ async def handle_attendance_absence_callback(callback: CallbackQuery):
             await callback.answer("Вы не записаны на это занятие", show_alert=True)
             return
 
-        now = datetime.now()
-        intention = db.query(AttendanceIntention).filter_by(schedule_id=schedule_id, user_id=user.id).first()
-        if not intention:
-            intention = AttendanceIntention(
-                schedule_id=schedule_id,
-                user_id=user.id,
-                status=ATTENDANCE_WILL_MISS_STATUS,
-                source="telegram_bot",
-            )
-            db.add(intention)
-        else:
-            intention.status = ATTENDANCE_WILL_MISS_STATUS
-            intention.source = "telegram_bot"
-
-        reminder = db.query(AttendanceReminder).filter_by(schedule_id=schedule_id, user_id=user.id).first()
-        if not reminder:
-            reminder = AttendanceReminder(
-                schedule_id=schedule_id,
-                user_id=user.id,
-                send_status="sent",
-            )
-            db.add(reminder)
-
-        reminder.responded_at = now
-        reminder.response_action = ATTENDANCE_WILL_MISS_STATUS
-        reminder.button_closed_at = now
-        if callback.message:
-            reminder.telegram_chat_id = callback.message.chat.id
-            reminder.telegram_message_id = callback.message.message_id
-
+        _store_attendance_callback_response(
+            db,
+            schedule_id=schedule_id,
+            user_id=user.id,
+            action=response_action,
+            callback_message=callback.message,
+        )
         db.commit()
 
         if callback.message:
@@ -2148,9 +2561,27 @@ async def handle_attendance_absence_callback(callback: CallbackQuery):
             except Exception:
                 pass
 
-        await callback.answer("Отметили: не приду")
+        await callback.answer(success_text)
     finally:
         db.close()
+
+
+@dp.callback_query(F.data.startswith("attcome:"))
+async def handle_attendance_present_callback(callback: CallbackQuery):
+    await _handle_attendance_response_callback(
+        callback,
+        response_action=ATTENDANCE_WILL_ATTEND_STATUS,
+        success_text="Отметили: приду",
+    )
+
+
+@dp.callback_query(F.data.startswith("attmiss:"))
+async def handle_attendance_absence_callback(callback: CallbackQuery):
+    await _handle_attendance_response_callback(
+        callback,
+        response_action=ATTENDANCE_WILL_MISS_STATUS,
+        success_text="Отметили: не приду",
+    )
 
 
 @dp.callback_query(F.data.startswith("booking"))
@@ -2297,8 +2728,9 @@ async def handle_booking_action(callback: CallbackQuery):
                 or (next_status == "APPROVED" and free_trial_flow)
             )
         )
+        activated_abonement = None
         if should_activate_group_abonement:
-            _activate_group_abonement_from_booking(db, booking)
+            activated_abonement = _activate_group_abonement_from_booking(db, booking)
 
         db.commit()
 
@@ -2313,6 +2745,8 @@ async def handle_booking_action(callback: CallbackQuery):
         )
         await callback.answer("Статус заявки обновлен.")
         asyncio.create_task(_notify_user_on_status_change(user, booking, next_status))
+        if activated_abonement:
+            asyncio.create_task(_notify_group_access_after_booking(booking.id, activated_abonement.id))
     finally:
         db.close()
 

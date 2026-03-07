@@ -32,6 +32,18 @@ def test_get_individual_lesson_requires_auth_and_acl():
     assert '_individual_lesson_view_permission_error(db, lesson)' in window
 
 
+def test_delete_group_requires_permission_and_dependency_checks():
+    source = BOOKINGS_ROUTES.read_text(encoding="utf-8")
+    route_window = _window(source, '@bp.route("/api/groups/<int:group_id>", methods=["DELETE"])', size=2600)
+
+    assert "def delete_group(group_id):" in route_window
+    assert 'require_permission("manage_schedule")' in route_window
+    assert "_collect_group_delete_dependencies(db, group_id)" in route_window
+    assert "_format_group_delete_blockers(dependencies)" in route_window
+    assert "_send_group_chat_message(" in route_window
+    assert "db.delete(group)" in route_window
+
+
 def test_admin_sensitive_routes_have_permission_checks():
     source = ADMIN_ROUTES.read_text(encoding="utf-8")
 

@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from dance_studio.core import abonement_notifications
+from dance_studio.web.routes import bookings as bookings_routes
 from dance_studio.web.routes import admin as admin_routes
 from dance_studio.web.constants import ATTENDANCE_INTENTION_LOCKED_MESSAGE
 from dance_studio.web.services.admin import (
@@ -119,6 +121,47 @@ def test_admin_busy_interval_subtraction_boundary_cases():
     assert _subtract_busy_intervals(600, 660, [(660, 700)]) == [(600, 660)]
     assert _subtract_busy_intervals(600, 660, [(600, 660)]) == []
     assert _subtract_busy_intervals(600, 660, [(590, 670)]) == []
+
+
+def test_group_delete_blockers_formatter_returns_none_without_dependencies():
+    assert bookings_routes._format_group_delete_blockers(
+        {"schedules": 0, "booking_requests": 0, "abonements": 0}
+    ) is None
+
+
+def test_group_delete_blockers_formatter_lists_all_dependency_types():
+    message = bookings_routes._format_group_delete_blockers(
+        {"schedules": 2, "booking_requests": 3, "abonements": 1}
+    )
+
+    assert message is not None
+    assert "расписании (2)" in message
+    assert "заявках (3)" in message
+    assert "абонементах (1)" in message
+
+
+def test_sync_rental_with_schedule_reactivates_cancelled_rental_on_move():
+    rental = SimpleNamespace(
+        date=date(2026, 3, 8),
+        time_from=time(10, 0),
+        time_to=time(11, 0),
+        start_time=None,
+        end_time=None,
+        duration_minutes=60,
+        status="CANCELLED",
+        activity_status="cancelled",
+    )
+
+    admin_routes._sync_rental_with_schedule(
+        rental,
+        target_date=date(2026, 3, 9),
+        target_time_from=time(12, 0),
+        target_time_to=time(13, 0),
+        status="scheduled",
+    )
+
+    assert rental.status == "scheduled"
+    assert rental.activity_status == "active"
 
 
 def test_admin_busy_interval_subtraction_property_randomized():
@@ -516,6 +559,82 @@ def test_payment_slot_selection_for_context():
         )
         == PAYMENT_PROFILE_PRIMARY_SLOT
     )
+
+
+def test_abonement_notification_resolve_group_ids_for_booking_deduplicates_and_keeps_main_group():
+    booking = SimpleNamespace(
+        group_id=12,
+        bundle_group_ids_json="[14, 12, 14, 18, 0, \"bad\"]",
+    )
+
+    assert abonement_notifications.resolve_group_ids_for_booking(booking) == [12, 14, 18]
+
+
+def test_abonement_notification_dispatch_ref_prefers_bundle_id():
+    bundled = SimpleNamespace(id=10, bundle_id="bundle-123")
+    single = SimpleNamespace(id=11, bundle_id=None)
+
+    assert abonement_notifications.build_abonement_dispatch_ref(bundled) == "bundle:bundle-123"
+    assert abonement_notifications.build_abonement_dispatch_ref(single) == "abonement:11"
+
+
+def test_abonement_group_access_message_lists_links_and_missing_link_note():
+    message = abonement_notifications.build_group_access_message(
+        [
+            {
+                "group_name": "Hip-Hop Teens",
+                "chat_invite_link": "https://t.me/+abc123",
+                "next_session_date": date(2026, 3, 10),
+            },
+            {
+                "group_name": "Ballet Mini",
+                "chat_invite_link": None,
+                "next_session_date": date(2026, 3, 11),
+            },
+        ]
+    )
+
+    assert message is not None
+    assert "Hip-Hop Teens" in message
+    assert "https://t.me/+abc123" in message
+    assert "Ballet Mini" in message
+    assert "ссылка пока не настроена" in message
+
+
+def test_abonement_one_left_notice_rule_only_matches_single_group_multi_with_one_credit():
+    assert abonement_notifications.is_one_left_group_abonement_notice_due(
+        SimpleNamespace(status="active", abonement_type="multi", bundle_size=1, balance_credits=1)
+    ) is True
+    assert abonement_notifications.is_one_left_group_abonement_notice_due(
+        SimpleNamespace(status="active", abonement_type="single", bundle_size=1, balance_credits=1)
+    ) is False
+    assert abonement_notifications.is_one_left_group_abonement_notice_due(
+        SimpleNamespace(status="active", abonement_type="multi", bundle_size=2, balance_credits=1)
+    ) is False
+    assert abonement_notifications.is_one_left_group_abonement_notice_due(
+        SimpleNamespace(status="active", abonement_type="multi", bundle_size=1, balance_credits=2)
+    ) is False
+
+
+def test_abonement_bundle_expiry_notice_rule_matches_two_and_three_group_bundles_in_7_day_window():
+    now = datetime(2026, 3, 8, 10, 0, 0)
+
+    assert abonement_notifications.is_bundle_expiry_notice_due(
+        SimpleNamespace(status="active", bundle_size=2, valid_to=datetime(2026, 3, 12, 23, 59, 59)),
+        now=now,
+    ) is True
+    assert abonement_notifications.is_bundle_expiry_notice_due(
+        SimpleNamespace(status="active", bundle_size=3, valid_to=datetime(2026, 3, 15, 23, 59, 59)),
+        now=now,
+    ) is True
+    assert abonement_notifications.is_bundle_expiry_notice_due(
+        SimpleNamespace(status="active", bundle_size=2, valid_to=datetime(2026, 3, 20, 23, 59, 59)),
+        now=now,
+    ) is False
+    assert abonement_notifications.is_bundle_expiry_notice_due(
+        SimpleNamespace(status="inactive", bundle_size=2, valid_to=datetime(2026, 3, 12, 23, 59, 59)),
+        now=now,
+    ) is False
 
 
 def test_admin_discount_payload_validation_rules():
