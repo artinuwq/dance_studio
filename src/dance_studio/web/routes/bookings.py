@@ -18,6 +18,13 @@ from dance_studio.core.booking_amounts import compute_non_group_booking_base_amo
 from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, TECH_ADMIN_ID
 from dance_studio.core.personal_discounts import apply_best_discount_for_user
 from dance_studio.core.permissions import has_permission
+from dance_studio.core.statuses import (
+    ABONEMENT_STATUS_ACTIVE,
+    BOOKING_STATUS_CANCELLED,
+    BOOKING_STATUS_CREATED,
+    BOOKING_STATUS_WAITING_PAYMENT,
+    normalize_booking_status,
+)
 from dance_studio.db.models import (
     BookingRequest,
     Direction,
@@ -33,11 +40,17 @@ from dance_studio.web.constants import ALLOWED_DIRECTION_TYPES, INACTIVE_SCHEDUL
 from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
 from dance_studio.web.services.api_errors import safe_client_error_message
 from dance_studio.web.services.bookings import (
+    BookingAlreadyExistsError,
+    BookingCapacityExceededError,
     _compute_duration_minutes,
     _find_booking_overlaps,
     _notify_booking_admins,
     _send_booking_payment_details_via_userbot,
+    count_group_free_seats,
+    count_group_occupied_seats,
+    create_booking_request_with_guards,
     get_next_group_date,
+    get_group_occupancy_map,
 )
 from dance_studio.web.services.payments import (
     _resolve_payment_profile_payload,
@@ -182,6 +195,8 @@ def get_group(group_id):
         return {"error": "Группа не найдена"}, 404
 
     teacher_name = group.teacher.name if group.teacher else None
+    occupied_students = count_group_occupied_seats(db, int(group.id))
+    free_seats = count_group_free_seats(db, int(group.id), max_students=group.max_students)
     return jsonify({
         "id": group.id,
         "direction_id": group.direction_id,
@@ -191,6 +206,8 @@ def get_group(group_id):
         "description": group.description,
         "age_group": group.age_group,
         "max_students": group.max_students,
+        "occupied_students": occupied_students,
+        "free_seats": free_seats,
         "duration_minutes": group.duration_minutes,
         "lessons_per_week": group.lessons_per_week,
         "created_at": group.created_at.isoformat()
@@ -221,6 +238,7 @@ def get_compatible_groups():
             return {"error": "exclude_group_id must be an integer"}, 400
 
     groups = db.query(Group).filter(Group.lessons_per_week == lessons_per_week).order_by(Group.created_at.desc()).all()
+    occupancy_map = get_group_occupancy_map(db, [group.id for group in groups if group and group.id])
     direction_ids = {g.direction_id for g in groups if g.direction_id}
     directions = db.query(Direction).filter(Direction.direction_id.in_(direction_ids)).all() if direction_ids else []
     directions_by_id = {d.direction_id: d for d in directions}
@@ -238,6 +256,12 @@ def get_compatible_groups():
         if (direction.direction_type or "").strip().lower() != direction_type:
             continue
         teacher = teachers_by_id.get(group.teacher_id)
+        occupied_students = int(occupancy_map.get(int(group.id), 0))
+        try:
+            max_students = int(group.max_students or 0)
+        except (TypeError, ValueError):
+            max_students = 0
+        free_seats = max(0, max_students - occupied_students) if max_students > 0 else None
         result.append(
             {
                 "id": group.id,
@@ -247,6 +271,9 @@ def get_compatible_groups():
                 "direction_type": direction.direction_type,
                 "lessons_per_week": group.lessons_per_week,
                 "teacher_name": teacher.name if teacher else None,
+                "max_students": group.max_students,
+                "occupied_students": occupied_students,
+                "free_seats": free_seats,
             }
         )
     return jsonify(result)
@@ -428,7 +455,7 @@ def list_booking_requests():
     for booking in query:
         if not booking.date or not booking.time_from or not booking.time_to:
             continue
-        if booking.status in {"REJECTED", "CANCELLED"}:
+        if normalize_booking_status(booking.status) == BOOKING_STATUS_CANCELLED:
             continue
         time_from_str = booking.time_from.strftime("%H:%M") if booking.time_from else None
         time_to_str = booking.time_to.strftime("%H:%M") if booking.time_to else None
@@ -454,6 +481,7 @@ def list_booking_requests():
             "requested_currency": booking.requested_currency,
             "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
             "valid_until": booking.valid_until.isoformat() if booking.valid_until else None,
+            "reserved_until": booking.reserved_until.isoformat() if booking.reserved_until else None,
         })
 
     return jsonify(result)
@@ -524,6 +552,7 @@ def list_my_booking_requests():
                 "requested_currency": booking.requested_currency,
                 "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
                 "valid_until": booking.valid_until.isoformat() if booking.valid_until else None,
+                "reserved_until": booking.reserved_until.isoformat() if booking.reserved_until else None,
             }
         )
 
@@ -615,7 +644,7 @@ def create_booking_request():
             requested_currency_val = "RUB"
 
         overlaps = _find_booking_overlaps(db, date_val, time_from_val, time_to_val)
-        status = "NEW"
+        status = BOOKING_STATUS_CREATED
     else:
         try:
             quote = quote_group_booking(
@@ -641,7 +670,11 @@ def create_booking_request():
         requested_currency_val = quote.currency
         abonement_type_val = quote.abonement_type
         bundle_group_ids_json_val = json.dumps(quote.bundle_group_ids, ensure_ascii=False)
-        status = "NEW" if (quote.abonement_type == ABONEMENT_TYPE_TRIAL and quote.amount == 0) else "AWAITING_PAYMENT"
+        status = (
+            BOOKING_STATUS_CREATED
+            if (quote.abonement_type == ABONEMENT_TYPE_TRIAL and quote.amount == 0)
+            else BOOKING_STATUS_WAITING_PAYMENT
+        )
 
     booking = BookingRequest(
         user_id=user.id,
@@ -669,8 +702,17 @@ def create_booking_request():
         group_start_date=group_start_date_val,
         valid_until=valid_until_val,
     )
-    db.add(booking)
-    db.flush()
+    try:
+        create_booking_request_with_guards(db, booking)
+    except BookingAlreadyExistsError:
+        db.rollback()
+        return {"error": "Клиент уже записан", "code": "booking_already_exists"}, 409
+    except BookingCapacityExceededError:
+        db.rollback()
+        return {"error": "Свободных мест нет", "code": "booking_capacity_exceeded"}, 409
+    except ValueError as exc:
+        db.rollback()
+        return {"error": str(exc)}, 400
 
     if object_type == "rental" and date_val and time_from_val and time_to_val:
         rental = HallRental(
@@ -751,6 +793,7 @@ def create_booking_request():
         "amount_before_discount": booking.amount_before_discount,
         "applied_discount_amount": booking.applied_discount_amount,
         "applied_discount_id": booking.applied_discount_id,
+        "reserved_until": booking.reserved_until.isoformat() if booking.reserved_until else None,
     }
     if object_type == "group":
         response_payload.update(
@@ -777,7 +820,7 @@ def create_booking_request():
 def create_teacher_individual_booking_request():
     """
     Создаёт заявку на индивидуальное занятие от имени тренера за выбранного клиента.
-    Этап брони НЕ пропускается: заявка создаётся со статусом NEW и ждёт подтверждения админов.
+    Этап брони НЕ пропускается: заявка создаётся со статусом created и ждёт подтверждения админов.
     """
     perm_error = require_permission("view_personal_lessons")
     if perm_error:
@@ -823,7 +866,7 @@ def create_teacher_individual_booking_request():
     comment = f"{comment_raw}\n\n{teacher_note}" if comment_raw else teacher_note
 
     overlaps = _find_booking_overlaps(db, date_val, time_from_val, time_to_val)
-    status = "NEW"
+    status = BOOKING_STATUS_CREATED
     duration_minutes = _compute_duration_minutes(time_from_val, time_to_val)
     requested_amount_val = None
     requested_currency_val = None
@@ -867,8 +910,17 @@ def create_teacher_individual_booking_request():
         requested_amount=requested_amount_val,
         requested_currency=requested_currency_val,
     )
-    db.add(booking)
-    db.flush()
+    try:
+        create_booking_request_with_guards(db, booking)
+    except BookingAlreadyExistsError:
+        db.rollback()
+        return {"error": "Клиент уже записан", "code": "booking_already_exists"}, 409
+    except BookingCapacityExceededError:
+        db.rollback()
+        return {"error": "Свободных мест нет", "code": "booking_capacity_exceeded"}, 409
+    except ValueError as exc:
+        db.rollback()
+        return {"error": str(exc)}, 400
 
     individual_lesson = IndividualLesson(
         teacher_id=staff.id,
@@ -912,6 +964,7 @@ def create_teacher_individual_booking_request():
         "amount_before_discount": booking.amount_before_discount,
         "applied_discount_amount": booking.applied_discount_amount,
         "applied_discount_id": booking.applied_discount_id,
+        "reserved_until": booking.reserved_until.isoformat() if booking.reserved_until else None,
         "lesson_id": individual_lesson.id,
         "schedule_id": lesson_schedule.id,
     }, 201
@@ -1086,7 +1139,11 @@ def create_group_abonement():
                 "error": f"lessons_count mismatch: expected {quote.total_lessons} for selected abonement configuration"
             }, 400
 
-    status = "NEW" if (quote.abonement_type == ABONEMENT_TYPE_TRIAL and quote.amount == 0) else "AWAITING_PAYMENT"
+    status = (
+        BOOKING_STATUS_CREATED
+        if (quote.abonement_type == ABONEMENT_TYPE_TRIAL and quote.amount == 0)
+        else BOOKING_STATUS_WAITING_PAYMENT
+    )
     booking = BookingRequest(
         user_id=user.id,
         user_telegram_id=user.telegram_id,
@@ -1108,7 +1165,18 @@ def create_group_abonement():
         valid_until=quote.valid_to.date(),
         overlaps_json=json.dumps([], ensure_ascii=False),
     )
-    db.add(booking)
+    try:
+        create_booking_request_with_guards(db, booking)
+    except BookingAlreadyExistsError:
+        db.rollback()
+        return {"error": "Клиент уже записан", "code": "booking_already_exists"}, 409
+    except BookingCapacityExceededError:
+        db.rollback()
+        return {"error": "Свободных мест нет", "code": "booking_capacity_exceeded"}, 409
+    except ValueError as exc:
+        db.rollback()
+        return {"error": str(exc)}, 400
+
     db.commit()
 
     _notify_booking_admins(booking, user)
@@ -1130,6 +1198,7 @@ def create_group_abonement():
                 "currency": booking.requested_currency or "RUB",
                 "valid_from": quote.valid_from.isoformat(),
                 "valid_to": quote.valid_to.isoformat(),
+                "reserved_until": booking.reserved_until.isoformat() if booking.reserved_until else None,
                 "payment_id": None,
                 "payment_info": (
                     _resolve_payment_profile_payload(
@@ -1153,7 +1222,12 @@ def get_my_abonements():
     if not user:
         return {"error": "Пользователь не найден"}, 401
 
-    items = db.query(GroupAbonement).filter_by(user_id=user.id, status="active").order_by(GroupAbonement.created_at.desc()).all()
+    items = (
+        db.query(GroupAbonement)
+        .filter_by(user_id=user.id, status=ABONEMENT_STATUS_ACTIVE)
+        .order_by(GroupAbonement.created_at.desc())
+        .all()
+    )
     result = []
     for a in items:
         group = db.query(Group).filter_by(id=a.group_id).first()
@@ -1182,7 +1256,7 @@ def get_my_groups():
     if not user:
         return {"error": "Пользователь не найден"}, 401
 
-    abonements = db.query(GroupAbonement).filter_by(user_id=user.id, status="active").all()
+    abonements = db.query(GroupAbonement).filter_by(user_id=user.id, status=ABONEMENT_STATUS_ACTIVE).all()
     group_ids = sorted({a.group_id for a in abonements})
     result = []
     for group_id in group_ids:

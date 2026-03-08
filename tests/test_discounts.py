@@ -89,7 +89,7 @@ def test_consume_one_time_discount_marks_consumed():
         booking = BookingRequest(
             user_id=user.id,
             object_type="group",
-            status="AWAITING_PAYMENT",
+            status="waiting_payment",
             applied_discount_id=discount.id,
             requested_amount=1000,
             amount_before_discount=1500,
@@ -131,7 +131,7 @@ def test_consume_one_time_discount_conflicts_on_second_booking():
         booking_1 = BookingRequest(
             user_id=user.id,
             object_type="group",
-            status="AWAITING_PAYMENT",
+            status="waiting_payment",
             applied_discount_id=discount.id,
             requested_amount=800,
             amount_before_discount=1000,
@@ -140,7 +140,7 @@ def test_consume_one_time_discount_conflicts_on_second_booking():
         booking_2 = BookingRequest(
             user_id=user.id,
             object_type="group",
-            status="AWAITING_PAYMENT",
+            status="waiting_payment",
             applied_discount_id=discount.id,
             requested_amount=800,
             amount_before_discount=1000,

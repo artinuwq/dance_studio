@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
+from typing import Iterable
 
 import requests
 from flask import current_app
+from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import object_session
 
 from dance_studio.core.abonement_pricing import (
@@ -16,12 +19,252 @@ from dance_studio.core.abonement_pricing import (
     quote_group_booking,
 )
 from dance_studio.core.booking_utils import build_booking_keyboard_data, format_booking_message
+from dance_studio.core.statuses import (
+    BOOKING_ACTIVE_STATUSES,
+    BOOKING_STATUS_CANCELLED,
+    BOOKING_STATUS_WAITING_PAYMENT,
+    normalize_booking_status,
+    set_booking_status,
+)
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.config import PROJECT_NAME_FULL
 from dance_studio.core.system_settings_service import get_setting_value
-from dance_studio.db.models import BookingRequest, HallRental, IndividualLesson, Schedule, User
+from dance_studio.db.models import BookingRequest, Group, HallRental, IndividualLesson, Schedule, User
 from dance_studio.web.constants import INACTIVE_SCHEDULE_STATUSES
 from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
+
+
+BOOKING_SEAT_OCCUPYING_STATUSES = set(BOOKING_ACTIVE_STATUSES)
+BOOKING_RESERVATION_EXPIRABLE_STATUSES = {BOOKING_STATUS_WAITING_PAYMENT}
+DEFAULT_GROUP_BOOKING_RESERVE_MINUTES = 48 * 60
+
+_BOOKING_DUPLICATE_INDEX_NAMES = {
+    "uq_booking_req_user_slot_active",
+    "uq_booking_req_user_group_active",
+}
+
+
+class BookingConstraintError(ValueError):
+    """Base class for booking guard errors."""
+
+
+class BookingAlreadyExistsError(BookingConstraintError):
+    """Raised when a user is already booked into the same slot."""
+
+
+class BookingCapacityExceededError(BookingConstraintError):
+    """Raised when group capacity has no available seats."""
+
+
+class BookingReservationExpiredError(BookingConstraintError):
+    """Raised when payment is attempted after reservation deadline."""
+
+
+def _is_duplicate_booking_integrity_error(exc: IntegrityError) -> bool:
+    raw = str(getattr(exc, "orig", exc) or "").lower()
+    if "unique constraint failed" in raw and "booking_requests" in raw:
+        return True
+    if "duplicate key value violates unique constraint" in raw and "booking_req" in raw:
+        return True
+    return any(index_name in raw for index_name in _BOOKING_DUPLICATE_INDEX_NAMES)
+
+
+def _reservation_deadline(now: datetime, reserve_minutes: int | None) -> datetime:
+    ttl_minutes = int(reserve_minutes or DEFAULT_GROUP_BOOKING_RESERVE_MINUTES)
+    if ttl_minutes <= 0:
+        ttl_minutes = DEFAULT_GROUP_BOOKING_RESERVE_MINUTES
+    return now + timedelta(minutes=ttl_minutes)
+
+
+def is_booking_reservation_expired(booking: BookingRequest, *, now: datetime | None = None) -> bool:
+    if normalize_booking_status(getattr(booking, "status", None), default="") != BOOKING_STATUS_WAITING_PAYMENT:
+        return False
+    if not getattr(booking, "reserved_until", None):
+        return False
+    current_time = now or datetime.utcnow()
+    return bool(booking.reserved_until <= current_time)
+
+
+def expire_stale_booking_reservations(
+    db,
+    *,
+    now: datetime | None = None,
+    group_id: int | None = None,
+    booking_id: int | None = None,
+) -> set[int]:
+    current_time = now or datetime.utcnow()
+    query = db.query(BookingRequest).filter(
+        BookingRequest.status.in_(tuple(BOOKING_RESERVATION_EXPIRABLE_STATUSES)),
+        BookingRequest.reserved_until.isnot(None),
+        BookingRequest.reserved_until <= current_time,
+    )
+    if group_id is not None:
+        query = query.filter(BookingRequest.group_id == int(group_id))
+    if booking_id is not None:
+        query = query.filter(BookingRequest.id == int(booking_id))
+
+    expired_rows = query.all()
+    expired_ids: set[int] = set()
+    for row in expired_rows:
+        if normalize_booking_status(row.status, default="") != BOOKING_STATUS_WAITING_PAYMENT:
+            continue
+        set_booking_status(
+            row,
+            BOOKING_STATUS_CANCELLED,
+            actor_name="system: reservation timeout",
+            changed_at=current_time,
+            allow_same=False,
+        )
+        row.reserved_until = None
+        expired_ids.add(int(row.id))
+    return expired_ids
+
+
+def _has_duplicate_non_group_booking(db, booking: BookingRequest) -> bool:
+    if not booking.date or not booking.time_from or not booking.time_to:
+        return False
+    duplicate = (
+        db.query(BookingRequest.id)
+        .filter(
+            BookingRequest.user_id == int(booking.user_id),
+            BookingRequest.object_type == str(booking.object_type),
+            BookingRequest.date == booking.date,
+            BookingRequest.time_from == booking.time_from,
+            BookingRequest.time_to == booking.time_to,
+            BookingRequest.status.in_(tuple(BOOKING_SEAT_OCCUPYING_STATUSES)),
+        )
+        .first()
+    )
+    return duplicate is not None
+
+
+def _has_duplicate_group_booking(db, booking: BookingRequest) -> bool:
+    query = db.query(BookingRequest.id).filter(
+        BookingRequest.user_id == int(booking.user_id),
+        BookingRequest.object_type == "group",
+        BookingRequest.group_id == int(booking.group_id),
+        BookingRequest.status.in_(tuple(BOOKING_SEAT_OCCUPYING_STATUSES)),
+    )
+    if booking.group_start_date is None:
+        query = query.filter(BookingRequest.group_start_date.is_(None))
+    else:
+        query = query.filter(BookingRequest.group_start_date == booking.group_start_date)
+    return query.first() is not None
+
+
+def _count_group_occupied_seats(db, group_id: int) -> int:
+    occupied = (
+        db.query(func.count(BookingRequest.id))
+        .filter(
+            BookingRequest.object_type == "group",
+            BookingRequest.group_id == int(group_id),
+            BookingRequest.status.in_(tuple(BOOKING_SEAT_OCCUPYING_STATUSES)),
+        )
+        .scalar()
+    )
+    return int(occupied or 0)
+
+
+def get_group_occupancy_map(db, group_ids: Iterable[int]) -> dict[int, int]:
+    normalized_group_ids_set: set[int] = set()
+    for raw_group_id in group_ids:
+        try:
+            normalized_group_id = int(raw_group_id)
+        except (TypeError, ValueError):
+            continue
+        if normalized_group_id > 0:
+            normalized_group_ids_set.add(normalized_group_id)
+    normalized_group_ids = sorted(normalized_group_ids_set)
+    if not normalized_group_ids:
+        return {}
+
+    rows = (
+        db.query(BookingRequest.group_id, func.count(BookingRequest.id))
+        .filter(
+            BookingRequest.object_type == "group",
+            BookingRequest.group_id.in_(normalized_group_ids),
+            BookingRequest.status.in_(tuple(BOOKING_SEAT_OCCUPYING_STATUSES)),
+        )
+        .group_by(BookingRequest.group_id)
+        .all()
+    )
+    return {int(group_id): int(count or 0) for group_id, count in rows if group_id is not None}
+
+
+def count_group_occupied_seats(db, group_id: int) -> int:
+    return _count_group_occupied_seats(db, int(group_id))
+
+
+def count_group_free_seats(db, group_id: int, *, max_students: int | None) -> int | None:
+    try:
+        capacity = int(max_students or 0)
+    except (TypeError, ValueError):
+        return None
+    if capacity <= 0:
+        return None
+    occupied = _count_group_occupied_seats(db, int(group_id))
+    return max(0, capacity - occupied)
+
+
+def create_booking_request_with_guards(
+    db,
+    booking: BookingRequest,
+    *,
+    now: datetime | None = None,
+    reserve_minutes: int = DEFAULT_GROUP_BOOKING_RESERVE_MINUTES,
+) -> BookingRequest:
+    current_time = now or datetime.utcnow()
+    if not booking.user_id:
+        raise ValueError("user_id is required")
+
+    booking.status = normalize_booking_status(booking.status)
+    booking.reserved_until = None
+
+    object_type = str(booking.object_type or "").strip().lower()
+    if object_type not in {"rental", "individual", "group"}:
+        raise ValueError("object_type must be rental, individual, or group")
+
+    if object_type == "group":
+        if not booking.group_id:
+            raise ValueError("group_id is required for group booking")
+        group = (
+            db.query(Group)
+            .filter(Group.id == int(booking.group_id))
+            .with_for_update()
+            .first()
+        )
+        if not group:
+            raise ValueError("Group not found")
+
+        expire_stale_booking_reservations(
+            db,
+            now=current_time,
+            group_id=int(booking.group_id),
+        )
+
+        if _has_duplicate_group_booking(db, booking):
+            raise BookingAlreadyExistsError("Клиент уже записан")
+
+        max_students = int(group.max_students or 0)
+        occupied = _count_group_occupied_seats(db, int(booking.group_id))
+        if max_students <= 0 or occupied >= max_students:
+            raise BookingCapacityExceededError("Свободных мест нет")
+    else:
+        if _has_duplicate_non_group_booking(db, booking):
+            raise BookingAlreadyExistsError("Клиент уже записан")
+
+    if booking.status == BOOKING_STATUS_WAITING_PAYMENT:
+        booking.reserved_until = _reservation_deadline(current_time, reserve_minutes)
+
+    db.add(booking)
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        if _is_duplicate_booking_integrity_error(exc):
+            raise BookingAlreadyExistsError("Клиент уже записан") from exc
+        raise
+    return booking
+
 
 def _time_overlaps(start_a, end_a, start_b, end_b) -> bool:
     return start_a < end_b and start_b < end_a
@@ -284,9 +527,19 @@ def get_next_group_date(db, group_id):
 
 
 __all__ = [
+    "BookingAlreadyExistsError",
+    "BookingCapacityExceededError",
+    "BookingConstraintError",
+    "BookingReservationExpiredError",
     "_compute_duration_minutes",
     "_find_booking_overlaps",
     "_notify_booking_admins",
     "_send_booking_payment_details_via_userbot",
+    "count_group_free_seats",
+    "count_group_occupied_seats",
+    "create_booking_request_with_guards",
+    "expire_stale_booking_reservations",
     "get_next_group_date",
+    "get_group_occupancy_map",
+    "is_booking_reservation_expired",
 ]

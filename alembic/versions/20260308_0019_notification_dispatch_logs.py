@@ -1,6 +1,6 @@
 """Add notification dispatch logs for deduplicated notifications
 
-Revision ID: 20260308_0019_notification_dispatch_logs
+Revision ID: 20260308_0019_notify_logs
 Revises: 20260307_0018_group_chat_bigint
 Create Date: 2026-03-08
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "20260308_0019_notification_dispatch_logs"
+revision = "20260308_0019_notify_logs"
 down_revision = "20260307_0018_group_chat_bigint"
 branch_labels = None
 depends_on = None

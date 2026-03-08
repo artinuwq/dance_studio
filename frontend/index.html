@@ -4459,6 +4459,7 @@ textarea.form-input {
 <div class="card work-section" id="work-section-stats-payment" style="margin-bottom: 12px;">
 <h4 style="margin-bottom: 10px;">Статистика и настройки</h4>
 <button class="save-btn" id="stats-btn" onclick="showPage('stats')" style="width: 100%; margin-bottom: 8px; display: none;">Статистика</button>
+<button class="save-btn" id="payments-btn-work" onclick="showPage('payments-admin')" style="width: 100%; margin-bottom: 8px; display: none;">Платежи</button>
 <button class="save-btn" id="work-settings-btn-work" onclick="showPage('work-settings')" style="width: 100%; margin-bottom: 8px; display: none;">Параметры настройки</button>
 </div>
 </div>
@@ -5291,6 +5292,86 @@ textarea.form-input {
 </div>
 <button class="save-btn" type="button" onclick="savePaymentProfile(3)">Сохранить реквизиты 3</button>
 </div>
+</div>
+<div class="page" data-title="💸 Платежи" id="payments-admin">
+  <div class="card" style="margin-bottom: 12px;">
+    <h4 style="margin:0 0 8px;">Журнал оплат</h4>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:120px;">
+        <label class="label">ID клиента</label>
+        <input class="form-input" id="payments-filter-user-id" type="number" min="1" placeholder="Например: 42"/>
+      </div>
+      <div style="flex:1; min-width:120px;">
+        <label class="label">С даты</label>
+        <input class="form-input" id="payments-filter-date-from" type="date"/>
+      </div>
+      <div style="flex:1; min-width:120px;">
+        <label class="label">По дату</label>
+        <input class="form-input" id="payments-filter-date-to" type="date"/>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:120px;">
+        <label class="label">Тип</label>
+        <select class="form-input" id="payments-filter-type">
+          <option value="">Все</option>
+          <option value="booking">Бронь</option>
+          <option value="abonement">Абонемент</option>
+        </select>
+      </div>
+      <div style="flex:1; min-width:120px;">
+        <label class="label">Статус</label>
+        <select class="form-input" id="payments-filter-status">
+          <option value="">Все</option>
+          <option value="confirmed">Подтверждено</option>
+          <option value="rejected">Отклонено</option>
+        </select>
+      </div>
+    </div>
+    <button class="save-btn" type="button" style="margin-top: 10px;" onclick="loadAdminPayments()">Обновить журнал</button>
+    <div class="small" id="payments-admin-status" style="margin-top:8px; color:var(--hint);"></div>
+  </div>
+
+  <div class="card" style="margin-bottom: 12px;">
+    <h4 style="margin:0 0 8px;">Подтвердить оплату по брони</h4>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:110px;">
+        <label class="label">Booking ID</label>
+        <input class="form-input" id="payments-booking-id" type="number" min="1" placeholder="ID брони"/>
+      </div>
+      <div style="flex:1; min-width:110px;">
+        <label class="label">Сумма (RUB)</label>
+        <input class="form-input" id="payments-booking-amount" type="number" min="1" step="1" placeholder="Можно оставить пустым"/>
+      </div>
+    </div>
+    <label class="label">Комментарий</label>
+    <input class="form-input" id="payments-booking-comment" type="text" placeholder="Например: перевод на карту от 08.03"/>
+    <button class="save-btn" type="button" style="margin-top: 10px;" onclick="confirmBookingManualPayment()">Подтвердить оплату брони</button>
+  </div>
+
+  <div class="card" style="margin-bottom: 12px;">
+    <h4 style="margin:0 0 8px;">Подтвердить оплату по абонементу</h4>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:110px;">
+        <label class="label">Abonement ID</label>
+        <input class="form-input" id="payments-abonement-id" type="number" min="1" placeholder="ID абонемента"/>
+      </div>
+      <div style="flex:1; min-width:110px;">
+        <label class="label">Сумма (RUB)</label>
+        <input class="form-input" id="payments-abonement-amount" type="number" min="1" step="1" placeholder="Обязательно"/>
+      </div>
+    </div>
+    <label class="label">Комментарий</label>
+    <input class="form-input" id="payments-abonement-comment" type="text" placeholder="Например: перевод на карту от 08.03"/>
+    <button class="save-btn" type="button" style="margin-top: 10px;" onclick="confirmAbonementManualPayment()">Подтвердить оплату абонемента</button>
+  </div>
+
+  <div class="card">
+    <h4 style="margin-top:0;">История</h4>
+    <div id="payments-admin-list">
+      <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Нажмите «Обновить журнал»</p>
+    </div>
+  </div>
 </div>
 <!-- ====== РАСПИСАНИЕ ПЕРСОНАЛА ====== -->
 <div class="page" data-title="📅 Расписание сотрудника" id="staff-schedule">
@@ -6558,6 +6639,10 @@ function showPage(id) {
   if (id === 'payment-profiles-admin') {
     setHeaderTitle('Управление оплатой');
     loadPaymentProfilesAdmin();
+  }
+  if (id === 'payments-admin') {
+    setHeaderTitle('Платежи');
+    loadAdminPayments();
   }
   if (id === 'display-settings') {
     setHeaderTitle('Отображение');
@@ -8472,6 +8557,8 @@ function renderDirectionGroupDetails(groupData, options = {}) {
   const duration = data.duration_minutes ? `${data.duration_minutes} мин` : '—';
   const lessons = data.lessons_per_week ? `${data.lessons_per_week} в неделю` : '—';
   const maxStudents = data.max_students ? `${data.max_students}` : '—';
+  const freeSeatsRaw = Number(data.free_seats);
+  const freeSeats = Number.isFinite(freeSeatsRaw) && freeSeatsRaw >= 0 ? `${freeSeatsRaw}` : '—';
   const description = escapeHtml(data.description || 'Описание отсутствует');
   const teacherCard = hasTeacherId
     ? `
@@ -8513,6 +8600,7 @@ function renderDirectionGroupDetails(groupData, options = {}) {
       <div class="group-detail-row"><span>Длительность:</span><div>${duration}</div></div>
       <div class="group-detail-row"><span>Занятий в неделю:</span><div>${lessons}</div></div>
       <div class="group-detail-row"><span>Макс. учеников:</span><div>${maxStudents}</div></div>
+      <div class="group-detail-row"><span>Свободных мест:</span><div>${freeSeats}</div></div>
     </div>
     <div class="small" style="margin-top: 10px;">${description}</div>
     ${bookingButton}
@@ -9357,13 +9445,27 @@ async function submitGroupBookingForm() {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
+      const errorCode = String(data.code || '').trim().toLowerCase();
+      const errorText = String(data.error || '').trim().toLowerCase();
+      const isAlreadyBooked = response.status === 409
+        && (errorCode === 'booking_already_exists' || errorText.includes('уже записан'));
+      if (isAlreadyBooked) {
+        closeGroupBookingForm();
+        showNotification('Вы уже записаны на это время');
+        return;
+      }
       throw new Error(data.error || '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u0437\u0430\u044f\u0432\u043a\u0443');
     }
 
-    if (data.status === 'NEW') {
+    if (String(data.status || '').toLowerCase() === 'created') {
       showNotification('\u0417\u0430\u044f\u0432\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0430 \u043d\u0430 \u0440\u0443\u0447\u043d\u043e\u0435 \u043e\u0434\u043e\u0431\u0440\u0435\u043d\u0438\u0435');
     } else {
-      showNotification('\u0417\u0430\u044f\u0432\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0430. \u041e\u0436\u0438\u0434\u0430\u0435\u0442\u0441\u044f \u043e\u043f\u043b\u0430\u0442\u0430');
+      const reserveDeadline = data.reserved_until ? new Date(data.reserved_until).toLocaleString('ru-RU') : null;
+      if (reserveDeadline) {
+        showNotification(`\u0417\u0430\u044f\u0432\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0430. \u041e\u043f\u043b\u0430\u0442\u0438\u0442\u0435 \u0432 \u0442\u0435\u0447\u0435\u043d\u0438\u0435 48 \u0447\u0430\u0441\u043e\u0432 (\u0434\u043e ${reserveDeadline})`);
+      } else {
+        showNotification('\u0417\u0430\u044f\u0432\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0430. \u041e\u043f\u043b\u0430\u0442\u0438\u0442\u0435 \u0432 \u0442\u0435\u0447\u0435\u043d\u0438\u0435 48 \u0447\u0430\u0441\u043e\u0432');
+      }
     }
     closeGroupBookingForm();
   } catch (error) {
@@ -9398,7 +9500,7 @@ window.publicScheduleWeekStart = null;
 let currentScheduleItem = null;
 window.currentScheduleItem = null;
 let schedulePollTimer = null;
-const CONFIRMED_STATUS_SET = new Set(['scheduled', 'confirmed', 'approved', 'paid']);
+const CONFIRMED_STATUS_SET = new Set(['scheduled', 'confirmed', 'attended', 'no_show']);
 const SCHEDULE_POLL_INTERVAL = 15000;
 let scheduleInitialized = false;
 let scheduleConfirmedFilter = false;
@@ -9449,16 +9551,20 @@ const SCHEDULE_STATUS_LABELS = {
   pending: 'Ожидается подтверждение',
   BUSY: 'Занято',
   busy: 'Занято',
+  created: 'Новая заявка',
+  waiting_payment: 'Ожидается оплата',
+  confirmed: 'Подтверждено',
+  attended: 'Посетил',
+  no_show: 'Не пришел',
+  cancelled: 'Отменено',
   NEW: 'Новая заявка',
-  APPROVED: 'Подтверждено, но не оплачено',
-  PENDING: 'На рассмотрении',
+  APPROVED: 'Ожидается оплата',
   AWAITING_PAYMENT: 'Ожидается оплата',
-  PAID: 'Оплачено',
+  PAID: 'Подтверждено',
   CANCELLED: 'Отменено',
-  REJECTED: 'Отклонено',
-  PAYMENT_FAILED: 'Ошибка оплаты'
+  REJECTED: 'Отменено',
+  PAYMENT_FAILED: 'Отменено'
 };
-
 const WORK_START_HOUR = 9;
 const WORK_END_HOUR = 22;
 const SLOT_MINUTES = 30;
@@ -9899,11 +10005,12 @@ function getScheduleLabel(item) {
 }
 
 function getScheduleStatusIcon(status) {
-  switch (status) {
-    case 'AWAITING_PAYMENT':
+  const normalized = String(status || '').toLowerCase();
+  switch (normalized) {
+    case 'waiting_payment':
       return '💰';
-    case 'APPROVED':
-    case 'PENDING':
+    case 'created':
+    case 'pending':
       return '?';
     default:
       return '';
@@ -10464,6 +10571,9 @@ function loadGroupScheduleDetails(groupId) {
         renderScheduleDetailArrowRow('👩‍🏫', 'Учитель', teacherName),
         renderScheduleDetailArrowRow('🎈', 'Возраст', group.age_group || '—'),
       ];
+      if (Number.isFinite(Number(group.free_seats))) {
+        rows.push(renderScheduleDetailArrowRow('🟢', 'Свободных мест', Number(group.free_seats)));
+      }
       if (group.lessons_per_week) {
         rows.push(renderScheduleDetailArrowRow('📆', 'Занятий в неделю', group.lessons_per_week));
       }
@@ -13327,12 +13437,14 @@ async function loadPersonalGroups() {
       const duration = Number(group.duration_minutes);
       const lessonsPerWeek = Number(group.lessons_per_week);
       const maxStudents = Number(group.max_students);
+      const freeSeats = Number(group.free_seats);
       const description = escapeHtml(group.description || '');
 
       const meta = [];
       if (Number.isFinite(duration) && duration > 0) meta.push(`${duration} мин`);
       if (Number.isFinite(lessonsPerWeek) && lessonsPerWeek > 0) meta.push(`${lessonsPerWeek} в неделю`);
       if (Number.isFinite(maxStudents) && maxStudents > 0) meta.push(`до ${maxStudents} чел.`);
+      if (Number.isFinite(freeSeats) && freeSeats >= 0) meta.push(`свободно ${freeSeats}`);
 
       return `
         <div class="card">
@@ -14058,24 +14170,24 @@ async function loadStudioStats() {
     if (dateTo) params.append('date_to', dateTo);
     const res = await fetch(`/api/stats/studio?${params.toString()}`);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'РћС€РёР±РєР°');
-    const period = `${data.date_from || 'вЂ”'} вЂ” ${data.date_to || 'вЂ”'}`;
+    if (!res.ok) throw new Error(data.error || 'Ошибка');
+    const period = `${data.date_from || '—'} — ${data.date_to || '—'}`;
     const requestsByType = data.booking_requests_by_type || {};
     const cancellationsByType = data.lesson_cancellations_by_type || {};
     const revenueByType = data.expected_revenue_breakdown_rub || {};
     result.innerHTML = `
       <div class=\"stats-grid\">
-        ${renderStatsCard('РџРµСЂРёРѕРґ', period)}
-        ${renderStatsCard('РќРѕРІС‹Рµ РєР»РёРµРЅС‚С‹', data.new_clients ?? 0)}
-        ${renderStatsCard('РђРєС‚РёРІРЅС‹Рµ РєР»РёРµРЅС‚С‹', data.active_clients ?? 0)}
+        ${renderStatsCard('Период', period)}
+        ${renderStatsCard('Новые клиенты', data.new_clients ?? 0)}
+        ${renderStatsCard('Активные клиенты', data.active_clients ?? 0)}
         ${renderStatsCard('РџСЂРѕРґР°РЅРѕ Р°Р±РѕРЅРµРјРµРЅС‚РѕРІ', data.abonements_sold ?? 0)}
-        ${renderStatsCard('РџРѕСЃРµС‰РµРЅРёР№', data.visits_total ?? 0)}
+        ${renderStatsCard('Посещений', data.visits_total ?? 0)}
         ${renderStatsCard('РћС‚РјРµРЅ Р·Р°РЅСЏС‚РёР№', data.lesson_cancellations ?? 0)}
-        ${renderStatsCard('Р—Р°СЏРІРѕРє СЃРѕР·РґР°РЅРѕ', data.booking_requests_created ?? 0)}
+        ${renderStatsCard('Заявок создано', data.booking_requests_created ?? 0)}
         ${renderStatsCard('РћР¶РёРґР°РµРјР°СЏ СЃСѓРјРјР°', formatBookingAmount(data.expected_revenue_rub ?? 0, 'RUB'))}
       </div>
       <p class=\"small\" style=\"color: var(--hint); margin: 10px 0 0 0;\">
-        Р—Р°СЏРІРєРё: РіСЂСѓРїРїС‹ ${requestsByType.group ?? 0} вЂў РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹Рµ ${requestsByType.individual ?? 0} вЂў Р°СЂРµРЅРґР° ${requestsByType.rental ?? 0}
+        Заявки: группы ${requestsByType.group ?? 0} • индивидуальные ${requestsByType.individual ?? 0} • аренда ${requestsByType.rental ?? 0}
       </p>
       <p class=\"small\" style=\"color: var(--hint); margin: 6px 0 0 0;\">
         РћС‚РјРµРЅС‹: РіСЂСѓРїРїС‹ ${cancellationsByType.group ?? 0} вЂў РёРЅРґРёРІРёРґСѓР°Р»СЊРЅС‹Рµ ${cancellationsByType.individual ?? 0} вЂў Р°СЂРµРЅРґР° ${cancellationsByType.rental ?? 0}
@@ -14085,7 +14197,7 @@ async function loadStudioStats() {
       </p>
     `;
   } catch (err) {
-    if (result) result.innerHTML = `<p class=\"small\" style=\"color:var(--hint); margin:0;\">вќЊ ${err.message}</p>`;
+    if (result) result.innerHTML = `<p class=\"small\" style=\"color:var(--hint); margin:0;\">❌ ${err.message}</p>`;
   }
 }
 
@@ -14741,6 +14853,7 @@ function updateStaffNavigation() {
   const mailingsBtn = document.getElementById('mailings-btn-work');
   const newsManageBtn = document.getElementById('news-manage-btn-work');
   const statsBtn = document.getElementById('stats-btn');
+  const paymentsBtn = document.getElementById('payments-btn-work');
   const workSettingsBtn = document.getElementById('work-settings-btn-work');
   const workSettingsPaymentItem = document.getElementById('work-settings-payment-item');
   const workSettingsPricesItem = document.getElementById('work-settings-prices-item');
@@ -14797,6 +14910,7 @@ function updateStaffNavigation() {
     setBtnVisible(mailingsBtn, hasPerm('manage_mailings'));
     setBtnVisible(newsManageBtn, hasPerm('create_news'));
     setBtnVisible(statsBtn, hasPerm('view_stats'));
+    setBtnVisible(paymentsBtn, hasPerm('manage_schedule'));
     setBtnVisible(workSettingsBtn, hasPerm('manage_schedule') || hasPerm('create_direction'));
 
     if (workSettingsPaymentItem) {
@@ -14823,6 +14937,7 @@ function updateStaffNavigation() {
     setBtnVisible(mailingsBtn, false);
     setBtnVisible(newsManageBtn, false);
     setBtnVisible(statsBtn, false);
+    setBtnVisible(paymentsBtn, false);
     setBtnVisible(workSettingsBtn, false);
 
     if (workSettingsPaymentItem) {
@@ -15127,8 +15242,8 @@ function loadProfileBookingRequests() {
     })
     .then(items => {
       const visibleItems = (Array.isArray(items) ? items : []).filter(item => {
-        const status = String(item?.status || '').toUpperCase();
-        return status !== 'APPROVED' && status !== 'PAID';
+        const status = String(item?.status || '').toLowerCase();
+        return !['confirmed', 'attended', 'no_show'].includes(status);
       });
 
       if (!visibleItems.length) {
@@ -15148,6 +15263,15 @@ function loadProfileBookingRequests() {
         const discountAmountText = Number.isFinite(Number(item.applied_discount_amount))
           ? `${new Intl.NumberFormat('ru-RU').format(Number(item.applied_discount_amount))} ${item.requested_currency || 'RUB'}`
           : null;
+        const isWaitingPayment = String(item.status || '').toLowerCase() === 'waiting_payment';
+        const reserveDeadlineText = item.reserved_until
+          ? new Date(item.reserved_until).toLocaleString('ru-RU')
+          : null;
+        const paymentDeadlineHintHtml = isWaitingPayment
+          ? `<div class="small" style="margin-top: 4px; color: var(--hint);">${reserveDeadlineText
+              ? `Оплатите в течение 48 часов (до ${escapeHtml(reserveDeadlineText)}).`
+              : 'Оплатите в течение 48 часов с момента бронирования.'}</div>`
+          : '';
 
         let detailsHtml = '';
         if (item.object_type === 'group') {
@@ -15186,6 +15310,7 @@ function loadProfileBookingRequests() {
             ${amountBeforeText ? `<div class="small">До скидки: ${escapeHtml(amountBeforeText)}</div>` : ''}
             ${discountAmountText ? `<div class="small">Скидка: -${escapeHtml(discountAmountText)}</div>` : ''}
             <div class="small">Сумма: ${escapeHtml(amountText)}</div>
+            ${paymentDeadlineHintHtml}
             ${detailsHtml}
             ${item.comment ? `<div class="small" style="margin-top: 6px;">Комментарий: ${escapeHtml(item.comment)}</div>` : ''}
           </div>
@@ -15276,6 +15401,187 @@ async function switchPaymentProfile(slot) {
     await loadPaymentProfilesAdmin();
   } catch (error) {
     showNotification('Ошибка: ' + (error.message || 'Не удалось переключить активные реквизиты'));
+  }
+}
+
+function setAdminPaymentsStatus(message, isError = false) {
+  const statusEl = document.getElementById('payments-admin-status');
+  if (!statusEl) return;
+  statusEl.textContent = message || '';
+  statusEl.style.color = isError ? '#ff6b6b' : 'var(--hint)';
+}
+
+function _paymentTypeLabel(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'booking') return 'Бронь';
+  if (normalized === 'abonement') return 'Абонемент';
+  return value || '—';
+}
+
+function _paymentStatusLabel(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'confirmed') return 'Подтверждено';
+  if (normalized === 'rejected') return 'Отклонено';
+  return value || '—';
+}
+
+function _paymentDateText(value) {
+  if (!value) return '—';
+  try {
+    return new Date(value).toLocaleString('ru-RU');
+  } catch (_) {
+    return String(value);
+  }
+}
+
+function _renderAdminPayments(items) {
+  const listEl = document.getElementById('payments-admin-list');
+  if (!listEl) return;
+
+  const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) {
+    listEl.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Оплат пока нет</p>';
+    return;
+  }
+
+  listEl.innerHTML = rows.map((item) => {
+    const amountText = Number.isFinite(Number(item.amount))
+      ? `${new Intl.NumberFormat('ru-RU').format(Number(item.amount))} RUB`
+      : '—';
+    const userText = item.user_name ? `${escapeHtml(String(item.user_name))} (#${Number(item.user_id)})` : `#${Number(item.user_id)}`;
+    const adminText = item.confirmed_by_admin_name
+      ? `${escapeHtml(String(item.confirmed_by_admin_name))} (#${Number(item.confirmed_by_admin)})`
+      : (item.confirmed_by_admin ? `#${Number(item.confirmed_by_admin)}` : '—');
+
+    return `
+      <div class="card" style="margin-bottom:8px;">
+        <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
+          <div style="font-weight:700;">${escapeHtml(_paymentTypeLabel(item.payment_type))} #${Number(item.object_id)}</div>
+          <div class="small" style="color:var(--hint);">${escapeHtml(_paymentStatusLabel(item.status))}</div>
+        </div>
+        <div class="small" style="margin-top:6px;">Сумма: ${escapeHtml(amountText)}</div>
+        <div class="small">Клиент: ${userText}</div>
+        <div class="small">Подтвердил: ${adminText}</div>
+        <div class="small">Подтверждено: ${escapeHtml(_paymentDateText(item.confirmed_at))}</div>
+        <div class="small">Создано: ${escapeHtml(_paymentDateText(item.created_at))}</div>
+        ${item.comment ? `<div class="small" style="margin-top:6px;">Комментарий: ${escapeHtml(String(item.comment))}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadAdminPayments() {
+  const userId = (document.getElementById('payments-filter-user-id')?.value || '').trim();
+  const dateFrom = (document.getElementById('payments-filter-date-from')?.value || '').trim();
+  const dateTo = (document.getElementById('payments-filter-date-to')?.value || '').trim();
+  const paymentType = (document.getElementById('payments-filter-type')?.value || '').trim();
+  const status = (document.getElementById('payments-filter-status')?.value || '').trim();
+
+  const params = new URLSearchParams();
+  if (userId) params.set('user_id', userId);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo) params.set('date_to', dateTo);
+  if (paymentType) params.set('payment_type', paymentType);
+  if (status) params.set('status', status);
+
+  setAdminPaymentsStatus('Загрузка журнала...');
+  try {
+    const response = await fetch(`/api/admin/payments?${params.toString()}`, { headers: getAuthHeaders() });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось загрузить журнал оплат');
+    }
+    _renderAdminPayments(data.items || []);
+    setAdminPaymentsStatus(`Загружено записей: ${Array.isArray(data.items) ? data.items.length : 0}`);
+  } catch (error) {
+    setAdminPaymentsStatus(error.message || 'Ошибка загрузки журнала', true);
+    const listEl = document.getElementById('payments-admin-list');
+    if (listEl) {
+      listEl.innerHTML = `<p class="small" style="text-align: center; color: #ff6b6b; padding: 20px;">${escapeHtml(error.message || 'Ошибка загрузки')}</p>`;
+    }
+  }
+}
+
+async function confirmBookingManualPayment() {
+  const bookingIdRaw = (document.getElementById('payments-booking-id')?.value || '').trim();
+  const amountRaw = (document.getElementById('payments-booking-amount')?.value || '').trim();
+  const comment = (document.getElementById('payments-booking-comment')?.value || '').trim();
+
+  const bookingId = Number.parseInt(bookingIdRaw, 10);
+  if (!Number.isInteger(bookingId) || bookingId <= 0) {
+    showNotification('Укажите корректный Booking ID');
+    return;
+  }
+
+  const payload = {};
+  if (amountRaw) {
+    const amount = Number.parseInt(amountRaw, 10);
+    if (!Number.isInteger(amount) || amount <= 0) {
+      showNotification('Сумма должна быть целым числом > 0');
+      return;
+    }
+    payload.amount = amount;
+  }
+  if (comment) payload.comment = comment;
+
+  try {
+    const response = await fetch(`/api/admin/booking-requests/${bookingId}/confirm-payment`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось подтвердить оплату брони');
+    }
+    showNotification(`Оплата брони #${bookingId} подтверждена`);
+    const amountEl = document.getElementById('payments-booking-amount');
+    const commentEl = document.getElementById('payments-booking-comment');
+    if (amountEl) amountEl.value = '';
+    if (commentEl) commentEl.value = '';
+    await loadAdminPayments();
+  } catch (error) {
+    showNotification(error.message || 'Ошибка подтверждения оплаты');
+  }
+}
+
+async function confirmAbonementManualPayment() {
+  const abonementIdRaw = (document.getElementById('payments-abonement-id')?.value || '').trim();
+  const amountRaw = (document.getElementById('payments-abonement-amount')?.value || '').trim();
+  const comment = (document.getElementById('payments-abonement-comment')?.value || '').trim();
+
+  const abonementId = Number.parseInt(abonementIdRaw, 10);
+  if (!Number.isInteger(abonementId) || abonementId <= 0) {
+    showNotification('Укажите корректный Abonement ID');
+    return;
+  }
+  const amount = Number.parseInt(amountRaw, 10);
+  if (!Number.isInteger(amount) || amount <= 0) {
+    showNotification('Для абонемента сумма обязательна и должна быть > 0');
+    return;
+  }
+
+  const payload = { amount };
+  if (comment) payload.comment = comment;
+
+  try {
+    const response = await fetch(`/api/admin/group-abonements/${abonementId}/confirm-payment`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось подтвердить оплату абонемента');
+    }
+    showNotification(`Оплата абонемента #${abonementId} подтверждена`);
+    const amountEl = document.getElementById('payments-abonement-amount');
+    const commentEl = document.getElementById('payments-abonement-comment');
+    if (amountEl) amountEl.value = '';
+    if (commentEl) commentEl.value = '';
+    await loadAdminPayments();
+  } catch (error) {
+    showNotification(error.message || 'Ошибка подтверждения оплаты');
   }
 }
 
@@ -15570,14 +15876,14 @@ function formatPaymentStatus(status) {
 
 function formatAbonementStatus(status) {
   const map = {
-    pending_activation: 'Ожидает активации',
+    pending_payment: 'Ожидается оплата',
     active: 'Активен',
     expired: 'Истек',
-    blocked: 'Заблокирован'
+    cancelled: 'Отменен',
+    pending_activation: 'Ожидается оплата'
   };
   return map[status] || status || '?';
 }
-
 function formatDate(dateString) {
   const date = new Date(dateString);
   return date.toLocaleDateString('ru-RU', { 
@@ -19150,6 +19456,7 @@ function loadDirectionGroups() {
             <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px;">
               <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👶 ${g.age_group}</span>
               <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👥 ${g.max_students} учеников</span>
+              ${Number.isFinite(Number(g.free_seats)) ? `<span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">🟢 Свободно: ${Number(g.free_seats)}</span>` : ''}
               <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">⏱️ ${g.duration_minutes} мин</span>
               ${g.lessons_per_week ? `<span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">📆 ${g.lessons_per_week} в неделю</span>` : ''}
             </div>

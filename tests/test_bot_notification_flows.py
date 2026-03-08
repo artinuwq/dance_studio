@@ -29,7 +29,7 @@ def test_reminder_background_loop_runs_teacher_summaries_and_abonement_notificat
 
 def test_booking_callback_triggers_group_access_notification_after_activation():
     source = BOT_FILE.read_text(encoding="utf-8")
-    window = _window(source, "async def handle_booking_action(callback: CallbackQuery):", size=9000)
+    window = _window(source, "async def handle_booking_action(callback: CallbackQuery):", size=12000)
 
     assert "activated_abonement = _activate_group_abonement_from_booking(db, booking)" in window
     assert "asyncio.create_task(_notify_group_access_after_booking(booking.id, activated_abonement.id))" in window

@@ -49,6 +49,7 @@ from dance_studio.db.models import (
     GroupAbonement,
     AttendanceIntention,
     AttendanceReminder,
+    PaymentTransaction,
 )
 from dance_studio.core.booking_utils import format_booking_message, build_booking_keyboard_data
 from dance_studio.core.tg_replay import cleanup_expired_init_data
@@ -75,6 +76,20 @@ from dance_studio.core.system_settings_service import get_setting_value, update_
 from dance_studio.core.personal_discounts import (
     DiscountConsumptionConflictError,
     consume_one_time_discount_for_booking,
+)
+from dance_studio.core.statuses import (
+    ABONEMENT_STATUS_ACTIVE,
+    ABONEMENT_STATUS_PENDING_PAYMENT,
+    BOOKING_PAYMENT_CONFIRMED_STATUSES,
+    BOOKING_STATUS_ATTENDED,
+    BOOKING_STATUS_CANCELLED,
+    BOOKING_STATUS_CONFIRMED,
+    BOOKING_STATUS_CREATED,
+    BOOKING_STATUS_NO_SHOW,
+    BOOKING_STATUS_WAITING_PAYMENT,
+    normalize_booking_status,
+    set_abonement_status,
+    set_booking_status,
 )
 from dance_studio.bot.upload_sessions import direction_upload_session_validation_error
 from dance_studio.bot.telegram_userbot import send_private_message
@@ -113,6 +128,9 @@ BACKUP_DIR = VAR_ROOT / "backups"
 _logger = logging.getLogger(__name__)
 ATTENDANCE_REMINDER_WINDOW_HOURS = 24
 ATTENDANCE_REMINDER_POLL_SECONDS = 60
+PAYMENT_DEADLINE_ALERT_WINDOW_HOURS = 12
+PAYMENT_DEADLINE_ALERT_BATCH_SIZE = 100
+BOOKING_RESERVE_MINUTES = 48 * 60
 ATTENDANCE_WILL_MISS_STATUS = "will_miss"
 ATTENDANCE_WILL_ATTEND_STATUS = "will_attend"
 ATTENDANCE_WILL_ATTEND_AUTO_STATUS = "will_attend_auto"
@@ -138,7 +156,12 @@ INACTIVE_SCHEDULE_STATUSES = {
     "REJECTED",
     "PAYMENT_FAILED",
 }
-RENTAL_CREATE_SCHEDULE_STATUSES = {"APPROVED", "AWAITING_PAYMENT", "PAID"}
+RENTAL_CREATE_SCHEDULE_STATUSES = {
+    BOOKING_STATUS_WAITING_PAYMENT,
+    BOOKING_STATUS_CONFIRMED,
+    BOOKING_STATUS_ATTENDED,
+    BOOKING_STATUS_NO_SHOW,
+}
 
 TECH_LOGS_CHAT_ID_SETTING_KEY = "tech.logs_chat_id"
 TECH_BACKUPS_TOPIC_ID_SETTING_KEY = "tech.backups_topic_id"
@@ -1456,7 +1479,7 @@ def _load_group_participants(db, schedule: Schedule) -> list[User]:
         return []
     query = db.query(GroupAbonement).filter(
         GroupAbonement.group_id == group_id,
-        GroupAbonement.status == "active",
+        GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
     )
     if schedule.date:
         schedule_day_start = datetime.combine(schedule.date, dt_time.min)
@@ -1879,7 +1902,7 @@ async def send_due_abonement_notifications() -> None:
     db = get_session()
     try:
         now = datetime.now()
-        rows = db.query(GroupAbonement).filter(GroupAbonement.status == "active").all()
+        rows = db.query(GroupAbonement).filter(GroupAbonement.status == ABONEMENT_STATUS_ACTIVE).all()
         processed_bundle_refs: set[str] = set()
 
         for row in rows:
@@ -2051,6 +2074,94 @@ async def finalize_closed_attendance_windows() -> None:
         db.close()
 
 
+def _format_timedelta_hm(delta: timedelta) -> str:
+    total_seconds = max(0, int(delta.total_seconds()))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes = remainder // 60
+    if hours and minutes:
+        return f"{hours} ч {minutes} мин"
+    if hours:
+        return f"{hours} ч"
+    return f"{max(1, minutes)} мин"
+
+
+async def send_due_booking_payment_deadline_alerts() -> None:
+    if not BOOKINGS_ADMIN_CHAT_ID_RUNTIME:
+        return
+
+    db = get_session()
+    try:
+        now = datetime.utcnow()
+        deadline_threshold = now + timedelta(hours=PAYMENT_DEADLINE_ALERT_WINDOW_HOURS)
+        rows = (
+            db.query(BookingRequest)
+            .filter(
+                BookingRequest.status == BOOKING_STATUS_WAITING_PAYMENT,
+                BookingRequest.reserved_until.isnot(None),
+                BookingRequest.reserved_until > now,
+                BookingRequest.reserved_until <= deadline_threshold,
+                BookingRequest.payment_deadline_alert_sent_at.is_(None),
+            )
+            .order_by(BookingRequest.reserved_until.asc())
+            .limit(PAYMENT_DEADLINE_ALERT_BATCH_SIZE)
+            .all()
+        )
+        if not rows:
+            return
+
+        updated = False
+        for booking in rows:
+            if not booking.reserved_until:
+                continue
+
+            user = db.query(User).filter_by(id=booking.user_id).first()
+            group = db.query(Group).filter_by(id=booking.group_id).first() if booking.group_id else None
+
+            user_name = (
+                (user.name if user and user.name else None)
+                or booking.user_name
+                or f"ID {booking.user_id}"
+            )
+            username = (user.username if user else None) or booking.user_username
+            user_label = f"{user_name} (@{username})" if username else user_name
+
+            group_label = "—"
+            if group and group.name:
+                group_label = f"{group.name} (#{group.id})"
+            elif booking.group_id:
+                group_label = f"#{booking.group_id}"
+
+            amount = booking.requested_amount
+            currency = booking.requested_currency or "RUB"
+            amount_text = f"{int(amount)} {currency}" if amount is not None else "—"
+            remaining_text = _format_timedelta_hm(booking.reserved_until - now)
+
+            text = (
+                f"⏳ До конца резерва оплаты осталось меньше {PAYMENT_DEADLINE_ALERT_WINDOW_HOURS} часов.\n"
+                f"Бронь #{booking.id}\n"
+                f"Клиент: {user_label}\n"
+                f"Группа: {group_label}\n"
+                f"Сумма: {amount_text}\n"
+                f"Оплатить до: {booking.reserved_until.strftime('%d.%m.%Y %H:%M')} UTC\n"
+                f"Осталось: {remaining_text}"
+            )
+
+            try:
+                await bot.send_message(chat_id=BOOKINGS_ADMIN_CHAT_ID_RUNTIME, text=text)
+                booking.payment_deadline_alert_sent_at = now
+                updated = True
+            except Exception as exc:
+                _logger.warning("payment deadline admin alert failed for booking %s: %s", booking.id, exc)
+
+        if updated:
+            db.commit()
+    except Exception as e:
+        db.rollback()
+        print(f"⚠️ booking payment deadline alert sender failed: {e}")
+    finally:
+        db.close()
+
+
 async def process_attendance_reminders() -> None:
     while True:
         await close_locked_attendance_reminders()
@@ -2058,6 +2169,7 @@ async def process_attendance_reminders() -> None:
         await send_due_attendance_reminders()
         await send_due_teacher_attendance_summaries()
         await send_due_abonement_notifications()
+        await send_due_booking_payment_deadline_alerts()
         await asyncio.sleep(ATTENDANCE_REMINDER_POLL_SECONDS)
 
 
@@ -2164,19 +2276,19 @@ def _create_schedule_from_lesson(
 
 
 def _normalized_booking_status(status: str | None) -> str:
-    return (status or "").upper()
+    return normalize_booking_status(status)
 
 
 def _map_booking_status_to_rental_states(status: str) -> tuple[str, str, str]:
     normalized_status = _normalized_booking_status(status)
-    if normalized_status == "PAID":
+    if normalized_status in BOOKING_PAYMENT_CONFIRMED_STATUSES:
         return "approved", "paid", "active"
-    if normalized_status in {"APPROVED", "AWAITING_PAYMENT"}:
+    if normalized_status == BOOKING_STATUS_WAITING_PAYMENT:
         return "approved", "pending", "active"
-    if normalized_status == "REJECTED":
-        return "rejected", "rejected", "cancelled"
-    if normalized_status in {"CANCELLED", "PAYMENT_FAILED"}:
+    if normalized_status == BOOKING_STATUS_CANCELLED:
         return "approved", "rejected", "cancelled"
+    if normalized_status == BOOKING_STATUS_CREATED:
+        return "pending", "pending", "pending"
     return "pending", "pending", "pending"
 
 
@@ -2389,6 +2501,17 @@ def _activate_group_abonement_from_booking(db, booking: BookingRequest) -> Group
     if not booking.user_id or not booking.group_id:
         return None
 
+    amount = _compute_booking_payment_amount(db, booking)
+    requires_confirmed_payment = bool((amount or 0) > 0 and not is_free_trial_booking(booking))
+    if requires_confirmed_payment:
+        confirmed_payment = (
+            db.query(PaymentTransaction.id)
+            .filter_by(payment_type="booking", object_id=booking.id, status="confirmed")
+            .first()
+        )
+        if not confirmed_payment:
+            return None
+
     bundle_group_ids = parse_booking_bundle_group_ids(booking)
     if not bundle_group_ids:
         bundle_group_ids = [int(booking.group_id)]
@@ -2437,7 +2560,7 @@ def _activate_group_abonement_from_booking(db, booking: BookingRequest) -> Group
         db.query(GroupAbonement)
         .filter(
             GroupAbonement.user_id == booking.user_id,
-            GroupAbonement.status == "active",
+            GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
             GroupAbonement.group_id.in_(bundle_group_ids),
             GroupAbonement.abonement_type == abonement_type,
             GroupAbonement.bundle_size == bundle_size,
@@ -2457,12 +2580,12 @@ def _activate_group_abonement_from_booking(db, booking: BookingRequest) -> Group
     for group_id in bundle_group_ids:
         pending_row = (
             db.query(GroupAbonement)
-            .filter_by(user_id=booking.user_id, group_id=group_id, status="pending_activation")
+            .filter_by(user_id=booking.user_id, group_id=group_id, status=ABONEMENT_STATUS_PENDING_PAYMENT)
             .order_by(GroupAbonement.created_at.desc())
             .first()
         )
         if pending_row:
-            pending_row.status = "active"
+            set_abonement_status(pending_row, ABONEMENT_STATUS_ACTIVE)
             pending_row.balance_credits = lessons_per_group
             pending_row.valid_from = valid_from
             pending_row.valid_to = valid_to
@@ -2479,7 +2602,7 @@ def _activate_group_abonement_from_booking(db, booking: BookingRequest) -> Group
             bundle_id=bundle_id,
             bundle_size=bundle_size,
             balance_credits=lessons_per_group,
-            status="active",
+            status=ABONEMENT_STATUS_ACTIVE,
             valid_from=valid_from,
             valid_to=valid_to,
         )
@@ -2633,9 +2756,10 @@ async def handle_booking_action(callback: CallbackQuery):
             action = "request_payment"
             if prefix == "booking_confirm":
                 prefix = "booking"
+
         if prefix == "booking_confirm":
             if action not in {"approve", "reject"}:
-                await callback.answer("Неверное подтверждение.", show_alert=True)
+                await callback.answer("Неверное действие подтверждения.", show_alert=True)
                 return
 
         if prefix != "booking_confirm":
@@ -2652,57 +2776,72 @@ async def handle_booking_action(callback: CallbackQuery):
             if action not in allowed_actions:
                 await callback.answer("Действие недоступно для текущего статуса.", show_alert=True)
                 return
-            if action in {"approve", "reject"}:
-                confirm_markup = InlineKeyboardMarkup(inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="✅ Да",
-                            callback_data=f"booking_confirm:{booking.id}:{action}"
-                        ),
-                        InlineKeyboardButton(
-                            text="❌ Отмена",
-                            callback_data=f"booking_cancel:{booking.id}"
-                        ),
+            if action == "approve":
+                confirm_markup = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="✅ Да",
+                                callback_data=f"booking_confirm:{booking.id}:{action}",
+                            ),
+                            InlineKeyboardButton(
+                                text="❌ Отмена",
+                                callback_data=f"booking_cancel:{booking.id}",
+                            ),
+                        ]
                     ]
-                ])
+                )
                 user = db.query(User).filter_by(id=booking.user_id).first()
                 text = format_booking_message(booking, user)
                 await callback.message.edit_text(
                     text,
                     parse_mode=ParseMode.HTML,
-                    reply_markup=confirm_markup
+                    reply_markup=confirm_markup,
                 )
                 await callback.answer("Подтвердите действие повторно.")
                 return
 
         if prefix == "booking_confirm":
             action_map = {
-                "approve": "APPROVED",
-                "reject": "REJECTED",
+                "approve": "approve",
+                "reject": "cancel",
             }
         else:
             action_map = {
-                "approve": "APPROVED",
-                "reject": "REJECTED",
-                "request_payment": "AWAITING_PAYMENT",
-                "cancel": "CANCELLED",
-                "confirm_payment": "PAID",
-                "payment_failed": "PAYMENT_FAILED",
+                "approve": "approve",
+                "request_payment": "request_payment",
+                "cancel": "cancel",
+                "confirm_payment": "confirm_payment",
+                "attended": "attended",
+                "no_show": "no_show",
             }
-        next_status = action_map.get(action)
-        if not next_status:
+        next_action = action_map.get(action)
+        if not next_action:
             await callback.answer("Неизвестное действие.", show_alert=True)
             return
+
+        if next_action == "approve":
+            next_status = BOOKING_STATUS_CONFIRMED if free_trial_flow else BOOKING_STATUS_WAITING_PAYMENT
+        elif next_action == "request_payment":
+            next_status = BOOKING_STATUS_WAITING_PAYMENT
+        elif next_action == "confirm_payment":
+            next_status = BOOKING_STATUS_CONFIRMED
+        elif next_action == "attended":
+            next_status = BOOKING_STATUS_ATTENDED
+        elif next_action == "no_show":
+            next_status = BOOKING_STATUS_NO_SHOW
+        else:
+            next_status = BOOKING_STATUS_CANCELLED
 
         admin_user = callback.from_user
         staff = db.query(Staff).filter_by(telegram_id=admin_user.id, status="active").first()
 
-        if next_status == "PAID":
+        if next_status == BOOKING_STATUS_CONFIRMED:
             try:
                 consume_one_time_discount_for_booking(db, booking=booking)
             except DiscountConsumptionConflictError:
                 _logger.warning(
-                    "booking %s: blocked PAID transition due to consumed one-time discount (discount_id=%s, user_id=%s)",
+                    "booking %s: blocked confirmed transition due to consumed one-time discount (discount_id=%s, user_id=%s)",
                     booking.id,
                     booking.applied_discount_id,
                     booking.user_id,
@@ -2713,20 +2852,62 @@ async def handle_booking_action(callback: CallbackQuery):
                 )
                 return
 
-        booking.status = next_status
-        booking.status_updated_by_id = staff.id if staff else None
-        booking.status_updated_by_username = f"@{admin_user.username}" if admin_user.username else None
-        booking.status_updated_by_name = staff.name if staff else admin_user.full_name
-        booking.status_updated_at = datetime.now()
+        if next_status == BOOKING_STATUS_CONFIRMED and not free_trial_flow:
+            confirmed_payment = (
+                db.query(PaymentTransaction.id)
+                .filter_by(payment_type="booking", object_id=booking.id, status="confirmed")
+                .first()
+            )
+            if not confirmed_payment:
+                amount = _compute_booking_payment_amount(db, booking)
+                if amount is None:
+                    await callback.answer(
+                        "Не удалось определить сумму оплаты. Подтвердите оплату в админке с явной суммой.",
+                        show_alert=True,
+                    )
+                    return
+                if amount > 0:
+                    db.add(
+                        PaymentTransaction(
+                            user_id=booking.user_id,
+                            amount=int(amount),
+                            status="confirmed",
+                            payment_type="booking",
+                            object_id=booking.id,
+                            confirmed_by_admin=(staff.id if staff else None),
+                            confirmed_at=datetime.utcnow(),
+                            comment="Confirmed via Telegram bot",
+                        )
+                    )
 
-        _sync_booking_status_to_schedule(db, booking, staff, next_status)
+        try:
+            set_booking_status(
+                booking,
+                next_status,
+                actor_staff_id=(staff.id if staff else None),
+                actor_username=(f"@{admin_user.username}" if admin_user.username else None),
+                actor_name=(staff.name if staff else admin_user.full_name),
+                changed_at=datetime.utcnow(),
+                allow_same=False,
+            )
+        except ValueError as exc:
+            await callback.answer(str(exc), show_alert=True)
+            return
+
+        if hasattr(booking, "reserved_until"):
+            if next_status == BOOKING_STATUS_WAITING_PAYMENT:
+                booking.reserved_until = datetime.utcnow() + timedelta(minutes=BOOKING_RESERVE_MINUTES)
+                if hasattr(booking, "payment_deadline_alert_sent_at"):
+                    booking.payment_deadline_alert_sent_at = None
+            else:
+                booking.reserved_until = None
+
+        _sync_booking_status_to_schedule(db, booking, staff, booking.status)
+
 
         should_activate_group_abonement = (
             booking.object_type == "group"
-            and (
-                next_status == "PAID"
-                or (next_status == "APPROVED" and free_trial_flow)
-            )
+            and next_status == BOOKING_STATUS_CONFIRMED
         )
         activated_abonement = None
         if should_activate_group_abonement:
@@ -2880,24 +3061,23 @@ async def _notify_user_on_status_change(user: User | None, booking: BookingReque
     if not telegram_id:
         return
 
-    should_send_payment_details = (
-        status == "AWAITING_PAYMENT"
-        or (status == "APPROVED" and booking.object_type in {"rental", "individual"})
-    )
+    normalized_status = normalize_booking_status(status)
+    should_send_payment_details = normalized_status == BOOKING_STATUS_WAITING_PAYMENT
     if should_send_payment_details:
         await _send_payment_message_from_admin_account(user, booking)
         return
 
     text_map = {
-        "APPROVED": "Ваша заявка подтверждена. В ближайшее время с вами свяжется администратор для обсуждения оплаты.",
-        "REJECTED": "К сожалению, вашу заявку отклонили. При необходимости вы можете отправить новую заявку или обратиться к администратору.",
-        "PAID": "Ваша заявка полностью одобрена, ждем вас на занятиях!",
+        BOOKING_STATUS_CONFIRMED: "Ваша оплата подтверждена. Ждем вас на занятии.",
+        BOOKING_STATUS_ATTENDED: "Посещение отмечено. Спасибо!",
+        BOOKING_STATUS_NO_SHOW: "Отмечено, что вы не пришли на занятие.",
+        BOOKING_STATUS_CANCELLED: "Заявка отменена. Если нужно, создайте новую заявку или свяжитесь с администратором.",
     }
-    message_text = text_map.get(status)
+    message_text = text_map.get(normalized_status)
     if not message_text:
         return
 
-    if status == "PAID":
+    if normalized_status in BOOKING_PAYMENT_CONFIRMED_STATUSES:
         user_target = {
             "id": telegram_id,
             "username": user.username if user else None,
@@ -2918,7 +3098,7 @@ async def _notify_user_on_status_change(user: User | None, booking: BookingReque
             bot=bot,
             user_id=telegram_id,
             text=message_text,
-            context_note=f"Смена статуса заявки: {status}"
+            context_note=f"Смена статуса заявки: {normalized_status}"
         )
     except Exception:
         pass

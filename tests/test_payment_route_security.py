@@ -11,3 +11,6 @@ def test_user_payment_mark_paid_route_is_not_registered():
 
     assert "/api/payment-transactions/<int:payment_id>/pay" not in routes
     assert "/api/payment-transactions/my" in routes
+    assert "/api/admin/payments" in routes
+    assert "/api/admin/booking-requests/<int:booking_id>/confirm-payment" in routes
+    assert "/api/admin/group-abonements/<int:abonement_id>/confirm-payment" in routes

@@ -4,6 +4,7 @@ from datetime import datetime
 
 from sqlalchemy import or_
 
+from dance_studio.core.statuses import ABONEMENT_STATUS_ACTIVE
 from dance_studio.db.models import (
     Attendance,
     AttendanceIntention,
@@ -58,7 +59,7 @@ def _load_group_roster(db, schedule: Schedule):
     date_val = schedule.date
     abonements = db.query(GroupAbonement).filter(
         GroupAbonement.group_id == schedule.group_id,
-        GroupAbonement.status == "active",
+        GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
     )
     if date_val:
         abonements = abonements.filter(
@@ -91,7 +92,7 @@ def _resolve_group_active_abonement(db, user_id: int, group_id: int, date_val):
     query = db.query(GroupAbonement).filter(
         GroupAbonement.user_id == user_id,
         GroupAbonement.group_id == group_id,
-        GroupAbonement.status == "active",
+        GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
     )
     if date_val:
         query = query.filter(

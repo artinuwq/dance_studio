@@ -21,6 +21,18 @@ from dance_studio.core.notification_dispatch import (
     notification_dispatch_exists,
     record_notification_dispatch,
 )
+from dance_studio.core.statuses import (
+    ABONEMENT_STATUS_ACTIVE,
+    ABONEMENT_STATUS_PENDING_PAYMENT,
+    BOOKING_NEGATIVE_STATUSES,
+    BOOKING_PAYMENT_CONFIRMED_STATUSES,
+    BOOKING_STATUS_CONFIRMED,
+    BOOKING_STATUS_CREATED,
+    BOOKING_STATUS_ATTENDED,
+    BOOKING_STATUS_NO_SHOW,
+    BOOKING_STATUS_WAITING_PAYMENT,
+    set_abonement_status,
+)
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.personal_discounts import resolve_discount_usage_state
 from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, PROJECT_NAME_FULL, PROJECT_NAME_SHORT, TECH_ADMIN_ID
@@ -84,6 +96,7 @@ from dance_studio.web.services.admin import (
     format_schedule,
     format_schedule_v2,
 )
+from dance_studio.web.services.bookings import get_group_occupancy_map
 from dance_studio.web.services.media import _build_image_url, normalize_teaches, try_fetch_telegram_avatar
 from dance_studio.web.services.studio_rules import (
     SERVICE_BREAK_END,
@@ -134,8 +147,14 @@ def _serialize_direction_payload(direction, *, groups_count=None, include_status
         payload["updated_at"] = direction.updated_at.isoformat()
     return payload
 SCHEDULE_PRESENT_STATUSES = {"present", "late"}
-NEGATIVE_BOOKING_STATUSES = {"REJECTED", "CANCELLED", "PAYMENT_FAILED"}
-ACTIVE_NON_GROUP_BOOKING_STATUSES = {"NEW", "APPROVED", "AWAITING_PAYMENT", "PAID"}
+NEGATIVE_BOOKING_STATUSES = set(BOOKING_NEGATIVE_STATUSES)
+ACTIVE_NON_GROUP_BOOKING_STATUSES = {
+    BOOKING_STATUS_CREATED,
+    BOOKING_STATUS_WAITING_PAYMENT,
+    BOOKING_STATUS_CONFIRMED,
+    BOOKING_STATUS_ATTENDED,
+    BOOKING_STATUS_NO_SHOW,
+}
 GROUP_ACCESS_NOTIFICATION_KEY = "group_access_links"
 
 IMMUTABLE_STAFF_ROLE = "тех. админ"
@@ -387,7 +406,7 @@ def _format_schedule_slot_label(schedule: Schedule) -> str:
 def _active_group_abonements_for_schedule_date(db, group_id: int, schedule_date: date | None) -> dict[int, GroupAbonement]:
     query = db.query(GroupAbonement).filter(
         GroupAbonement.group_id == group_id,
-        GroupAbonement.status == "active",
+        GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
     )
     if schedule_date:
         day_start = datetime.combine(schedule_date, dt_time.min)
@@ -932,7 +951,7 @@ def schedule_public():
         active_group_ids = [
             gid for (gid,) in db.query(GroupAbonement.group_id).filter(
                 GroupAbonement.user_id == user.id,
-                GroupAbonement.status == "active",
+                GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
                 or_(GroupAbonement.valid_from == None, GroupAbonement.valid_from <= today),
                 or_(GroupAbonement.valid_to == None, GroupAbonement.valid_to >= today),
             ).all()
@@ -1937,7 +1956,7 @@ def _resolve_group_active_abonement(db, user_id: int, group_id: int, date_val):
     query = db.query(GroupAbonement).filter(
         GroupAbonement.user_id == user_id,
         GroupAbonement.group_id == group_id,
-        GroupAbonement.status == "active",
+        GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
     )
     if date_val:
         query = query.filter(
@@ -2679,7 +2698,7 @@ def get_studio_stats():
         object_type = str(booking.object_type or "").strip().lower()
         if object_type in stats["booking_requests_by_type"]:
             stats["booking_requests_by_type"][object_type] += 1
-        if object_type != "group" or booking.status in NEGATIVE_BOOKING_STATUSES:
+        if object_type != "group" or str(booking.status or "").strip().lower() in NEGATIVE_BOOKING_STATUSES:
             continue
         amount = _booking_expected_amount_rub(db, booking)
         if amount:
@@ -2689,7 +2708,7 @@ def get_studio_stats():
         db.query(BookingRequest)
         .filter(
             BookingRequest.object_type == "group",
-            BookingRequest.status == "PAID",
+            BookingRequest.status.in_(list(BOOKING_PAYMENT_CONFIRMED_STATUSES)),
         )
         .all()
     )
@@ -3077,9 +3096,16 @@ def get_public_teacher(teacher_id):
         .order_by(Group.created_at.desc())
         .all()
     )
+    occupancy_map = get_group_occupancy_map(db, [group.id for group in groups if group and group.id])
     group_items = []
     for group in groups:
         direction = db.query(Direction).filter(Direction.direction_id == group.direction_id).first()
+        occupied_students = int(occupancy_map.get(int(group.id), 0))
+        try:
+            max_students = int(group.max_students or 0)
+        except (TypeError, ValueError):
+            max_students = 0
+        free_seats = max(0, max_students - occupied_students) if max_students > 0 else None
         group_items.append({
             "id": group.id,
             "name": group.name,
@@ -3088,6 +3114,8 @@ def get_public_teacher(teacher_id):
             "duration_minutes": group.duration_minutes,
             "lessons_per_week": group.lessons_per_week,
             "max_students": group.max_students,
+            "occupied_students": occupied_students,
+            "free_seats": free_seats,
             "direction_id": direction.direction_id if direction else group.direction_id,
             "direction_title": direction.title if direction else None,
             "direction_type": direction.direction_type if direction else None,
@@ -3736,12 +3764,19 @@ def get_direction_groups(direction_id):
         return {"error": "Направление не найдено"}, 404
 
     groups = db.query(Group).filter_by(direction_id=direction_id).order_by(Group.created_at.desc()).all()
+    occupancy_map = get_group_occupancy_map(db, [group.id for group in groups if group and group.id])
     result = []
     for gr in groups:
         teacher_name = gr.teacher.name if gr.teacher else None
         teacher_photo = None
         if gr.teacher and gr.teacher.photo_path:
             teacher_photo = "/" + gr.teacher.photo_path.replace("\\", "/")
+        occupied_students = int(occupancy_map.get(int(gr.id), 0))
+        try:
+            max_students = int(gr.max_students or 0)
+        except (TypeError, ValueError):
+            max_students = 0
+        free_seats = max(0, max_students - occupied_students) if max_students > 0 else None
         result.append({
             "id": gr.id,
             "direction_id": gr.direction_id,
@@ -3754,6 +3789,8 @@ def get_direction_groups(direction_id):
             "description": gr.description,
             "age_group": gr.age_group,
             "max_students": gr.max_students,
+            "occupied_students": occupied_students,
+            "free_seats": free_seats,
             "duration_minutes": gr.duration_minutes,
             "lessons_per_week": gr.lessons_per_week,
             "created_at": gr.created_at.isoformat()
@@ -4246,42 +4283,76 @@ def admin_get_system_settings_changes():
 @bp.route("/api/admin/group-abonements/<int:abonement_id>/activate", methods=["POST"])
 def admin_activate_abonement(abonement_id):
     """
-    Активация абонемента админом (например, после оплаты в Telegram).
-    Меняет статус абонемента на active и, если есть связанная транзакция, ставит её в paid.
+    Активация абонемента админом после ручной проверки оплаты.
+    Меняет статус абонемента с pending_payment на active и фиксирует подтвержденную оплату в PaymentTransaction.
     """
     perm_error = require_permission("manage_schedule")
     if perm_error:
         return perm_error
 
     db = g.db
+    payload = request.json or {}
+    staff = _get_current_staff(db)
+
     abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
     if not abonement:
         return {"error": "Абонемент не найден"}, 404
 
-    # щем связанную оплату
     payment = None
     if abonement.id:
         payment = (
             db.query(PaymentTransaction)
             .filter(
                 PaymentTransaction.user_id == abonement.user_id,
-                PaymentTransaction.meta.ilike(f"%\"abonement_id\": {abonement.id}%"),
+                PaymentTransaction.payment_type == "abonement",
+                PaymentTransaction.object_id == abonement.id,
             )
             .order_by(PaymentTransaction.created_at.desc())
             .first()
         )
 
-    if payment and payment.status != "paid":
-        payment.status = "paid"
-        payment.paid_at = datetime.now()
+    confirmed_at = datetime.utcnow()
+    if payment:
+        payment.status = "confirmed"
+        payment.confirmed_at = confirmed_at
+        if staff and not payment.confirmed_by_admin:
+            payment.confirmed_by_admin = staff.id
+    else:
+        amount_raw = payload.get("amount")
+        try:
+            amount = int(amount_raw)
+        except (TypeError, ValueError):
+            return {"error": "Для активации без существующей оплаты передайте amount (> 0)"}, 400
+        if amount <= 0:
+            return {"error": "amount должен быть > 0"}, 400
 
-    abonement.status = "active"
+        payment = PaymentTransaction(
+            user_id=abonement.user_id,
+            amount=amount,
+            status="confirmed",
+            payment_type="abonement",
+            object_id=abonement.id,
+            confirmed_by_admin=(staff.id if staff else None),
+            confirmed_at=confirmed_at,
+            comment=(str(payload.get("comment") or "").strip() or None),
+        )
+        db.add(payment)
+
+    try:
+        set_abonement_status(abonement, ABONEMENT_STATUS_ACTIVE)
+    except ValueError as exc:
+        db.rollback()
+        current_status = str(getattr(abonement, "status", "") or "").strip().lower()
+        if current_status != ABONEMENT_STATUS_PENDING_PAYMENT:
+            return {"error": f"Нельзя активировать абонемент из статуса '{current_status}'"}, 400
+        return {"error": str(exc)}, 400
+
     db.commit()
 
     group_access_notified, group_access_notify_error = _notify_abonement_group_access_links(db, abonement)
 
     return {
-        "status": "active",
+        "status": ABONEMENT_STATUS_ACTIVE,
         "abonement_id": abonement.id,
         "payment_id": payment.id if payment else None,
         "group_access_notified": group_access_notified,

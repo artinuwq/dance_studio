@@ -7,6 +7,7 @@ BOOKINGS_ROUTES = ROOT / "src" / "dance_studio" / "web" / "routes" / "bookings.p
 ADMIN_ROUTES = ROOT / "src" / "dance_studio" / "web" / "routes" / "admin.py"
 NEWS_ROUTES = ROOT / "src" / "dance_studio" / "web" / "routes" / "news.py"
 MEDIA_ROUTES = ROOT / "src" / "dance_studio" / "web" / "routes" / "media.py"
+PAYMENTS_ROUTES = ROOT / "src" / "dance_studio" / "web" / "routes" / "payments.py"
 
 
 def _window(source: str, marker: str, size: int = 2400) -> str:
@@ -83,3 +84,16 @@ def test_media_user_photo_routes_check_actor_permissions():
 
     get_window = _window(source, "def get_user_photo(user_id):")
     assert "_photo_permission_error(db, user)" in get_window
+
+
+def test_admin_payment_routes_require_manage_schedule_permission():
+    source = PAYMENTS_ROUTES.read_text(encoding="utf-8")
+
+    list_window = _window(source, "def admin_list_payments():")
+    assert 'require_permission("manage_schedule")' in list_window
+
+    booking_window = _window(source, "def admin_confirm_booking_payment(booking_id: int):")
+    assert 'require_permission("manage_schedule")' in booking_window
+
+    abonement_window = _window(source, "def admin_confirm_abonement_payment(abonement_id: int):")
+    assert 'require_permission("manage_schedule")' in abonement_window

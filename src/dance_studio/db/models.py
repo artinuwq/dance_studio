@@ -1,6 +1,10 @@
 from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
+from dance_studio.core.statuses import (
+    ABONEMENT_STATUS_PENDING_PAYMENT,
+    BOOKING_STATUS_CREATED,
+)
 
 Base = declarative_base()
 
@@ -239,7 +243,9 @@ class BookingRequest(Base):
     group_start_date = Column(Date, nullable=True)
     valid_until = Column(Date, nullable=True)
     overlaps_json = Column(Text, nullable=True)
-    status = Column(String, default="NEW", nullable=False)
+    status = Column(String, default=BOOKING_STATUS_CREATED, nullable=False)
+    reserved_until = Column(DateTime, nullable=True)
+    payment_deadline_alert_sent_at = Column(DateTime, nullable=True)
     status_updated_by_id = Column(Integer, nullable=True)
     status_updated_by_username = Column(String, nullable=True)
     status_updated_by_name = Column(String, nullable=True)
@@ -253,6 +259,15 @@ class BookingRequest(Base):
 
     __table_args__ = (
         Index("ix_booking_requests_applied_discount_id", "applied_discount_id"),
+        Index("ix_booking_requests_user_id", "user_id"),
+        Index("ix_booking_requests_group_id", "group_id"),
+        Index("ix_booking_requests_status", "status"),
+        Index("ix_booking_requests_reserved_until", "reserved_until"),
+        Index("ix_booking_requests_payment_deadline_alert_sent_at", "payment_deadline_alert_sent_at"),
+        CheckConstraint(
+            "status in ('created', 'waiting_payment', 'confirmed', 'cancelled', 'attended', 'no_show')",
+            name="ck_booking_requests_status_normalized",
+        ),
     )
 
 
@@ -370,7 +385,7 @@ class GroupAbonement(Base):
     bundle_id = Column(String(36), nullable=True)
     bundle_size = Column(Integer, nullable=True)
     balance_credits = Column(Integer, nullable=False)
-    status = Column(String, nullable=False)
+    status = Column(String, nullable=False, default=ABONEMENT_STATUS_PENDING_PAYMENT)
     valid_from = Column(DateTime, nullable=True)
     valid_to = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
@@ -385,8 +400,13 @@ class GroupAbonement(Base):
             "bundle_size IS NULL OR (bundle_size >= 1 AND bundle_size <= 3)",
             name="ck_group_abonements_bundle_size_range",
         ),
+        CheckConstraint(
+            "status in ('pending_payment', 'active', 'expired', 'cancelled')",
+            name="ck_group_abonements_status_normalized",
+        ),
         Index("ix_group_abonements_user_abonement_type", "user_id", "abonement_type"),
         Index("ix_group_abonements_bundle_id", "bundle_id"),
+        Index("ix_group_abonements_status", "status"),
     )
 
 
@@ -466,18 +486,31 @@ class PaymentTransaction(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     amount = Column(Integer, nullable=False)
-    currency = Column(String, default="RUB", nullable=False)
-    provider = Column(String, nullable=False)
-    status = Column(String, nullable=False)
-    description = Column(String, nullable=True)
-    meta = Column(Text, nullable=True)
+    status = Column(String(32), nullable=False)  # confirmed | rejected
+    payment_type = Column(String(32), nullable=False)  # booking | abonement
+    object_id = Column(Integer, nullable=False)
+    confirmed_by_admin = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    confirmed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
-    paid_at = Column(DateTime, nullable=True)
+    comment = Column(Text, nullable=True)
 
     user = relationship("User", foreign_keys=[user_id])
+    confirmed_by = relationship("Staff", foreign_keys=[confirmed_by_admin])
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="ck_payment_transactions_amount_positive"),
+        CheckConstraint(
+            "status in ('confirmed', 'rejected')",
+            name="ck_payment_transactions_status_manual",
+        ),
+        CheckConstraint(
+            "payment_type in ('booking', 'abonement')",
+            name="ck_payment_transactions_payment_type_manual",
+        ),
+        Index("ix_payment_transactions_user_id", "user_id"),
+        Index("ix_payment_transactions_object_id", "object_id"),
+        Index("ix_payment_transactions_payment_type", "payment_type"),
+        Index("ix_payment_transactions_status", "status"),
     )
 
 

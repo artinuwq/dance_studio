@@ -246,71 +246,29 @@ def build_booking_keyboard_data(
     *,
     is_free_group_trial: bool = False,
 ) -> list[list[dict]]:
+    normalized_status = str(status or "").strip().lower()
+    normalized_status = {
+        "new": "created",
+        "approved": "waiting_payment",
+        "awaiting_payment": "waiting_payment",
+        "paid": "confirmed",
+        "rejected": "cancelled",
+        "payment_failed": "cancelled",
+    }.get(normalized_status, normalized_status)
+
     if object_type == "group":
-        if status == "NEW":
+        if normalized_status == "created":
             if is_free_group_trial:
-                return [
-                    [
-                        {
-                            "text": "\u2705 \u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044c",
-                            "callback_data": f"booking:{booking_id}:approve",
-                        },
-                        {
-                            "text": "\u274c \u041e\u0442\u043a\u0430\u0437\u0430\u0442\u044c",
-                            "callback_data": f"booking:{booking_id}:reject",
-                        },
-                    ]
-                ]
-            return [
-                [
-                    {
-                        "text": "\u2705 \u0417\u0430\u043f\u0440\u043e\u0441\u0438\u0442\u044c \u043e\u043f\u043b\u0430\u0442\u0443",
-                        "callback_data": f"booking:{booking_id}:request_payment",
-                    },
-                    {
-                        "text": "\u274c \u041e\u0442\u043a\u0430\u0437\u0430\u0442\u044c",
-                        "callback_data": f"booking:{booking_id}:reject",
-                    },
-                ]
-            ]
-        if status == "APPROVED" and is_free_group_trial:
-            return []
-        if status in {"AWAITING_PAYMENT", "APPROVED"}:
-            return [
-                [
-                    {
-                        "text": "\u2705 \u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044c \u043e\u043f\u043b\u0430\u0442\u0443",
-                        "callback_data": f"booking:{booking_id}:confirm_payment",
-                    },
-                    {
-                        "text": "\u274c \u041d\u0435 \u043e\u043f\u043b\u0430\u0442\u0438\u043b",
-                        "callback_data": f"booking:{booking_id}:payment_failed",
-                    },
-                ]
-            ]
+                return [[{"text": "✅ Подтвердить", "callback_data": f"booking:{booking_id}:approve"}]]
+            return [[{"text": "✅ Запросить оплату", "callback_data": f"booking:{booking_id}:request_payment"}]]
+        if normalized_status == "waiting_payment":
+            return [[{"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"}]]
         return []
 
-    if status == "NEW":
-        return [
-            [
-                {"text": "✅ Подтвердить бронь", "callback_data": f"booking:{booking_id}:approve"},
-                {"text": "❌ Отказать", "callback_data": f"booking:{booking_id}:reject"},
-            ]
-        ]
-    if status == "APPROVED":
-        return [
-            [
-                {"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"},
-                {"text": "❌ Отказать", "callback_data": f"booking:{booking_id}:payment_failed"},
-            ]
-        ]
-    if status == "AWAITING_PAYMENT":
-        return [
-            [
-                {"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"},
-                {"text": "❌ Не оплатил", "callback_data": f"booking:{booking_id}:payment_failed"},
-            ]
-        ]
+    if normalized_status == "created":
+        return [[{"text": "✅ Запросить оплату", "callback_data": f"booking:{booking_id}:request_payment"}]]
+    if normalized_status == "waiting_payment":
+        return [[{"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"}]]
     return []
 
 
