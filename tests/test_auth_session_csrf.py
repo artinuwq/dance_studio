@@ -8,7 +8,7 @@ def _set_trusted(monkeypatch, *, web_app_url: str, trusted_origins: str) -> None
     monkeypatch.setattr(auth_session, "CSRF_TRUSTED_ORIGINS", trusted_origins)
 
 
-def test_csrf_origin_only_passes_without_sid(monkeypatch):
+def test_csrf_rejects_request_without_sid(monkeypatch):
     _set_trusted(monkeypatch, web_app_url="https://app.example.com", trusted_origins="")
     app = Flask(__name__)
 
@@ -17,7 +17,7 @@ def test_csrf_origin_only_passes_without_sid(monkeypatch):
         method="POST",
         headers={"Origin": "https://app.example.com"},
     ):
-        assert auth_session._is_csrf_valid() is True
+        assert auth_session._is_csrf_valid() is False
 
 
 def test_csrf_requires_double_submit_token_when_sid_present(monkeypatch):

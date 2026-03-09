@@ -8,7 +8,8 @@ from dance_studio.db.models import Staff, User
 from dance_studio.web.constants import FRONTEND_DIR, MEDIA_ROOT, PROJECT_ROOT
 from dance_studio.web.services.access import get_current_user_from_request, require_permission
 from dance_studio.web.services.api_errors import internal_server_error_response
-bp = Blueprint('media_routes', __name__)
+
+bp = Blueprint("media_routes", __name__)
 
 
 def _photo_permission_error(db, target_user: User):
@@ -138,9 +139,6 @@ def delete_user_photo_endpoint(user_id):
 
 @bp.route("/media/<path:filename>")
 def serve_media(filename):
-    """
-    Служит медиа файлы из var/media; fallback на старый database/media
-    """
     legacy_dir = PROJECT_ROOT / "database" / "media"
 
     response = _serve_from_root_if_exists(MEDIA_ROOT, filename)
@@ -156,9 +154,6 @@ def serve_media(filename):
 
 @bp.route("/database/media/<path:filename>")
 def serve_media_full(filename):
-    """
-    Альтернативный маршрут; поддерживает и var/media, и старый путь
-    """
     legacy_dir = PROJECT_ROOT / "database" / "media"
 
     response = _serve_from_root_if_exists(MEDIA_ROOT, filename)
@@ -170,33 +165,3 @@ def serve_media_full(filename):
         return response
 
     return {"error": "file not found"}, 404
-
-
-@bp.route("/user/<int:user_id>/photo")
-def get_user_photo(user_id):
-    """
-    Получить фото, загруженное пользователем через бота
-    """
-    try:
-        db = g.db
-        if getattr(g, "telegram_id", None) is None:
-            return {"error": "auth required"}, 401
-
-        user = db.query(User).filter_by(id=user_id).first()
-        if not user:
-            return {"photo_data": None}, 404
-
-        perm_error = _photo_permission_error(db, user)
-        if perm_error:
-            return perm_error
-        
-        if not user.staff_notes:
-            return {"photo_data": None}, 404
-        
-        # staff_notes содержит base64 фото
-        return {
-            "photo_data": user.staff_notes
-        }
-    except Exception as e:
-        print(f"⚠️ Ошибка при получении фото: {e}")
-        return internal_server_error_response(context="Failed to get user photo payload")

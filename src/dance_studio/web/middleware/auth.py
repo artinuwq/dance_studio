@@ -40,12 +40,16 @@ def before_request():
     g.clear_sid_cookie = False
     g.need_reauth = False
 
-    if request.method in STATE_CHANGING_METHODS and request.path not in CSRF_EXEMPT_PATHS:
-        if not any(request.path.startswith(p) for p in CSRF_EXEMPT_PREFIXES):
-            if not _is_csrf_valid():
-                return {"error": "CSRF validation failed"}, 403
+    sid = request.cookies.get("sid", "").strip()
+    if request.method in STATE_CHANGING_METHODS:
+        csrf_exempt = request.path in CSRF_EXEMPT_PATHS or any(
+            request.path.startswith(prefix) for prefix in CSRF_EXEMPT_PREFIXES
+        )
+        if not csrf_exempt and not sid:
+            return {"error": "auth required"}, 401
+        if not csrf_exempt and not _is_csrf_valid():
+            return {"error": "CSRF validation failed"}, 403
 
-    sid = request.cookies.get("sid")
     if not sid:
         return
 

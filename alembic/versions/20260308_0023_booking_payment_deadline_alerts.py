@@ -1,6 +1,6 @@
 """Add booking payment deadline alert marker.
 
-Revision ID: 20260308_0023_booking_payment_deadline_alerts
+Revision ID: 20260308_0023_booking_pay_alert
 Revises: 20260308_0022_booking_guards
 Create Date: 2026-03-08
 """
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = "20260308_0023_booking_payment_deadline_alerts"
+revision = "20260308_0023_booking_pay_alert"
 down_revision = "20260308_0022_booking_guards"
 branch_labels = None
 depends_on = None

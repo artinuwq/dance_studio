@@ -1,5 +1,6 @@
 Flask==3.0.3
 flask-admin==2.0.2
+gunicorn==23.0.0
 SQLAlchemy==2.0.32
 alembic==1.18.4
 psycopg[binary]==3.3.2

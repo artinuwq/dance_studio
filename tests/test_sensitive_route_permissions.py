@@ -71,19 +71,18 @@ def test_delete_news_requires_permission():
     assert 'require_permission("create_news")' in window
 
 
-def test_media_user_photo_routes_check_actor_permissions():
+def test_media_legacy_user_photo_route_removed():
     source = MEDIA_ROUTES.read_text(encoding="utf-8")
 
     assert "def _photo_permission_error(db, target_user: User):" in source
-
     upload_window = _window(source, "def upload_user_photo(user_id):")
     assert "_photo_permission_error(db, user)" in upload_window
-
     delete_window = _window(source, "def delete_user_photo_endpoint(user_id):")
     assert "_photo_permission_error(db, user)" in delete_window
 
-    get_window = _window(source, "def get_user_photo(user_id):")
-    assert "_photo_permission_error(db, user)" in get_window
+    assert '/user/<int:user_id>/photo' not in source
+    assert "def get_user_photo(" not in source
+    assert "staff_notes" not in source
 
 
 def test_admin_payment_routes_require_manage_schedule_permission():

@@ -41,6 +41,10 @@ body.group-booking-open {
   overflow: hidden;
 }
 
+body.client-issue-group-picker-open {
+  overflow: hidden;
+}
+
 body.tg-mobile {
   --bottom-nav-static-gap: 10px;
 }
@@ -1369,6 +1373,169 @@ textarea.form-input {
 
 .client-detail-actions-list .save-btn.client-detail-telegram-btn {
   background: #229ed9;
+}
+
+.client-abonement-action-toggle {
+  width: 100%;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #2a2a2a;
+}
+
+.client-abonement-action-toggle.is-open {
+  background: #353535;
+}
+
+.client-abonement-action-chevron {
+  display: inline-flex;
+  transition: transform 0.28s ease;
+}
+
+.client-abonement-action-toggle.is-open .client-abonement-action-chevron {
+  transform: rotate(180deg);
+}
+
+.client-abonement-action-panel {
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transform: translateY(-8px);
+  transition: max-height 0.38s ease, opacity 0.24s ease, transform 0.24s ease;
+}
+
+.client-abonement-action-panel.open {
+  max-height: 3000px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.client-abonement-action-panel-inner {
+  padding: 6px 0 14px;
+}
+
+.client-abonement-extra-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.client-abonement-extra-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.client-abonement-slot-remove {
+  border: none;
+  background: transparent;
+  color: var(--hint);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+
+.client-abonement-slot-remove:hover {
+  color: #fff;
+}
+
+.client-abonement-add-btn {
+  width: 100%;
+  margin: 0;
+  border: 1px dashed rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.client-abonement-add-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.client-abonement-group-picker {
+  position: fixed;
+  inset: 0;
+  z-index: 3200;
+  background: rgba(3, 4, 8, 0.72);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: calc(var(--safe-top) + 10px) 10px calc(var(--safe-bottom) + 10px);
+}
+
+.client-abonement-group-picker.hidden {
+  display: none;
+}
+
+.client-abonement-group-picker-dialog {
+  width: min(700px, 100%);
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 20px);
+  height: min(84dvh, 760px);
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 46px rgba(0, 0, 0, 0.45);
+  animation: clientAbonementPickerIn 0.2s ease;
+}
+
+.client-abonement-group-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.client-abonement-group-picker-close {
+  border: none;
+  background: transparent;
+  color: var(--hint);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 2px 6px;
+}
+
+.client-abonement-group-picker-list {
+  overflow: auto;
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@keyframes clientAbonementPickerIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.client-abonement-group-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 /* ====== СПИСОК ПЕРСОНАЛА (В СТИЛЕ КЛИЕНТОВ) ====== */
@@ -5096,6 +5263,101 @@ textarea.form-input {
 <div class="small" id="client-calendar-sick-status" style="margin-top:8px; color:var(--hint);"></div>
 </div>
 </div>
+<div class="page" data-title="🎟️ Действия с абонементами" id="client-abonement-actions">
+<div class="card">
+<div class="small" style="color:var(--hint);">Клиент</div>
+<div id="client-abonement-actions-screen-name" style="font-weight:700; font-size:16px; margin-top:2px;">—</div>
+<div class="small" id="client-abonement-actions-screen-meta" style="margin-top:6px; color:var(--hint);">—</div>
+</div>
+<div class="card">
+<button class="save-btn client-abonement-action-toggle" id="client-abonement-toggle-issue" onclick="toggleClientAbonementPanel('issue')">
+<span>Выдать абонемент</span>
+<span class="client-abonement-action-chevron">▼</span>
+</button>
+<div class="client-abonement-action-panel" id="client-abonement-panel-issue">
+<div class="client-abonement-action-panel-inner">
+<div class="form-group">
+<label>Тип абонемента</label>
+<select class="form-input" id="client-abonement-issue-type" onchange="onClientIssueTypeChange()">
+<option value="multi">Мульти (до 3 групп)</option>
+<option value="single">Разовое</option>
+<option value="trial">Пробное</option>
+</select>
+</div>
+<div class="form-group">
+<label>Основная группа</label>
+<select class="form-input" id="client-abonement-issue-group-main" onchange="onClientIssueMainGroupChange()"></select>
+</div>
+<div class="form-group" id="client-abonement-issue-multi-groups-wrap">
+<label>Дополнительные группы (максимум 2)</label>
+<div class="small" id="client-abonement-issue-extra-hint" style="color:var(--hint); margin-top:4px;">Загрузка...</div>
+<div class="client-abonement-extra-groups" id="client-abonement-issue-extra-groups"></div>
+<button class="save-btn client-abonement-add-btn" id="client-abonement-issue-extra-add-btn" type="button" onclick="openClientIssueGroupPicker()">+ Добавить группу</button>
+</div>
+<div class="client-abonement-group-picker hidden" id="client-abonement-issue-group-picker" onclick="closeClientIssueGroupPicker()">
+<div class="client-abonement-group-picker-dialog" onclick="event.stopPropagation()">
+<div class="client-abonement-group-picker-header">
+<div style="font-weight:700;">Выберите группу</div>
+<button class="client-abonement-group-picker-close" type="button" aria-label="Закрыть" onclick="closeClientIssueGroupPicker()">&times;</button>
+</div>
+<div class="client-abonement-group-picker-list" id="client-abonement-issue-group-picker-list"></div>
+</div>
+</div>
+<div class="form-group">
+<label>Статус</label>
+<select class="form-input" id="client-abonement-issue-status">
+<option value="active">Активен</option>
+<option value="pending_payment">Ожидает оплату</option>
+</select>
+</div>
+<div class="form-group">
+<label>Недели</label>
+<input class="form-input" id="client-abonement-issue-weeks" type="number" min="1" step="1" value="4"/>
+</div>
+<div class="form-group">
+<label>Занятия</label>
+<input class="form-input" id="client-abonement-issue-lessons" type="number" min="1" step="1" placeholder="Авторасчет, если оставить пустым"/>
+</div>
+<div class="form-group">
+<label>Комментарий</label>
+<textarea class="form-input" id="client-abonement-issue-note" rows="2" placeholder="Необязательно"></textarea>
+</div>
+<button class="save-btn" style="width:100%; margin:0;" onclick="submitClientIssueAbonement()">Выдать абонемент</button>
+<div class="small" id="client-abonement-issue-status-text" style="margin-top:8px; color:var(--hint);"></div>
+</div>
+</div>
+
+<button class="save-btn client-abonement-action-toggle" id="client-abonement-toggle-manage" onclick="toggleClientAbonementPanel('manage')">
+<span>Действия с существующим</span>
+<span class="client-abonement-action-chevron">▼</span>
+</button>
+<div class="client-abonement-action-panel" id="client-abonement-panel-manage">
+<div class="client-abonement-action-panel-inner">
+<div class="form-group">
+<label>Абонемент</label>
+<select class="form-input" id="client-abonement-manage-select" onchange="onClientManageAbonementChange()"></select>
+</div>
+<div class="small" id="client-abonement-manage-info" style="margin-top:8px; color:var(--hint);">—</div>
+<div class="form-group" style="margin-top:10px;">
+<label>Комментарий</label>
+<textarea class="form-input" id="client-abonement-manage-note" rows="2" placeholder="Необязательно"></textarea>
+</div>
+<div class="form-group">
+<label>Коррекция занятий (+/-)</label>
+<input class="form-input" id="client-abonement-manage-adjust-delta" type="number" step="1" placeholder="Например: 2 или -1"/>
+<div class="small" style="margin-top:6px; color:var(--hint);">Для мульти-пакета коррекция применяется ко всем группам пакета.</div>
+<button class="save-btn" style="width:100%; margin-top:8px; background:#3a3a3a;" onclick="adjustSelectedClientAbonementCredits()">Применить коррекцию</button>
+</div>
+<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+<button class="save-btn" style="flex:1; min-width:140px; margin:0;" onclick="openClientAbonementExtendScreen()">Продлить</button>
+<button class="save-btn" style="flex:1; min-width:140px; margin:0; background:#4a4a4a;" onclick="activateSelectedClientAbonement()">Активировать</button>
+<button class="save-btn" style="flex:1; min-width:140px; margin:0; background:#6c2a2a;" onclick="cancelSelectedClientAbonement()">Отменить</button>
+</div>
+<div class="small" id="client-abonement-manage-status" style="margin-top:8px; color:var(--hint);"></div>
+</div>
+</div>
+</div>
+</div>
 <div class="page" data-title="🎟️ Продление абонемента" id="client-abonement-extend">
 <div class="card">
 <div class="small" style="color:var(--hint);">Клиент</div>
@@ -6384,6 +6646,7 @@ let currentPageId = 'home';
 let activeModalBackHandler = null;
 const CLIENT_ACTION_PAGE_IDS = new Set([
   'client-attendance-calendar',
+  'client-abonement-actions',
   'client-abonement-extend',
   'client-discounts',
 ]);
@@ -13370,6 +13633,8 @@ async function loadPersonalSchedule() {
 }
 
 async function ensureCurrentStaffProfileContext() {
+  try { await authSessionPromise; } catch (_) {}
+
   if (profileLoadedPromise) {
     try { await profileLoadedPromise; } catch (_) {}
   } else if (!currentUserData && user?.id) {
@@ -13378,7 +13643,7 @@ async function ensureCurrentStaffProfileContext() {
 
   if (!window.currentStaffProfileId && currentUserData?.telegram_id) {
     try {
-      const staffRes = await fetch(`/staff/check/${currentUserData.telegram_id}`);
+      const staffRes = await fetch('/staff/me', { headers: getAuthHeaders() });
       if (staffRes.ok) {
         const staffData = await staffRes.json();
         if (staffData?.staff?.id) {
@@ -14799,7 +15064,8 @@ async function deleteSchedule() {
 /* ====== ПРОВЕРКА СТАТУСА ПЕРСОНАЛА ====== */
 async function checkStaffStatus(telegramId) {
   try {
-    const response = await fetch(`/staff/check/${telegramId}`);
+    await authSessionPromise;
+    const response = await fetch('/staff/me', { headers: getAuthHeaders() });
     
     if (!response.ok) {
       isStaff = false;
@@ -14820,7 +15086,7 @@ async function checkStaffStatus(telegramId) {
         try {
           await fetch(`/staff/update-from-telegram/${telegramId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({
               first_name: user.first_name,
               last_name: user.last_name
@@ -15905,6 +16171,13 @@ let clientExtendAbonements = [];
 let clientExtendSelectedAbonement = null;
 let clientExtendLessonsPerWeek = 1;
 let clientExtendSyncLock = false;
+let clientManageAbonements = [];
+let clientManageSelectedAbonement = null;
+let clientIssueGroups = [];
+let clientIssueCompatibleGroups = [];
+let clientIssueExtraGroupIds = [];
+let clientIssueGroupPickerOpen = false;
+let clientAbonementOpenPanel = null;
 let clientAttendanceMonth = null;
 let clientAttendanceEntries = [];
 let clientAttendanceSelectedDate = null;
@@ -16253,7 +16526,8 @@ async function submitMergeClients() {
 async function displayStaffInfo(userData) {
   try {
     // Получаем информацию о персонале
-    const response = await fetch(`/staff/check/${userData.telegram_id}`);
+    await authSessionPromise;
+    const response = await fetch('/staff/me', { headers: getAuthHeaders() });
     
     if (!response.ok) {
       console.error('Не удалось загрузить информацию о персонале');
@@ -16337,7 +16611,8 @@ async function openStaffProfileEdit(staffId = null) {
       }
       staff = data;
     } else {
-      const response = await fetch(`/staff/check/${currentUserData.telegram_id}`);
+      await authSessionPromise;
+      const response = await fetch('/staff/me', { headers: getAuthHeaders() });
       if (!response.ok) {
         showNotification('Не удалось загрузить профиль');
         return;
@@ -16848,7 +17123,7 @@ function initClientDetailModalLayout() {
         <div class="client-detail-actions-list">
           <button class="save-btn client-detail-telegram-btn" id="client-detail-telegram-btn" onclick="openCurrentClientChat()">Telegram</button>
           <button class="save-btn" onclick="openClientAttendanceCalendarScreen()">Календарь посещаемости</button>
-          <button class="save-btn" onclick="openClientAbonementExtendScreen()">Продлить абонемент</button>
+          <button class="save-btn" onclick="openClientAbonementActionsScreen()">Действия с абонементами</button>
           <button class="save-btn" style="background:#444;" onclick="openClientDiscountsScreen()">Персональные скидки</button>
         </div>
       </div>
@@ -17393,6 +17668,748 @@ function openClientAttendanceCalendarScreen() {
   loadClientAttendanceCalendar();
 }
 
+function _setClientAbonementIssueStatus(message, isError = false) {
+  const statusEl = document.getElementById('client-abonement-issue-status-text');
+  if (!statusEl) return;
+  statusEl.textContent = message || '';
+  statusEl.style.color = isError ? '#ff6b6b' : 'var(--hint)';
+}
+
+function _setClientAbonementManageStatus(message, isError = false) {
+  const statusEl = document.getElementById('client-abonement-manage-status');
+  if (!statusEl) return;
+  statusEl.textContent = message || '';
+  statusEl.style.color = isError ? '#ff6b6b' : 'var(--hint)';
+}
+
+function _applyClientAbonementPanels() {
+  const panelKeys = ['issue', 'manage'];
+  panelKeys.forEach((panelKey) => {
+    const isOpen = clientAbonementOpenPanel === panelKey;
+    const panelEl = document.getElementById(`client-abonement-panel-${panelKey}`);
+    const toggleEl = document.getElementById(`client-abonement-toggle-${panelKey}`);
+    if (panelEl) panelEl.classList.toggle('open', isOpen);
+    if (toggleEl) toggleEl.classList.toggle('is-open', isOpen);
+  });
+}
+
+function toggleClientAbonementPanel(panelKey) {
+  const normalized = panelKey === 'manage' ? 'manage' : 'issue';
+  clientAbonementOpenPanel = clientAbonementOpenPanel === normalized ? null : normalized;
+  if (clientAbonementOpenPanel !== 'issue') {
+    closeClientIssueGroupPicker();
+  }
+  _applyClientAbonementPanels();
+}
+
+function _getClientIssueType() {
+  const typeEl = document.getElementById('client-abonement-issue-type');
+  return String(typeEl?.value || 'multi').trim().toLowerCase();
+}
+
+function _isClientIssueMulti() {
+  return _getClientIssueType() === 'multi';
+}
+
+function _getClientIssueMainGroupId() {
+  const selectEl = document.getElementById('client-abonement-issue-group-main');
+  const parsed = Number.parseInt(selectEl?.value || '', 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function _getClientIssueMainGroup() {
+  const mainGroupId = _getClientIssueMainGroupId();
+  if (!mainGroupId) return null;
+  return clientIssueGroups.find((item) => Number(item.id) === mainGroupId) || null;
+}
+
+function _getClientIssueBundleGroupIds() {
+  const mainGroupId = _getClientIssueMainGroupId();
+  if (!mainGroupId) return [];
+  if (!_isClientIssueMulti()) return [mainGroupId];
+  const merged = [mainGroupId, ...clientIssueExtraGroupIds];
+  return Array.from(new Set(merged)).filter((id) => Number.isFinite(Number(id)) && Number(id) > 0).slice(0, 3);
+}
+
+function onClientIssueTypeChange() {
+  const type = _getClientIssueType();
+  const weeksEl = document.getElementById('client-abonement-issue-weeks');
+  const lessonsEl = document.getElementById('client-abonement-issue-lessons');
+  const multiWrapEl = document.getElementById('client-abonement-issue-multi-groups-wrap');
+  const isMulti = type === 'multi';
+
+  if (multiWrapEl) {
+    multiWrapEl.style.display = isMulti ? 'block' : 'none';
+  }
+
+  if (isMulti) {
+    if (lessonsEl && lessonsEl.value === '1') lessonsEl.value = '';
+    if (weeksEl && !weeksEl.value) weeksEl.value = '4';
+    loadClientIssueCompatibleGroups();
+  } else {
+    closeClientIssueGroupPicker();
+    clientIssueExtraGroupIds = [];
+    clientIssueCompatibleGroups = [];
+    _renderClientIssueExtraGroups();
+    if (weeksEl) weeksEl.value = '1';
+    if (lessonsEl) lessonsEl.value = '1';
+  }
+
+  if (lessonsEl) {
+    lessonsEl.placeholder = isMulti ? 'Авторасчет, если оставить пустым' : 'По умолчанию 1';
+  }
+  if (weeksEl && isMulti && !weeksEl.value) {
+    weeksEl.value = '4';
+  }
+}
+
+function _renderClientIssueMainGroupSelect() {
+  const selectEl = document.getElementById('client-abonement-issue-group-main');
+  if (!selectEl) return;
+  if (!Array.isArray(clientIssueGroups) || !clientIssueGroups.length) {
+    selectEl.innerHTML = '<option value="">Нет доступных групп</option>';
+    selectEl.disabled = true;
+    closeClientIssueGroupPicker();
+    clientIssueExtraGroupIds = [];
+    clientIssueCompatibleGroups = [];
+    _renderClientIssueExtraGroups();
+    return;
+  }
+
+  selectEl.disabled = false;
+  selectEl.innerHTML = clientIssueGroups.map((item) => {
+    const direction = item.direction_title || 'Направление';
+    const groupName = item.name || `Группа #${item.id}`;
+    const lessons = item.lessons_per_week ? `${item.lessons_per_week} в неделю` : 'уроки/нед. не заданы';
+    return `<option value="${Number(item.id)}">${escapeHtml(direction)} • ${escapeHtml(groupName)} (${escapeHtml(lessons)})</option>`;
+  }).join('');
+
+  const currentId = _getClientIssueMainGroupId();
+  const hasCurrent = currentId && clientIssueGroups.some((item) => Number(item.id) === currentId);
+  const nextId = hasCurrent ? currentId : Number(clientIssueGroups[0].id);
+  selectEl.value = String(nextId);
+}
+
+function _resolveAbonementStatusLabel(statusRaw) {
+  const status = String(statusRaw || '').trim().toLowerCase();
+  if (status === 'pending_payment') return 'Ожидает оплату';
+  if (status === 'active') return 'Активен';
+  if (status === 'expired') return 'Истек';
+  if (status === 'cancelled') return 'Отменен';
+  return statusRaw || '—';
+}
+
+function _renderClientManageAbonementsSelect() {
+  const selectEl = document.getElementById('client-abonement-manage-select');
+  if (!selectEl) return;
+  if (!Array.isArray(clientManageAbonements) || !clientManageAbonements.length) {
+    selectEl.innerHTML = '<option value="">У клиента нет абонементов</option>';
+    selectEl.disabled = true;
+    clientManageSelectedAbonement = null;
+    _renderClientManageAbonementInfo();
+    return;
+  }
+
+  selectEl.disabled = false;
+  selectEl.innerHTML = clientManageAbonements.map((item) => {
+    const status = _resolveAbonementStatusLabel(item.status);
+    const title = `${item.direction_title || 'Направление'} • ${item.group_name || 'Группа'}`;
+    return `<option value="${Number(item.id)}">#${Number(item.id)} • ${escapeHtml(title)} (${escapeHtml(status)})</option>`;
+  }).join('');
+
+  const preferredId = clientManageSelectedAbonement ? Number(clientManageSelectedAbonement.id) : null;
+  const preferred = preferredId
+    ? clientManageAbonements.find((item) => Number(item.id) === preferredId)
+    : null;
+  const firstPreferred = preferred || clientManageAbonements[0];
+  clientManageSelectedAbonement = firstPreferred;
+  selectEl.value = String(firstPreferred.id);
+  _renderClientManageAbonementInfo();
+}
+
+function _renderClientManageAbonementInfo() {
+  const infoEl = document.getElementById('client-abonement-manage-info');
+  if (!infoEl) return;
+  if (!clientManageSelectedAbonement) {
+    infoEl.textContent = 'Выберите абонемент';
+    return;
+  }
+
+  const item = clientManageSelectedAbonement;
+  const status = _resolveAbonementStatusLabel(item.status);
+  const validTo = item.valid_to ? new Date(item.valid_to).toLocaleDateString('ru-RU') : 'не задано';
+  const lessonsPerWeek = Number(item.lessons_per_week) || 0;
+  const lessonsPart = lessonsPerWeek > 0 ? `занятий/нед.: ${lessonsPerWeek}` : 'занятий/нед.: не задано';
+  const bundleSize = Number(item.bundle_size) || 1;
+  const bundleId = String(item.bundle_id || '').trim();
+  const bundlePart = bundleSize > 1 && bundleId ? ` • Пакет: ${bundleSize} группы` : '';
+  const scopePart = bundleSize > 1 && bundleId ? ' • Действия применяются ко всему пакету' : '';
+  infoEl.textContent = `Статус: ${status} • Остаток: ${item.balance_credits ?? 0} • ${lessonsPart} • Действует до: ${validTo}${bundlePart}${scopePart}`;
+}
+
+function onClientManageAbonementChange() {
+  const selectEl = document.getElementById('client-abonement-manage-select');
+  if (!selectEl) return;
+  const selectedId = Number(selectEl.value);
+  clientManageSelectedAbonement = clientManageAbonements.find((item) => Number(item.id) === selectedId) || null;
+  _renderClientManageAbonementInfo();
+}
+
+function _getClientIssueAvailableGroups() {
+  const selected = new Set(clientIssueExtraGroupIds.map((id) => Number(id)));
+  return clientIssueCompatibleGroups.filter((item) => !selected.has(Number(item.id)));
+}
+
+function _ensureClientIssueGroupPickerRoot() {
+  const pickerEl = document.getElementById('client-abonement-issue-group-picker');
+  if (!pickerEl) return null;
+  if (pickerEl.parentElement !== document.body) {
+    document.body.appendChild(pickerEl);
+  }
+  return pickerEl;
+}
+
+function closeClientIssueGroupPicker() {
+  clientIssueGroupPickerOpen = false;
+  const pickerEl = _ensureClientIssueGroupPickerRoot();
+  if (pickerEl) pickerEl.classList.add('hidden');
+  document.body.classList.remove('client-issue-group-picker-open');
+}
+
+function _renderClientIssueGroupPicker() {
+  const pickerEl = _ensureClientIssueGroupPickerRoot();
+  const listEl = document.getElementById('client-abonement-issue-group-picker-list');
+  if (!pickerEl || !listEl) return;
+
+  if (!_isClientIssueMulti() || !clientIssueGroupPickerOpen) {
+    pickerEl.classList.add('hidden');
+    listEl.innerHTML = '';
+    document.body.classList.remove('client-issue-group-picker-open');
+    return;
+  }
+
+  const available = _getClientIssueAvailableGroups();
+  if (!available.length || clientIssueExtraGroupIds.length >= 2) {
+    pickerEl.classList.add('hidden');
+    listEl.innerHTML = '';
+    clientIssueGroupPickerOpen = false;
+    document.body.classList.remove('client-issue-group-picker-open');
+    return;
+  }
+
+  pickerEl.classList.remove('hidden');
+  document.body.classList.add('client-issue-group-picker-open');
+  listEl.innerHTML = available.map((item) => {
+    const lessons = item.lessons_per_week ? `${item.lessons_per_week} в неделю` : 'уроки/нед. не заданы';
+    return `
+      <div class="client-abonement-group-picker-item">
+        <div>
+          <div style="font-weight:700;">${escapeHtml(item.name || `Группа #${Number(item.id)}`)}</div>
+          <div class="small" style="color:var(--hint); margin-top:2px;">
+            ${escapeHtml(item.direction_title || 'Направление')} • ${escapeHtml(lessons)}
+          </div>
+        </div>
+        <button class="save-btn" type="button" style="width:auto; margin:0; padding:6px 10px;" onclick="selectClientIssueExtraGroup(${Number(item.id)})">Выбрать</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function openClientIssueGroupPicker() {
+  if (!_isClientIssueMulti()) return;
+  _ensureClientIssueGroupPickerRoot();
+  const available = _getClientIssueAvailableGroups();
+  if (clientIssueExtraGroupIds.length >= 2 || !available.length) {
+    return;
+  }
+  clientIssueGroupPickerOpen = true;
+  _renderClientIssueGroupPicker();
+}
+
+function selectClientIssueExtraGroup(groupIdRaw) {
+  const groupId = Number.parseInt(groupIdRaw, 10);
+  if (!Number.isFinite(groupId) || groupId <= 0) return;
+  if (!_isClientIssueMulti()) return;
+  if (clientIssueExtraGroupIds.length >= 2) return;
+  if (clientIssueExtraGroupIds.includes(groupId)) return;
+
+  const availableIds = new Set(_getClientIssueAvailableGroups().map((item) => Number(item.id)));
+  if (!availableIds.has(groupId)) return;
+
+  clientIssueExtraGroupIds.push(groupId);
+  clientIssueGroupPickerOpen = false;
+  _renderClientIssueExtraGroups();
+}
+
+function removeClientIssueExtraGroup(slotIndexRaw) {
+  const slotIndex = Number.parseInt(slotIndexRaw, 10);
+  if (!Number.isFinite(slotIndex) || slotIndex < 0 || slotIndex >= clientIssueExtraGroupIds.length) {
+    return;
+  }
+  clientIssueExtraGroupIds.splice(slotIndex, 1);
+  _renderClientIssueExtraGroups();
+}
+
+function _renderClientIssueExtraGroups() {
+  const listEl = document.getElementById('client-abonement-issue-extra-groups');
+  const hintEl = document.getElementById('client-abonement-issue-extra-hint');
+  const addBtn = document.getElementById('client-abonement-issue-extra-add-btn');
+  if (!listEl || !hintEl || !addBtn) return;
+
+  if (!_isClientIssueMulti()) {
+    listEl.innerHTML = '';
+    hintEl.textContent = 'Для разового и пробного абонемента доступна только основная группа';
+    addBtn.disabled = true;
+    closeClientIssueGroupPicker();
+    return;
+  }
+
+  const selectedGroupMap = new Map(clientIssueCompatibleGroups.map((item) => [Number(item.id), item]));
+  if (clientIssueExtraGroupIds.length) {
+    listEl.innerHTML = clientIssueExtraGroupIds.map((groupId, index) => {
+      const group = selectedGroupMap.get(Number(groupId));
+      const lessons = group?.lessons_per_week ? `${group.lessons_per_week} в неделю` : 'уроки/нед. не заданы';
+      return `
+        <div class="client-abonement-extra-slot">
+          <div>
+            <div style="font-weight:700;">Доп. группа ${index + 2}: ${escapeHtml(group?.name || `Группа #${Number(groupId)}`)}</div>
+            <div class="small" style="color:var(--hint); margin-top:2px;">
+              ${escapeHtml(group?.direction_title || 'Направление')} • ${escapeHtml(lessons)}
+            </div>
+          </div>
+          <button type="button" class="client-abonement-slot-remove" onclick="removeClientIssueExtraGroup(${index})">&times;</button>
+        </div>
+      `;
+    }).join('');
+  } else {
+    listEl.innerHTML = '<div class="small" style="color:var(--hint);">Пока добавлена только основная группа</div>';
+  }
+
+  const available = _getClientIssueAvailableGroups();
+  const canAdd = clientIssueExtraGroupIds.length < 2 && available.length > 0;
+  addBtn.disabled = !canAdd;
+  if (available.length > 0) {
+    hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3`;
+  } else {
+    hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3 • Больше совместимых групп нет`;
+  }
+
+  if (!canAdd) {
+    closeClientIssueGroupPicker();
+  } else {
+    _renderClientIssueGroupPicker();
+  }
+}
+
+async function loadClientIssueCompatibleGroups() {
+  if (!_isClientIssueMulti()) {
+    clientIssueCompatibleGroups = [];
+    clientIssueExtraGroupIds = [];
+    closeClientIssueGroupPicker();
+    _renderClientIssueExtraGroups();
+    return;
+  }
+
+  const main = _getClientIssueMainGroup();
+  if (!main) {
+    clientIssueCompatibleGroups = [];
+    clientIssueExtraGroupIds = [];
+    closeClientIssueGroupPicker();
+    _renderClientIssueExtraGroups();
+    return;
+  }
+
+  const directionType = String(main.direction_type || '').trim().toLowerCase();
+  const lessonsPerWeek = Number.parseInt(main.lessons_per_week, 10);
+  if (!directionType || !Number.isFinite(lessonsPerWeek) || lessonsPerWeek <= 0) {
+    clientIssueCompatibleGroups = [];
+    clientIssueExtraGroupIds = [];
+    closeClientIssueGroupPicker();
+    _renderClientIssueExtraGroups();
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      direction_type: directionType,
+      lessons_per_week: String(lessonsPerWeek),
+      exclude_group_id: String(Number(main.id)),
+    });
+    const response = await fetch(`/api/groups/compatible?${params.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json().catch(() => ([]));
+    if (!response.ok) {
+      throw new Error((data && data.error) || 'Не удалось загрузить совместимые группы');
+    }
+
+    const rows = Array.isArray(data) ? data : [];
+    clientIssueCompatibleGroups = rows
+      .map((item) => ({ ...item, id: Number.parseInt(item.id, 10) }))
+      .filter((item) => Number.isFinite(item.id) && item.id > 0);
+    const allowedIds = new Set(clientIssueCompatibleGroups.map((item) => Number(item.id)));
+    clientIssueExtraGroupIds = clientIssueExtraGroupIds.filter((id) => allowedIds.has(Number(id))).slice(0, 2);
+    _renderClientIssueExtraGroups();
+  } catch (error) {
+    console.error('Ошибка загрузки совместимых групп для выдачи абонемента:', error);
+    clientIssueCompatibleGroups = [];
+    clientIssueExtraGroupIds = [];
+    closeClientIssueGroupPicker();
+    _renderClientIssueExtraGroups();
+  }
+}
+
+async function onClientIssueMainGroupChange() {
+  closeClientIssueGroupPicker();
+  clientIssueExtraGroupIds = [];
+  await loadClientIssueCompatibleGroups();
+}
+
+async function loadClientAbonementIssueGroups() {
+  try {
+    const response = await fetch('/api/admin/groups/abonements', {
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось загрузить группы');
+    }
+    clientIssueGroups = Array.isArray(data.items) ? data.items : [];
+    _renderClientIssueMainGroupSelect();
+    if (!clientIssueGroups.length) {
+      _setClientAbonementIssueStatus('Доступных групп не найдено', true);
+      clientIssueCompatibleGroups = [];
+      clientIssueExtraGroupIds = [];
+      _renderClientIssueExtraGroups();
+      return;
+    }
+    await onClientIssueMainGroupChange();
+  } catch (error) {
+    console.error('Ошибка загрузки групп для выдачи абонемента:', error);
+    clientIssueGroups = [];
+    clientIssueCompatibleGroups = [];
+    clientIssueExtraGroupIds = [];
+    _renderClientIssueMainGroupSelect();
+    _renderClientIssueExtraGroups();
+    _setClientAbonementIssueStatus(error.message || 'Ошибка сети', true);
+  }
+}
+
+async function loadClientAbonementsForManage() {
+  if (!selectedClientForActions) return;
+  try {
+    const response = await fetch(
+      `/api/admin/clients/${selectedClientForActions.id}/abonements?statuses=active,pending_payment,expired,cancelled`,
+      { headers: getAuthHeaders() }
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось загрузить абонементы');
+    }
+
+    clientManageAbonements = Array.isArray(data.items) ? data.items : [];
+    _renderClientManageAbonementsSelect();
+    if (!clientManageAbonements.length) {
+      _setClientAbonementManageStatus('У клиента нет абонементов');
+    } else {
+      _setClientAbonementManageStatus('');
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки абонементов клиента (manage):', error);
+    clientManageAbonements = [];
+    _renderClientManageAbonementsSelect();
+    _setClientAbonementManageStatus(error.message || 'Ошибка сети', true);
+  }
+}
+
+async function openClientAbonementActionsScreen() {
+  if (!selectedClientForActions) {
+    showNotification('Клиент не выбран');
+    return;
+  }
+
+  const nameEl = document.getElementById('client-abonement-actions-screen-name');
+  const metaEl = document.getElementById('client-abonement-actions-screen-meta');
+  if (!nameEl || !metaEl) {
+    showNotification('Экран действий с абонементами недоступен');
+    return;
+  }
+
+  const client = selectedClientForActions;
+  nameEl.textContent = client.name || 'Без имени';
+  metaEl.textContent = _clientActionMetaParts(client).join(' • ') || '—';
+
+  const issueWeeksEl = document.getElementById('client-abonement-issue-weeks');
+  const issueLessonsEl = document.getElementById('client-abonement-issue-lessons');
+  const issueNoteEl = document.getElementById('client-abonement-issue-note');
+  const manageNoteEl = document.getElementById('client-abonement-manage-note');
+  const manageAdjustDeltaEl = document.getElementById('client-abonement-manage-adjust-delta');
+  const issueTypeEl = document.getElementById('client-abonement-issue-type');
+  if (issueWeeksEl) issueWeeksEl.value = '4';
+  if (issueLessonsEl) issueLessonsEl.value = '';
+  if (issueNoteEl) issueNoteEl.value = '';
+  if (manageNoteEl) manageNoteEl.value = '';
+  if (manageAdjustDeltaEl) manageAdjustDeltaEl.value = '';
+  if (issueTypeEl) issueTypeEl.value = 'multi';
+  clientIssueExtraGroupIds = [];
+  clientIssueCompatibleGroups = [];
+  clientIssueGroupPickerOpen = false;
+  closeClientIssueGroupPicker();
+
+  _setClientAbonementIssueStatus('Загрузка групп...');
+  _setClientAbonementManageStatus('Загрузка абонементов...');
+
+  clientAbonementOpenPanel = null;
+  openClientActionPage('client-abonement-actions');
+  _applyClientAbonementPanels();
+  await Promise.all([
+    loadClientAbonementIssueGroups(),
+    loadClientAbonementsForManage(),
+  ]);
+  onClientIssueTypeChange();
+}
+
+async function submitClientIssueAbonement() {
+  if (!selectedClientForActions) {
+    showNotification('Клиент не выбран');
+    return;
+  }
+
+  const typeEl = document.getElementById('client-abonement-issue-type');
+  const statusEl = document.getElementById('client-abonement-issue-status');
+  const weeksEl = document.getElementById('client-abonement-issue-weeks');
+  const lessonsEl = document.getElementById('client-abonement-issue-lessons');
+  const noteEl = document.getElementById('client-abonement-issue-note');
+  if (!typeEl || !statusEl || !weeksEl || !lessonsEl || !noteEl) return;
+
+  const groupId = _getClientIssueMainGroupId();
+  if (!Number.isFinite(groupId) || groupId <= 0) {
+    _setClientAbonementIssueStatus('Выберите основную группу', true);
+    showNotification('Выберите основную группу');
+    return;
+  }
+
+  const type = String(typeEl.value || '').trim().toLowerCase();
+  const status = String(statusEl.value || '').trim().toLowerCase();
+  const weeksRaw = (weeksEl.value || '').trim();
+  const lessonsRaw = (lessonsEl.value || '').trim();
+  const note = (noteEl.value || '').trim();
+  const payload = {
+    group_id: groupId,
+    abonement_type: type || 'multi',
+    status: status || 'active',
+    note: note || null,
+  };
+  if (type === 'multi') {
+    const bundleGroupIds = _getClientIssueBundleGroupIds();
+    if (!bundleGroupIds.length) {
+      _setClientAbonementIssueStatus('Выберите хотя бы одну группу', true);
+      return;
+    }
+    payload.bundle_group_ids = bundleGroupIds;
+  }
+  if (weeksRaw) payload.weeks = Number.parseInt(weeksRaw, 10);
+  if (lessonsRaw) payload.lessons = Number.parseInt(lessonsRaw, 10);
+
+  _setClientAbonementIssueStatus('Выдаем абонемент...');
+  try {
+    const response = await fetch(`/api/admin/clients/${selectedClientForActions.id}/abonements`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось выдать абонемент');
+    }
+
+    const newId = Number(data?.abonement?.id);
+    const issuedCount = Array.isArray(data?.issued_abonements) ? data.issued_abonements.length : 1;
+    _setClientAbonementIssueStatus(`Готово: выдан абонемент #${Number.isFinite(newId) ? newId : '—'}`);
+    if (issuedCount > 1) {
+      showNotification(`✅ Выдан мульти-абонемент: создано ${issuedCount} абонемента`);
+    } else {
+      showNotification(`✅ Выдан новый абонемент #${Number.isFinite(newId) ? newId : ''}`);
+    }
+    if (lessonsEl) lessonsEl.value = '';
+    if (noteEl) noteEl.value = '';
+    await Promise.all([
+      loadClientAbonementsForManage(),
+      loadClientAbonementsForExtend(),
+    ]);
+  } catch (error) {
+    console.error('Ошибка выдачи нового абонемента:', error);
+    _setClientAbonementIssueStatus(error.message || 'Ошибка сети', true);
+    showNotification('❌ ' + (error.message || 'Не удалось выдать абонемент'));
+  }
+}
+
+async function activateSelectedClientAbonement() {
+  if (!clientManageSelectedAbonement) {
+    showNotification('Выберите абонемент');
+    return;
+  }
+  if (String(clientManageSelectedAbonement.status || '').toLowerCase() !== 'pending_payment') {
+    _setClientAbonementManageStatus('Активировать можно только абонемент в статусе "ожидает оплату"', true);
+    return;
+  }
+
+  const noteEl = document.getElementById('client-abonement-manage-note');
+  const isBundleScope = Number(clientManageSelectedAbonement.bundle_size) > 1 && String(clientManageSelectedAbonement.bundle_id || '').trim();
+  const comment = (noteEl?.value || '').trim();
+  const amountRaw = window.prompt('Сумма подтвержденной оплаты (RUB). Оставьте пустым, если оплата уже создана:');
+  const payload = { apply_bundle: true };
+  if (amountRaw !== null && String(amountRaw).trim() !== '') {
+    const amount = Number.parseInt(String(amountRaw).trim(), 10);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      _setClientAbonementManageStatus('Сумма должна быть целым числом > 0', true);
+      return;
+    }
+    payload.amount = amount;
+  }
+  if (comment) payload.comment = comment;
+
+  _setClientAbonementManageStatus(isBundleScope ? 'Активируем пакет абонементов...' : 'Активируем абонемент...');
+  try {
+    const response = await fetch(`/api/admin/group-abonements/${clientManageSelectedAbonement.id}/activate`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось активировать абонемент');
+    }
+
+    const affectedCount = Number(data?.affected_count || data?.activated_count || 1);
+    if (affectedCount > 1) {
+      _setClientAbonementManageStatus(`Пакет активирован (${affectedCount} абонемента)`);
+      showNotification(`✅ Пакет активирован: ${affectedCount} абонемента`);
+    } else {
+      _setClientAbonementManageStatus('Абонемент активирован');
+      showNotification(`✅ Абонемент #${Number(clientManageSelectedAbonement.id)} активирован`);
+    }
+    if (noteEl) noteEl.value = '';
+    await Promise.all([
+      loadClientAbonementsForManage(),
+      loadClientAbonementsForExtend(),
+    ]);
+  } catch (error) {
+    console.error('Ошибка активации абонемента:', error);
+    _setClientAbonementManageStatus(error.message || 'Ошибка сети', true);
+    showNotification('❌ ' + (error.message || 'Не удалось активировать абонемент'));
+  }
+}
+
+async function cancelSelectedClientAbonement() {
+  if (!clientManageSelectedAbonement) {
+    showNotification('Выберите абонемент');
+    return;
+  }
+  const isBundleScope = Number(clientManageSelectedAbonement.bundle_size) > 1 && String(clientManageSelectedAbonement.bundle_id || '').trim();
+  const selectedId = Number(clientManageSelectedAbonement.id);
+  if (!Number.isFinite(selectedId) || selectedId <= 0) {
+    showNotification('Некорректный абонемент');
+    return;
+  }
+
+  const ok = window.confirm(isBundleScope ? `Отменить весь пакет абонементов (включая #${selectedId})?` : `Отменить абонемент #${selectedId}?`);
+  if (!ok) return;
+
+  const noteEl = document.getElementById('client-abonement-manage-note');
+  const note = (noteEl?.value || '').trim();
+  _setClientAbonementManageStatus(isBundleScope ? 'Отменяем пакет абонементов...' : 'Отменяем абонемент...');
+  try {
+    const response = await fetch(`/api/admin/group-abonements/${selectedId}/cancel`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ note: note || null, apply_bundle: true }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось отменить абонемент');
+    }
+
+    const affectedCount = Number(data?.affected_count || 1);
+    if (affectedCount > 1) {
+      _setClientAbonementManageStatus(`Пакет отменен (${affectedCount} абонемента)`);
+      showNotification(`✅ Пакет отменен: ${affectedCount} абонемента`);
+    } else {
+      _setClientAbonementManageStatus('Абонемент отменен');
+      showNotification(`✅ Абонемент #${selectedId} отменен`);
+    }
+    if (noteEl) noteEl.value = '';
+    await Promise.all([
+      loadClientAbonementsForManage(),
+      loadClientAbonementsForExtend(),
+    ]);
+  } catch (error) {
+    console.error('Ошибка отмены абонемента:', error);
+    _setClientAbonementManageStatus(error.message || 'Ошибка сети', true);
+    showNotification('❌ ' + (error.message || 'Не удалось отменить абонемент'));
+  }
+}
+
+async function adjustSelectedClientAbonementCredits() {
+  if (!clientManageSelectedAbonement) {
+    showNotification('Выберите абонемент');
+    return;
+  }
+
+  const deltaEl = document.getElementById('client-abonement-manage-adjust-delta');
+  const noteEl = document.getElementById('client-abonement-manage-note');
+  const deltaRaw = (deltaEl?.value || '').trim();
+  const delta = Number.parseInt(deltaRaw, 10);
+  if (!Number.isFinite(delta) || delta === 0) {
+    _setClientAbonementManageStatus('Укажите корректировку занятий: целое число, не равное 0', true);
+    return;
+  }
+
+  const selectedId = Number(clientManageSelectedAbonement.id);
+  if (!Number.isFinite(selectedId) || selectedId <= 0) {
+    _setClientAbonementManageStatus('Некорректный абонемент', true);
+    return;
+  }
+
+  const isBundleScope = Number(clientManageSelectedAbonement.bundle_size) > 1 && String(clientManageSelectedAbonement.bundle_id || '').trim();
+  const note = (noteEl?.value || '').trim();
+  _setClientAbonementManageStatus(isBundleScope ? 'Корректируем пакет абонементов...' : 'Корректируем баланс абонемента...');
+  try {
+    const response = await fetch(`/api/admin/group-abonements/${selectedId}/adjust-credits`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        delta_credits: delta,
+        note: note || null,
+        apply_bundle: true,
+      }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось применить корректировку');
+    }
+
+    const affectedCount = Number(data?.affected_count || 1);
+    const deltaLabel = delta > 0 ? `+${delta}` : String(delta);
+    if (affectedCount > 1) {
+      _setClientAbonementManageStatus(`Коррекция применена к пакету: ${deltaLabel} занятий (x${affectedCount})`);
+      showNotification(`✅ Коррекция пакета: ${deltaLabel} занятий для ${affectedCount} абонементов`);
+    } else {
+      _setClientAbonementManageStatus(`Коррекция применена: ${deltaLabel} занятий`);
+      showNotification(`✅ Коррекция применена: ${deltaLabel} занятий`);
+    }
+    if (deltaEl) deltaEl.value = '';
+    await Promise.all([
+      loadClientAbonementsForManage(),
+      loadClientAbonementsForExtend(),
+    ]);
+  } catch (error) {
+    console.error('Ошибка корректировки занятий абонемента:', error);
+    _setClientAbonementManageStatus(error.message || 'Ошибка сети', true);
+    showNotification('❌ ' + (error.message || 'Не удалось применить корректировку'));
+  }
+}
+
 async function openClientAbonementExtendScreen() {
   if (!selectedClientForActions) {
     showNotification('Клиент не выбран');
@@ -17414,6 +18431,15 @@ async function openClientAbonementExtendScreen() {
 
   openClientActionPage('client-abonement-extend');
   await loadClientAbonementsForExtend();
+  const preferredId = Number(clientManageSelectedAbonement?.id);
+  if (Number.isFinite(preferredId) && preferredId > 0) {
+    const matching = clientExtendAbonements.find((item) => Number(item.id) === preferredId);
+    const selectEl = document.getElementById('client-extend-abonement-select');
+    if (matching && selectEl) {
+      selectEl.value = String(preferredId);
+      onClientExtendAbonementChange();
+    }
+  }
 }
 
 function _renderClientExtendAbonementSelect() {
@@ -17577,11 +18603,12 @@ async function submitClientAbonementExtend() {
   const lessonsInput = document.getElementById('client-extend-lessons-input');
   const noteEl = document.getElementById('client-extend-note');
   const statusEl = document.getElementById('client-extend-status');
+  const isBundleScope = Number(clientExtendSelectedAbonement.bundle_size) > 1 && String(clientExtendSelectedAbonement.bundle_id || '').trim();
   const weeks = Math.max(1, parseInt(weeksInput?.value || '1', 10) || 1);
   const lessons = Math.max(clientExtendLessonsPerWeek, parseInt(lessonsInput?.value || String(clientExtendLessonsPerWeek), 10) || clientExtendLessonsPerWeek);
   const note = (noteEl?.value || '').trim();
 
-  if (statusEl) statusEl.textContent = 'Применяем продление...';
+  if (statusEl) statusEl.textContent = isBundleScope ? 'Применяем продление для пакета...' : 'Применяем продление...';
   try {
     const response = await fetch(`/api/admin/group-abonements/${clientExtendSelectedAbonement.id}/extend`, {
       method: 'POST',
@@ -17590,6 +18617,7 @@ async function submitClientAbonementExtend() {
         weeks,
         lessons,
         note: note || null,
+        apply_bundle: true,
       })
     });
     const data = await response.json().catch(() => ({}));
@@ -17599,11 +18627,23 @@ async function submitClientAbonementExtend() {
       return;
     }
 
+    const affectedCount = Number(data?.affected_count || 1);
     if (statusEl) {
-      statusEl.textContent = `Готово: +${data.applied?.weeks || weeks} нед. и +${data.applied?.lessons || lessons} занятий`;
+      if (affectedCount > 1) {
+        statusEl.textContent = `Готово: пакет продлен (${affectedCount} абонемента), +${data.applied?.weeks || weeks} нед. и +${data.applied?.lessons || lessons} занятий`;
+      } else {
+        statusEl.textContent = `Готово: +${data.applied?.weeks || weeks} нед. и +${data.applied?.lessons || lessons} занятий`;
+      }
     }
-    showNotification(`✅ Продление применено: +${data.applied?.weeks || weeks} нед. / +${data.applied?.lessons || lessons} занятий`);
-    await loadClientAbonementsForExtend();
+    if (affectedCount > 1) {
+      showNotification(`✅ Продление пакета: ${affectedCount} абонемента, +${data.applied?.weeks || weeks} нед. / +${data.applied?.lessons || lessons} занятий`);
+    } else {
+      showNotification(`✅ Продление применено: +${data.applied?.weeks || weeks} нед. / +${data.applied?.lessons || lessons} занятий`);
+    }
+    await Promise.all([
+      loadClientAbonementsForExtend(),
+      loadClientAbonementsForManage(),
+    ]);
   } catch (error) {
     console.error('Ошибка при продлении абонемента:', error);
     if (statusEl) statusEl.textContent = 'Ошибка сети';
@@ -17862,6 +18902,9 @@ async function submitClientSickLeave() {
 function displayProfilePhoto(photoPath) {
   const img = document.getElementById('profile-photo-img');
   const placeholder = document.getElementById('profile-photo-placeholder');
+  if (!img || !placeholder) {
+    return;
+  }
   
   const mediaUrl = buildMediaUrl(photoPath);
   if (mediaUrl) {
@@ -17872,96 +18915,11 @@ function displayProfilePhoto(photoPath) {
 }
 
 async function uploadProfilePhoto() {
-  if (!isStaff) {
-    showNotification('? Загрузка фото доступна только для персонала');
-    return;
-  }
-  
-  if (!currentUserData) {
-    showNotification('? Данные профиля не загружены');
-    return;
-  }
-  
-  const fileInput = document.getElementById('profile-photo-input');
-  if (!fileInput.files || fileInput.files.length === 0) {
-    showNotification('⚠️ Выберите файл');
-    return;
-  }
-  
-  const file = fileInput.files[0];
-  const userId = currentUserData.id;
-  
-  // Проверяем размер
-  if (file.size > 5 * 1024 * 1024) {
-    showNotification('? Размер файла не должен превышать 5 МБ');
-    return;
-  }
-  
-  try {
-    const formData = new FormData();
-    formData.append('photo', file);
-    
-    console.log('Загружаем фото...');
-    
-    const response = await fetch(`/users/${userId}/photo`, {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      currentUserData.photo_path = data.photo_path;
-      displayProfilePhoto(data.photo_path);
-      showNotification('? Фото успешно загружено!');
-      fileInput.value = '';
-    } else {
-      const error = await response.json();
-      showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
-    }
-  } catch (error) {
-    console.error('Ошибка при загрузке фото:', error);
-    showNotification('❌ Ошибка при загрузке фото');
-  }
+  showNotification('Загрузка фото пользователя отключена. Используйте карточку персонала.');
 }
 
 async function deleteProfilePhoto() {
-  if (!isStaff) {
-    showNotification('? Удаление фото доступно только для персонала');
-    return;
-  }
-  
-  if (!currentUserData) {
-    showNotification('? Данные профиля не загружены');
-    return;
-  }
-  
-  if (!currentUserData.photo_path) {
-    showNotification('⚠️ Фото не найдено');
-    return;
-  }
-  
-  try {
-    const response = await fetch(`/users/${currentUserData.id}/photo`, {
-      method: 'DELETE'
-    });
-    
-    if (response.ok) {
-      currentUserData.photo_path = null;
-      
-      const img = document.getElementById('profile-photo-img');
-      const placeholder = document.getElementById('profile-photo-placeholder');
-      img.style.display = 'none';
-      placeholder.style.display = 'block';
-      
-      showNotification('? Фото удалено!');
-    } else {
-      const error = await response.json();
-      showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
-    }
-  } catch (error) {
-    console.error('Ошибка при удалении фото:', error);
-    showNotification('? Ошибка при удалении фото');
-  }
+  showNotification('Удаление фото пользователя отключено. Используйте карточку персонала.');
 }
 
 /* ====== АВТОМАТИЧЕСКАЯ РЕГИСТРАЦИЯ ====== */
@@ -17980,13 +18938,10 @@ async function registerUserIfNeeded(user) {
     // Если пользователя нет, регистрируем его
     console.log('Регистрируем нового пользователя...');
     
-    const registerResponse = await fetch('/users', {
+    const registerResponse = await fetch('/users/self', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
-        telegram_id: user.id,
         username: user.username,
         phone: '',  // Пусто, заполнит в профиле
         name: user.first_name || 'Пользователь',

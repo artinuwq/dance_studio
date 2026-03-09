@@ -7,6 +7,7 @@ from dance_studio.web.middleware import (
     register_auth_middleware,
     register_csrf_middleware,
     register_error_handlers,
+    register_security_headers_middleware,
 )
 from dance_studio.web.routes import (
     admin_bp,
@@ -28,6 +29,7 @@ def create_app() -> Flask:
 
     register_auth_middleware(app)
     register_csrf_middleware(app)
+    register_security_headers_middleware(app)
     register_error_handlers(app)
 
     app.register_blueprint(auth_bp)

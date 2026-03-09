@@ -11,7 +11,7 @@ WorkingDirectory=/opt/dance_studio
 Environment="PYTHONUNBUFFERED=1"
 Environment="PYTHONPATH=/opt/dance_studio/src"
 EnvironmentFile=-/opt/dance_studio/.env
-ExecStart=/opt/dance_studio/.venv/bin/python /opt/dance_studio/scripts/run_web.py
+ExecStart=/opt/dance_studio/.venv/bin/gunicorn dance_studio.web.wsgi:app --bind 127.0.0.1:3000 --workers 2 --threads 4 --timeout 30 --graceful-timeout 30
 Restart=on-failure
 RestartSec=5
 

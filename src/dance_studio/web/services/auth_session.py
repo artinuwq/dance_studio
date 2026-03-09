@@ -169,7 +169,7 @@ def _is_csrf_valid() -> bool:
 
     sid = request.cookies.get("sid", "").strip()
     if not sid:
-        return True
+        return False
 
     return _is_double_submit_token_valid()
 

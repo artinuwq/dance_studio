@@ -3,12 +3,12 @@ from __future__ import annotations
 import requests
 
 from dance_studio.core.media_manager import save_user_photo
-from dance_studio.db.models import User
+
 
 def _build_image_url(path: str | None) -> str | None:
     """
-    Нормализует сохранённый относительный путь (var/media/..., database/media/...)
-    в HTTP URL, который обслуживает /media/<path:...>.
+    Normalizes stored relative paths (var/media/..., database/media/...)
+    into HTTP URL served by /media/<path:...>.
     """
     if not path:
         return None
@@ -21,6 +21,7 @@ def _build_image_url(path: str | None) -> str | None:
     if norm.startswith("media/"):
         return "/media/" + norm[len("media/"):]
     return "/" + norm
+
 
 def normalize_teaches(value):
     if value is None:
@@ -37,19 +38,25 @@ def normalize_teaches(value):
             return 0
     return None
 
+
 def try_fetch_telegram_avatar(telegram_id, db, staff_obj=None):
-    """Пробует скачать аватар пользователя из Telegram и сохранить в БД"""
+    """
+    Attempts to download Telegram profile photo and persist it for staff.
+    Client avatars should be consumed via Telegram API proxy only.
+    """
     try:
         from dance_studio.core.config import BOT_TOKEN
     except Exception:
         return
 
+    if staff_obj is None or getattr(staff_obj, "photo_path", None):
+        return
+
     try:
-        # Получаем фото профиля
         resp = requests.get(
             f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos",
             params={"user_id": telegram_id, "limit": 1},
-            timeout=5
+            timeout=5,
         )
         data = resp.json()
         if not data.get("ok") or data.get("result", {}).get("total_count", 0) == 0:
@@ -59,7 +66,7 @@ def try_fetch_telegram_avatar(telegram_id, db, staff_obj=None):
         file_resp = requests.get(
             f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
             params={"file_id": file_id},
-            timeout=5
+            timeout=5,
         )
         file_data = file_resp.json()
         if not file_data.get("ok"):
@@ -68,26 +75,21 @@ def try_fetch_telegram_avatar(telegram_id, db, staff_obj=None):
         file_path = file_data["result"]["file_path"]
         photo_resp = requests.get(
             f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}",
-            timeout=10
+            timeout=10,
         )
         if photo_resp.status_code != 200:
             return
 
-        user = db.query(User).filter_by(telegram_id=telegram_id).first()
-        storage_id = user.id if user else telegram_id
+        storage_id = getattr(staff_obj, "id", None) or telegram_id
         photo_path = save_user_photo(storage_id, photo_resp.content)
         if not photo_path:
             return
 
-        if user and not user.photo_path:
-            user.photo_path = photo_path
-
-        if staff_obj and not staff_obj.photo_path:
-            staff_obj.photo_path = photo_path
-
+        staff_obj.photo_path = photo_path
         db.commit()
     except Exception:
-        # Без падения сервера при ошибке сети
+        # No hard failure on network issues.
         return
+
 
 __all__ = ["_build_image_url", "normalize_teaches", "try_fetch_telegram_avatar"]

@@ -23,6 +23,8 @@ from dance_studio.core.notification_dispatch import (
 )
 from dance_studio.core.statuses import (
     ABONEMENT_STATUS_ACTIVE,
+    ABONEMENT_STATUS_CANCELLED,
+    ABONEMENT_STATUS_EXPIRED,
     ABONEMENT_STATUS_PENDING_PAYMENT,
     BOOKING_NEGATIVE_STATUSES,
     BOOKING_PAYMENT_CONFIRMED_STATUSES,
@@ -420,6 +422,46 @@ def _active_group_abonements_for_schedule_date(db, group_id: int, schedule_date:
     for row in rows:
         by_user.setdefault(row.user_id, row)
     return by_user
+
+
+def _parse_apply_bundle_flag(payload: dict | None, *, default: bool = True) -> bool:
+    if not isinstance(payload, dict):
+        return default
+    raw_value = payload.get("apply_bundle", None)
+    if raw_value is None:
+        return default
+    if isinstance(raw_value, bool):
+        return raw_value
+    if isinstance(raw_value, (int, float)):
+        return bool(raw_value)
+    normalized = str(raw_value).strip().lower()
+    if normalized in {"1", "true", "yes", "y", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "n", "off"}:
+        return False
+    raise ValueError("apply_bundle должен быть boolean")
+
+
+def _collect_target_abonements(
+    db,
+    abonement: GroupAbonement,
+    *,
+    apply_bundle: bool,
+) -> list[GroupAbonement]:
+    bundle_id = str(getattr(abonement, "bundle_id", "") or "").strip()
+    if not apply_bundle or not bundle_id:
+        return [abonement]
+
+    rows = (
+        db.query(GroupAbonement)
+        .filter(
+            GroupAbonement.user_id == abonement.user_id,
+            GroupAbonement.bundle_id == bundle_id,
+        )
+        .order_by(GroupAbonement.id.asc())
+        .all()
+    )
+    return rows if len(rows) > 1 else [abonement]
 
 
 def _extend_abonement_by_week(
@@ -1966,8 +2008,60 @@ def _resolve_group_active_abonement(db, user_id: int, group_id: int, date_val):
     return query.order_by(GroupAbonement.valid_to.is_(None), GroupAbonement.valid_to).first()
 
 
+def _serialize_user_payload(user: User, *, include_photo: bool = False) -> dict:
+    payload = {
+        "id": user.id,
+        "telegram_id": user.telegram_id,
+        "username": user.username,
+        "phone": user.phone,
+        "name": user.name,
+        "email": user.email,
+        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
+        "registered_at": user.registered_at.isoformat(),
+        "status": user.status,
+        "user_notes": user.user_notes,
+        "staff_notes": user.staff_notes,
+    }
+    if include_photo:
+        payload["photo_path"] = user.photo_path
+    return payload
+
+
+def _build_staff_check_payload(db, telegram_id: int) -> dict:
+    staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
+    if not staff:
+        return {"is_staff": False, "staff": None}
+
+    # Load user profile to fill possible missing staff fields.
+    try:
+        user = db.query(User).filter_by(telegram_id=telegram_id).first()
+    except Exception:
+        user = None
+
+    can_edit, edit_block_reason = _staff_editability_payload(db, staff)
+    staff_data = {
+        "id": staff.id,
+        "name": staff.name or (user.name if user else None),
+        "position": staff.position,
+        "specialization": staff.specialization,
+        "bio": staff.bio,
+        "teaches": staff.teaches,
+        "phone": staff.phone,
+        "email": staff.email,
+        "photo_path": staff.photo_path or (user.photo_path if user else None),
+        "can_edit": can_edit,
+        "can_delete": can_edit,
+        "edit_block_reason": edit_block_reason,
+    }
+    return {"is_staff": True, "staff": staff_data}
+
+
 @bp.route("/users", methods=["POST"])
 def register_user():
+    perm_error = require_permission("view_all_users")
+    if perm_error:
+        return perm_error
+
     db = g.db
     data = request.json or {}
 
@@ -2000,19 +2094,38 @@ def register_user():
     db.add(user)
     db.commit()
 
-    return {
-        "id": user.id,
-        "telegram_id": user.telegram_id,
-        "username": user.username,
-        "phone": user.phone,
-        "name": user.name,
-        "email": user.email,
-        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
-        "registered_at": user.registered_at.isoformat(),
-        "status": user.status,
-        "user_notes": user.user_notes,
-        "staff_notes": user.staff_notes
-    }, 201
+    return _serialize_user_payload(user), 201
+
+
+@bp.route("/users/self", methods=["POST"])
+def register_user_self():
+    db = g.db
+
+    telegram_id = getattr(g, "telegram_id", None)
+    if not telegram_id:
+        return {"error": "auth required"}, 401
+    try:
+        telegram_id = int(telegram_id)
+    except (TypeError, ValueError):
+        return {"error": "invalid telegram_id"}, 400
+
+    existing_user = db.query(User).filter_by(telegram_id=telegram_id).first()
+    if existing_user:
+        return _serialize_user_payload(existing_user), 200
+
+    data = request.json or {}
+    user = User(
+        telegram_id=telegram_id,
+        username=data.get("username"),
+        phone=data.get("phone"),
+        name=(data.get("name") or "Пользователь").strip() or "Пользователь",
+        email=data.get("email"),
+        birth_date=datetime.strptime(data["birth_date"], "%Y-%m-%d").date() if data.get("birth_date") else None,
+        user_notes=data.get("user_notes"),
+    )
+    db.add(user)
+    db.commit()
+    return _serialize_user_payload(user), 201
 
 
 @bp.route("/users/<int:user_id>", methods=["GET"])
@@ -2027,19 +2140,7 @@ def get_user(user_id):
     if not user:
         return {"error": "Пользователь не найден"}, 404
     
-    return {
-        "id": user.id,
-        "telegram_id": user.telegram_id,
-        "username": user.username,
-        "phone": user.phone,
-        "name": user.name,
-        "email": user.email,
-        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
-        "registered_at": user.registered_at.isoformat(),
-        "status": user.status,
-        "user_notes": user.user_notes,
-        "staff_notes": user.staff_notes
-    }
+    return _serialize_user_payload(user)
 
 
 @bp.route("/users/me", methods=["GET"])
@@ -2048,20 +2149,16 @@ def get_my_user():
     user = get_current_user_from_request(db)
     if not user:
         return {"error": "user not found"}, 404
-    return {
-        "id": user.id,
-        "telegram_id": user.telegram_id,
-        "username": user.username,
-        "phone": user.phone,
-        "name": user.name,
-        "email": user.email,
-        "birth_date": user.birth_date.isoformat() if user.birth_date else None,
-        "registered_at": user.registered_at.isoformat(),
-        "status": user.status,
-        "user_notes": user.user_notes,
-        "staff_notes": user.staff_notes,
-        "photo_path": user.photo_path,
-    }
+    payload = _serialize_user_payload(user)
+
+    if user.telegram_id is not None:
+        staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
+        if staff:
+            photo_path = staff.photo_path or user.photo_path
+            if photo_path:
+                payload["photo_path"] = photo_path
+
+    return payload
 
 
 @bp.route("/users/list/all")
@@ -2184,44 +2281,34 @@ def check_staff_by_telegram(telegram_id):
     Проверить является ли пользователем сотрудником.
     Если данные персонала неполные, подгружает данные из профиля пользователя (без сохранения в БД).
     """
+    perm_error = require_permission("view_all_users")
+    if perm_error:
+        return perm_error
+
     try:
         db = g.db
-        staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
-        
-        if not staff:
-            return jsonify({
-                "is_staff": False,
-                "staff": None
-            })
-        
-        # Загружаем профиль пользователя для подстановки данных
-        try:
-            user = db.query(User).filter_by(telegram_id=telegram_id).first()
-        except:
-            user = None
-        
-        can_edit, edit_block_reason = _staff_editability_payload(db, staff)
-
-        # Если данные персонала неполные, берем из профиля пользователя
-        staff_data = {
-            "id": staff.id,
-            "name": staff.name or (user.name if user else None),
-            "position": staff.position,
-            "specialization": staff.specialization,
-            "bio": staff.bio,
-            "teaches": staff.teaches,
-            "phone": staff.phone,
-            "email": staff.email,
-            "photo_path": staff.photo_path or (user.photo_path if user else None),
-            "can_edit": can_edit,
-            "can_delete": can_edit,
-            "edit_block_reason": edit_block_reason,
-        }
-        
+        return jsonify(_build_staff_check_payload(db, telegram_id))
+    except Exception as e:
+        print(f"⚠️ Ошибка при проверке сотрудника: {e}")
         return jsonify({
-            "is_staff": True,
-            "staff": staff_data
+            "is_staff": False,
+            "staff": None
         })
+
+
+@bp.route("/staff/me")
+def check_current_staff():
+    telegram_id = getattr(g, "telegram_id", None)
+    if not telegram_id:
+        return {"error": "auth required"}, 401
+    try:
+        telegram_id = int(telegram_id)
+    except (TypeError, ValueError):
+        return {"error": "invalid telegram_id"}, 400
+
+    try:
+        db = g.db
+        return jsonify(_build_staff_check_payload(db, telegram_id))
     except Exception as e:
         print(f"⚠️ Ошибка при проверке сотрудника: {e}")
         return jsonify({
@@ -4293,23 +4380,63 @@ def admin_activate_abonement(abonement_id):
     db = g.db
     payload = request.json or {}
     staff = _get_current_staff(db)
+    try:
+        apply_bundle = _parse_apply_bundle_flag(payload, default=True)
+    except ValueError as exc:
+        return {"error": safe_client_error_message(exc)}, 400
 
     abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
     if not abonement:
         return {"error": "Абонемент не найден"}, 404
+    target_rows = _collect_target_abonements(db, abonement, apply_bundle=apply_bundle)
+    target_ids = [int(row.id) for row in target_rows if row and row.id]
+    bundle_scope = len(target_ids) > 1
+
+    blocked_rows = []
+    pending_rows = []
+    for row in target_rows:
+        current_status = str(getattr(row, "status", "") or "").strip().lower()
+        if current_status == ABONEMENT_STATUS_PENDING_PAYMENT:
+            pending_rows.append(row)
+            continue
+        if current_status == ABONEMENT_STATUS_ACTIVE:
+            continue
+        blocked_rows.append({"id": int(row.id), "status": current_status or "unknown"})
+
+    if blocked_rows:
+        details = ", ".join(f"#{item['id']} ({item['status']})" for item in blocked_rows)
+        return {
+            "error": (
+                "Нельзя активировать пакет: некоторые абонементы имеют неподдерживаемый статус: "
+                f"{details}"
+            )
+        }, 400
+
+    if not pending_rows:
+        return {
+            "status": ABONEMENT_STATUS_ACTIVE,
+            "abonement_id": abonement.id,
+            "payment_id": None,
+            "activated_count": 0,
+            "activated_abonement_ids": [],
+            "affected_count": len(target_ids),
+            "affected_abonement_ids": target_ids,
+            "bundle_scope": bundle_scope,
+            "bundle_id": str(getattr(abonement, "bundle_id", "") or "").strip() or None,
+            "group_access_notified": True,
+            "group_access_notify_error": "already_active",
+        }
 
     payment = None
-    if abonement.id:
-        payment = (
-            db.query(PaymentTransaction)
-            .filter(
-                PaymentTransaction.user_id == abonement.user_id,
-                PaymentTransaction.payment_type == "abonement",
-                PaymentTransaction.object_id == abonement.id,
-            )
-            .order_by(PaymentTransaction.created_at.desc())
-            .first()
-        )
+    payment_query = db.query(PaymentTransaction).filter(
+        PaymentTransaction.user_id == abonement.user_id,
+        PaymentTransaction.payment_type == "abonement",
+    )
+    if bundle_scope:
+        payment_query = payment_query.filter(PaymentTransaction.object_id.in_(target_ids))
+    else:
+        payment_query = payment_query.filter(PaymentTransaction.object_id == abonement.id)
+    payment = payment_query.order_by(PaymentTransaction.created_at.desc()).first()
 
     confirmed_at = datetime.utcnow()
     if payment:
@@ -4338,26 +4465,69 @@ def admin_activate_abonement(abonement_id):
         )
         db.add(payment)
 
-    try:
-        set_abonement_status(abonement, ABONEMENT_STATUS_ACTIVE)
-    except ValueError as exc:
-        db.rollback()
-        current_status = str(getattr(abonement, "status", "") or "").strip().lower()
-        if current_status != ABONEMENT_STATUS_PENDING_PAYMENT:
-            return {"error": f"Нельзя активировать абонемент из статуса '{current_status}'"}, 400
-        return {"error": str(exc)}, 400
+    for target in pending_rows:
+        try:
+            set_abonement_status(target, ABONEMENT_STATUS_ACTIVE)
+        except ValueError as exc:
+            db.rollback()
+            current_status = str(getattr(target, "status", "") or "").strip().lower()
+            if current_status != ABONEMENT_STATUS_PENDING_PAYMENT:
+                return {"error": f"Нельзя активировать абонемент из статуса '{current_status}'"}, 400
+            return {"error": str(exc)}, 400
 
     db.commit()
 
-    group_access_notified, group_access_notify_error = _notify_abonement_group_access_links(db, abonement)
+    notify_target = target_rows[0] if bundle_scope else pending_rows[0]
+    group_access_notified, group_access_notify_error = _notify_abonement_group_access_links(db, notify_target)
+    activated_ids = [int(row.id) for row in pending_rows if row and row.id]
 
     return {
         "status": ABONEMENT_STATUS_ACTIVE,
         "abonement_id": abonement.id,
         "payment_id": payment.id if payment else None,
+        "activated_count": len(activated_ids),
+        "activated_abonement_ids": activated_ids,
+        "affected_count": len(target_ids),
+        "affected_abonement_ids": target_ids,
+        "bundle_scope": bundle_scope,
+        "bundle_id": str(getattr(abonement, "bundle_id", "") or "").strip() or None,
         "group_access_notified": group_access_notified,
         "group_access_notify_error": group_access_notify_error,
     }
+
+
+@bp.route("/api/admin/groups/abonements", methods=["GET"])
+def admin_list_groups_for_abonements():
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    rows = (
+        db.query(Group, Direction, Staff)
+        .join(Direction, Group.direction_id == Direction.direction_id)
+        .join(Staff, Group.teacher_id == Staff.id)
+        .order_by(Direction.title.asc(), Group.name.asc())
+        .all()
+    )
+
+    items = []
+    for group, direction, teacher in rows:
+        items.append(
+            {
+                "id": group.id,
+                "name": group.name,
+                "direction_id": direction.direction_id if direction else None,
+                "direction_title": direction.title if direction else None,
+                "direction_type": direction.direction_type if direction else None,
+                "teacher_id": teacher.id if teacher else None,
+                "teacher_name": teacher.name if teacher else None,
+                "lessons_per_week": group.lessons_per_week,
+                "max_students": group.max_students,
+            }
+        )
+
+    return jsonify({"items": items})
 
 
 @bp.route("/api/admin/clients/merge", methods=["POST"])
@@ -4664,9 +4834,31 @@ def admin_get_client_abonements(user_id: int):
     if not user:
         return {"error": "Клиент не найден"}, 404
 
+    raw_statuses = (request.args.get("statuses") or "").strip().lower()
+    requested_statuses = []
+    if raw_statuses:
+        for token in raw_statuses.split(","):
+            status = str(token or "").strip().lower()
+            if not status:
+                continue
+            if status not in {
+                ABONEMENT_STATUS_PENDING_PAYMENT,
+                ABONEMENT_STATUS_ACTIVE,
+                ABONEMENT_STATUS_EXPIRED,
+                ABONEMENT_STATUS_CANCELLED,
+            }:
+                return {"error": f"Неизвестный статус абонемента: {status}"}, 400
+            if status not in requested_statuses:
+                requested_statuses.append(status)
+    if not requested_statuses:
+        requested_statuses = [ABONEMENT_STATUS_ACTIVE]
+
     items = (
         db.query(GroupAbonement)
-        .filter_by(user_id=user.id, status="active")
+        .filter(
+            GroupAbonement.user_id == user.id,
+            GroupAbonement.status.in_(requested_statuses),
+        )
         .order_by(GroupAbonement.created_at.desc())
         .all()
     )
@@ -4675,6 +4867,226 @@ def admin_get_client_abonements(user_id: int):
             "user": {"id": user.id, "telegram_id": user.telegram_id, "name": user.name},
             "items": [_serialize_client_abonement_for_admin(db, item) for item in items],
         }
+    )
+
+
+@bp.route("/api/admin/clients/<int:user_id>/abonements", methods=["POST"])
+def admin_create_client_abonement(user_id: int):
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        return {"error": "Клиент не найден"}, 404
+
+    payload = request.json or {}
+    try:
+        group_id = int(payload.get("group_id"))
+    except (TypeError, ValueError):
+        return {"error": "group_id должен быть целым числом"}, 400
+    if group_id <= 0:
+        return {"error": "group_id должен быть больше 0"}, 400
+
+    abonement_type = str(payload.get("abonement_type") or "multi").strip().lower()
+    if abonement_type not in {"single", "multi", "trial"}:
+        return {"error": "abonement_type должен быть single, multi или trial"}, 400
+
+    target_status = str(payload.get("status") or ABONEMENT_STATUS_ACTIVE).strip().lower()
+    if target_status not in {ABONEMENT_STATUS_ACTIVE, ABONEMENT_STATUS_PENDING_PAYMENT}:
+        return {"error": "status должен быть active или pending_payment"}, 400
+
+    raw_bundle_group_ids = payload.get("bundle_group_ids")
+    bundle_group_ids: list[int] = []
+    if raw_bundle_group_ids not in (None, "", []):
+        if not isinstance(raw_bundle_group_ids, list):
+            return {"error": "bundle_group_ids должен быть массивом целых group_id"}, 400
+        for raw_value in raw_bundle_group_ids:
+            try:
+                parsed_group_id = int(raw_value)
+            except (TypeError, ValueError):
+                return {"error": "bundle_group_ids должен быть массивом целых group_id"}, 400
+            if parsed_group_id <= 0:
+                return {"error": "bundle_group_ids должен содержать только положительные значения"}, 400
+            if parsed_group_id not in bundle_group_ids:
+                bundle_group_ids.append(parsed_group_id)
+
+    if group_id not in bundle_group_ids:
+        bundle_group_ids.insert(0, group_id)
+    if not bundle_group_ids:
+        bundle_group_ids = [group_id]
+    if len(bundle_group_ids) > 3:
+        return {"error": "Можно указать максимум 3 группы в мульти-абонементе"}, 400
+
+    if abonement_type in {"single", "trial"} and len(bundle_group_ids) > 1:
+        return {"error": "Для single/trial можно указать только одну группу"}, 400
+
+    groups = db.query(Group).filter(Group.id.in_(bundle_group_ids)).all()
+    groups_by_id = {int(row.id): row for row in groups if row and row.id}
+    missing_group_ids = [gid for gid in bundle_group_ids if gid not in groups_by_id]
+    if missing_group_ids:
+        return {"error": f"Группы не найдены: {', '.join(str(v) for v in missing_group_ids)}"}, 404
+
+    primary_group = groups_by_id[group_id]
+    lessons_per_week = int(primary_group.lessons_per_week) if primary_group.lessons_per_week else 0
+
+    if abonement_type == "multi":
+        direction_ids = {row.direction_id for row in groups if row and row.direction_id}
+        directions = db.query(Direction).filter(Direction.direction_id.in_(list(direction_ids))).all() if direction_ids else []
+        direction_type_by_id = {
+            int(direction.direction_id): str(direction.direction_type or "").strip().lower()
+            for direction in directions
+            if direction and direction.direction_id
+        }
+        base_direction_type = direction_type_by_id.get(int(primary_group.direction_id or 0), "")
+        if not base_direction_type:
+            return {"error": "Для основной группы не найдено направление"}, 400
+
+        if lessons_per_week <= 0:
+            return {"error": "Для группы не настроено количество занятий в неделю"}, 400
+        for bundle_group_id in bundle_group_ids:
+            bundle_group = groups_by_id[bundle_group_id]
+            current_lessons_per_week = int(bundle_group.lessons_per_week or 0)
+            if current_lessons_per_week != lessons_per_week:
+                return {
+                    "error": (
+                        "Все группы в мульти-абонементе должны иметь одинаковое "
+                        "количество занятий в неделю"
+                    )
+                }, 400
+            current_direction_type = direction_type_by_id.get(int(bundle_group.direction_id or 0), "")
+            if current_direction_type != base_direction_type:
+                return {"error": "Все группы в мульти-абонементе должны быть одного типа направления"}, 400
+
+    weeks_raw = payload.get("weeks")
+    lessons_raw = payload.get("lessons")
+    weeks = None
+    lessons = None
+
+    if weeks_raw not in (None, ""):
+        try:
+            weeks = int(weeks_raw)
+        except (TypeError, ValueError):
+            return {"error": "weeks должен быть целым числом"}, 400
+        if weeks <= 0:
+            return {"error": "weeks должен быть больше 0"}, 400
+
+    if lessons_raw not in (None, ""):
+        try:
+            lessons = int(lessons_raw)
+        except (TypeError, ValueError):
+            return {"error": "lessons должен быть целым числом"}, 400
+        if lessons <= 0:
+            return {"error": "lessons должен быть больше 0"}, 400
+
+    if abonement_type == "multi":
+        if lessons_per_week <= 0:
+            return {"error": "Для группы не настроено количество занятий в неделю"}, 400
+
+        if weeks is None and lessons is None:
+            weeks = 4
+            lessons = weeks * lessons_per_week
+        elif weeks is None and lessons is not None:
+            if lessons % lessons_per_week != 0:
+                return {"error": f"lessons должен быть кратен {lessons_per_week}"}, 400
+            weeks = lessons // lessons_per_week
+        elif lessons is None and weeks is not None:
+            lessons = weeks * lessons_per_week
+        else:
+            expected_lessons = weeks * lessons_per_week
+            if lessons != expected_lessons:
+                return {"error": f"Несоответствие: при {weeks} нед. должно быть {expected_lessons} занятий"}, 400
+    else:
+        weeks = weeks if weeks is not None else 1
+        lessons = lessons if lessons is not None else 1
+
+    valid_from = datetime.utcnow()
+    valid_from_raw = (payload.get("valid_from") or "").strip()
+    if valid_from_raw:
+        try:
+            valid_from = datetime.strptime(valid_from_raw, "%Y-%m-%d")
+        except ValueError:
+            return {"error": "valid_from должен быть в формате YYYY-MM-DD"}, 400
+    valid_to = valid_from + timedelta(days=weeks * 7)
+
+    staff = _get_current_staff(db)
+    note = (payload.get("note") or "").strip()
+
+    if abonement_type in {"single", "trial"}:
+        bundle_group_ids = [group_id]
+
+    bundle_size = len(bundle_group_ids) if abonement_type == "multi" else 1
+    bundle_id = str(uuid.uuid4()) if bundle_size > 1 else None
+    created_abonements: list[GroupAbonement] = []
+    for bundle_group_id in bundle_group_ids:
+        abonement = GroupAbonement(
+            user_id=user.id,
+            group_id=bundle_group_id,
+            abonement_type=abonement_type,
+            bundle_id=bundle_id,
+            bundle_size=bundle_size,
+            balance_credits=lessons,
+            status=target_status,
+            valid_from=valid_from,
+            valid_to=valid_to,
+        )
+        db.add(abonement)
+        created_abonements.append(abonement)
+
+    db.flush()
+
+    for abonement in created_abonements:
+        db.add(
+            GroupAbonementActionLog(
+                abonement_id=abonement.id,
+                action_type="manual_issue_abonement",
+                credits_delta=lessons,
+                reason=(
+                    f"status={target_status};weeks={weeks};lessons={lessons};"
+                    f"bundle_size={bundle_size}"
+                ),
+                note=note or "Ручная выдача абонемента администратором",
+                actor_type="staff",
+                actor_id=staff.id if staff else None,
+                payload=json.dumps(
+                    {
+                        "user_id": user.id,
+                        "group_id": abonement.group_id,
+                        "bundle_group_ids": bundle_group_ids,
+                        "abonement_type": abonement_type,
+                        "status": target_status,
+                        "weeks": weeks,
+                        "lessons": lessons,
+                        "lessons_per_week": lessons_per_week,
+                        "bundle_size": bundle_size,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+
+    db.commit()
+
+    primary_abonement = created_abonements[0]
+    group_access_notified = False
+    group_access_notify_error = None
+    if target_status == ABONEMENT_STATUS_ACTIVE:
+        group_access_notified, group_access_notify_error = _notify_abonement_group_access_links(db, primary_abonement)
+
+    return (
+        jsonify(
+            {
+                "ok": True,
+                "abonement": _serialize_client_abonement_for_admin(db, primary_abonement),
+                "issued_abonements": [_serialize_client_abonement_for_admin(db, row) for row in created_abonements],
+                "bundle_group_ids": bundle_group_ids,
+                "bundle_size": bundle_size,
+                "group_access_notified": group_access_notified,
+                "group_access_notify_error": group_access_notify_error,
+            }
+        ),
+        201,
     )
 
 
@@ -4877,14 +5289,45 @@ def admin_extend_group_abonement(abonement_id: int):
 
     db = g.db
     payload = request.json or {}
+    try:
+        apply_bundle = _parse_apply_bundle_flag(payload, default=True)
+    except ValueError as exc:
+        return {"error": safe_client_error_message(exc)}, 400
     abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
     if not abonement:
         return {"error": "Абонемент не найден"}, 404
+    target_rows = _collect_target_abonements(db, abonement, apply_bundle=apply_bundle)
+    target_ids = [int(row.id) for row in target_rows if row and row.id]
+    bundle_scope = len(target_ids) > 1
 
     group = db.query(Group).filter_by(id=abonement.group_id).first()
     lessons_per_week = int(group.lessons_per_week) if group and group.lessons_per_week else None
     if not lessons_per_week or lessons_per_week <= 0:
         return {"error": "Для группы не настроено количество занятий в неделю"}, 400
+
+    for target in target_rows:
+        target_status = str(getattr(target, "status", "") or "").strip().lower()
+        if target_status == ABONEMENT_STATUS_CANCELLED:
+            return {
+                "error": (
+                    "Нельзя продлить пакет: один из абонементов уже отменен "
+                    f"(#{int(target.id)})"
+                )
+            }, 400
+
+        target_group = db.query(Group).filter_by(id=target.group_id).first()
+        target_lessons_per_week = (
+            int(target_group.lessons_per_week) if target_group and target_group.lessons_per_week else None
+        )
+        if not target_lessons_per_week or target_lessons_per_week <= 0:
+            return {"error": f"Для группы в абонементе #{int(target.id)} не настроено количество занятий в неделю"}, 400
+        if target_lessons_per_week != lessons_per_week:
+            return {
+                "error": (
+                    "Нельзя продлить пакет: у групп в пакете отличается "
+                    "количество занятий в неделю"
+                )
+            }, 400
 
     weeks_raw = payload.get("weeks")
     lessons_raw = payload.get("lessons")
@@ -4922,44 +5365,232 @@ def admin_extend_group_abonement(abonement_id: int):
     note = (payload.get("note") or "").strip()
     staff = _get_current_staff(db)
     now = datetime.utcnow()
-
-    abonement.balance_credits = int(abonement.balance_credits or 0) + lessons
-
-    valid_to_base = abonement.valid_to if (abonement.valid_to and abonement.valid_to > now) else now
-    abonement.valid_to = valid_to_base + timedelta(days=weeks * 7)
-
-    db.add(
-        GroupAbonementActionLog(
-            abonement_id=abonement.id,
-            action_type="manual_extend_abonement",
-            credits_delta=lessons,
-            reason=f"weeks={weeks};lessons={lessons}",
-            note=note or f"Продление абонемента: +{weeks} нед. / +{lessons} занятий",
-            actor_type="staff",
-            actor_id=staff.id if staff else None,
-            payload=json.dumps(
-                {
-                    "weeks": weeks,
-                    "lessons": lessons,
-                    "lessons_per_week": lessons_per_week,
-                    "user_id": abonement.user_id,
-                    "group_id": abonement.group_id,
-                },
-                ensure_ascii=False,
-            ),
+    for target in target_rows:
+        target.balance_credits = int(target.balance_credits or 0) + lessons
+        valid_to_base = target.valid_to if (target.valid_to and target.valid_to > now) else now
+        target.valid_to = valid_to_base + timedelta(days=weeks * 7)
+        db.add(
+            GroupAbonementActionLog(
+                abonement_id=target.id,
+                action_type="manual_extend_abonement",
+                credits_delta=lessons,
+                reason=f"weeks={weeks};lessons={lessons};scope={'bundle' if bundle_scope else 'single'}",
+                note=note or f"Продление абонемента: +{weeks} нед. / +{lessons} занятий",
+                actor_type="staff",
+                actor_id=staff.id if staff else None,
+                payload=json.dumps(
+                    {
+                        "weeks": weeks,
+                        "lessons": lessons,
+                        "lessons_per_week": lessons_per_week,
+                        "user_id": target.user_id,
+                        "group_id": target.group_id,
+                        "apply_bundle": bundle_scope,
+                        "bundle_id": str(getattr(target, "bundle_id", "") or "").strip() or None,
+                        "affected_abonement_ids": target_ids,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
         )
-    )
     db.commit()
 
     return jsonify(
         {
             "ok": True,
             "abonement": _serialize_client_abonement_for_admin(db, abonement),
+            "affected_count": len(target_ids),
+            "affected_abonement_ids": target_ids,
+            "bundle_scope": bundle_scope,
+            "bundle_id": str(getattr(abonement, "bundle_id", "") or "").strip() or None,
             "applied": {
                 "weeks": weeks,
                 "lessons": lessons,
                 "lessons_per_week": lessons_per_week,
             },
+        }
+    )
+
+
+@bp.route("/api/admin/group-abonements/<int:abonement_id>/cancel", methods=["POST"])
+def admin_cancel_group_abonement(abonement_id: int):
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    payload = request.json or {}
+    try:
+        apply_bundle = _parse_apply_bundle_flag(payload, default=True)
+    except ValueError as exc:
+        return {"error": safe_client_error_message(exc)}, 400
+    abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
+    if not abonement:
+        return {"error": "Абонемент не найден"}, 404
+    target_rows = _collect_target_abonements(db, abonement, apply_bundle=apply_bundle)
+    target_ids = [int(row.id) for row in target_rows if row and row.id]
+    bundle_scope = len(target_ids) > 1
+
+    all_cancelled = True
+    expired_rows = []
+    for row in target_rows:
+        current_status = str(getattr(row, "status", "") or "").strip().lower()
+        if current_status != ABONEMENT_STATUS_CANCELLED:
+            all_cancelled = False
+        if current_status == ABONEMENT_STATUS_EXPIRED:
+            expired_rows.append(int(row.id))
+
+    if all_cancelled:
+        return {"error": "Абонемент уже отменен"}, 409
+    if expired_rows:
+        if len(expired_rows) == 1:
+            return {"error": f"Нельзя отменить уже истекший абонемент #{expired_rows[0]}"}, 400
+        return {"error": "Нельзя отменить пакет: часть абонементов уже истекла"}, 400
+
+    note = (payload.get("note") or "").strip()
+    staff = _get_current_staff(db)
+    affected_ids = []
+    for target in target_rows:
+        current_status = str(getattr(target, "status", "") or "").strip().lower()
+        if current_status == ABONEMENT_STATUS_CANCELLED:
+            continue
+        if current_status == ABONEMENT_STATUS_PENDING_PAYMENT:
+            target.status = ABONEMENT_STATUS_CANCELLED
+        else:
+            try:
+                set_abonement_status(target, ABONEMENT_STATUS_CANCELLED)
+            except ValueError as exc:
+                return {"error": safe_client_error_message(exc)}, 400
+
+        db.add(
+            GroupAbonementActionLog(
+                abonement_id=target.id,
+                action_type="manual_cancel_abonement",
+                credits_delta=0,
+                reason=f"status_from={current_status};scope={'bundle' if bundle_scope else 'single'}",
+                note=note or "Ручная отмена абонемента администратором",
+                actor_type="staff",
+                actor_id=staff.id if staff else None,
+                payload=json.dumps(
+                    {
+                        "status_from": current_status,
+                        "status_to": ABONEMENT_STATUS_CANCELLED,
+                        "user_id": target.user_id,
+                        "group_id": target.group_id,
+                        "apply_bundle": bundle_scope,
+                        "bundle_id": str(getattr(target, "bundle_id", "") or "").strip() or None,
+                        "affected_abonement_ids": target_ids,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        affected_ids.append(int(target.id))
+    db.commit()
+
+    return jsonify(
+        {
+            "ok": True,
+            "abonement": _serialize_client_abonement_for_admin(db, abonement),
+            "affected_count": len(affected_ids),
+            "affected_abonement_ids": affected_ids,
+            "bundle_scope": bundle_scope,
+            "bundle_id": str(getattr(abonement, "bundle_id", "") or "").strip() or None,
+        }
+    )
+
+
+@bp.route("/api/admin/group-abonements/<int:abonement_id>/adjust-credits", methods=["POST"])
+def admin_adjust_group_abonement_credits(abonement_id: int):
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    payload = request.json or {}
+    try:
+        delta_credits = int(payload.get("delta_credits"))
+    except (TypeError, ValueError):
+        return {"error": "delta_credits должен быть целым числом"}, 400
+    if delta_credits == 0:
+        return {"error": "delta_credits не должен быть равен 0"}, 400
+    try:
+        apply_bundle = _parse_apply_bundle_flag(payload, default=True)
+    except ValueError as exc:
+        return {"error": safe_client_error_message(exc)}, 400
+
+    abonement = db.query(GroupAbonement).filter_by(id=abonement_id).first()
+    if not abonement:
+        return {"error": "Абонемент не найден"}, 404
+    target_rows = _collect_target_abonements(db, abonement, apply_bundle=apply_bundle)
+    target_ids = [int(row.id) for row in target_rows if row and row.id]
+    bundle_scope = len(target_ids) > 1
+
+    cancelled_rows = []
+    insufficient_rows = []
+    for target in target_rows:
+        current_status = str(getattr(target, "status", "") or "").strip().lower()
+        if current_status == ABONEMENT_STATUS_CANCELLED:
+            cancelled_rows.append(int(target.id))
+            continue
+        before_balance = int(getattr(target, "balance_credits", 0) or 0)
+        if delta_credits < 0 and before_balance + delta_credits < 0:
+            insufficient_rows.append({"id": int(target.id), "balance": before_balance})
+
+    if cancelled_rows:
+        if len(cancelled_rows) == 1:
+            return {"error": f"Нельзя корректировать отмененный абонемент #{cancelled_rows[0]}"}, 400
+        return {"error": "Нельзя корректировать пакет: часть абонементов уже отменена"}, 400
+    if insufficient_rows:
+        details = ", ".join(
+            f"#{item['id']} (остаток {item['balance']})" for item in insufficient_rows
+        )
+        return {"error": f"Недостаточно занятий для списания: {details}"}, 400
+
+    note = (payload.get("note") or "").strip()
+    staff = _get_current_staff(db)
+    affected = []
+    for target in target_rows:
+        before_balance = int(getattr(target, "balance_credits", 0) or 0)
+        after_balance = before_balance + delta_credits
+        target.balance_credits = after_balance
+        db.add(
+            GroupAbonementActionLog(
+                abonement_id=target.id,
+                action_type="manual_adjust_credits",
+                credits_delta=delta_credits,
+                reason=f"delta={delta_credits};scope={'bundle' if bundle_scope else 'single'}",
+                note=note or "Ручная корректировка баланса занятий администратором",
+                actor_type="staff",
+                actor_id=staff.id if staff else None,
+                payload=json.dumps(
+                    {
+                        "delta_credits": delta_credits,
+                        "before_balance": before_balance,
+                        "after_balance": after_balance,
+                        "user_id": target.user_id,
+                        "group_id": target.group_id,
+                        "apply_bundle": bundle_scope,
+                        "bundle_id": str(getattr(target, "bundle_id", "") or "").strip() or None,
+                        "affected_abonement_ids": target_ids,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        )
+        affected.append({"id": int(target.id), "balance_credits": after_balance})
+
+    db.commit()
+    return jsonify(
+        {
+            "ok": True,
+            "abonement": _serialize_client_abonement_for_admin(db, abonement),
+            "delta_credits": delta_credits,
+            "affected_count": len(affected),
+            "affected_abonement_ids": [item["id"] for item in affected],
+            "affected": affected,
+            "bundle_scope": bundle_scope,
+            "bundle_id": str(getattr(abonement, "bundle_id", "") or "").strip() or None,
         }
     )
 
