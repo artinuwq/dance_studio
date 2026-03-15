@@ -7,16 +7,24 @@ import logging
 import subprocess
 import shutil
 import hashlib
+from contextlib import asynccontextmanager
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.types import MenuButtonWebApp, WebAppInfo, FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InputMediaDocument
 from aiogram.filters import CommandStart, Command, StateFilter
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
 from dance_studio.core.config import (
     API_INTERNAL_BASE_URL,
+    BACKUP_AGE_BINARY,
+    BACKUP_AGE_RECIPIENTS,
+    BACKUP_ENCRYPTION_REQUIRED,
+    BACKUP_TELEGRAM_PROXY,
     BOT_TOKEN,
+    TELEGRAM_PROXY,
     WEB_APP_URL,
     PROJECT_NAME_FULL,
     PROJECT_NAME_SHORT,
@@ -47,6 +55,7 @@ from dance_studio.db.models import (
     IndividualLesson,
     HallRental,
     GroupAbonement,
+    GroupAbonementActionLog,
     AttendanceIntention,
     AttendanceReminder,
     PaymentTransaction,
@@ -54,12 +63,9 @@ from dance_studio.db.models import (
 from dance_studio.core.booking_utils import format_booking_message, build_booking_keyboard_data
 from dance_studio.core.tg_replay import cleanup_expired_init_data
 from dance_studio.core.abonement_pricing import (
-    ABONEMENT_TYPE_SINGLE,
-    ABONEMENT_TYPE_MULTI,
-    ABONEMENT_TYPE_TRIAL,
     is_free_trial_booking,
-    parse_booking_bundle_group_ids,
 )
+from dance_studio.core.abonement_activation import activate_group_abonement_from_booking
 from dance_studio.core.abonement_notifications import (
     build_abonement_dispatch_ref,
     build_group_access_message,
@@ -79,6 +85,7 @@ from dance_studio.core.personal_discounts import (
 )
 from dance_studio.core.statuses import (
     ABONEMENT_STATUS_ACTIVE,
+    ABONEMENT_STATUS_EXPIRED,
     ABONEMENT_STATUS_PENDING_PAYMENT,
     BOOKING_PAYMENT_CONFIRMED_STATUSES,
     BOOKING_STATUS_ATTENDED,
@@ -103,7 +110,6 @@ from datetime import datetime, time as dt_time, timedelta
 import os
 import tempfile
 import base64
-import uuid
 from pathlib import Path
 from dance_studio.core.settings import DATABASE_URL
 
@@ -141,6 +147,26 @@ ABONEMENT_ONE_LEFT_NOTIFICATION_KEY = "abonement_one_left"
 ABONEMENT_BUNDLE_EXPIRY_NOTIFICATION_KEY = "abonement_bundle_expiring_7d"
 TEACHER_ATTENDANCE_SUMMARY_NOTIFICATION_KEY = "teacher_attendance_summary_2h"
 BOT_USERNAME_GLOBAL: str | None = None
+BOT_PROXY_ENABLED = False
+
+
+def _resolve_telegram_proxy() -> str:
+    return (TELEGRAM_PROXY or BACKUP_TELEGRAM_PROXY or "").strip()
+
+
+async def _switch_bot_to_proxy(proxy: str) -> None:
+    global bot, BOT_PROXY_ENABLED
+    if BOT_PROXY_ENABLED:
+        return
+    new_session = AiohttpSession(proxy=proxy)
+    new_bot = Bot(token=BOT_TOKEN, session=new_session)
+    old_bot = bot
+    bot = new_bot
+    BOT_PROXY_ENABLED = True
+    try:
+        await old_bot.session.close()
+    except Exception:
+        pass
 
 
 PAYMENT_ADMIN_CONTACT_URL = "https://t.me/ShebaSport_LissaDance"
@@ -365,12 +391,27 @@ async def _alert_if_groups_missing() -> None:
 
 
 async def _ensure_forum_topic(name: str, current_id: int | None, setting_key: str) -> int | None:
+    return await _ensure_forum_topic_with_bot(
+        name,
+        current_id,
+        setting_key,
+        telegram_bot=bot,
+    )
+
+
+async def _ensure_forum_topic_with_bot(
+    name: str,
+    current_id: int | None,
+    setting_key: str,
+    *,
+    telegram_bot: Bot,
+) -> int | None:
     if current_id:
         return current_id
     if not TECH_LOGS_CHAT_ID_RUNTIME:
         return None
     try:
-        topic = await bot.create_forum_topic(chat_id=TECH_LOGS_CHAT_ID_RUNTIME, name=name)
+        topic = await telegram_bot.create_forum_topic(chat_id=TECH_LOGS_CHAT_ID_RUNTIME, name=name)
         topic_id = topic.message_thread_id
         _persist_runtime_id_setting(
             setting_key,
@@ -636,10 +677,114 @@ def _create_media_backup_archive() -> Path:
     return archive_path
 
 
+def _safe_unlink(path: Path) -> None:
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return
+    except Exception:
+        _logger.exception("Failed to delete backup file: %s", path)
+
+
+def _normalized_backup_recipients() -> list[str]:
+    recipients: list[str] = []
+    for recipient in BACKUP_AGE_RECIPIENTS:
+        normalized = str(recipient or "").strip()
+        if normalized:
+            recipients.append(normalized)
+    return recipients
+
+
+def _resolve_age_binary_path() -> str:
+    configured = str(BACKUP_AGE_BINARY or "").strip()
+    if configured:
+        configured_path = Path(configured)
+        if not configured_path.is_absolute():
+            configured_path = (PROJECT_ROOT / configured_path).resolve()
+        if configured_path.exists():
+            return str(configured_path)
+        raise RuntimeError(f"Configured BACKUP_AGE_BINARY not found: {configured_path}")
+
+    local_candidates = [
+        PROJECT_ROOT / "scripts" / "tools" / "age.exe",
+        PROJECT_ROOT / "scripts" / "tools" / "age",
+    ]
+    for candidate in local_candidates:
+        if candidate.exists():
+            return str(candidate)
+
+    for binary_name in ("age", "age.exe"):
+        resolved = shutil.which(binary_name)
+        if resolved:
+            return resolved
+
+    raise RuntimeError(
+        "age binary not found. Set BACKUP_AGE_BINARY in .env or place binary at scripts/tools/age(.exe)"
+    )
+
+
+def _encrypt_backup_file_with_age(source_path: Path, recipients: list[str]) -> Path:
+    age_path = _resolve_age_binary_path()
+    if not recipients:
+        raise RuntimeError("No public backup recipients configured (.env: BACKUP_AGE_RECIPIENTS / BACKUP_AGE_RECIPIENT)")
+
+    encrypted_path = source_path.with_name(f"{source_path.name}.age")
+    cmd = [age_path, "--encrypt", "--output", str(encrypted_path)]
+    for recipient in recipients:
+        cmd.extend(["--recipient", recipient])
+    cmd.append(str(source_path))
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        stderr = (result.stderr or "").strip()
+        raise RuntimeError(
+            f"age encryption failed for {source_path.name}: {stderr or 'unknown error'}"
+        )
+    if not encrypted_path.exists():
+        raise RuntimeError(f"Encrypted file is missing: {encrypted_path.name}")
+    return encrypted_path
+
+
+def _prepare_backup_artifacts_for_send(db_dump_path: Path, media_archive_path: Path) -> tuple[Path, Path]:
+    if not BACKUP_ENCRYPTION_REQUIRED:
+        return db_dump_path, media_archive_path
+
+    recipients = _normalized_backup_recipients()
+    if not recipients:
+        raise RuntimeError(
+            "BACKUP_ENCRYPTION_REQUIRED=1 but BACKUP_AGE_RECIPIENT(S) is not configured"
+        )
+
+    encrypted_paths: list[Path] = []
+    try:
+        encrypted_db = _encrypt_backup_file_with_age(db_dump_path, recipients)
+        encrypted_paths.append(encrypted_db)
+        encrypted_media = _encrypt_backup_file_with_age(media_archive_path, recipients)
+        encrypted_paths.append(encrypted_media)
+    except Exception:
+        for encrypted_path in encrypted_paths:
+            _safe_unlink(encrypted_path)
+        raise
+
+    _safe_unlink(db_dump_path)
+    _safe_unlink(media_archive_path)
+    return encrypted_db, encrypted_media
+
+
 def _cleanup_old_backups() -> None:
     if not BACKUP_DIR.exists():
         return
-    patterns = ["db_backup_*.dump", "media_backup_*.zip"]
+    patterns = [
+        "db_backup_*.dump",
+        "media_backup_*.zip",
+        "db_backup_*.dump.age",
+        "media_backup_*.zip.age",
+    ]
     for pattern in patterns:
         backups = sorted(
             BACKUP_DIR.glob(pattern),
@@ -677,12 +822,34 @@ def _format_size(size_bytes: int) -> str:
 
 
 async def _ensure_backup_topic() -> int | None:
+    return await _ensure_backup_topic_with_bot(bot)
+
+
+async def _ensure_backup_topic_with_bot(telegram_bot: Bot) -> int | None:
     global TECH_BACKUPS_TOPIC_ID_RUNTIME
     if not TECH_BACKUPS_TOPIC_ID_RUNTIME:
-        TECH_BACKUPS_TOPIC_ID_RUNTIME = await _ensure_forum_topic(
-            "Бэкапы", None, TECH_BACKUPS_TOPIC_ID_SETTING_KEY
+        TECH_BACKUPS_TOPIC_ID_RUNTIME = await _ensure_forum_topic_with_bot(
+            "Бэкапы",
+            None,
+            TECH_BACKUPS_TOPIC_ID_SETTING_KEY,
+            telegram_bot=telegram_bot,
         )
     return TECH_BACKUPS_TOPIC_ID_RUNTIME
+
+
+@asynccontextmanager
+async def _backup_delivery_bot():
+    proxy = (BACKUP_TELEGRAM_PROXY or "").strip()
+    if not proxy:
+        yield bot
+        return
+
+    backup_session = AiohttpSession(proxy=proxy)
+    backup_bot = Bot(token=BOT_TOKEN, session=backup_session)
+    try:
+        yield backup_bot
+    finally:
+        await backup_bot.session.close()
 
 
 async def create_and_send_backup(reason: str, notify_user_id: int | None = None) -> None:
@@ -690,75 +857,81 @@ async def create_and_send_backup(reason: str, notify_user_id: int | None = None)
         try:
             db_dump_path = await asyncio.to_thread(_create_db_backup_dump)
             media_archive_path = await asyncio.to_thread(_create_media_backup_archive)
+            db_artifact_path, media_artifact_path = await asyncio.to_thread(
+                _prepare_backup_artifacts_for_send,
+                db_dump_path,
+                media_archive_path,
+            )
             _cleanup_old_backups()
-            topic_id = await _ensure_backup_topic()
             backup_sent = False
-            if topic_id:
-                now_human = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-                db_sha = await asyncio.to_thread(_file_sha256, db_dump_path)
-                media_sha = await asyncio.to_thread(_file_sha256, media_archive_path)
-                db_size = _format_size(db_dump_path.stat().st_size)
-                media_size = _format_size(media_archive_path.stat().st_size)
-                caption = (
-                    f"📦 Backup ({reason})\n"
-                    f"🗓 Date/time: {now_human}\n"
-                    f"🗄 DB: {db_dump_path.name} ({db_size})\n"
-                    f"🔐 DB SHA256: {db_sha}\n"
-                    f"🖼 Media: {media_archive_path.name} ({media_size})\n"
-                    f"🔐 Media SHA256: {media_sha}"
-                )
-                try:
-                    await bot.send_media_group(
-                        chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
-                        message_thread_id=topic_id,
-                        media=[
-                            InputMediaDocument(
-                                media=FSInputFile(str(db_dump_path))
-                            ),
-                            InputMediaDocument(
-                                media=FSInputFile(str(media_archive_path)),
-                                caption=caption
-                            ),
-                        ],
+            async with _backup_delivery_bot() as backup_bot:
+                topic_id = await _ensure_backup_topic_with_bot(backup_bot)
+                if topic_id:
+                    now_human = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
+                    db_sha = await asyncio.to_thread(_file_sha256, db_artifact_path)
+                    media_sha = await asyncio.to_thread(_file_sha256, media_artifact_path)
+                    db_size = _format_size(db_artifact_path.stat().st_size)
+                    media_size = _format_size(media_artifact_path.stat().st_size)
+                    caption = (
+                        f"📦 Backup ({reason})\n"
+                        f"🗓 Date/time: {now_human}\n"
+                        f"🗄 DB: {db_artifact_path.name} ({db_size})\n"
+                        f"🔐 DB SHA256: {db_sha}\n"
+                        f"🖼 Media: {media_artifact_path.name} ({media_size})\n"
+                        f"🔐 Media SHA256: {media_sha}"
                     )
-                    backup_sent = True
-                except Exception as e:
-                    if "message thread not found" in str(e).lower():
-                        global TECH_BACKUPS_TOPIC_ID_RUNTIME
-                        TECH_BACKUPS_TOPIC_ID_RUNTIME = None
-                        topic_id = await _ensure_backup_topic()
-                        if topic_id:
-                            await bot.send_media_group(
-                                chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
-                                message_thread_id=topic_id,
-                                media=[
-                                    InputMediaDocument(
-                                        media=FSInputFile(str(db_dump_path))
-                                    ),
-                                    InputMediaDocument(
-                                        media=FSInputFile(str(media_archive_path)),
-                                        caption=caption
-                                    ),
-                                ],
-                            )
-                            backup_sent = True
-                    else:
-                        try:
-                            await bot.send_document(
-                                chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
-                                message_thread_id=topic_id,
-                                document=FSInputFile(str(db_dump_path)),
-                                caption=caption
-                            )
-                            await bot.send_document(
-                                chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
-                                message_thread_id=topic_id,
-                                document=FSInputFile(str(media_archive_path)),
-                                caption=caption
-                            )
-                            backup_sent = True
-                        except Exception:
-                            raise
+                    try:
+                        await backup_bot.send_media_group(
+                            chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                            message_thread_id=topic_id,
+                            media=[
+                                InputMediaDocument(
+                                    media=FSInputFile(str(db_artifact_path))
+                                ),
+                                InputMediaDocument(
+                                    media=FSInputFile(str(media_artifact_path)),
+                                    caption=caption
+                                ),
+                            ],
+                        )
+                        backup_sent = True
+                    except Exception as e:
+                        if "message thread not found" in str(e).lower():
+                            global TECH_BACKUPS_TOPIC_ID_RUNTIME
+                            TECH_BACKUPS_TOPIC_ID_RUNTIME = None
+                            topic_id = await _ensure_backup_topic_with_bot(backup_bot)
+                            if topic_id:
+                                await backup_bot.send_media_group(
+                                    chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                                    message_thread_id=topic_id,
+                                    media=[
+                                        InputMediaDocument(
+                                            media=FSInputFile(str(db_artifact_path))
+                                        ),
+                                        InputMediaDocument(
+                                            media=FSInputFile(str(media_artifact_path)),
+                                            caption=caption
+                                        ),
+                                    ],
+                                )
+                                backup_sent = True
+                        else:
+                            try:
+                                await backup_bot.send_document(
+                                    chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                                    message_thread_id=topic_id,
+                                    document=FSInputFile(str(db_artifact_path)),
+                                    caption=caption
+                                )
+                                await backup_bot.send_document(
+                                    chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+                                    message_thread_id=topic_id,
+                                    document=FSInputFile(str(media_artifact_path)),
+                                    caption=caption
+                                )
+                                backup_sent = True
+                            except Exception:
+                                raise
 
             if backup_sent and reason == "scheduled" and datetime.now().hour == 12:
                 def _run_cleanup_sync() -> None:
@@ -1898,10 +2071,50 @@ async def send_due_teacher_attendance_summaries() -> None:
         db.close()
 
 
+def _expire_overdue_abonements(db, now: datetime) -> int:
+    rows = (
+        db.query(GroupAbonement)
+        .filter(
+            GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
+            GroupAbonement.valid_to.isnot(None),
+            GroupAbonement.valid_to < now,
+        )
+        .all()
+    )
+    if not rows:
+        return 0
+
+    expired_count = 0
+    for row in rows:
+        try:
+            set_abonement_status(row, ABONEMENT_STATUS_EXPIRED)
+        except ValueError:
+            continue
+        db.add(
+            GroupAbonementActionLog(
+                abonement_id=row.id,
+                action_type="auto_expire_abonement",
+                credits_delta=0,
+                reason="valid_to_passed",
+                note="Авто-истечение по сроку",
+                actor_type="system",
+                actor_id=None,
+            )
+        )
+        expired_count += 1
+    return expired_count
+
+
 async def send_due_abonement_notifications() -> None:
     db = get_session()
     try:
         now = datetime.now()
+        expired_count = _expire_overdue_abonements(db, now)
+        if expired_count:
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
         rows = db.query(GroupAbonement).filter(GroupAbonement.status == ABONEMENT_STATUS_ACTIVE).all()
         processed_bundle_refs: set[str] = set()
 
@@ -2174,6 +2387,7 @@ async def process_attendance_reminders() -> None:
 
 
 async def run_bot():
+    global BOT_USERNAME_GLOBAL
     _load_runtime_chat_targets()
 
     # Получаем информацию о боте при старте
@@ -2182,7 +2396,20 @@ async def run_bot():
         bot_username = me.username
         print(f"[bot] started: @{bot_username}")
         # Сохраняем в глобальную переменную
-        global BOT_USERNAME_GLOBAL
+        BOT_USERNAME_GLOBAL = bot_username
+        _sync_bot_username_setting(bot_username)
+    except TelegramNetworkError as e:
+        proxy = _resolve_telegram_proxy()
+        if not proxy:
+            print(f"[bot] failed to get bot info: {e}")
+            print("[bot] proxy not configured in .env; bot will restart")
+            raise
+        print(f"[bot] failed to get bot info: {e}")
+        print("[bot] retrying with proxy from .env")
+        await _switch_bot_to_proxy(proxy)
+        me = await bot.get_me()
+        bot_username = me.username
+        print(f"[bot] started (proxy): @{bot_username}")
         BOT_USERNAME_GLOBAL = bot_username
         _sync_bot_username_setting(bot_username)
     except Exception as e:
@@ -2496,120 +2723,7 @@ def _sync_booking_status_to_schedule(db, booking: BookingRequest, staff: Staff |
 
 
 def _activate_group_abonement_from_booking(db, booking: BookingRequest) -> GroupAbonement | None:
-    if booking.object_type != "group":
-        return None
-    if not booking.user_id or not booking.group_id:
-        return None
-
-    amount = _compute_booking_payment_amount(db, booking)
-    requires_confirmed_payment = bool((amount or 0) > 0 and not is_free_trial_booking(booking))
-    if requires_confirmed_payment:
-        confirmed_payment = (
-            db.query(PaymentTransaction.id)
-            .filter_by(payment_type="booking", object_id=booking.id, status="confirmed")
-            .first()
-        )
-        if not confirmed_payment:
-            return None
-
-    bundle_group_ids = parse_booking_bundle_group_ids(booking)
-    if not bundle_group_ids:
-        bundle_group_ids = [int(booking.group_id)]
-    if int(booking.group_id) not in bundle_group_ids:
-        bundle_group_ids.insert(0, int(booking.group_id))
-    bundle_size = max(1, min(3, len(bundle_group_ids)))
-    bundle_group_ids = bundle_group_ids[:bundle_size]
-
-    abonement_type = (booking.abonement_type or ABONEMENT_TYPE_MULTI).strip().lower()
-    if abonement_type not in {ABONEMENT_TYPE_SINGLE, ABONEMENT_TYPE_MULTI, ABONEMENT_TYPE_TRIAL}:
-        abonement_type = ABONEMENT_TYPE_MULTI
-
-    total_lessons = 0
-    try:
-        total_lessons = int(booking.lessons_count or 0)
-    except (TypeError, ValueError):
-        total_lessons = 0
-
-    if abonement_type in {ABONEMENT_TYPE_SINGLE, ABONEMENT_TYPE_TRIAL}:
-        lessons_per_group = 1
-    elif total_lessons > 0 and total_lessons % bundle_size == 0:
-        lessons_per_group = max(1, total_lessons // bundle_size)
-    else:
-        base_group = db.query(Group).filter_by(id=int(booking.group_id)).first()
-        fallback_per_week = 1
-        if base_group and base_group.lessons_per_week not in (None, ""):
-            try:
-                fallback_per_week = max(1, int(base_group.lessons_per_week))
-            except (TypeError, ValueError):
-                fallback_per_week = 1
-        lessons_per_group = fallback_per_week * 4
-
-    if booking.group_start_date:
-        valid_from = datetime.combine(booking.group_start_date, dt_time.min)
-    else:
-        valid_from = datetime.now()
-
-    if booking.valid_until:
-        valid_to = datetime.combine(booking.valid_until, dt_time.max)
-    elif abonement_type in {ABONEMENT_TYPE_SINGLE, ABONEMENT_TYPE_TRIAL}:
-        valid_to = datetime.combine(valid_from.date(), dt_time.max)
-    else:
-        valid_to = valid_from + timedelta(days=28)
-
-    existing_rows = (
-        db.query(GroupAbonement)
-        .filter(
-            GroupAbonement.user_id == booking.user_id,
-            GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
-            GroupAbonement.group_id.in_(bundle_group_ids),
-            GroupAbonement.abonement_type == abonement_type,
-            GroupAbonement.bundle_size == bundle_size,
-            GroupAbonement.valid_from == valid_from,
-            GroupAbonement.valid_to == valid_to,
-            GroupAbonement.balance_credits == lessons_per_group,
-        )
-        .all()
-    )
-    if len(existing_rows) == bundle_size:
-        by_group_id = {row.group_id: row for row in existing_rows}
-        if all(group_id in by_group_id for group_id in bundle_group_ids):
-            return by_group_id[bundle_group_ids[0]]
-
-    bundle_id = str(uuid.uuid4()) if bundle_size > 1 else None
-    activated: list[GroupAbonement] = []
-    for group_id in bundle_group_ids:
-        pending_row = (
-            db.query(GroupAbonement)
-            .filter_by(user_id=booking.user_id, group_id=group_id, status=ABONEMENT_STATUS_PENDING_PAYMENT)
-            .order_by(GroupAbonement.created_at.desc())
-            .first()
-        )
-        if pending_row:
-            set_abonement_status(pending_row, ABONEMENT_STATUS_ACTIVE)
-            pending_row.balance_credits = lessons_per_group
-            pending_row.valid_from = valid_from
-            pending_row.valid_to = valid_to
-            pending_row.abonement_type = abonement_type
-            pending_row.bundle_size = bundle_size
-            pending_row.bundle_id = bundle_id
-            activated.append(pending_row)
-            continue
-
-        abonement = GroupAbonement(
-            user_id=booking.user_id,
-            group_id=group_id,
-            abonement_type=abonement_type,
-            bundle_id=bundle_id,
-            bundle_size=bundle_size,
-            balance_credits=lessons_per_group,
-            status=ABONEMENT_STATUS_ACTIVE,
-            valid_from=valid_from,
-            valid_to=valid_to,
-        )
-        db.add(abonement)
-        activated.append(abonement)
-
-    return activated[0] if activated else None
+    return activate_group_abonement_from_booking(db, booking)
 
 
 async def _handle_attendance_response_callback(
@@ -2989,7 +3103,7 @@ def _build_payment_request_message(db, booking: BookingRequest) -> str:
         f"• Номер: {number}\n"
         f"• ФИО получателя: {full_name}\n"
         f"• Сумма к оплате: {amount_text}\n\n"
-        "Пожалуйста, после оплаты отправьте чек для подтверждения."
+        "Пожалуйста, после оплаты отправьте чек для подтверждения в этот чат."
     )
 
 
@@ -3311,3 +3425,4 @@ async def process_staff_photo(message, state: FSMContext):
             f"Попробуйте отправить фото еще раз."
         )
         await state.set_state(StaffPhotoStates.waiting_for_photo)
+

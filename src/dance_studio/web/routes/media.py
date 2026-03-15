@@ -7,7 +7,8 @@ from dance_studio.core.media_manager import delete_user_photo, save_user_photo
 from dance_studio.db.models import Staff, User
 from dance_studio.web.constants import FRONTEND_DIR, MEDIA_ROOT, PROJECT_ROOT
 from dance_studio.web.services.access import get_current_user_from_request, require_permission
-from dance_studio.web.services.api_errors import internal_server_error_response
+from dance_studio.web.services.api_errors import internal_server_error_response, safe_client_error_message
+from dance_studio.web.services.upload_validation import validate_image_upload
 
 bp = Blueprint("media_routes", __name__)
 
@@ -71,16 +72,16 @@ def upload_user_photo(user_id):
     if file.filename == "":
         return {"error": "filename is empty"}, 400
 
-    allowed_extensions = {"jpg", "jpeg", "png", "gif"}
-    if not ("." in file.filename and file.filename.rsplit(".", 1)[1].lower() in allowed_extensions):
-        return {"error": "unsupported file extension"}, 400
+    try:
+        file_data, detected_ext = validate_image_upload(file)
+    except ValueError as exc:
+        return {"error": safe_client_error_message(exc)}, 400
 
     try:
         if user.photo_path:
             delete_user_photo(user.photo_path)
 
-        file_data = file.read()
-        filename = "profile." + file.filename.rsplit(".", 1)[1].lower()
+        filename = f"profile{detected_ext}"
         photo_path = save_user_photo(user.id, file_data, filename)
         if not photo_path:
             return {"error": "failed to save photo"}, 500

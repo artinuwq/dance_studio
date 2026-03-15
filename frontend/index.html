@@ -35,10 +35,20 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
+  overflow-x: hidden;
+}
+
+html {
+  overflow-x: hidden;
 }
 
 body.group-booking-open {
   overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body.group-booking-open .bottom-nav {
+  pointer-events: none;
 }
 
 body.client-issue-group-picker-open {
@@ -139,6 +149,13 @@ body.tg-mobile .header-back {
   color: var(--text);
 }
 
+.studio-map-embed {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
 .home-welcome-card {
   text-align: center;
   margin-top: -30px;
@@ -178,37 +195,6 @@ body.tg-mobile .header-back {
 }
 .work-section h4 {
   margin: 0 0 8px 0;
-}
-
-.payment-tabs-container {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 4px;
-  border-bottom: 2px solid var(--border);
-  position: relative;
-}
-
-.payment-tab-btn {
-  flex: 1;
-  padding: 12px;
-  background: none;
-  border: none;
-  color: var(--hint);
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.payment-tab-btn.active {
-  color: var(--accent);
-}
-
-.payment-tab-indicator {
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  height: 2px;
-  background: var(--accent);
-  transition: transform 0.3s ease, width 0.3s ease;
 }
 
 #staff .work-section .save-btn {
@@ -853,7 +839,35 @@ body.tg-mobile .header-back {
 }
 
 .contact-icon {
-  font-size: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+}
+
+.contact-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.contact-icon--telegram {
+  background: linear-gradient(135deg, #2aabee 0%, #229ed9 100%);
+}
+
+.contact-icon--vk {
+  background: #0077ff;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.contact-icon--instagram {
+  background: linear-gradient(135deg, #f58529 0%, #feda77 25%, #dd2a7b 55%, #8134af 78%, #515bd4 100%);
 }
 
 .contact-label {
@@ -917,6 +931,20 @@ textarea.form-input {
   gap: 12px;
 }
 
+.rental-form-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rental-form-intro h3 {
+  margin: 0;
+}
+
+.rental-form-intro-copy {
+  margin: 0;
+}
+
 .rental-form-row {
   display: flex;
   gap: 12px;
@@ -957,11 +985,6 @@ textarea.form-input {
   min-height: 18px;
   font-weight: 600;
   color: var(--text);
-}
-
-.rental-note {
-  font-size: 13px;
-  color: var(--hint);
 }
 
 .rental-occupancy-panel {
@@ -1075,6 +1098,26 @@ textarea.form-input {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.staff-detail-action-btn {
+  background: #1f1f1f;
+  color: var(--text);
+  border: 2px solid var(--accent);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 12px;
+  min-height: 36px;
+  box-shadow: none;
+}
+
+.staff-detail-action-btn:active {
+  background: #262626;
+}
+
+.staff-detail-action-btn--danger {
+  border-color: #ff6b6b;
 }
 
 /* ====== Страница редактирования ====== */
@@ -1536,6 +1579,16 @@ textarea.form-input {
   border-radius: 12px;
   padding: 8px 10px;
   background: rgba(255, 255, 255, 0.02);
+}
+
+.client-abonement-group-picker-item.is-disabled {
+  opacity: 0.62;
+  border-style: dashed;
+}
+
+.client-abonement-group-picker-item .save-btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 /* ====== СПИСОК ПЕРСОНАЛА (В СТИЛЕ КЛИЕНТОВ) ====== */
@@ -2586,6 +2639,41 @@ textarea.form-input {
 
 .confirm-modal.show {
   display: block;
+}
+
+.rental-success-modal {
+  max-width: min(360px, calc(100vw - 32px));
+  margin: 0 auto;
+  border: 1px solid rgba(254, 88, 21, 0.24);
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(254, 88, 21, 0.14), transparent 48%),
+    var(--card);
+}
+
+.rental-success-badge {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(254, 88, 21, 0.12);
+  border: 1px solid rgba(254, 88, 21, 0.3);
+  color: var(--accent);
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.rental-success-copy {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--hint);
+}
+
+.rental-success-copy:last-of-type {
+  margin-bottom: 16px;
 }
 
 .schedule-detail-chip {
@@ -3756,11 +3844,15 @@ textarea.form-input {
 .group-booking-overlay {
   position: fixed;
   inset: 0;
-  bottom: calc(56px + var(--safe-bottom));
-  z-index: 2000;
+  bottom: 0;
+  z-index: 950;
   display: none;
-  background: rgba(5, 6, 9, 0.84);
+  background: rgba(5, 6, 9, 0.78);
   backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .group-booking-overlay.show {
@@ -3867,16 +3959,15 @@ textarea.form-input {
     radial-gradient(120% 120% at 85% -20%, rgba(254, 88, 21, 0.12), transparent 40%),
     var(--bg);
   width: 100%;
-  height: 100%;
-  max-height: 100dvh;
+  min-height: 0;
+  height: auto;
   border-radius: 0;
-  padding: calc(var(--safe-top) + 14px) 16px calc(var(--safe-bottom) + 14px);
+  padding: calc(var(--safe-top) + 14px) 16px calc(84px + env(safe-area-inset-bottom) + var(--bottom-nav-offset));
   box-shadow: none;
   border: 0;
   z-index: 1;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 0;
+  display: block;
+  overflow-x: hidden;
 }
 
 .group-booking-info-popup {
@@ -4129,8 +4220,9 @@ textarea.form-input {
 }
 
 .group-booking-body {
-  overflow-y: auto;
-  padding: 30px 0 14px;
+  overflow: visible;
+  overflow-x: hidden;
+  padding: 30px 0 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -4162,7 +4254,7 @@ textarea.form-input {
 }
 
 .group-booking-body textarea {
-  min-height: 96px;
+  min-height: 92px;
   resize: vertical;
 }
 
@@ -4251,34 +4343,158 @@ textarea.form-input {
 .group-booking-options-list {
   display: flex;
   flex-direction: column;
+  gap: 6px;
+}
+
+.group-booking-group-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: var(--card);
+}
+
+.group-booking-group-card.is-main {
+  border-color: rgba(254, 88, 21, 0.4);
+}
+
+.group-booking-group-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.group-booking-group-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.group-booking-group-card-main-badge {
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid rgba(254, 88, 21, 0.45);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: rgba(254, 88, 21, 0.08);
+}
+
+.group-booking-group-option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.group-booking-group-option-btn {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.group-booking-group-option-btn:disabled,
+.group-booking-group-option-btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.group-booking-group-option-btn.active {
+  border-color: var(--accent);
+  background: rgba(254, 88, 21, 0.1);
+}
+
+.group-booking-group-option-title {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.group-booking-group-option-meta {
+  margin-top: 4px;
+  color: var(--hint);
+  font-size: 11px;
+}
+
+.group-booking-combo-hint-warning {
+  margin-top: 10px;
+  border: 1px solid rgba(255, 133, 133, 0.58);
+  background: rgba(255, 94, 94, 0.16);
+  color: #ffe1e1;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 10px 24px rgba(88, 12, 12, 0.22);
+}
+
+.group-booking-combo-hint-success {
+  margin-top: 10px;
+  border: 1px solid rgba(178, 255, 120, 0.48);
+  background: rgba(153, 255, 102, 0.14);
+  color: #efffdc;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.4;
+  box-shadow: 0 10px 24px rgba(40, 84, 12, 0.18);
+}
+
+.group-booking-combo-hint-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff4f4;
+}
+
+.group-booking-combo-hint-success .group-booking-combo-hint-title {
+  color: #f6ffe9;
+}
+
+.group-booking-combo-hint-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.group-booking-combo-hint-body {
+  color: inherit;
 }
 
 .group-booking-option-item {
+  position: relative;
   display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 8px;
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
-.group-booking-option-item > div {
+.group-booking-option-info {
   min-width: 0;
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .group-booking-option-item.active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-soft);
+  background: rgba(254, 88, 21, 0.08);
 }
 
 .group-booking-option-item input {
-  width: auto;
-  margin: 0;
-  flex: 0 0 auto;
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .group-booking-option-title {
@@ -4291,9 +4507,58 @@ textarea.form-input {
 }
 
 .group-booking-option-meta {
-  margin-top: 3px;
+  margin-top: 4px;
   font-size: 12px;
   color: var(--hint);
+  line-height: 1.3;
+}
+
+.group-booking-option-indicator {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.group-booking-option-indicator::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.group-booking-option-item.active .group-booking-option-indicator {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(254, 88, 21, 0.18);
+}
+
+.group-booking-option-item.active .group-booking-option-indicator::after {
+  background: var(--accent);
+}
+
+.group-booking-option-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.group-booking-option-price.is-free {
+  background: rgba(46, 204, 113, 0.14);
+  border-color: rgba(46, 204, 113, 0.35);
+  color: #2ecc71;
 }
 
 .group-booking-picker {
@@ -4368,6 +4633,26 @@ textarea.form-input {
   background: var(--card);
 }
 
+.group-booking-picker-item.is-disabled {
+  opacity: 0.62;
+  border-style: dashed;
+}
+
+.group-booking-picker-item > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.group-booking-picker-item .group-booking-option-title {
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.group-booking-picker-item .group-booking-option-meta {
+  white-space: normal;
+  line-height: 1.3;
+}
+
 .group-booking-picker-item .save-btn {
   width: auto;
   min-width: 70px;
@@ -4375,10 +4660,28 @@ textarea.form-input {
   border-radius: 10px;
 }
 
+.group-booking-picker-item .save-btn.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .group-booking-picker-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .group-booking-picker-item .save-btn {
+    width: 100%;
+  }
+}
+
 .group-booking-footer {
-  margin-top: 2px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+  margin-top: 8px;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-top: 0;
+  background: transparent;
 }
 
 .group-booking-footer .save-btn {
@@ -4386,38 +4689,28 @@ textarea.form-input {
 }
 
 .group-booking-directions-block {
-  margin-top: 10px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: var(--card);
+  margin-top: 6px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
 }
 
 .group-booking-directions-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 8px;
+  display: none;
 }
 
 .group-booking-main-direction,
 .group-booking-extra-slot {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 9px 10px;
-  background: var(--bg);
-  font-size: 13px;
-  color: var(--text);
+  display: none;
 }
 
 .group-booking-main-direction {
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .group-booking-extra-slots {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
+  display: none;
 }
 
 .group-booking-plus-btn {
@@ -4429,6 +4722,25 @@ textarea.form-input {
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
+}
+
+.group-booking-plus-btn.is-large {
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 6px;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.group-booking-plus-btn-note {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .group-booking-plus-btn:disabled {
@@ -4541,19 +4853,68 @@ textarea.form-input {
 </div>
 <div class="card">
 <h4>📍 Как добраться</h4>
-<script async="" charset="utf-8" src="https://api-maps.yandex.ru/services/constructor/1.0/js/?um=constructor%3Aa1063a1f3fac777c9cdef5b98494aee9e4ffee329067594a69657b435039fe33&amp;width=334&amp;height=265&amp;lang=ru_RU&amp;scroll=true" type="text/javascript"></script>
+<div class="studio-map-embed">
+<script async="" charset="utf-8" src="https://api-maps.yandex.ru/services/constructor/1.0/js/?um=constructor%3Aa1063a1f3fac777c9cdef5b98494aee9e4ffee329067594a69657b435039fe33&amp;width=100%25&amp;height=320&amp;lang=ru_RU&amp;scroll=true" type="text/javascript"></script>
+</div>
 </div>
 <div class="card">
 <h4>📞 Контактная информация</h4>
 <div class="contact-btn" onclick="openTelegram('@ShebaSport_LissaDNC')">
 <div class="contact-btn-content">
-<span class="contact-icon">✈️</span>
+<span aria-hidden="true" class="contact-icon contact-icon--telegram">
+<svg fill="none" viewBox="0 0 24 24">
+<path d="M21 3 10 14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+<path d="m21 3-7 18-4-7-7-4Z" fill="currentColor"></path>
+</svg>
+</span>
 <div>
 <div class="contact-label">Telegram</div>
 <div class="contact-value">@ShebaSport_LissaDNC</div>
 </div>
 </div>
 <span class="contact-action">Написать</span>
+</div>
+<div class="contact-btn" onclick="openExternalLink('https://vk.ru/shebasport_lissadance')">
+<div class="contact-btn-content">
+<span aria-hidden="true" class="contact-icon contact-icon--vk">VK</span>
+<div>
+<div class="contact-label">VK</div>
+<div class="contact-value">vk.ru/shebasport_lissadance</div>
+</div>
+</div>
+<span class="contact-action">Открыть</span>
+</div>
+<div class="contact-btn" onclick="openExternalLink('https://www.instagram.com/sheba_sport.academy?igsh=MThwMXdidDhzc3Jzag==')">
+<div class="contact-btn-content">
+<span aria-hidden="true" class="contact-icon contact-icon--instagram">
+<svg fill="none" viewBox="0 0 24 24">
+<rect height="15" rx="4" stroke="currentColor" stroke-width="2" width="15" x="4.5" y="4.5"></rect>
+<circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="2"></circle>
+<circle cx="17.5" cy="6.5" fill="currentColor" r="1.2"></circle>
+</svg>
+</span>
+<div>
+<div class="contact-label">Instagram • Sheba sport</div>
+<div class="contact-value">@sheba_sport.academy</div>
+</div>
+</div>
+<span class="contact-action">Открыть</span>
+</div>
+<div class="contact-btn" onclick="openExternalLink('https://www.instagram.com/lissa_dnc?igsh=eTZ5aDlqOXoyYWxm')">
+<div class="contact-btn-content">
+<span aria-hidden="true" class="contact-icon contact-icon--instagram">
+<svg fill="none" viewBox="0 0 24 24">
+<rect height="15" rx="4" stroke="currentColor" stroke-width="2" width="15" x="4.5" y="4.5"></rect>
+<circle cx="12" cy="12" r="3.5" stroke="currentColor" stroke-width="2"></circle>
+<circle cx="17.5" cy="6.5" fill="currentColor" r="1.2"></circle>
+</svg>
+</span>
+<div>
+<div class="contact-label">Instagram • Lissa DNC</div>
+<div class="contact-value">@lissa_dnc</div>
+</div>
+</div>
+<span class="contact-action">Открыть</span>
 </div>
 </div>
 </div>
@@ -4610,7 +4971,7 @@ textarea.form-input {
 </div>
 <div class="card work-section" id="work-section-personal" style="margin-bottom: 12px;">
 <h4 style="margin-bottom: 10px;">Персональное</h4>
-<button class="save-btn" onclick="showPage('personal-schedule')" style="width: 100%; margin-bottom: 8px;">Личное расписание</button>
+<button class="save-btn" onclick="openPersonalScheduleForCurrentStaff()" style="width: 100%; margin-bottom: 8px;">Личное расписание</button>
 <button class="save-btn" onclick="showPage('personal-groups')" type="button" style="width: 100%; margin-bottom: 8px;">Личные группы</button>
 </div>
 <div class="card work-section" id="work-section-structure" style="margin-bottom: 12px;">
@@ -4626,7 +4987,6 @@ textarea.form-input {
 <div class="card work-section" id="work-section-stats-payment" style="margin-bottom: 12px;">
 <h4 style="margin-bottom: 10px;">Статистика и настройки</h4>
 <button class="save-btn" id="stats-btn" onclick="showPage('stats')" style="width: 100%; margin-bottom: 8px; display: none;">Статистика</button>
-<button class="save-btn" id="payments-btn-work" onclick="showPage('payments-admin')" style="width: 100%; margin-bottom: 8px; display: none;">Платежи</button>
 <button class="save-btn" id="work-settings-btn-work" onclick="showPage('work-settings')" style="width: 100%; margin-bottom: 8px; display: none;">Параметры настройки</button>
 </div>
 </div>
@@ -4667,7 +5027,7 @@ textarea.form-input {
   </div>
   <div class="form-group">
     <label>Клиент</label>
-    <input class="form-input" id="personal-individual-user-search" oninput="searchPersonalIndividualUsers()" placeholder="Имя, ID или @юзер" type="text"/>
+    <input class="form-input" id="personal-individual-user-search" oninput="searchPersonalIndividualUsers()" placeholder="Имя, ID, +клиент или @юзер" type="text"/>
   </div>
   <div class="personal-individual-user-results" id="personal-individual-user-results">
     <p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска клиента...</p>
@@ -4728,7 +5088,6 @@ textarea.form-input {
 <!-- ====== ПАРАМЕТРЫ НАСТРОЙКИ (РАБОТА) ====== -->
 <div class="page" data-title="⚙️ Параметры настройки" id="work-settings">
   <p class="work-settings-menu-hint">Разделы для финансовых и организационных параметров.</p>
-  <div class="menu-item" id="work-settings-payment-item" onclick="showPage('payment-profiles-admin')">💳 Реквизиты оплаты</div>
   <div class="menu-item" id="work-settings-prices-item" onclick="showPage('work-settings-prices')">💰 Ценники</div>
   <div class="menu-item" id="work-settings-other-item" onclick="showPage('work-settings-other')">⚙️ Остальные параметры</div>
 </div>
@@ -4827,7 +5186,9 @@ textarea.form-input {
   </div>
 </div>
 
-<button class="save-btn" style="width: 100%; margin-top: 12px; background: var(--accent);" onclick="toggleGroupScheduleForm()">➕ Добавить групповое занятие</button>
+<button class="save-btn" style="width: 100%; margin-top: 12px; background: var(--accent);" onclick="toggleGroupScheduleForm(true, 'group')">➕ Добавить групповое занятие</button>
+<button class="save-btn" style="width: 100%; margin-top: 8px;" onclick="toggleGroupScheduleForm(true, 'individual')">➕ Добавить индивидуальное занятие</button>
+<button class="save-btn" style="width: 100%; margin-top: 8px;" onclick="toggleGroupScheduleForm(true, 'rental')">➕ Добавить аренду</button>
 <div class="group-schedule-overlay" id="group-schedule-overlay" onclick="toggleGroupScheduleForm(false)"></div>
 <div class="group-schedule-modal" id="group-schedule-modal">
   <div class="group-schedule-shell">
@@ -4855,15 +5216,81 @@ textarea.form-input {
 
     <div class="group-section">
       <div class="group-section-head">Основное</div>
-      <label class="label">Группа</label>
-      <div class="group-field-wrap">
-        <select class="form-input" id="group-schedule-group">
-          <option value="">Выберите группу</option>
-        </select>
-        <span class="field-confirm" id="group-schedule-group-ok">✓</span>
+      <p class="small" id="group-schedule-type-hint" style="margin: 0 0 10px; color: var(--hint);">Выберите группу</p>
+
+      <div id="group-schedule-group-wrap">
+        <label class="label">Группа</label>
+        <div class="group-field-wrap">
+          <select class="form-input" id="group-schedule-group">
+            <option value="">Выберите группу</option>
+          </select>
+          <span class="field-confirm" id="group-schedule-group-ok">✓</span>
+        </div>
+        <div class="inline-error" id="group-schedule-group-error"></div>
+        <div class="schedule-detail-card" id="group-schedule-preview" style="display: none;"></div>
       </div>
-      <div class="inline-error" id="group-schedule-group-error"></div>
-      <div class="schedule-detail-card" id="group-schedule-preview" style="display: none;"></div>
+
+      <div id="group-schedule-individual-wrap" style="display: none;">
+        <label class="label">Преподаватель</label>
+        <div class="group-field-wrap">
+          <input class="form-input" id="group-schedule-individual-teacher" type="text" placeholder="Имя, ID или @юзер"/>
+          <span class="field-confirm" id="group-schedule-individual-teacher-ok">✓</span>
+        </div>
+        <div class="personal-individual-user-results" id="group-schedule-individual-teacher-results">
+          <p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска преподавателя...</p>
+        </div>
+        <div class="inline-error" id="group-schedule-individual-teacher-error"></div>
+
+        <label class="label">Клиент</label>
+        <div class="group-field-wrap">
+          <input class="form-input" id="group-schedule-individual-student" type="text" placeholder="Имя, ID, +клиент или @юзер"/>
+          <span class="field-confirm" id="group-schedule-individual-student-ok">✓</span>
+        </div>
+        <div class="personal-individual-user-results" id="group-schedule-individual-student-results">
+          <p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска клиента...</p>
+        </div>
+        <div class="inline-error" id="group-schedule-individual-student-error"></div>
+      </div>
+
+      <div id="group-schedule-rental-wrap" style="display: none;">
+        <label class="label">Кто арендует</label>
+        <div class="group-grid-two">
+          <div>
+            <div class="group-field-wrap">
+              <select class="form-input" id="group-schedule-rental-creator-type">
+                <option value="user">Клиент</option>
+                <option value="teacher">Педагог</option>
+              </select>
+              <span class="field-confirm" id="group-schedule-rental-creator-type-ok">✓</span>
+            </div>
+            <div class="inline-error" id="group-schedule-rental-creator-type-error"></div>
+          </div>
+        </div>
+
+        <div id="group-schedule-rental-user-wrap">
+          <label class="label">Клиент</label>
+          <div class="group-field-wrap">
+            <input class="form-input" id="group-schedule-rental-user" type="text" placeholder="Имя, ID, +клиент или @юзер"/>
+            <span class="field-confirm" id="group-schedule-rental-user-ok">✓</span>
+          </div>
+          <div class="personal-individual-user-results" id="group-schedule-rental-user-results">
+            <p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска клиента...</p>
+          </div>
+          <div class="inline-error" id="group-schedule-rental-user-error"></div>
+        </div>
+
+        <div id="group-schedule-rental-teacher-wrap" style="display: none;">
+          <label class="label">Педагог</label>
+          <div class="group-field-wrap">
+            <input class="form-input" id="group-schedule-rental-teacher" type="text" placeholder="Имя, ID или @юзер"/>
+            <span class="field-confirm" id="group-schedule-rental-teacher-ok">✓</span>
+          </div>
+          <div class="personal-individual-user-results" id="group-schedule-rental-teacher-results">
+            <p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска педагога...</p>
+          </div>
+          <div class="inline-error" id="group-schedule-rental-teacher-error"></div>
+        </div>
+      </div>
 
       <label class="label">Дата</label>
       <div class="group-field-wrap">
@@ -5171,6 +5598,11 @@ textarea.form-input {
 <div aria-hidden="true" class="fullscreen-modal-icon-btn is-hidden"></div>
 <div class="fullscreen-modal-title-wrap"><div class="fullscreen-modal-pill">Создать клиента</div></div>
 <button class="fullscreen-modal-icon-btn" onclick="closeCreateClientModal()" aria-label="Закрыть">&times;</button>
+</div>
+<div class="form-group">
+<label>Цена абонемента (RUB)</label>
+<input class="form-input" id="client-abonement-issue-price-total" type="number" min="0" step="1" value="400" placeholder="Общая цена за весь пакет"/>
+<div class="small" style="margin-top:6px; color:var(--hint);">Для мульти-абонемента указывается общая сумма за все группы.</div>
 </div>
 <div class="form-group">
 <label>Имя *</label>
@@ -5495,146 +5927,6 @@ textarea.form-input {
 <p class="small" id="display-mode-status" style="color: var(--hint); margin-top: 6px;">—</p>
 </div>
 </div>
-<div class="page" data-title="💳 Управление оплатой" id="payment-profiles-admin">
-<div class="card" style="margin-bottom: 12px;">
-<h4>Активный профиль</h4>
-<div class="small" id="payment-profiles-active-label" style="margin-bottom: 10px; color: var(--hint);">—</div>
-<div class="payment-tabs-container" id="payment-tabs-container">
-<button class="payment-tab-btn" id="payment-tab-1" type="button" onclick="selectPaymentProfileTab(1)">Реквизиты 1</button>
-<button class="payment-tab-btn" id="payment-tab-2" type="button" onclick="selectPaymentProfileTab(2)">Реквизиты 2</button>
-<button class="payment-tab-btn" id="payment-tab-3" type="button" onclick="selectPaymentProfileTab(3)">Реквизиты 3</button>
-<div class="payment-tab-indicator" id="payment-tab-indicator"></div>
-</div>
-</div>
-<div class="card" style="margin-bottom: 12px;">
-<h4>Реквизиты 1</h4>
-<div class="form-group">
-<label>Банк получателя</label>
-<input class="form-input" id="payment-profile-1-bank" type="text" placeholder="Например: Сбербанк"/>
-</div>
-<div class="form-group">
-<label>Номер</label>
-<input class="form-input" id="payment-profile-1-number" type="text" placeholder="Номер карты / счета / телефона"/>
-</div>
-<div class="form-group">
-<label>ФИО получателя</label>
-<input class="form-input" id="payment-profile-1-full-name" type="text" placeholder="Иванов Иван Иванович"/>
-</div>
-<button class="save-btn" type="button" onclick="savePaymentProfile(1)">Сохранить реквизиты 1</button>
-</div>
-<div class="card">
-<h4>Реквизиты 2</h4>
-<div class="form-group">
-<label>Банк получателя</label>
-<input class="form-input" id="payment-profile-2-bank" type="text" placeholder="Например: Т-Банк"/>
-</div>
-<div class="form-group">
-<label>Номер</label>
-<input class="form-input" id="payment-profile-2-number" type="text" placeholder="Номер карты / счета / телефона"/>
-</div>
-<div class="form-group">
-<label>ФИО получателя</label>
-<input class="form-input" id="payment-profile-2-full-name" type="text" placeholder="Петров Петр Петрович"/>
-</div>
-<button class="save-btn" type="button" onclick="savePaymentProfile(2)">Сохранить реквизиты 2</button>
-</div>
-<div class="card">
-<h4>Реквизиты 3</h4>
-<div class="form-group">
-<label>Банк получателя</label>
-<input class="form-input" id="payment-profile-3-bank" type="text" placeholder="Например: ВТБ"/>
-</div>
-<div class="form-group">
-<label>Номер</label>
-<input class="form-input" id="payment-profile-3-number" type="text" placeholder="Номер карты / счета / телефона"/>
-</div>
-<div class="form-group">
-<label>ФИО получателя</label>
-<input class="form-input" id="payment-profile-3-full-name" type="text" placeholder="Получатель"/>
-</div>
-<button class="save-btn" type="button" onclick="savePaymentProfile(3)">Сохранить реквизиты 3</button>
-</div>
-</div>
-<div class="page" data-title="💸 Платежи" id="payments-admin">
-  <div class="card" style="margin-bottom: 12px;">
-    <h4 style="margin:0 0 8px;">Журнал оплат</h4>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <div style="flex:1; min-width:120px;">
-        <label class="label">ID клиента</label>
-        <input class="form-input" id="payments-filter-user-id" type="number" min="1" placeholder="Например: 42"/>
-      </div>
-      <div style="flex:1; min-width:120px;">
-        <label class="label">С даты</label>
-        <input class="form-input" id="payments-filter-date-from" type="date"/>
-      </div>
-      <div style="flex:1; min-width:120px;">
-        <label class="label">По дату</label>
-        <input class="form-input" id="payments-filter-date-to" type="date"/>
-      </div>
-    </div>
-    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
-      <div style="flex:1; min-width:120px;">
-        <label class="label">Тип</label>
-        <select class="form-input" id="payments-filter-type">
-          <option value="">Все</option>
-          <option value="booking">Бронь</option>
-          <option value="abonement">Абонемент</option>
-        </select>
-      </div>
-      <div style="flex:1; min-width:120px;">
-        <label class="label">Статус</label>
-        <select class="form-input" id="payments-filter-status">
-          <option value="">Все</option>
-          <option value="confirmed">Подтверждено</option>
-          <option value="rejected">Отклонено</option>
-        </select>
-      </div>
-    </div>
-    <button class="save-btn" type="button" style="margin-top: 10px;" onclick="loadAdminPayments()">Обновить журнал</button>
-    <div class="small" id="payments-admin-status" style="margin-top:8px; color:var(--hint);"></div>
-  </div>
-
-  <div class="card" style="margin-bottom: 12px;">
-    <h4 style="margin:0 0 8px;">Подтвердить оплату по брони</h4>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <div style="flex:1; min-width:110px;">
-        <label class="label">Booking ID</label>
-        <input class="form-input" id="payments-booking-id" type="number" min="1" placeholder="ID брони"/>
-      </div>
-      <div style="flex:1; min-width:110px;">
-        <label class="label">Сумма (RUB)</label>
-        <input class="form-input" id="payments-booking-amount" type="number" min="1" step="1" placeholder="Можно оставить пустым"/>
-      </div>
-    </div>
-    <label class="label">Комментарий</label>
-    <input class="form-input" id="payments-booking-comment" type="text" placeholder="Например: перевод на карту от 08.03"/>
-    <button class="save-btn" type="button" style="margin-top: 10px;" onclick="confirmBookingManualPayment()">Подтвердить оплату брони</button>
-  </div>
-
-  <div class="card" style="margin-bottom: 12px;">
-    <h4 style="margin:0 0 8px;">Подтвердить оплату по абонементу</h4>
-    <div style="display:flex; gap:8px; flex-wrap:wrap;">
-      <div style="flex:1; min-width:110px;">
-        <label class="label">Abonement ID</label>
-        <input class="form-input" id="payments-abonement-id" type="number" min="1" placeholder="ID абонемента"/>
-      </div>
-      <div style="flex:1; min-width:110px;">
-        <label class="label">Сумма (RUB)</label>
-        <input class="form-input" id="payments-abonement-amount" type="number" min="1" step="1" placeholder="Обязательно"/>
-      </div>
-    </div>
-    <label class="label">Комментарий</label>
-    <input class="form-input" id="payments-abonement-comment" type="text" placeholder="Например: перевод на карту от 08.03"/>
-    <button class="save-btn" type="button" style="margin-top: 10px;" onclick="confirmAbonementManualPayment()">Подтвердить оплату абонемента</button>
-  </div>
-
-  <div class="card">
-    <h4 style="margin-top:0;">История</h4>
-    <div id="payments-admin-list">
-      <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Нажмите «Обновить журнал»</p>
-    </div>
-  </div>
-</div>
 <!-- ====== РАСПИСАНИЕ ПЕРСОНАЛА ====== -->
 <div class="page" data-title="📅 Расписание сотрудника" id="staff-schedule">
 
@@ -5745,21 +6037,20 @@ textarea.form-input {
 </div>
 <div class="card">
 <h4 style="margin: 0 0 8px 0;">📋 Информация</h4>
-<div style="margin-bottom: 8px;">
-<label style="font-size: 12px; color: var(--hint); line-height: 1.2;">Должность</label>
-<div id="staff-detail-position-full" style="font-size: 15px; margin-top: 2px;">—</div>
-</div>
-<div style="margin-bottom: 4px;">
+<div style="margin-bottom: 10px;">
 <label style="font-size: 12px; color: var(--hint); line-height: 1.2;">Специализация</label>
 <div id="staff-detail-specialization" style="font-size: 15px; margin-top: 2px;">—</div>
 </div>
+<div>
+<label style="font-size: 12px; color: var(--hint); line-height: 1.2;">Биография</label>
+<p id="staff-detail-bio" style="white-space: pre-wrap; line-height: 1.5; margin: 6px 0 0 0;">—</p>
 </div>
-<div class="card">
-<h4>📝 Биография</h4>
-<p id="staff-detail-bio" style="white-space: pre-wrap; line-height: 1.5;">—</p>
 </div>
-<button class="save-btn" id="staff-detail-edit-btn" onclick="openStaffProfileEdit(currentDetailStaffId)" style="width: 100%; margin-bottom: 8px;">✏️ Редактировать профиль</button>
-<button class="save-btn" id="staff-detail-delete-btn" onclick="deleteCurrentStaff()" style="width: 100%; background: #ff6b6b;">🗑️ Удалить персонал</button>
+<div style="display: flex; gap: 8px; margin-top: 10px;">
+  <button class="save-btn staff-detail-action-btn" id="staff-detail-edit-btn" onclick="openStaffProfileEdit(currentDetailStaffId)" style="flex: 1;">✏️ Редактировать профиль</button>
+  <button class="save-btn staff-detail-action-btn staff-detail-action-btn--danger" id="staff-detail-delete-btn" onclick="deleteCurrentStaff()" style="flex: 1;">🗑️ Удалить персонал</button>
+</div>
+<button class="save-btn staff-detail-action-btn" onclick="openPersonalScheduleForStaff(currentDetailStaffId, document.getElementById('staff-detail-name')?.innerText)" style="width: 100%; margin-top: 8px;">Личное расписание</button>
 </div>
 <!-- ====== ФОРМА СОЗДАНИЯ НАПРАВЛЕНИЯ ====== -->
 <div class="page" data-title="➕ Создать направление" id="direction-create-form">
@@ -6172,13 +6463,11 @@ textarea.form-input {
   </div>
 </div>
 <div class="page" data-title="🔑 Аренда зала" id="info-rent">
-  <div class="card">
-    <h3>Аренда зала</h3>
-    <p class="small">Выберите удобный день, время старта и длительность — мы перенаправим запрос админам, и они подтвердят бронь в чате.</p>
-  </div>
   <div class="card rental-form-card">
-    <h4 style="margin:0;">Заявка на аренду</h4>
-    <p class="rental-note">Поля даты, старта и длительности обязательны. После отправки администрация проверит доступность и напишет в чат.</p>
+    <div class="rental-form-intro">
+      <h3>Аренда зала</h3>
+      <p class="small rental-form-intro-copy">Выберите удобный день, время старта и длительность. Поля даты, старта и длительности обязательны. После отправки заявки вам напишет Администратор для подтверждения брони.</p>
+    </div>
     <div class="rental-form-row">
       <div class="rental-fieldset rental-fieldset--wide">
         <label class="label" for="rental-date">Дата</label>
@@ -6226,15 +6515,23 @@ textarea.form-input {
     </div>
     <div class="form-group">
       <label class="label" for="rental-contact">Контакт</label>
-      <input class="form-input" id="rental-contact" type="text" placeholder="Телеграм или телефон (чтобы админы могли уточнить)"/>
+      <input class="form-input" id="rental-contact" type="text" placeholder="Телеграм или номер для связи"/>
     </div>
     <button class="save-btn" id="rental-submit-btn" onclick="submitRentalBooking()">📩 Отправить заявку</button>
     <p class="rental-booking-message" id="rental-booking-msg"></p>
   </div>
   <div class="card">
     <h4 style="margin:0;">Условия</h4>
-    <p class="small">Студия работает ежедневно с 09:00 до 22:00. Если время пересекается с другими событиями, админы предложат альтернативу. После подтверждения аренды мы создадим запись в расписании и отправим ссылку на оплату.</p>
+    <p class="small">Студия работает ежедневно с 09:00 до 22:00. Технический перерыв: 14:30-15:00. Если время пересекается с другими событиями, Администратор предложит альтернативу. После подтверждения аренды мы создадим запись в расписании и отправим ссылку на оплату.</p>
   </div>
+</div>
+<div class="confirm-modal-overlay" id="rental-success-overlay" onclick="closeRentalSuccessModal()"></div>
+<div class="confirm-modal rental-success-modal" id="rental-success-modal" role="dialog" aria-modal="true" aria-labelledby="rental-success-title">
+  <div class="rental-success-badge" aria-hidden="true">✓</div>
+  <h4 id="rental-success-title" style="margin: 0 0 8px 0;">Заявка отправлена</h4>
+  <p class="small rental-success-copy">Мы получили заявку и передали её администратору на проверку.</p>
+  <p class="small rental-success-copy">После подтверждения брони у вас будет 48 часов на оплату. Время закрепляется за вами только после оплаты.</p>
+  <button class="save-btn" type="button" onclick="closeRentalSuccessModal()" style="width: 100%; margin-top: 0;">Понятно</button>
 </div>
 <!-- ====== ПРОСМОТР НОВОСТИ ====== -->
 <div class="page" data-title="Новости" id="news-detail">
@@ -6280,11 +6577,11 @@ textarea.form-input {
         </div>
       </div>
       <div class="group-booking-body">
-        <label>Вариант абонемента *</label>
+        <label>Абонемент по каждой группе *</label>
         <div id="group-booking-options-list" class="group-booking-options-list"></div>
         <div id="group-booking-options-hint" class="group-booking-meta">Загрузка доступных вариантов...</div>
         <div class="group-booking-directions-block">
-          <div class="group-booking-directions-title">Дополнительные направления (максимум 3 всего)</div>
+          <div class="group-booking-directions-title">Выбранные группы (максимум 3)</div>
           <div id="group-booking-main-direction" class="group-booking-main-direction"></div>
           <div id="group-booking-extra-slots" class="group-booking-extra-slots"></div>
           <div id="group-booking-directions-hint" class="group-booking-meta"></div>
@@ -6294,7 +6591,6 @@ textarea.form-input {
           <div class="group-booking-meta">До скидки: <span id="group-booking-quote-amount-before">—</span></div>
           <div class="group-booking-meta">Скидка: <span id="group-booking-quote-discount">—</span></div>
           <div class="group-booking-meta group-booking-amount-line">Итого: <span id="group-booking-quote-amount" class="group-booking-amount-value">—</span></div>
-          <div class="group-booking-meta">Занятий в группе: <span id="group-booking-quote-lessons-per-group">—</span></div>
           <div class="group-booking-meta">Всего занятий: <span id="group-booking-quote-total-lessons">—</span></div>
           <div class="group-booking-meta">Следующее занятие: <span id="group-booking-next-session">—</span></div>
           <div class="group-booking-meta">Абонемент действует до: <span id="group-booking-valid-until">—</span></div>
@@ -6313,11 +6609,12 @@ textarea.form-input {
         </div>
 
         <label>Комментарий</label>
-        <textarea id="group-booking-note" placeholder="Например, важные детали для администратора"></textarea>
+        <textarea id="group-booking-note" rows="4" placeholder="Например, важные детали для администратора"></textarea>
+        <div id="group-booking-combo-hint" class="group-booking-meta"></div>
+        <div class="group-booking-footer">
+          <button id="group-booking-submit" class="save-btn" type="button" onclick="submitGroupBookingForm()">Оформить</button>
+        </div>
       </div>
-    <div class="group-booking-footer">
-      <button id="group-booking-submit" class="save-btn" type="button" onclick="submitGroupBookingForm()">Оформить</button>
-    </div>
   </div>
 </div>
 <script>
@@ -6824,6 +7121,8 @@ function showPage(id) {
 
   // Личное расписание (для преподавателя)
   if (id === 'personal-schedule') {
+    const overrideName = personalScheduleOverride?.staffName;
+    setHeaderTitle(overrideName ? `Личное расписание: ${overrideName}` : 'Личное расписание');
     showPersonalScheduleRefreshCapsule();
     loadPersonalSchedule();
   } else {
@@ -6898,14 +7197,6 @@ function showPage(id) {
   }
   if (id === 'work-settings-other') {
     setHeaderTitle('Остальные параметры');
-  }
-  if (id === 'payment-profiles-admin') {
-    setHeaderTitle('Управление оплатой');
-    loadPaymentProfilesAdmin();
-  }
-  if (id === 'payments-admin') {
-    setHeaderTitle('Платежи');
-    loadAdminPayments();
   }
   if (id === 'display-settings') {
     setHeaderTitle('Отображение');
@@ -7068,7 +7359,7 @@ function submitRentalBooking() {
         throw new Error((data && data.error) || 'Не удалось отправить заявку');
       }
       resetRentalBookingForm();
-      setRentalBookingMessage('Заявка отправлена, админы вам напишут в Telegram.', false);
+      openRentalSuccessModal();
     })
     .catch(err => {
       setRentalBookingMessage(err.message || 'Ошибка при отправке заявки', true);
@@ -7084,6 +7375,23 @@ function setRentalBookingMessage(text = '', isError = false) {
   if (!msg) return;
   msg.textContent = text;
   msg.classList.toggle('error', Boolean(isError));
+}
+
+function openRentalSuccessModal() {
+  const overlay = document.getElementById('rental-success-overlay');
+  const modal = document.getElementById('rental-success-modal');
+  if (!overlay || !modal) return;
+  overlay.classList.add('show');
+  modal.classList.add('show');
+  setModalBackHandler(closeRentalSuccessModal);
+}
+
+function closeRentalSuccessModal() {
+  const overlay = document.getElementById('rental-success-overlay');
+  const modal = document.getElementById('rental-success-modal');
+  if (overlay) overlay.classList.remove('show');
+  if (modal) modal.classList.remove('show');
+  setModalBackHandler(null);
 }
 
 function setRentalTimeSelectorsEnabled(enabled) {
@@ -8913,14 +9221,14 @@ let groupBookingState = {
   compatibleGroups: [],
   extraGroupIds: [],
   activePickerSlot: null,
-  selectedOptionId: null,
-  availableOptions: [],
-  quotesByOptionId: {},
+  selectedOptionByGroupId: {},
+  groupOptionsByGroupId: {},
+  groupQuotesByGroupId: {},
+  groupQuoteErrorsByGroupId: {},
+  comboQuote: null,
   quote: null,
   quoteRequestSeq: 0,
 };
-
-const GROUP_BOOKING_OPTION_ORDER = ['trial', 'single', 'multi_4', 'multi_8', 'multi_12'];
 
 function resetGroupBookingState() {
   groupBookingState = {
@@ -8928,9 +9236,11 @@ function resetGroupBookingState() {
     compatibleGroups: [],
     extraGroupIds: [],
     activePickerSlot: null,
-    selectedOptionId: null,
-    availableOptions: [],
-    quotesByOptionId: {},
+    selectedOptionByGroupId: {},
+    groupOptionsByGroupId: {},
+    groupQuotesByGroupId: {},
+    groupQuoteErrorsByGroupId: {},
+    comboQuote: null,
     quote: null,
     quoteRequestSeq: 0,
   };
@@ -8941,7 +9251,6 @@ function resetGroupBookingQuoteView() {
     'group-booking-quote-amount-before': '-',
     'group-booking-quote-discount': '-',
     'group-booking-quote-amount': '-',
-    'group-booking-quote-lessons-per-group': '-',
     'group-booking-quote-total-lessons': '-',
     'group-booking-next-session': '-',
     'group-booking-valid-until': '-',
@@ -9010,11 +9319,21 @@ function hideGroupBookingCapsule() {
   capsule.classList.add('hidden');
 }
 
+function normalizeGroupScheduleFormType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'individual' || normalized === 'rental') return normalized;
+  return 'group';
+}
+
+function getGroupScheduleFormTitle() {
+  return GROUP_SCHEDULE_FORM_TITLES[groupScheduleFormType] || GROUP_SCHEDULE_FORM_TITLES.group;
+}
+
 function getGroupScheduleCapsuleText() {
   if (groupSchedulePickerState.active) {
     return isGroupSchedulePickerTapMode() ? 'Выбор времени в расписании' : 'Выбор в расписании';
   }
-  return 'Групповое занятие';
+  return getGroupScheduleFormTitle();
 }
 
 function showGroupScheduleCapsule(text) {
@@ -9158,69 +9477,80 @@ function getMainGroupLessonsPerWeek() {
 
 const GROUP_BOOKING_MULTI_BUCKETS = [4, 8, 12, 16];
 const GROUP_BOOKING_MULTI_BUNDLE_BUCKETS = [4, 8, 12];
+const GROUP_BOOKING_OPTION_ORDER = ['trial', 'single', 'multi_4', 'multi_8', 'multi_12', 'multi_16'];
+const GROUP_BOOKING_COMBO_LOCK_MESSAGE = 'Вы выбрали независимые абонементы, а не мульти-абонемент. Чтобы сработала скидка мульти-абонемента, во всех выбранных группах должно быть одинаковое кол-во занятий.';
+
+function normalizeGroupBookingGroupId(value) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
 
 function getMainGroupLessonsBucket() {
   const perWeek = getMainGroupLessonsPerWeek();
   if (!perWeek) return null;
   const bucket = perWeek * 4;
-  if (GROUP_BOOKING_MULTI_BUCKETS.includes(bucket)) return bucket;
-  return null;
+  return GROUP_BOOKING_MULTI_BUCKETS.includes(bucket) ? bucket : null;
+}
+
+function getGroupLessonsPerWeekValue(group) {
+  const parsed = Number.parseInt(group?.lessons_per_week, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function getGroupLessonsBucket(group) {
+  const perWeek = getGroupLessonsPerWeekValue(group);
+  if (!perWeek) return null;
+  const bucket = perWeek * 4;
+  return GROUP_BOOKING_MULTI_BUCKETS.includes(bucket) ? bucket : null;
+}
+
+function getCompatibleGroupById(groupId) {
+  const targetId = normalizeGroupBookingGroupId(groupId);
+  if (!targetId) return null;
+  return (groupBookingState.compatibleGroups || []).find(item => normalizeGroupBookingGroupId(item?.id) === targetId) || null;
+}
+
+function getGroupBookingGroupById(groupId) {
+  const targetId = normalizeGroupBookingGroupId(groupId);
+  if (!targetId) return null;
+  const mainId = normalizeGroupBookingGroupId(groupBookingState.mainGroup?.id || activeGroupBookingId);
+  if (mainId && mainId === targetId) return groupBookingState.mainGroup;
+  return getCompatibleGroupById(targetId);
 }
 
 function getSelectedExtraGroupIds() {
-  return (groupBookingState.extraGroupIds || [])
-    .filter(id => Number.isFinite(Number(id)) && Number(id) > 0)
-    .map(Number)
-    .slice(0, 2);
+  const mainId = normalizeGroupBookingGroupId(activeGroupBookingId || groupBookingState.mainGroup?.id);
+  const seen = new Set(mainId ? [mainId] : []);
+  const result = [];
+  (groupBookingState.extraGroupIds || []).forEach((rawId) => {
+    const parsed = normalizeGroupBookingGroupId(rawId);
+    if (!parsed || seen.has(parsed)) return;
+    seen.add(parsed);
+    result.push(parsed);
+  });
+  return result.slice(0, 2);
 }
 
-function getSelectedOption() {
-  return groupBookingState.availableOptions.find(option => option.id === groupBookingState.selectedOptionId) || null;
+function getSelectedGroupIds() {
+  const mainId = normalizeGroupBookingGroupId(activeGroupBookingId || groupBookingState.mainGroup?.id);
+  if (!mainId) return [];
+  return [mainId, ...getSelectedExtraGroupIds()].slice(0, 3);
 }
 
-function isMultiOptionSelected() {
-  const selected = getSelectedOption();
-  return !!selected && selected.abonementType === 'multi';
+function getAvailableGroupBookingCompatibleGroups() {
+  const selectedIds = new Set(getSelectedGroupIds().map((id) => Number(id)));
+  return (groupBookingState.compatibleGroups || []).filter((group) => !selectedIds.has(Number(group.id)));
 }
 
-function isBundleEligibleMultiOptionSelected() {
-  const selected = getSelectedOption();
-  const lessonsPerGroup = getOptionMultiLessonsPerGroup(selected);
-  return !!selected && selected.abonementType === 'multi' && GROUP_BOOKING_MULTI_BUNDLE_BUCKETS.includes(lessonsPerGroup);
+function getOptionSortWeight(optionId) {
+  const idx = GROUP_BOOKING_OPTION_ORDER.indexOf(String(optionId || '').trim());
+  return idx === -1 ? 999 : idx;
 }
 
-function buildGroupBookingOptionCandidates() {
-  const lessonsBucket = getMainGroupLessonsBucket();
-  const candidates = [
-    {
-      id: 'trial',
-      label: '\u041f\u0440\u043e\u0431\u043d\u044b\u0439',
-      abonementType: 'trial',
-      description: '1 \u0437\u0430\u043d\u044f\u0442\u0438\u0435',
-    },
-    {
-      id: 'single',
-      label: '\u041e\u0434\u043d\u043e\u0440\u0430\u0437\u043e\u0432\u044b\u0439',
-      abonementType: 'single',
-      description: '1 \u0437\u0430\u043d\u044f\u0442\u0438\u0435',
-    },
-  ];
-
-  if (lessonsBucket) {
-    GROUP_BOOKING_MULTI_BUCKETS.forEach((bucket) => {
-      if (bucket <= lessonsBucket) {
-        candidates.push({
-          id: `multi_${bucket}`,
-          label: `${bucket} \u0437\u0430\u043d\u044f\u0442\u0438\u0439`,
-          abonementType: 'multi',
-          multiLessonsPerGroup: bucket,
-          description: '\u041c\u043d\u043e\u0433\u043e\u0440\u0430\u0437\u043e\u0432\u044b\u0439',
-        });
-      }
-    });
-  }
-
-  return candidates;
+function sortGroupBookingOptions(options) {
+  return [...(Array.isArray(options) ? options : [])].sort((a, b) => getOptionSortWeight(a?.id) - getOptionSortWeight(b?.id));
 }
 
 function getOptionMultiLessonsPerGroup(option) {
@@ -9230,20 +9560,197 @@ function getOptionMultiLessonsPerGroup(option) {
   return parsed;
 }
 
-function getBundleGroupIdsForOption(option) {
-  if (!activeGroupBookingId || !option) return [];
-  const lessonsPerGroup = getOptionMultiLessonsPerGroup(option);
-  const canUseBundle = option.abonementType === 'multi' && GROUP_BOOKING_MULTI_BUNDLE_BUCKETS.includes(lessonsPerGroup);
-  if (!canUseBundle) {
-    return [activeGroupBookingId];
-  }
-  return [activeGroupBookingId, ...getSelectedExtraGroupIds()].slice(0, 3);
+function buildGroupBookingOptionCandidatesForGroup(group) {
+  const groupBucket = getGroupLessonsBucket(group);
+  const candidates = [
+    {
+      id: 'trial',
+      label: 'Пробный',
+      abonementType: 'trial',
+      description: '1 занятие',
+    },
+    {
+      id: 'single',
+      label: 'Одноразовый',
+      abonementType: 'single',
+      description: '1 занятие',
+    },
+  ];
+
+  GROUP_BOOKING_MULTI_BUCKETS.forEach((bucket) => {
+    candidates.push({
+      id: `multi_${bucket}`,
+      label: `${bucket} занятий`,
+      abonementType: 'multi',
+      multiLessonsPerGroup: bucket,
+      description: Number.isFinite(groupBucket) && groupBucket >= bucket
+        ? 'Многоразовый'
+        : 'Недоступно для группы',
+    });
+  });
+
+  return sortGroupBookingOptions(candidates);
 }
 
+function getGroupBookingOptionsForGroup(groupId) {
+  const key = String(groupId);
+  const options = groupBookingState.groupOptionsByGroupId?.[key];
+  return Array.isArray(options) ? options : [];
+}
+
+function getGroupBookingQuotesForGroup(groupId) {
+  const key = String(groupId);
+  const quotes = groupBookingState.groupQuotesByGroupId?.[key];
+  return quotes && typeof quotes === 'object' ? quotes : {};
+}
+
+function getSelectedOptionIdForGroup(groupId) {
+  const key = String(groupId);
+  const optionId = groupBookingState.selectedOptionByGroupId?.[key];
+  return optionId ? String(optionId) : null;
+}
+
+function getSelectedOptionForGroup(groupId) {
+  const optionId = getSelectedOptionIdForGroup(groupId);
+  if (!optionId) return null;
+  return getGroupBookingOptionsForGroup(groupId).find(option => option.id === optionId) || null;
+}
+
+function setSelectedOptionForGroup(groupId, optionId) {
+  const key = String(groupId);
+  const next = { ...(groupBookingState.selectedOptionByGroupId || {}) };
+  const normalized = String(optionId || '').trim();
+  if (!normalized) {
+    delete next[key];
+  } else {
+    next[key] = normalized;
+  }
+  groupBookingState.selectedOptionByGroupId = next;
+}
+
+function allSelectedGroupsHaveOptions() {
+  const groupIds = getSelectedGroupIds();
+  if (!groupIds.length) return false;
+  return groupIds.every((groupId) => {
+    const optionId = getSelectedOptionIdForGroup(groupId);
+    if (!optionId) return false;
+    const quote = getGroupBookingQuotesForGroup(groupId)[optionId];
+    return !!quote;
+  });
+}
+
+function isGroupBookingComboEligible() {
+  const bundleGroupIds = getSelectedGroupIds();
+  if (bundleGroupIds.length < 2) {
+    return { eligible: false, reason: 'need_more_groups', bundleGroupIds, multiLessonsPerGroup: null };
+  }
+  if (!allSelectedGroupsHaveOptions()) {
+    return { eligible: false, reason: 'options_missing', bundleGroupIds, multiLessonsPerGroup: null };
+  }
+
+  const selectedOptions = bundleGroupIds.map(groupId => getSelectedOptionForGroup(groupId));
+  if (selectedOptions.some(option => !option || option.abonementType !== 'multi')) {
+    return { eligible: false, reason: 'non_multi', bundleGroupIds, multiLessonsPerGroup: null };
+  }
+
+  const selectedBuckets = selectedOptions.map(option => getOptionMultiLessonsPerGroup(option));
+  if (selectedBuckets.some(bucket => !Number.isFinite(bucket))) {
+    return { eligible: false, reason: 'invalid_bucket', bundleGroupIds, multiLessonsPerGroup: null };
+  }
+
+  const uniqueBuckets = [...new Set(selectedBuckets)];
+  if (uniqueBuckets.length !== 1) {
+    return { eligible: false, reason: 'different_lessons', bundleGroupIds, multiLessonsPerGroup: null };
+  }
+
+  const multiLessonsPerGroup = Number(uniqueBuckets[0]);
+  if (!GROUP_BOOKING_MULTI_BUNDLE_BUCKETS.includes(multiLessonsPerGroup)) {
+    return { eligible: false, reason: 'unsupported_bucket', bundleGroupIds, multiLessonsPerGroup: null };
+  }
+
+  return { eligible: true, reason: 'ok', bundleGroupIds, multiLessonsPerGroup };
+}
+
+function buildIndependentAggregateQuote() {
+  if (!allSelectedGroupsHaveOptions()) return null;
+
+  const groupIds = getSelectedGroupIds();
+  const selectedQuotes = groupIds.map((groupId) => {
+    const optionId = getSelectedOptionIdForGroup(groupId);
+    return optionId ? getGroupBookingQuotesForGroup(groupId)[optionId] : null;
+  });
+  if (selectedQuotes.some(item => !item)) return null;
+
+  const amountBeforeDiscount = selectedQuotes.reduce((sum, quote) => {
+    const value = Number(quote.amount_before_discount);
+    if (Number.isFinite(value)) return sum + value;
+    const fallbackValue = Number(quote.amount);
+    return sum + (Number.isFinite(fallbackValue) ? fallbackValue : 0);
+  }, 0);
+  const amount = selectedQuotes.reduce((sum, quote) => {
+    const value = Number(quote.amount);
+    return Number.isFinite(value) ? sum + value : sum;
+  }, 0);
+  const discountAmount = Math.max(0, amountBeforeDiscount - amount);
+  const totalLessons = selectedQuotes.reduce((sum, quote) => {
+    const value = Number(quote.total_lessons);
+    return Number.isFinite(value) ? sum + value : sum;
+  }, 0);
+
+  const lessonsPerGroupValues = selectedQuotes
+    .map(quote => Number(quote.lessons_per_group))
+    .filter(value => Number.isFinite(value) && value > 0);
+  let lessonsPerGroup = '-';
+  if (lessonsPerGroupValues.length === selectedQuotes.length) {
+    const unique = [...new Set(lessonsPerGroupValues)];
+    lessonsPerGroup = unique.length === 1 ? unique[0] : 'разное';
+  } else if (selectedQuotes.length > 1) {
+    lessonsPerGroup = 'разное';
+  }
+
+  let minFromTs = null;
+  let maxToTs = null;
+  let minFromRaw = null;
+  let maxToRaw = null;
+  selectedQuotes.forEach((quote) => {
+    const fromTs = quote.valid_from ? Date.parse(quote.valid_from) : NaN;
+    if (Number.isFinite(fromTs) && (minFromTs === null || fromTs < minFromTs)) {
+      minFromTs = fromTs;
+      minFromRaw = quote.valid_from;
+    }
+    const toTs = quote.valid_to ? Date.parse(quote.valid_to) : NaN;
+    if (Number.isFinite(toTs) && (maxToTs === null || toTs > maxToTs)) {
+      maxToTs = toTs;
+      maxToRaw = quote.valid_to;
+    }
+  });
+
+  const directionType = selectedQuotes.find(quote => String(quote.direction_type || '').trim())?.direction_type
+    || groupBookingState.mainGroup?.direction_type
+    || null;
+  const mode = groupIds.length > 1 ? 'independent' : 'single';
+
+  return {
+    mode,
+    group_id: activeGroupBookingId,
+    bundle_group_ids: groupIds,
+    bundle_size: groupIds.length,
+    direction_type: directionType,
+    lessons_per_group: lessonsPerGroup,
+    total_lessons: totalLessons,
+    amount_before_discount: amountBeforeDiscount,
+    discount_amount: discountAmount,
+    amount,
+    currency: 'RUB',
+    valid_from: minFromRaw,
+    valid_to: maxToRaw,
+    requires_payment: amount > 0,
+  };
+}
 function updateGroupBookingSubmitEnabled() {
   const submitButton = document.getElementById('group-booking-submit');
   if (!submitButton) return;
-  submitButton.disabled = !(groupBookingState.quote && groupBookingState.selectedOptionId);
+  submitButton.disabled = !(groupBookingState.quote && allSelectedGroupsHaveOptions());
 }
 
 function applyGroupBookingQuote(quote) {
@@ -9259,9 +9766,10 @@ function applyGroupBookingQuote(quote) {
   const amountBeforeNumeric = Number.isFinite(Number(quote.amount_before_discount))
     ? Number(quote.amount_before_discount)
     : Number(quote.amount);
+  const amountNumeric = Number.isFinite(Number(quote.amount)) ? Number(quote.amount) : 0;
   const discountNumeric = Number.isFinite(Number(quote.discount_amount))
     ? Number(quote.discount_amount)
-    : Math.max(0, amountBeforeNumeric - Number(quote.amount || 0));
+    : Math.max(0, amountBeforeNumeric - amountNumeric);
 
   const amountBeforeNode = document.getElementById('group-booking-quote-amount-before');
   if (amountBeforeNode) {
@@ -9278,13 +9786,13 @@ function applyGroupBookingQuote(quote) {
   }
 
   const amountNode = document.getElementById('group-booking-quote-amount');
-  if (amountNode) amountNode.textContent = formatBookingAmount(quote.amount, currency);
-
-  const perGroupNode = document.getElementById('group-booking-quote-lessons-per-group');
-  if (perGroupNode) perGroupNode.textContent = String(quote.lessons_per_group ?? '-');
+  if (amountNode) amountNode.textContent = formatBookingAmount(amountNumeric, currency);
 
   const totalNode = document.getElementById('group-booking-quote-total-lessons');
-  if (totalNode) totalNode.textContent = String(quote.total_lessons ?? '-');
+  if (totalNode) {
+    const totalLessons = Number(quote.total_lessons);
+    totalNode.textContent = Number.isFinite(totalLessons) ? String(totalLessons) : '-';
+  }
 
   const nextSessionNode = document.getElementById('group-booking-next-session');
   if (nextSessionNode) nextSessionNode.textContent = formatBookingDisplayDate(quote.valid_from);
@@ -9295,48 +9803,159 @@ function applyGroupBookingQuote(quote) {
   const directionTypeNode = document.getElementById('group-booking-direction-type');
   if (directionTypeNode) directionTypeNode.textContent = formatDirectionTypeLabel(quote.direction_type);
 
-  const paymentLabel = quote.requires_payment
-    ? '\u0422\u0440\u0435\u0431\u0443\u0435\u0442\u0441\u044f \u043e\u043f\u043b\u0430\u0442\u0430'
-    : '\u0411\u0435\u0437 \u043e\u043f\u043b\u0430\u0442\u044b';
-  setGroupBookingQuoteStatus(paymentLabel, false);
+  let statusLabel = quote.requires_payment
+    ? 'Требуется оплата'
+    : 'Без оплаты';
+  if (quote.mode === 'combo') {
+    statusLabel = 'Мульти-абонемент с общей скидкой';
+  } else if (quote.mode === 'independent' && Number(quote.bundle_size) > 1) {
+    statusLabel = 'Будут оформлены независимые абонементы';
+  }
+  setGroupBookingQuoteStatus(statusLabel, false);
 }
 
+function renderGroupBookingComboHint() {
+  const node = document.getElementById('group-booking-combo-hint');
+  if (!node) return;
+
+  const selectedGroupIds = getSelectedGroupIds();
+  if (selectedGroupIds.length < 2) {
+    node.innerHTML = '';
+    node.classList.remove('group-booking-combo-hint-warning');
+    node.classList.remove('group-booking-combo-hint-success');
+    return;
+  }
+
+  if (!allSelectedGroupsHaveOptions()) {
+    node.textContent = 'Выберите тип абонемента для каждой группы.';
+    node.classList.remove('group-booking-combo-hint-warning');
+    node.classList.remove('group-booking-combo-hint-success');
+    return;
+  }
+
+  if (groupBookingState.comboQuote && groupBookingState.quote?.mode === 'combo') {
+    node.innerHTML = `
+      <div class="group-booking-combo-hint-title">
+        <span class="group-booking-combo-hint-icon" aria-hidden="true">✅</span>
+        <span>Мульти-абонемент активирован</span>
+      </div>
+      <div class="group-booking-combo-hint-body">Скидка применена.</div>
+    `;
+    node.classList.remove('group-booking-combo-hint-warning');
+    node.classList.add('group-booking-combo-hint-success');
+    return;
+  }
+
+  node.innerHTML = `
+    <div class="group-booking-combo-hint-title">
+      <span class="group-booking-combo-hint-icon" aria-hidden="true">❗</span>
+      <span>Мульти-абонемент не активирован</span>
+    </div>
+    <div class="group-booking-combo-hint-body">${escapeHtml(GROUP_BOOKING_COMBO_LOCK_MESSAGE)}</div>
+  `;
+  node.classList.remove('group-booking-combo-hint-success');
+  node.classList.add('group-booking-combo-hint-warning');
+}
 function renderGroupBookingOptions() {
   const list = document.getElementById('group-booking-options-list');
   if (!list) return;
 
-  const options = [...groupBookingState.availableOptions].sort((a, b) => {
-    const ai = GROUP_BOOKING_OPTION_ORDER.indexOf(a.id);
-    const bi = GROUP_BOOKING_OPTION_ORDER.indexOf(b.id);
-    return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-  });
-
-  if (!options.length) {
-    list.innerHTML = '<div class="small">\u0414\u043b\u044f \u044d\u0442\u043e\u0439 \u0433\u0440\u0443\u043f\u043f\u044b \u043d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u043e\u0432.</div>';
+  const selectedGroupIds = getSelectedGroupIds();
+  if (!selectedGroupIds.length) {
+    list.innerHTML = '';
     return;
   }
 
-  list.innerHTML = options.map(option => {
-    const checked = option.id === groupBookingState.selectedOptionId;
-    const quote = groupBookingState.quotesByOptionId[option.id];
-    const priceText = quote ? formatBookingAmount(quote.amount, quote.currency || 'RUB') : '-';
-    const optionLine = quote
-      ? `${option.label} ${option.description} - ${priceText}`
-      : `${option.label} ${option.description}`;
+  const freeGroupsCount = getAvailableGroupBookingCompatibleGroups().length;
+  const selectedCount = selectedGroupIds.length;
+  const nextSlotIndex = Math.max(0, selectedCount - 1);
+  const canAddGroup = selectedCount < 3 && freeGroupsCount > 0 && nextSlotIndex <= 1;
+
+  const cardsHtml = selectedGroupIds.map((groupId, index) => {
+    const group = getGroupBookingGroupById(groupId);
+    const title = group?.name || `ID ${groupId}`;
+    const directionTitle = group?.direction_title || '-';
+    const lessonsPerWeek = getGroupLessonsPerWeekValue(group);
+    const monthlyLessons = Number.isFinite(lessonsPerWeek) && lessonsPerWeek > 0 ? lessonsPerWeek * 4 : null;
+    const lessonsText = Number.isFinite(lessonsPerWeek) && lessonsPerWeek > 0
+      ? `${lessonsPerWeek} в неделю (${monthlyLessons} в месяц)`
+      : '-';
+
+    const options = buildGroupBookingOptionCandidatesForGroup(group);
+    const availableOptions = getGroupBookingOptionsForGroup(groupId);
+    const availableIds = new Set(availableOptions.map(option => option.id));
+    const quotesByOptionId = getGroupBookingQuotesForGroup(groupId);
+    const selectedOptionId = getSelectedOptionIdForGroup(groupId);
+    const errorText = groupBookingState.groupQuoteErrorsByGroupId?.[String(groupId)] || '';
+
+    const optionsHtml = sortGroupBookingOptions(options).map((option) => {
+      const isAvailable = availableIds.has(option.id);
+      const isActive = selectedOptionId === option.id;
+      const quote = quotesByOptionId[option.id] || null;
+      const isDisabled = !isAvailable;
+      let priceText = '';
+      if (quote) {
+        priceText = formatBookingAmount(quote.amount, quote.currency || 'RUB');
+      } else {
+        priceText = isAvailable ? (option.description || '') : 'Недоступно';
+      }
+
+      const clickHandler = !isDisabled
+        ? `onclick="handleGroupBookingOptionSelect(${groupId}, '${option.id}')"`
+        : '';
+
+      return `
+        <button
+          type="button"
+          class="group-booking-group-option-btn${isActive ? ' active' : ''}${isDisabled ? ' is-disabled' : ''}"
+          ${isDisabled ? 'disabled' : ''}
+          ${clickHandler}
+        >
+          <div class="group-booking-group-option-title">${escapeHtml(option.label || '')}</div>
+          <div class="group-booking-group-option-meta">${escapeHtml(priceText)}</div>
+        </button>
+      `;
+    }).join('');
 
     return `
-      <label class="group-booking-option-item ${checked ? 'active' : ''}">
-        <input type="radio" name="group-booking-option" ${checked ? 'checked' : ''} onchange="handleGroupBookingOptionSelect('${option.id}')" />
-        <div>
-          <div class="group-booking-option-title">${escapeHtml(optionLine)}</div>
+      <div class="group-booking-group-card ${index === 0 ? 'is-main' : ''}">
+        <div class="group-booking-group-card-title">
+          <div>
+            <div><b>${escapeHtml(title)}</b></div>
+            <div class="group-booking-group-option-meta">${escapeHtml(directionTitle)} - ${escapeHtml(lessonsText)}</div>
+          </div>
+          <div class="group-booking-group-card-actions">
+            ${index === 0
+              ? '<span class="group-booking-group-card-main-badge">Основная</span>'
+              : `
+                <span class="group-booking-group-card-main-badge">Группа ${index + 1}</span>
+                <button type="button" class="group-booking-slot-remove" onclick="removeGroupBookingExtraDirection(${index - 1})">&times;</button>
+              `
+            }
+          </div>
+          <!--
+            <label class="label">Процент преподавателя (%)</label>
+            <input class="form-input" id="work-price-teacher-percent" type="number" min="0" max="100" step="1" value="" />
+          -->
         </div>
-      </label>
+        <div class="group-booking-group-option-grid">${optionsHtml}</div>
+        ${errorText ? `<div class="group-booking-option-meta" style="margin-top:6px;color:#ffb3b3;">${escapeHtml(errorText)}</div>` : ''}
+      </div>
     `;
   }).join('');
-}
 
-function getCompatibleGroupById(groupId) {
-  return (groupBookingState.compatibleGroups || []).find(item => Number(item.id) === Number(groupId)) || null;
+  const addGroupHtml = canAddGroup ? `
+    <button
+      type="button"
+      class="group-booking-plus-btn is-large"
+      onclick="openGroupBookingDirectionPicker(${nextSlotIndex})"
+    >
+      <span aria-hidden="true">+</span>
+      <span class="group-booking-plus-btn-note">Добавить группу</span>
+    </button>
+  ` : '';
+
+  list.innerHTML = `${cardsHtml}${addGroupHtml}`;
 }
 
 function renderGroupBookingPicker() {
@@ -9344,31 +9963,33 @@ function renderGroupBookingPicker() {
   const list = document.getElementById('group-booking-picker-list');
   if (!picker || !list) return;
 
-  if (!isBundleEligibleMultiOptionSelected() || groupBookingState.activePickerSlot === null) {
+  if (groupBookingState.activePickerSlot === null) {
     picker.classList.add('hidden');
     list.innerHTML = '';
     return;
   }
 
-  const selected = new Set(getSelectedExtraGroupIds());
-  const available = (groupBookingState.compatibleGroups || []).filter(group => !selected.has(Number(group.id)));
-  picker.classList.remove('hidden');
+  const availableGroups = getAvailableGroupBookingCompatibleGroups();
 
-  if (!available.length) {
-    list.innerHTML = '<div class="small">\u041d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u043d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0439 \u0434\u043b\u044f \u0434\u043e\u0431\u0430\u0432\u043b\u0435\u043d\u0438\u044f.</div>';
+  picker.classList.remove('hidden');
+  if (!availableGroups.length) {
+    list.innerHTML = '<div class="small">Нет доступных групп для добавления.</div>';
     return;
   }
 
-  list.innerHTML = available.map(group => {
-    const lessons = Number.parseInt(group.lessons_per_week, 10);
-    const lessonsText = Number.isFinite(lessons) && lessons > 0 ? `${lessons} \u0432 \u043d\u0435\u0434\u0435\u043b\u044e` : '-';
+  list.innerHTML = availableGroups.map((group) => {
+    const lessons = getGroupLessonsPerWeekValue(group);
+    const monthlyLessons = Number.isFinite(lessons) && lessons > 0 ? lessons * 4 : null;
+    const lessonsText = Number.isFinite(lessons) && lessons > 0
+      ? `${lessons} в неделю (${monthlyLessons} в месяц)`
+      : '-';
     return `
       <div class="group-booking-picker-item">
         <div>
-          <div class="group-booking-option-title">${escapeHtml(group.name || '\u0413\u0440\u0443\u043f\u043f\u0430')}</div>
+          <div class="group-booking-option-title">${escapeHtml(group.name || 'Группа')}</div>
           <div class="group-booking-option-meta">${escapeHtml(group.direction_title || '-')} - ${escapeHtml(lessonsText)}</div>
         </div>
-        <button type="button" class="save-btn" onclick="selectGroupBookingExtraDirection(${Number(group.id)})">\u0412\u044b\u0431\u0440\u0430\u0442\u044c</button>
+        <button type="button" class="save-btn" onclick="selectGroupBookingExtraDirection(${Number(group.id)})">Выбрать</button>
       </div>
     `;
   }).join('');
@@ -9380,62 +10001,40 @@ function renderGroupBookingDirections() {
   const hintNode = document.getElementById('group-booking-directions-hint');
   if (!mainNode || !slotsNode || !hintNode) return;
 
-  const group = groupBookingState.mainGroup;
-  if (!group) {
-    mainNode.textContent = '';
-    slotsNode.innerHTML = '';
+  const mainGroup = groupBookingState.mainGroup;
+  mainNode.textContent = '';
+  slotsNode.innerHTML = '';
+  if (!mainGroup) {
     hintNode.textContent = '';
     renderGroupBookingPicker();
+    renderGroupBookingComboHint();
     return;
   }
 
-  const lessonsPerWeek = Number.parseInt(group.lessons_per_week, 10);
-  const lessonsText = Number.isFinite(lessonsPerWeek) && lessonsPerWeek > 0 ? `${lessonsPerWeek} \u0432 \u043d\u0435\u0434\u0435\u043b\u044e` : '-';
-  mainNode.innerHTML = `<b>\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435 \u043d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435:</b> ${escapeHtml(group.name || '\u0413\u0440\u0443\u043f\u043f\u0430')} - ${escapeHtml(group.direction_title || '-')} - ${escapeHtml(lessonsText)}`;
+  const freeGroupsCount = getAvailableGroupBookingCompatibleGroups().length;
+  const selectedCount = getSelectedGroupIds().length;
 
-  const extras = getSelectedExtraGroupIds();
-  const multiSelected = isBundleEligibleMultiOptionSelected();
-
-  let slotsHtml = '';
-  for (let slotIndex = 0; slotIndex < 2; slotIndex += 1) {
-    const groupId = extras[slotIndex];
-    if (groupId) {
-      const groupData = getCompatibleGroupById(groupId);
-      slotsHtml += `
-        <div class="group-booking-extra-slot">
-          <div class="group-booking-slot-header">
-            <div><b>\u0414\u043e\u043f. \u043d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 ${slotIndex + 2}:</b> ${escapeHtml(groupData?.name || `ID ${groupId}`)}</div>
-            <button type="button" class="group-booking-slot-remove" onclick="removeGroupBookingExtraDirection(${slotIndex})">&times;</button>
-          </div>
-        </div>
-      `;
-      continue;
-    }
-
-    const hasFreeGroups = (groupBookingState.compatibleGroups || []).length > extras.length;
-    const canOpenSlot = multiSelected && slotIndex <= extras.length && hasFreeGroups;
-    slotsHtml += `
-      <button type="button" class="group-booking-plus-btn" ${canOpenSlot ? '' : 'disabled'} onclick="openGroupBookingDirectionPicker(${slotIndex})">+ \u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 ${slotIndex + 2}</button>
-    `;
-  }
-
-  slotsNode.innerHTML = slotsHtml;
-
-  if (!multiSelected) {
-    hintNode.textContent = '\u0414\u043e\u043f. \u043d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u044f \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b \u0442\u043e\u043b\u044c\u043a\u043e \u0434\u043b\u044f 4/8/12 \u0437\u0430\u043d\u044f\u0442\u0438\u0439.';
-  } else if (!groupBookingState.compatibleGroups.length) {
-    hintNode.textContent = '\u041d\u0435\u0442 \u0441\u043e\u0432\u043c\u0435\u0441\u0442\u0438\u043c\u044b\u0445 \u043d\u0430\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0439 (\u043d\u0443\u0436\u043d\u044b \u0442\u043e\u0442 \u0436\u0435 \u0442\u0438\u043f \u0438 \u0442\u043e \u0436\u0435 \u0447\u0438\u0441\u043b\u043e \u0437\u0430\u043d\u044f\u0442\u0438\u0439 \u0432 \u043d\u0435\u0434\u0435\u043b\u044e).';
+  if (!(groupBookingState.compatibleGroups || []).length) {
+    hintNode.textContent = 'Нет групп для добавления.';
+  } else if (selectedCount >= 3) {
+    hintNode.textContent = 'Выбрано максимум 3 группы.';
+  } else if (freeGroupsCount <= 0) {
+    hintNode.textContent = 'Нет доступных групп для добавления.';
   } else {
-    hintNode.textContent = '';
+    const left = 3 - selectedCount;
+    hintNode.textContent = `Можно добавить ещё ${left}.`;
   }
 
   renderGroupBookingPicker();
+  renderGroupBookingComboHint();
 }
 
 function openGroupBookingDirectionPicker(slotIndex) {
-  if (!isBundleEligibleMultiOptionSelected()) return;
   const normalized = Number.parseInt(slotIndex, 10);
   if (!Number.isFinite(normalized) || normalized < 0 || normalized > 1) return;
+  if (!groupBookingState.mainGroup) return;
+  if (normalized > getSelectedExtraGroupIds().length) return;
+  if (getSelectedGroupIds().length >= 3) return;
   groupBookingState.activePickerSlot = normalized;
   renderGroupBookingPicker();
 }
@@ -9446,20 +10045,27 @@ function closeGroupBookingPicker() {
 }
 
 async function selectGroupBookingExtraDirection(groupId) {
-  const parsedGroupId = Number.parseInt(groupId, 10);
-  if (!Number.isFinite(parsedGroupId) || parsedGroupId <= 0) return;
+  const parsedGroupId = normalizeGroupBookingGroupId(groupId);
+  if (!parsedGroupId) return;
   if (groupBookingState.activePickerSlot === null) return;
+  const groupData = getCompatibleGroupById(parsedGroupId);
+  if (!groupData) {
+    showNotification('Эта группа недоступна для добавления');
+    return;
+  }
 
-  const slot = groupBookingState.activePickerSlot;
-  let extras = getSelectedExtraGroupIds();
-  if (extras.includes(parsedGroupId)) {
+  const selectedSet = new Set(getSelectedGroupIds());
+  if (selectedSet.has(parsedGroupId)) {
     groupBookingState.activePickerSlot = null;
     renderGroupBookingDirections();
     return;
   }
 
+  const slot = groupBookingState.activePickerSlot;
+  let extras = getSelectedExtraGroupIds();
+  if (slot > extras.length) return;
   extras[slot] = parsedGroupId;
-  extras = extras.filter(Boolean).slice(0, 2);
+  extras = extras.filter(Boolean).filter((item, index, arr) => arr.indexOf(item) === index).slice(0, 2);
   groupBookingState.extraGroupIds = extras;
   groupBookingState.activePickerSlot = null;
 
@@ -9476,23 +10082,36 @@ async function removeGroupBookingExtraDirection(slotIndex) {
   extras.splice(normalized, 1);
   groupBookingState.extraGroupIds = extras.slice(0, 2);
 
-  if (groupBookingState.activePickerSlot !== null && groupBookingState.activePickerSlot >= groupBookingState.extraGroupIds.length) {
+  if (groupBookingState.activePickerSlot !== null && groupBookingState.activePickerSlot > groupBookingState.extraGroupIds.length) {
     groupBookingState.activePickerSlot = null;
   }
 
   renderGroupBookingDirections();
   await refreshGroupBookingOptionsAndQuote();
 }
+async function fetchGroupBookingQuote(groupId, option, bundleGroupIdsOverride = null) {
+  const normalizedGroupId = normalizeGroupBookingGroupId(groupId);
+  if (!normalizedGroupId) {
+    throw new Error('Группа не выбрана');
+  }
 
-async function fetchGroupBookingQuoteForOption(option) {
-  const bundleGroupIds = getBundleGroupIdsForOption(option);
+  let bundleGroupIds = Array.isArray(bundleGroupIdsOverride) && bundleGroupIdsOverride.length
+    ? bundleGroupIdsOverride
+      .map(item => normalizeGroupBookingGroupId(item))
+      .filter(Boolean)
+      .slice(0, 3)
+    : [normalizedGroupId];
+  if (!bundleGroupIds.includes(normalizedGroupId)) {
+    bundleGroupIds = [normalizedGroupId, ...bundleGroupIds].slice(0, 3);
+  }
+
   const multiLessonsPerGroup = getOptionMultiLessonsPerGroup(option);
   const response = await fetch('/api/booking-requests/group/quote', {
     method: 'POST',
     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
-      group_id: activeGroupBookingId,
-      abonement_type: option.abonementType,
+      group_id: normalizedGroupId,
+      abonement_type: option?.abonementType,
       bundle_group_ids: bundleGroupIds,
       multi_lessons_per_group: multiLessonsPerGroup,
     }),
@@ -9500,80 +10119,201 @@ async function fetchGroupBookingQuoteForOption(option) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0442\u044c \u0432\u0430\u0440\u0438\u0430\u043d\u0442');
+    throw new Error(payload.error || 'Не удалось рассчитать вариант');
   }
   return payload;
 }
 
-async function refreshGroupBookingOptionsAndQuote() {
-  if (!activeGroupBookingId || !groupBookingState.mainGroup) {
-    return;
-  }
+async function refreshGroupBookingComputedQuote(requestSeq = null) {
+  if (!activeGroupBookingId || !groupBookingState.mainGroup) return;
 
-  const requestSeq = ++groupBookingState.quoteRequestSeq;
-  const candidates = buildGroupBookingOptionCandidates();
-  const available = [];
-  const quotesByOptionId = {};
+  const seq = requestSeq === null ? (++groupBookingState.quoteRequestSeq) : requestSeq;
+  let finalQuote = null;
+  groupBookingState.comboQuote = null;
 
-  for (const option of candidates) {
+  const comboState = isGroupBookingComboEligible();
+  if (comboState.eligible) {
     try {
-      const quote = await fetchGroupBookingQuoteForOption(option);
-      if (requestSeq !== groupBookingState.quoteRequestSeq) {
-        return;
-      }
-      available.push(option);
-      quotesByOptionId[option.id] = quote;
+      const comboQuote = await fetchGroupBookingQuote(
+        activeGroupBookingId,
+        {
+          id: `multi_${comboState.multiLessonsPerGroup}`,
+          abonementType: 'multi',
+          multiLessonsPerGroup: comboState.multiLessonsPerGroup,
+        },
+        comboState.bundleGroupIds,
+      );
+      if (seq !== groupBookingState.quoteRequestSeq) return;
+      finalQuote = {
+        ...comboQuote,
+        mode: 'combo',
+        bundle_size: comboState.bundleGroupIds.length,
+      };
+      groupBookingState.comboQuote = finalQuote;
     } catch (error) {
-      // Option not available right now.
+      if (seq !== groupBookingState.quoteRequestSeq) return;
+      groupBookingState.comboQuote = null;
     }
   }
 
-  if (requestSeq !== groupBookingState.quoteRequestSeq) {
+  if (!finalQuote) {
+    finalQuote = buildIndependentAggregateQuote();
+  }
+  if (seq !== groupBookingState.quoteRequestSeq) return;
+
+  applyGroupBookingQuote(finalQuote);
+  renderGroupBookingOptions();
+  renderGroupBookingDirections();
+  renderGroupBookingComboHint();
+
+  const selectedGroupIds = getSelectedGroupIds();
+  if (!selectedGroupIds.length) {
+    setGroupBookingOptionsHint('Выберите группу.', false);
     return;
   }
 
-  groupBookingState.availableOptions = available;
-  groupBookingState.quotesByOptionId = quotesByOptionId;
+  if (!allSelectedGroupsHaveOptions()) {
+    const hasErrors = selectedGroupIds.some(groupId => !!groupBookingState.groupQuoteErrorsByGroupId?.[String(groupId)]);
+    setGroupBookingOptionsHint(
+      hasErrors
+        ? 'Для части групп нет доступных вариантов.'
+        : 'Выберите тип абонемента для каждой группы.',
+      hasErrors,
+    );
+    if (!finalQuote) {
+      setGroupBookingQuoteStatus('Выберите тип абонемента для каждой группы', false);
+    }
+    return;
+  }
 
-  if (!available.length) {
-    groupBookingState.selectedOptionId = null;
+  if (groupBookingState.comboQuote) {
+    setGroupBookingOptionsHint('', false);
+    return;
+  }
+
+  if (selectedGroupIds.length > 1) {
+    setGroupBookingOptionsHint('', false);
+    return;
+  }
+
+  const onlyGroupOption = getSelectedOptionForGroup(selectedGroupIds[0]);
+  if (onlyGroupOption) {
+    setGroupBookingOptionsHint('', false);
+  }
+}
+
+async function refreshGroupBookingOptionsAndQuote() {
+  if (!activeGroupBookingId || !groupBookingState.mainGroup) return;
+
+  const requestSeq = ++groupBookingState.quoteRequestSeq;
+  const selectedGroupIds = getSelectedGroupIds();
+  if (!selectedGroupIds.length) {
+    groupBookingState.groupOptionsByGroupId = {};
+    groupBookingState.groupQuotesByGroupId = {};
+    groupBookingState.groupQuoteErrorsByGroupId = {};
+    groupBookingState.selectedOptionByGroupId = {};
     applyGroupBookingQuote(null);
     renderGroupBookingOptions();
     renderGroupBookingDirections();
-    setGroupBookingOptionsHint('\u0414\u043b\u044f \u044d\u0442\u043e\u0439 \u0433\u0440\u0443\u043f\u043f\u044b \u043d\u0435\u0442 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u043e\u0432.', true);
-    setGroupBookingQuoteStatus('\u041e\u0444\u043e\u0440\u043c\u043b\u0435\u043d\u0438\u0435 \u0432\u0440\u0435\u043c\u0435\u043d\u043d\u043e \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e', true);
+    renderGroupBookingComboHint();
+    setGroupBookingOptionsHint('Выберите группу.', false);
     return;
   }
 
-  const selectedExists = available.some(option => option.id === groupBookingState.selectedOptionId);
-  if (!selectedExists) {
-    groupBookingState.selectedOptionId = available[0].id;
-  }
+  const perGroupResults = await Promise.all(
+    selectedGroupIds.map(async (groupId) => {
+      const group = getGroupBookingGroupById(groupId);
+      const candidates = buildGroupBookingOptionCandidatesForGroup(group);
+      const optionResults = await Promise.all(
+        candidates.map(async (option) => {
+          try {
+            const quote = await fetchGroupBookingQuote(groupId, option, [groupId]);
+            return { option, quote };
+          } catch (error) {
+            return { option, error };
+          }
+        }),
+      );
 
-  const quote = groupBookingState.quotesByOptionId[groupBookingState.selectedOptionId] || null;
-  applyGroupBookingQuote(quote);
-  renderGroupBookingOptions();
-  renderGroupBookingDirections();
+      const availableOptions = [];
+      const quotesByOptionId = {};
+      optionResults.forEach((result) => {
+        if (result && result.quote) {
+          availableOptions.push(result.option);
+          quotesByOptionId[result.option.id] = result.quote;
+        }
+      });
+      return {
+        groupId,
+        availableOptions: sortGroupBookingOptions(availableOptions),
+        quotesByOptionId,
+      };
+    }),
+  );
 
-  const selectedOption = getSelectedOption();
-  if (selectedOption) {
-    setGroupBookingOptionsHint(`\u0412\u044b\u0431\u0440\u0430\u043d\u043e: ${selectedOption.label}`, false);
+  if (requestSeq !== groupBookingState.quoteRequestSeq) return;
+
+  const previousSelections = { ...(groupBookingState.selectedOptionByGroupId || {}) };
+  const nextOptionsByGroupId = {};
+  const nextQuotesByGroupId = {};
+  const nextErrorsByGroupId = {};
+  perGroupResults.forEach((result) => {
+    const key = String(result.groupId);
+    nextOptionsByGroupId[key] = result.availableOptions;
+    nextQuotesByGroupId[key] = result.quotesByOptionId;
+    if (!result.availableOptions.length) {
+      nextErrorsByGroupId[key] = 'Нет доступных вариантов.';
+    }
+  });
+  groupBookingState.groupOptionsByGroupId = nextOptionsByGroupId;
+  groupBookingState.groupQuotesByGroupId = nextQuotesByGroupId;
+  groupBookingState.groupQuoteErrorsByGroupId = nextErrorsByGroupId;
+
+  const nextSelections = {};
+  const mainKey = String(activeGroupBookingId);
+  const mainOptions = nextOptionsByGroupId[mainKey] || [];
+  let mainSelection = previousSelections[mainKey] || null;
+  if (!mainOptions.some(option => option.id === mainSelection)) {
+    mainSelection = mainOptions[0]?.id || null;
   }
+  if (mainSelection) nextSelections[mainKey] = mainSelection;
+
+  selectedGroupIds.forEach((groupId) => {
+    const key = String(groupId);
+    if (key === mainKey) return;
+
+    const availableOptions = nextOptionsByGroupId[key] || [];
+    const previousOptionId = previousSelections[key] || null;
+    let nextOptionId = previousOptionId;
+    if (!availableOptions.some(option => option.id === nextOptionId)) {
+      if (mainSelection && availableOptions.some(option => option.id === mainSelection)) {
+        nextOptionId = mainSelection;
+      } else {
+        nextOptionId = availableOptions[0]?.id || null;
+      }
+    }
+    if (nextOptionId) nextSelections[key] = nextOptionId;
+  });
+  groupBookingState.selectedOptionByGroupId = nextSelections;
+
+  await refreshGroupBookingComputedQuote(requestSeq);
 }
 
-async function handleGroupBookingOptionSelect(optionId) {
-  groupBookingState.selectedOptionId = String(optionId || '').trim();
-  const quote = groupBookingState.quotesByOptionId[groupBookingState.selectedOptionId] || null;
-  applyGroupBookingQuote(quote);
-  renderGroupBookingOptions();
-  renderGroupBookingDirections();
+async function handleGroupBookingOptionSelect(groupId, optionId) {
+  const normalizedGroupId = normalizeGroupBookingGroupId(groupId);
+  if (!normalizedGroupId) return;
+  const normalizedOptionId = String(optionId || '').trim();
+  if (!normalizedOptionId) return;
 
-  const selectedOption = getSelectedOption();
-  if (selectedOption) {
-    setGroupBookingOptionsHint(`\u0412\u044b\u0431\u0440\u0430\u043d\u043e: ${selectedOption.label}`, false);
+  const options = getGroupBookingOptionsForGroup(normalizedGroupId);
+  if (!options.some(option => option.id === normalizedOptionId)) {
+    showNotification('Этот вариант временно недоступен');
+    return;
   }
-}
 
+  setSelectedOptionForGroup(normalizedGroupId, normalizedOptionId);
+  await refreshGroupBookingComputedQuote();
+}
 async function loadGroupBookingCompatibleGroups() {
   const group = groupBookingState.mainGroup;
   if (!group) {
@@ -9582,15 +10322,13 @@ async function loadGroupBookingCompatibleGroups() {
   }
 
   const directionType = String(group.direction_type || '').toLowerCase();
-  const lessonsPerWeek = Number.parseInt(group.lessons_per_week, 10);
-  if (!directionType || !Number.isFinite(lessonsPerWeek) || lessonsPerWeek <= 0) {
+  if (!directionType) {
     groupBookingState.compatibleGroups = [];
     return;
   }
 
   const params = new URLSearchParams({
     direction_type: directionType,
-    lessons_per_week: String(lessonsPerWeek),
     exclude_group_id: String(activeGroupBookingId),
   });
 
@@ -9598,7 +10336,7 @@ async function loadGroupBookingCompatibleGroups() {
     const response = await fetch(`/api/groups/compatible?${params.toString()}`, { headers: getAuthHeaders() });
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.error || '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u043e\u0432\u043c\u0435\u0441\u0442\u0438\u043c\u044b\u0435 \u0433\u0440\u0443\u043f\u043f\u044b');
+      throw new Error(err.error || 'Не удалось загрузить доступные группы');
     }
     const payload = await response.json();
     const rows = Array.isArray(payload) ? payload : [];
@@ -9609,39 +10347,47 @@ async function loadGroupBookingCompatibleGroups() {
     console.error(error);
     groupBookingState.compatibleGroups = [];
   }
+
+  const validGroupIds = new Set((groupBookingState.compatibleGroups || []).map(item => Number(item.id)));
+  groupBookingState.extraGroupIds = getSelectedExtraGroupIds().filter(id => validGroupIds.has(Number(id))).slice(0, 2);
+  if (groupBookingState.activePickerSlot !== null && groupBookingState.activePickerSlot > groupBookingState.extraGroupIds.length) {
+    groupBookingState.activePickerSlot = null;
+  }
 }
 
 async function openGroupBookingForm(groupId) {
   const group = (window.groupDetails && window.groupDetails[groupId]) || null;
   if (!group) {
-    showNotification('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u043f\u0440\u0435\u0434\u0435\u043b\u0438\u0442\u044c \u0433\u0440\u0443\u043f\u043f\u0443');
+    showNotification('Не удалось определить группу');
     return;
   }
 
   activeGroupBookingId = Number(groupId);
   resetGroupBookingState();
-  groupBookingState.mainGroup = group;
+  groupBookingState.mainGroup = { ...group, id: activeGroupBookingId };
 
   const overlay = document.getElementById('group-booking-overlay');
   if (!overlay) return;
 
-  setGroupBookingInfoText(group);
+  setGroupBookingInfoText(groupBookingState.mainGroup);
   toggleGroupBookingInfoPopup(false);
 
   const noteInput = document.getElementById('group-booking-note');
   if (noteInput) noteInput.value = '';
 
   resetGroupBookingQuoteView();
-  setGroupBookingOptionsHint('\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0445 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u043e\u0432...', false);
-  setGroupBookingQuoteStatus('\u0420\u0430\u0441\u0447\u0451\u0442 \u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u0438...', false);
+  setGroupBookingOptionsHint('Загрузка доступных вариантов...', false);
+  setGroupBookingQuoteStatus('Расчёт стоимости...', false);
 
   overlay.classList.add('show');
   document.body.classList.add('group-booking-open');
+  setBottomNavAirGapEnabled(false);
   setModalBackHandler(closeGroupBookingForm);
-  showGroupBookingCapsule(getGroupBookingCapsuleText(group));
+  showGroupBookingCapsule(getGroupBookingCapsuleText(groupBookingState.mainGroup));
 
   renderGroupBookingOptions();
   renderGroupBookingDirections();
+  renderGroupBookingComboHint();
   updateGroupBookingSubmitEnabled();
 
   await loadGroupBookingCompatibleGroups();
@@ -9656,92 +10402,149 @@ function closeGroupBookingForm() {
   toggleGroupBookingInfoPopup(false);
   overlay.classList.remove('show');
   document.body.classList.remove('group-booking-open');
+  setBottomNavAirGapEnabled(true);
   setModalBackHandler(null);
   activeGroupBookingId = null;
   resetGroupBookingState();
 }
 
+async function sendGroupBookingPayload(payload) {
+  const response = await fetch('/api/booking-requests', {
+    method: 'POST',
+    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const errorCode = String(data.code || '').trim().toLowerCase();
+    const error = new Error(data.error || 'Не удалось отправить заявку');
+    error.isAlreadyBooked = response.status === 409 && errorCode === 'booking_already_exists';
+    throw error;
+  }
+
+  return data;
+}
+
+function buildSingleGroupBookingPayload(groupId, note) {
+  const option = getSelectedOptionForGroup(groupId);
+  if (!option) return null;
+  return {
+    object_type: 'group',
+    group_id: groupId,
+    abonement_type: option.abonementType,
+    bundle_group_ids: [groupId],
+    multi_lessons_per_group: getOptionMultiLessonsPerGroup(option),
+    comment: note || null,
+  };
+}
+
 async function submitGroupBookingForm() {
   if (!activeGroupBookingId) {
-    showNotification('\u0413\u0440\u0443\u043f\u043f\u0430 \u043d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d\u0430');
+    showNotification('Группа не выбрана');
     return;
   }
 
-  const selectedOption = getSelectedOption();
-  if (!selectedOption) {
-    showNotification('\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0432\u0430\u0440\u0438\u0430\u043d\u0442 \u0430\u0431\u043e\u043d\u0435\u043c\u0435\u043d\u0442\u0430');
+  if (!allSelectedGroupsHaveOptions()) {
+    showNotification('Выберите тип абонемента для каждой группы');
     return;
   }
 
   if (!groupBookingState.quote) {
-    await refreshGroupBookingOptionsAndQuote();
+    await refreshGroupBookingComputedQuote();
     if (!groupBookingState.quote) {
-      showNotification('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0440\u0430\u0441\u0441\u0447\u0438\u0442\u0430\u0442\u044c \u0441\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c');
+      showNotification('Не удалось рассчитать стоимость');
       return;
     }
   }
 
-  const bundleGroupIds = getBundleGroupIdsForOption(selectedOption);
   const submitButton = document.getElementById('group-booking-submit');
   if (!submitButton) return;
 
   const originalText = submitButton.textContent;
   submitButton.disabled = true;
-  submitButton.textContent = '\u041e\u0442\u043f\u0440\u0430\u0432\u043a\u0430...';
+  submitButton.textContent = 'Отправка...';
 
   const note = document.getElementById('group-booking-note')?.value.trim();
-  const multiLessonsPerGroup = getOptionMultiLessonsPerGroup(selectedOption);
-  const payload = {
-    object_type: 'group',
-    group_id: activeGroupBookingId,
-    abonement_type: selectedOption.abonementType,
-    bundle_group_ids: bundleGroupIds,
-    multi_lessons_per_group: multiLessonsPerGroup,
-    comment: note || null,
-  };
+  const selectedGroupIds = getSelectedGroupIds();
+  const comboState = isGroupBookingComboEligible();
+  const useCombo = comboState.eligible && !!groupBookingState.comboQuote;
+  const payloads = [];
 
-  try {
-    const response = await fetch('/api/booking-requests', {
-      method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(payload),
+  if (useCombo) {
+    payloads.push({
+      object_type: 'group',
+      group_id: activeGroupBookingId,
+      abonement_type: 'multi',
+      bundle_group_ids: comboState.bundleGroupIds,
+      multi_lessons_per_group: comboState.multiLessonsPerGroup,
+      comment: note || null,
     });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const errorCode = String(data.code || '').trim().toLowerCase();
-      const errorText = String(data.error || '').trim().toLowerCase();
-      const isAlreadyBooked = response.status === 409
-        && (errorCode === 'booking_already_exists' || errorText.includes('уже записан'));
-      if (isAlreadyBooked) {
-        closeGroupBookingForm();
-        showNotification('Вы уже записаны на это время');
-        return;
-      }
-      throw new Error(data.error || '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u0437\u0430\u044f\u0432\u043a\u0443');
+  } else {
+    selectedGroupIds.forEach((groupId) => {
+      const payload = buildSingleGroupBookingPayload(groupId, note);
+      if (payload) payloads.push(payload);
+    });
+  }
+
+  if (!payloads.length) {
+    submitButton.textContent = originalText;
+    updateGroupBookingSubmitEnabled();
+    showNotification('Нет данных для оформления');
+    return;
+  }
+
+  const responses = [];
+  try {
+    for (const payload of payloads) {
+      const data = await sendGroupBookingPayload(payload);
+      responses.push(data);
     }
 
+    closeGroupBookingForm();
+
+    if (!useCombo && payloads.length > 1) {
+      const hasWaitingPayment = responses.some(item => String(item.status || '').toLowerCase() !== 'created');
+      if (hasWaitingPayment) {
+        showNotification('Заявки отправлены по всем группам. Оплатите в течение 48 часов');
+      } else {
+        showNotification('Заявки отправлены на ручное одобрение');
+      }
+      return;
+    }
+
+    const data = responses[0] || {};
     if (String(data.status || '').toLowerCase() === 'created') {
-      showNotification('\u0417\u0430\u044f\u0432\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0430 \u043d\u0430 \u0440\u0443\u0447\u043d\u043e\u0435 \u043e\u0434\u043e\u0431\u0440\u0435\u043d\u0438\u0435');
+      showNotification('Заявка отправлена на ручное одобрение');
     } else {
       const reserveDeadline = data.reserved_until ? new Date(data.reserved_until).toLocaleString('ru-RU') : null;
       if (reserveDeadline) {
-        showNotification(`\u0417\u0430\u044f\u0432\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0430. \u041e\u043f\u043b\u0430\u0442\u0438\u0442\u0435 \u0432 \u0442\u0435\u0447\u0435\u043d\u0438\u0435 48 \u0447\u0430\u0441\u043e\u0432 (\u0434\u043e ${reserveDeadline})`);
+        showNotification(`Заявка отправлена. Оплатите в течение 48 часов (до ${reserveDeadline})`);
       } else {
-        showNotification('\u0417\u0430\u044f\u0432\u043a\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0430. \u041e\u043f\u043b\u0430\u0442\u0438\u0442\u0435 \u0432 \u0442\u0435\u0447\u0435\u043d\u0438\u0435 48 \u0447\u0430\u0441\u043e\u0432');
+        showNotification('Заявка отправлена. Оплатите в течение 48 часов');
       }
     }
-    closeGroupBookingForm();
   } catch (error) {
     console.error(error);
-    showNotification(error.message || '\u041e\u0448\u0438\u0431\u043a\u0430 \u043e\u0444\u043e\u0440\u043c\u043b\u0435\u043d\u0438\u044f \u0437\u0430\u044f\u0432\u043a\u0438');
+    if (responses.length > 0) {
+      closeGroupBookingForm();
+      showNotification(`Оформлено ${responses.length} из ${payloads.length}. ${error.message || ''}`.trim());
+      return;
+    }
+
+    if (error?.isAlreadyBooked) {
+      closeGroupBookingForm();
+      showNotification('Вы уже записаны на это время');
+      return;
+    }
+    showNotification(error.message || 'Ошибка оформления заявки');
   } finally {
     submitButton.textContent = originalText;
     if (activeGroupBookingId) {
-      submitButton.disabled = !(groupBookingState.quote && groupBookingState.selectedOptionId);
+      updateGroupBookingSubmitEnabled();
     }
   }
 }
-
 function openTeacherProfilePlaceholder(teacherId) {
   const id = Number(teacherId);
   if (!Number.isFinite(id) || id <= 0) return;
@@ -9802,11 +10605,27 @@ const groupSchedulePickerState = {
   tapStartTime: '',
   selectionMode: 'drag'
 };
+let groupScheduleFormType = 'group';
+let groupScheduleParticipantsLoaded = false;
+let groupScheduleTeachers = [];
+let groupScheduleUsers = [];
 
 const SCHEDULE_TYPE_TITLES = {
   group: 'Групповое занятие',
   individual: 'Индивидуальное занятие',
   rental: 'Аренда'
+};
+
+const GROUP_SCHEDULE_FORM_TITLES = {
+  group: 'Групповое занятие',
+  individual: 'Индивидуальное занятие',
+  rental: 'Аренда зала',
+};
+
+const GROUP_SCHEDULE_TYPE_HINTS = {
+  group: 'Выберите группу',
+  individual: 'Выберите преподавателя и клиента',
+  rental: 'Укажите, кто арендует зал',
 };
 
 const SCHEDULE_STATUS_LABELS = {
@@ -11405,11 +12224,509 @@ function handleGroupScheduleCloseAction() {
   toggleGroupScheduleForm(false);
 }
 
+const quickClientDraftCreateLocks = new Set();
+
+function normalizeQuickClientDraftIntent(rawValue) {
+  const raw = String(rawValue || '').trim();
+  if (!raw) return null;
+  if (raw.startsWith('+')) {
+    const name = raw.slice(1).trim();
+    return {
+      mode: 'blank',
+      name: name || 'Новый клиент',
+      token: raw,
+    };
+  }
+  if (raw.startsWith('@')) {
+    const username = raw.slice(1).trim().replace(/^@+/, '').toLowerCase();
+    if (!username) return null;
+    return {
+      mode: 'username',
+      username,
+      name: `@${username}`,
+      token: raw,
+    };
+  }
+  return null;
+}
+
+function quickClientDraftIntentLabel(intent) {
+  if (!intent) return '';
+  if (intent.mode === 'username') {
+    return `Создать черновик клиента @${intent.username}`;
+  }
+  return `Создать черновик клиента ${intent.name || 'Новый клиент'}`;
+}
+
+function normalizeClientUserRecord(rawUser) {
+  const id = Number.parseInt(rawUser?.id, 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return {
+    id,
+    telegram_id: rawUser?.telegram_id ?? null,
+    username: String(rawUser?.username || '').replace(/^@+/, ''),
+    phone: rawUser?.phone ?? null,
+    name: String(rawUser?.name || '').trim() || `Клиент #${id}`,
+    email: rawUser?.email ?? null,
+    birth_date: rawUser?.birth_date ?? null,
+    registered_at: rawUser?.registered_at ?? null,
+    status: rawUser?.status ?? 'active',
+    user_notes: rawUser?.user_notes ?? null,
+    staff_notes: rawUser?.staff_notes ?? null,
+  };
+}
+
+async function createQuickClientDraft(intent, sourceTag) {
+  if (!intent || !intent.mode) {
+    throw new Error('Неверный формат черновика клиента');
+  }
+  const lockKey = String(sourceTag || 'default');
+  if (quickClientDraftCreateLocks.has(lockKey)) {
+    throw new Error('Создание клиента уже выполняется');
+  }
+
+  quickClientDraftCreateLocks.add(lockKey);
+  try {
+    const response = await fetch('/users/quick-draft', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        mode: intent.mode,
+        name: intent.name || '',
+        username: intent.username || '',
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.error || 'Не удалось создать черновик клиента');
+    }
+
+    const user = normalizeClientUserRecord(payload.user);
+    if (!user) {
+      throw new Error('Сервер вернул некорректного клиента');
+    }
+    return {
+      created: Boolean(payload.created),
+      draft: Boolean(payload.draft),
+      user,
+    };
+  } finally {
+    quickClientDraftCreateLocks.delete(lockKey);
+  }
+}
+
+const GROUP_SCHEDULE_PARTICIPANT_CONFIG = {
+  'individual-teacher': {
+    fieldId: 'group-schedule-individual-teacher',
+    resultsId: 'group-schedule-individual-teacher-results',
+    sourceType: 'teacher',
+    emptyHint: 'Начните вводить для поиска преподавателя...',
+    emptyLoadedHint: 'Преподаватели не найдены',
+  },
+  'individual-student': {
+    fieldId: 'group-schedule-individual-student',
+    resultsId: 'group-schedule-individual-student-results',
+    sourceType: 'user',
+    emptyHint: 'Начните вводить для поиска клиента, + для нового или @username...',
+    emptyLoadedHint: 'Клиенты не найдены',
+  },
+  'rental-user': {
+    fieldId: 'group-schedule-rental-user',
+    resultsId: 'group-schedule-rental-user-results',
+    sourceType: 'user',
+    emptyHint: 'Начните вводить для поиска клиента, + для нового или @username...',
+    emptyLoadedHint: 'Клиенты не найдены',
+  },
+  'rental-teacher': {
+    fieldId: 'group-schedule-rental-teacher',
+    resultsId: 'group-schedule-rental-teacher-results',
+    sourceType: 'teacher',
+    emptyHint: 'Начните вводить для поиска педагога...',
+    emptyLoadedHint: 'Педагоги не найдены',
+  },
+};
+
+function getGroupScheduleParticipantConfig(kind) {
+  return GROUP_SCHEDULE_PARTICIPANT_CONFIG[String(kind || '').trim()] || null;
+}
+
+function setGroupScheduleParticipantResultsMessage(kind, message) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  const results = config ? document.getElementById(config.resultsId) : null;
+  if (!results) return;
+  results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">${escapeHtml(message || 'Нет данных')}</p>`;
+}
+
+function formatGroupScheduleTeacherOptionLabel(teacher) {
+  const id = Number.parseInt(teacher?.id, 10);
+  const name = String(teacher?.name || '').trim() || `Преподаватель #${id || '—'}`;
+  const position = String(teacher?.position || '').trim();
+  return position ? `${name} (${position})` : name;
+}
+
+function formatGroupScheduleUserOptionLabel(user) {
+  const id = Number.parseInt(user?.id, 10);
+  const name = String(user?.name || '').trim() || `Клиент #${id || '—'}`;
+  const parts = [name];
+  const usernameRaw = String(user?.username || '').trim().replace(/^@+/, '');
+  if (usernameRaw) parts.push(`@${usernameRaw}`);
+  return parts.join(' • ');
+}
+
+function getGroupScheduleParticipantItems(kind) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  if (!config) return [];
+  return config.sourceType === 'teacher'
+    ? (Array.isArray(groupScheduleTeachers) ? groupScheduleTeachers : [])
+    : (Array.isArray(groupScheduleUsers) ? groupScheduleUsers : []);
+}
+
+function getGroupScheduleQuickDraftLockKey(kind) {
+  return `group-schedule:${String(kind || '').trim()}`;
+}
+
+function getGroupScheduleQuickDraftIntent(kind, queryRaw) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  if (!config || config.sourceType !== 'user') return null;
+  return normalizeQuickClientDraftIntent(queryRaw);
+}
+
+function getGroupScheduleParticipantSelectedId(fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input) return null;
+  const parsed = Number.parseInt(String(input.dataset.selectedId || '').trim(), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function clearGroupScheduleParticipantSelection(fieldId) {
+  const input = document.getElementById(fieldId);
+  if (!input) return;
+  delete input.dataset.selectedId;
+  delete input.dataset.selectedLabel;
+}
+
+function getGroupScheduleParticipantSearchText(kind, item) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  if (!config || !item) return '';
+  if (config.sourceType === 'teacher') {
+    const parts = [
+      item.id,
+      item.name,
+      item.position,
+      item.specialization,
+      item.bio,
+    ];
+    return parts.filter(Boolean).join(' ').toLowerCase();
+  }
+  const parts = [
+    item.id,
+    item.name,
+    item.username,
+    item.telegram_id,
+    item.phone,
+    item.email,
+  ];
+  return parts.filter(Boolean).join(' ').toLowerCase();
+}
+
+function getGroupScheduleParticipantCardBody(kind, item) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  if (!config || !item) return { title: '—', detail: '' };
+  if (config.sourceType === 'teacher') {
+    const title = formatGroupScheduleTeacherOptionLabel(item);
+    const details = [`ID: ${item.id}`];
+    if (item.specialization) details.push(item.specialization);
+    return { title, detail: details.join(' • ') };
+  }
+  const title = String(item?.name || '').trim() || `Клиент #${item.id || '—'}`;
+  const details = [`ID: ${item.id}`];
+  if (item.telegram_id) details.push(`TG: ${item.telegram_id}`);
+  const usernameRaw = String(item?.username || '').trim().replace(/^@+/, '');
+  if (usernameRaw) details.push(`@${usernameRaw}`);
+  return { title, detail: details.join(' • ') };
+}
+
+function renderGroupScheduleParticipantResults(kind) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  if (!config) return;
+  const input = document.getElementById(config.fieldId);
+  const results = document.getElementById(config.resultsId);
+  if (!input || !results) return;
+
+  if (!groupScheduleParticipantsLoaded) {
+    setGroupScheduleParticipantResultsMessage(kind, 'Загрузка...');
+    return;
+  }
+
+  const queryRaw = String(input.value || '').trim();
+  const quickIntent = getGroupScheduleQuickDraftIntent(kind, queryRaw);
+  let query = queryRaw.toLowerCase().replace(/^@+/, '');
+  if (quickIntent?.mode === 'username') {
+    query = String(quickIntent.username || '').trim().toLowerCase();
+  } else if (quickIntent?.mode === 'blank') {
+    const draftName = String(quickIntent.name || '').trim();
+    query = draftName && draftName !== 'Новый клиент' ? draftName.toLowerCase() : '';
+  }
+
+  const allItems = getGroupScheduleParticipantItems(kind);
+  const selectedId = getGroupScheduleParticipantSelectedId(config.fieldId);
+  let filtered = [];
+  if (allItems.length) {
+    if (!query) {
+      filtered = allItems.slice(0, 12);
+    } else {
+      filtered = allItems
+        .filter(item => getGroupScheduleParticipantSearchText(kind, item).includes(query))
+        .slice(0, 24);
+    }
+  }
+
+  if (selectedId && !filtered.some(item => Number.parseInt(item?.id, 10) === selectedId)) {
+    const selectedItem = allItems.find(item => Number.parseInt(item?.id, 10) === selectedId);
+    if (selectedItem) filtered.unshift(selectedItem);
+  }
+
+  const quickCard = quickIntent
+    ? (() => {
+        const isCreating = quickClientDraftCreateLocks.has(getGroupScheduleQuickDraftLockKey(kind));
+        const hint = quickIntent.mode === 'username'
+          ? `Черновик без Telegram. Логин: @${quickIntent.username}`
+          : 'Черновик без Telegram. Уведомления недоступны.';
+        return `
+          <div class="card personal-individual-user-card ${isCreating ? 'is-selected' : ''}" onclick="createGroupScheduleQuickClientDraft('${kind}')">
+            <div style="font-weight: 600; font-size: 14px;">${escapeHtml(isCreating ? 'Создаем клиента...' : quickClientDraftIntentLabel(quickIntent))}</div>
+            <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">${escapeHtml(hint)}</div>
+          </div>
+        `;
+      })()
+    : '';
+
+  if (!filtered.length && !quickCard) {
+    if (!allItems.length) {
+      setGroupScheduleParticipantResultsMessage(kind, config.emptyLoadedHint);
+      return;
+    }
+    setGroupScheduleParticipantResultsMessage(kind, 'Ничего не найдено');
+    return;
+  }
+
+  const cards = filtered.map(item => {
+    const id = Number.parseInt(item?.id, 10);
+    if (!Number.isFinite(id) || id <= 0) return '';
+    const isSelected = selectedId === id;
+    const body = getGroupScheduleParticipantCardBody(kind, item);
+    return `
+      <div class="card personal-individual-user-card ${isSelected ? 'is-selected' : ''}" onclick="selectGroupScheduleParticipant('${kind}', ${id})">
+        <div style="font-weight: 600; font-size: 14px;">
+          ${escapeHtml(body.title)}
+          ${isSelected ? ' ✅' : ''}
+        </div>
+        <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">${escapeHtml(body.detail)}</div>
+      </div>
+    `;
+  }).join('');
+
+  const footer = !query && !quickIntent && allItems.length > 12
+    ? '<p class="small" style="margin: 6px 0 0; color: var(--hint); text-align: center;">Показаны первые 12. Введите поиск, чтобы сузить список.</p>'
+    : '';
+  results.innerHTML = quickCard + cards + footer;
+}
+
+function renderAllGroupScheduleParticipantResults() {
+  Object.keys(GROUP_SCHEDULE_PARTICIPANT_CONFIG).forEach(renderGroupScheduleParticipantResults);
+}
+
+function upsertGroupScheduleUser(rawUser) {
+  const normalized = normalizeClientUserRecord(rawUser);
+  if (!normalized) return null;
+  if (!Array.isArray(groupScheduleUsers)) {
+    groupScheduleUsers = [];
+  }
+  const idx = groupScheduleUsers.findIndex(item => Number.parseInt(item?.id, 10) === normalized.id);
+  if (idx >= 0) {
+    groupScheduleUsers[idx] = { ...groupScheduleUsers[idx], ...normalized };
+  } else {
+    groupScheduleUsers.push(normalized);
+  }
+  groupScheduleUsers = groupScheduleUsers
+    .filter(item => Number.parseInt(item?.id, 10) > 0)
+    .sort((a, b) => formatGroupScheduleUserOptionLabel(a).localeCompare(formatGroupScheduleUserOptionLabel(b), 'ru-RU'));
+  return normalized;
+}
+
+async function createGroupScheduleQuickClientDraft(kind) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  if (!config || config.sourceType !== 'user') return;
+  const input = document.getElementById(config.fieldId);
+  if (!input) return;
+  const intent = getGroupScheduleQuickDraftIntent(kind, input.value || '');
+  if (!intent) return;
+
+  const lockKey = getGroupScheduleQuickDraftLockKey(kind);
+  if (quickClientDraftCreateLocks.has(lockKey)) {
+    return;
+  }
+
+  try {
+    const createRequest = createQuickClientDraft(intent, lockKey);
+    renderGroupScheduleParticipantResults(kind);
+    const payload = await createRequest;
+    const user = upsertGroupScheduleUser(payload.user);
+    if (!user) {
+      throw new Error('Не удалось обработать созданного клиента');
+    }
+    selectGroupScheduleParticipant(kind, user.id);
+    const resultLabel = payload.created ? 'Черновик клиента создан' : 'Найден существующий клиент';
+    showNotification(`${resultLabel}: ${user.name || `#${user.id}`}`);
+  } catch (error) {
+    console.error(error);
+    showNotification(`⚠️ ${error.message || 'Не удалось создать черновик клиента'}`);
+  } finally {
+    renderGroupScheduleParticipantResults(kind);
+  }
+}
+
+function selectGroupScheduleParticipant(kind, id) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  if (!config) return;
+  const input = document.getElementById(config.fieldId);
+  if (!input) return;
+  const itemId = Number.parseInt(id, 10);
+  if (!Number.isFinite(itemId) || itemId <= 0) return;
+  const item = getGroupScheduleParticipantItems(kind).find(v => Number.parseInt(v?.id, 10) === itemId);
+  if (!item) return;
+  const body = getGroupScheduleParticipantCardBody(kind, item);
+  input.value = body.title;
+  input.dataset.selectedId = String(itemId);
+  input.dataset.selectedLabel = body.title;
+  renderGroupScheduleParticipantResults(kind);
+  validateGroupField(config.fieldId, true);
+  updateGroupLiveResult();
+}
+
+function searchGroupScheduleParticipant(kind) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  if (!config) return;
+  const input = document.getElementById(config.fieldId);
+  if (!input) return;
+  const currentValue = String(input.value || '').trim();
+  const selectedLabel = String(input.dataset.selectedLabel || '').trim();
+  if (selectedLabel && currentValue !== selectedLabel) {
+    clearGroupScheduleParticipantSelection(config.fieldId);
+    validateGroupField(config.fieldId, false);
+  }
+  renderGroupScheduleParticipantResults(kind);
+}
+
+function bindGroupScheduleParticipantSearchInput(kind) {
+  const config = getGroupScheduleParticipantConfig(kind);
+  if (!config) return;
+  const input = document.getElementById(config.fieldId);
+  if (!input || input.dataset.searchBound === '1') return;
+  input.dataset.searchBound = '1';
+  input.addEventListener('input', () => searchGroupScheduleParticipant(kind));
+  input.addEventListener('focus', () => renderGroupScheduleParticipantResults(kind));
+  input.addEventListener('blur', () => validateGroupField(config.fieldId, false));
+}
+
+async function ensureGroupScheduleParticipantsLoaded() {
+  if (groupScheduleParticipantsLoaded) {
+    renderAllGroupScheduleParticipantResults();
+    return true;
+  }
+  setGroupScheduleParticipantResultsMessage('individual-teacher', 'Загрузка преподавателей...');
+  setGroupScheduleParticipantResultsMessage('rental-teacher', 'Загрузка преподавателей...');
+  setGroupScheduleParticipantResultsMessage('individual-student', 'Загрузка клиентов...');
+  setGroupScheduleParticipantResultsMessage('rental-user', 'Загрузка клиентов...');
+
+  try {
+    const headers = getAuthHeaders();
+    const [teachersResponse, usersResponse] = await Promise.all([
+      fetch('/api/teachers', { headers }),
+      fetch('/users/search?limit=500', { headers }),
+    ]);
+    if (!teachersResponse.ok) {
+      throw new Error('Не удалось загрузить преподавателей');
+    }
+    if (!usersResponse.ok) {
+      throw new Error('Не удалось загрузить клиентов');
+    }
+
+    const [teachersPayload, usersPayload] = await Promise.all([
+      teachersResponse.json(),
+      usersResponse.json(),
+    ]);
+    groupScheduleTeachers = (Array.isArray(teachersPayload) ? teachersPayload : [])
+      .filter(item => Number.parseInt(item?.id, 10) > 0)
+      .sort((a, b) => formatGroupScheduleTeacherOptionLabel(a).localeCompare(formatGroupScheduleTeacherOptionLabel(b), 'ru-RU'));
+    groupScheduleUsers = (Array.isArray(usersPayload) ? usersPayload : [])
+      .map(normalizeClientUserRecord)
+      .filter(Boolean)
+      .sort((a, b) => formatGroupScheduleUserOptionLabel(a).localeCompare(formatGroupScheduleUserOptionLabel(b), 'ru-RU'));
+    groupScheduleParticipantsLoaded = true;
+    renderAllGroupScheduleParticipantResults();
+    return true;
+  } catch (error) {
+    console.error(error);
+    setGroupScheduleParticipantResultsMessage('individual-teacher', 'Ошибка загрузки преподавателей');
+    setGroupScheduleParticipantResultsMessage('rental-teacher', 'Ошибка загрузки преподавателей');
+    setGroupScheduleParticipantResultsMessage('individual-student', 'Ошибка загрузки клиентов');
+    setGroupScheduleParticipantResultsMessage('rental-user', 'Ошибка загрузки клиентов');
+    showNotification(`⚠️ ${error.message || 'Не удалось загрузить список участников'}`);
+    return false;
+  }
+}
+
+function getGroupScheduleRentalCreatorType() {
+  const rawValue = (document.getElementById('group-schedule-rental-creator-type')?.value || 'user').trim().toLowerCase();
+  return rawValue === 'teacher' ? 'teacher' : 'user';
+}
+
+function updateGroupScheduleRentalCreatorSections() {
+  const creatorType = getGroupScheduleRentalCreatorType();
+  const userWrap = document.getElementById('group-schedule-rental-user-wrap');
+  const teacherWrap = document.getElementById('group-schedule-rental-teacher-wrap');
+  if (userWrap) userWrap.style.display = creatorType === 'user' ? '' : 'none';
+  if (teacherWrap) teacherWrap.style.display = creatorType === 'teacher' ? '' : 'none';
+  if (groupScheduleParticipantsLoaded) {
+    renderGroupScheduleParticipantResults(creatorType === 'teacher' ? 'rental-teacher' : 'rental-user');
+  }
+}
+
+function updateGroupScheduleTypeSections() {
+  const normalizedType = normalizeGroupScheduleFormType(groupScheduleFormType);
+  groupScheduleFormType = normalizedType;
+
+  const groupWrap = document.getElementById('group-schedule-group-wrap');
+  const individualWrap = document.getElementById('group-schedule-individual-wrap');
+  const rentalWrap = document.getElementById('group-schedule-rental-wrap');
+  const typeHintEl = document.getElementById('group-schedule-type-hint');
+  const preview = document.getElementById('group-schedule-preview');
+
+  if (groupWrap) groupWrap.style.display = normalizedType === 'group' ? '' : 'none';
+  if (individualWrap) individualWrap.style.display = normalizedType === 'individual' ? '' : 'none';
+  if (rentalWrap) rentalWrap.style.display = normalizedType === 'rental' ? '' : 'none';
+  if (typeHintEl) {
+    typeHintEl.textContent = GROUP_SCHEDULE_TYPE_HINTS[normalizedType] || GROUP_SCHEDULE_TYPE_HINTS.group;
+  }
+  if (preview && normalizedType !== 'group') {
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+  }
+
+  updateGroupScheduleRentalCreatorSections();
+  if (groupScheduleParticipantsLoaded) {
+    renderAllGroupScheduleParticipantResults();
+  }
+  updateGroupScheduleHeader();
+}
+
 function updateGroupScheduleHeader() {
   const titleEl = document.getElementById('group-schedule-title-text');
   const subtitleEl = document.getElementById('group-schedule-subtitle-text');
   if (titleEl) {
-    titleEl.textContent = groupSchedulePickerState.active ? 'Выбор в расписании' : 'Групповое занятие';
+    titleEl.textContent = groupSchedulePickerState.active ? 'Выбор в расписании' : getGroupScheduleFormTitle();
   }
   if (subtitleEl) {
     subtitleEl.textContent = groupSchedulePickerState.active
@@ -11970,6 +13287,26 @@ const GROUP_SCHEDULE_FIELD_MAP = {
     errorId: 'group-schedule-group-error',
     okId: 'group-schedule-group-ok'
   },
+  'group-schedule-individual-teacher': {
+    errorId: 'group-schedule-individual-teacher-error',
+    okId: 'group-schedule-individual-teacher-ok'
+  },
+  'group-schedule-individual-student': {
+    errorId: 'group-schedule-individual-student-error',
+    okId: 'group-schedule-individual-student-ok'
+  },
+  'group-schedule-rental-creator-type': {
+    errorId: 'group-schedule-rental-creator-type-error',
+    okId: 'group-schedule-rental-creator-type-ok'
+  },
+  'group-schedule-rental-user': {
+    errorId: 'group-schedule-rental-user-error',
+    okId: 'group-schedule-rental-user-ok'
+  },
+  'group-schedule-rental-teacher': {
+    errorId: 'group-schedule-rental-teacher-error',
+    okId: 'group-schedule-rental-teacher-ok'
+  },
   'group-schedule-date': {
     errorId: 'group-schedule-date-error',
     okId: 'group-schedule-date-ok'
@@ -11986,6 +13323,27 @@ const GROUP_SCHEDULE_FIELD_MAP = {
 
 let groupScheduleConflictPreviewTimer = null;
 let groupScheduleConflictPreviewRequestId = 0;
+
+function isGroupScheduleFieldRequired(fieldId) {
+  if (fieldId === 'group-schedule-group') {
+    return groupScheduleFormType === 'group';
+  }
+  if (fieldId === 'group-schedule-individual-teacher' || fieldId === 'group-schedule-individual-student') {
+    return groupScheduleFormType === 'individual';
+  }
+  if (fieldId === 'group-schedule-rental-creator-type') {
+    return groupScheduleFormType === 'rental';
+  }
+  if (fieldId === 'group-schedule-rental-user') {
+    return groupScheduleFormType === 'rental' && getGroupScheduleRentalCreatorType() === 'user';
+  }
+  if (fieldId === 'group-schedule-rental-teacher') {
+    return groupScheduleFormType === 'rental' && getGroupScheduleRentalCreatorType() === 'teacher';
+  }
+  return fieldId === 'group-schedule-date'
+    || fieldId === 'group-schedule-time-from'
+    || fieldId === 'group-schedule-time-to';
+}
 
 function sanitizeRepeatInterval(value) {
   const parsed = parseInt(value, 10);
@@ -12005,12 +13363,20 @@ function setGroupFieldState(fieldId, message, pulseOnValid) {
   const config = GROUP_SCHEDULE_FIELD_MAP[fieldId];
   const input = document.getElementById(fieldId);
   if (!config || !input) return false;
+  const required = isGroupScheduleFieldRequired(fieldId);
 
   const errorEl = document.getElementById(config.errorId);
   const okEl = document.getElementById(config.okId);
   const rawValue = typeof input.value === 'string' ? input.value.trim() : '';
   const hasValue = rawValue.length > 0;
-  const isValid = !message && hasValue;
+  const isValid = required && !message && hasValue;
+
+  if (!required) {
+    input.classList.remove('input-invalid');
+    if (errorEl) errorEl.textContent = '';
+    if (okEl) okEl.classList.remove('show', 'pulse');
+    return true;
+  }
 
   input.classList.toggle('input-invalid', Boolean(message));
   if (errorEl) errorEl.textContent = message || '';
@@ -12030,11 +13396,27 @@ function setGroupFieldState(fieldId, message, pulseOnValid) {
 function validateGroupField(fieldId, pulseOnValid) {
   const input = document.getElementById(fieldId);
   if (!input) return false;
+  if (!isGroupScheduleFieldRequired(fieldId)) {
+    return setGroupFieldState(fieldId, '', pulseOnValid);
+  }
   const value = (input.value || '').trim();
+  const selectedParticipantId = getGroupScheduleParticipantSelectedId(fieldId);
   let message = '';
 
   if (fieldId === 'group-schedule-group') {
     if (!value) message = 'Выберите группу';
+  } else if (fieldId === 'group-schedule-individual-teacher') {
+    if (!selectedParticipantId) message = 'Выберите преподавателя из списка';
+  } else if (fieldId === 'group-schedule-individual-student') {
+    if (!selectedParticipantId) message = 'Выберите клиента из списка';
+  } else if (fieldId === 'group-schedule-rental-creator-type') {
+    if (!value || (value !== 'user' && value !== 'teacher')) {
+      message = 'Выберите, кто арендует зал';
+    }
+  } else if (fieldId === 'group-schedule-rental-user') {
+    if (!selectedParticipantId) message = 'Выберите клиента из списка';
+  } else if (fieldId === 'group-schedule-rental-teacher') {
+    if (!selectedParticipantId) message = 'Выберите педагога из списка';
   } else if (fieldId === 'group-schedule-date') {
     if (!value) {
       message = 'Укажите дату';
@@ -12062,11 +13444,8 @@ function validateGroupField(fieldId, pulseOnValid) {
 }
 
 function validateGroupScheduleForm(pulseOnValid) {
-  const groupValid = validateGroupField('group-schedule-group', pulseOnValid);
-  const dateValid = validateGroupField('group-schedule-date', pulseOnValid);
-  const fromValid = validateGroupField('group-schedule-time-from', pulseOnValid);
-  const toValid = validateGroupField('group-schedule-time-to', pulseOnValid);
-  return groupValid && dateValid && fromValid && toValid;
+  const requiredFields = Object.keys(GROUP_SCHEDULE_FIELD_MAP).filter(fieldId => isGroupScheduleFieldRequired(fieldId));
+  return requiredFields.every(fieldId => validateGroupField(fieldId, pulseOnValid));
 }
 
 function clearGroupScheduleValidation() {
@@ -12223,6 +13602,22 @@ function initGroupScheduleForm() {
       updateGroupLiveResult();
     });
 
+    bindGroupScheduleParticipantSearchInput('individual-teacher');
+    bindGroupScheduleParticipantSearchInput('individual-student');
+    bindGroupScheduleParticipantSearchInput('rental-user');
+    bindGroupScheduleParticipantSearchInput('rental-teacher');
+
+    const rentalCreatorTypeSelect = document.getElementById('group-schedule-rental-creator-type');
+    if (rentalCreatorTypeSelect) {
+      rentalCreatorTypeSelect.addEventListener('change', () => {
+        updateGroupScheduleRentalCreatorSections();
+        validateGroupField('group-schedule-rental-creator-type', true);
+        validateGroupField('group-schedule-rental-user', false);
+        validateGroupField('group-schedule-rental-teacher', false);
+        updateGroupLiveResult();
+      });
+    }
+
     const dateInput = document.getElementById('group-schedule-date');
     if (dateInput) {
       const handleDateChange = () => {
@@ -12306,6 +13701,7 @@ function initGroupScheduleForm() {
   }
 
   if (select.dataset.loaded === '1') {
+    updateGroupScheduleTypeSections();
     updateRepeatSummary();
     updateGroupFormDefaults();
     return;
@@ -12340,20 +13736,25 @@ function initGroupScheduleForm() {
       select.innerHTML = '<option value="">Ошибка загрузки групп</option>';
     })
     .finally(() => {
+      updateGroupScheduleTypeSections();
       updateRepeatSummary();
       updateGroupLiveResult();
     });
 }
 
-function toggleGroupScheduleForm(force) {
+function toggleGroupScheduleForm(force, formType) {
   const modal = document.getElementById('group-schedule-modal');
   const overlay = document.getElementById('group-schedule-overlay');
   const shell = modal?.querySelector('.group-schedule-shell');
   if (!modal || !overlay) return;
   const shouldShow = typeof force === 'boolean' ? force : !modal.classList.contains('show');
   if (shouldShow) {
+    groupScheduleFormType = normalizeGroupScheduleFormType(formType || groupScheduleFormType);
     resetGroupScheduleForm();
-    updateGroupScheduleHeader();
+    updateGroupScheduleTypeSections();
+    if (groupScheduleFormType === 'individual' || groupScheduleFormType === 'rental') {
+      ensureGroupScheduleParticipantsLoaded();
+    }
     if (shell) shell.scrollTop = 0;
     modal.classList.add('show');
     overlay.classList.add('show');
@@ -12475,7 +13876,6 @@ function getGroupWeekCount(groupId, dateStr) {
 }
 
 function createGroupSchedule() {
-  const groupId = document.getElementById('group-schedule-group')?.value;
   const dateStr = document.getElementById('group-schedule-date')?.value;
   const timeFrom = document.getElementById('group-schedule-time-from')?.value;
   const timeTo = document.getElementById('group-schedule-time-to')?.value;
@@ -12488,10 +13888,17 @@ function createGroupSchedule() {
     updateGroupLiveResult();
     return;
   }
+
+  const basePayload = buildGroupScheduleCreatePayload();
+  if (!basePayload) {
+    showNotification('⚠️ Проверьте заполнение формы');
+    return;
+  }
+
   const untilStr = untilStrInput || addMonths(new Date(dateStr), 6).toISOString().slice(0, 10);
 
   if (hasScheduleConflict(dateStr, timeFrom, timeTo)) {
-    showNotification('? В это время уже есть занятие');
+    showNotification('❌ В это время уже есть занятие');
     return;
   }
 
@@ -12501,12 +13908,9 @@ function createGroupSchedule() {
     return;
   }
 
-  const dateFrom = dates[0];
-  const dateTo = dates[dates.length - 1];
-
   const params = new URLSearchParams({
-    date_from: dateFrom,
-    date_to: dateTo
+    date_from: dates[0],
+    date_to: dates[dates.length - 1]
   });
 
   fetch(`/schedule/v2?${params.toString()}`, { headers: getAuthHeaders() })
@@ -12519,21 +13923,28 @@ function createGroupSchedule() {
       scheduleItems.forEach(rememberScheduleGroupName);
       const conflict = dates.some(d => hasScheduleConflict(d, timeFrom, timeTo));
       if (conflict) {
-        showNotification('? В выбранные даты уже есть занятия');
+        showNotification('❌ В выбранные даты уже есть занятия');
         return;
       }
-      createGroupScheduleEntries(groupId, dates, timeFrom, timeTo);
+      createGroupScheduleEntries(basePayload, dates, timeFrom, timeTo);
     })
     .catch(err => {
       console.error(err);
-      showNotification('? Ошибка проверки конфликтов');
+      showNotification('❌ Ошибка проверки конфликтов');
     });
 }
-
 function updateGroupFormDefaults() {
   const groupId = document.getElementById('group-schedule-group')?.value;
   const dateStr = document.getElementById('group-schedule-date')?.value;
   const preview = document.getElementById('group-schedule-preview');
+  if (groupScheduleFormType !== 'group') {
+    if (preview) {
+      preview.style.display = 'none';
+      preview.innerHTML = '';
+    }
+    updateGroupLiveResult();
+    return;
+  }
   if (!groupId) {
     if (preview) {
       preview.style.display = 'none';
@@ -12610,6 +14021,12 @@ function updateGroupFormDefaults() {
 
 function resetGroupScheduleForm() {
   const groupSelect = document.getElementById('group-schedule-group');
+  const preview = document.getElementById('group-schedule-preview');
+  const individualTeacherSelect = document.getElementById('group-schedule-individual-teacher');
+  const individualStudentSelect = document.getElementById('group-schedule-individual-student');
+  const rentalCreatorTypeSelect = document.getElementById('group-schedule-rental-creator-type');
+  const rentalUserSelect = document.getElementById('group-schedule-rental-user');
+  const rentalTeacherSelect = document.getElementById('group-schedule-rental-teacher');
   const dateInput = document.getElementById('group-schedule-date');
   const timeFromInput = document.getElementById('group-schedule-time-from');
   const timeToInput = document.getElementById('group-schedule-time-to');
@@ -12618,12 +14035,33 @@ function resetGroupScheduleForm() {
   const repeatMode = document.getElementById('repeat-mode');
 
   if (groupSelect) groupSelect.value = '';
+  if (individualTeacherSelect) {
+    individualTeacherSelect.value = '';
+    clearGroupScheduleParticipantSelection('group-schedule-individual-teacher');
+  }
+  if (individualStudentSelect) {
+    individualStudentSelect.value = '';
+    clearGroupScheduleParticipantSelection('group-schedule-individual-student');
+  }
+  if (rentalCreatorTypeSelect) rentalCreatorTypeSelect.value = 'user';
+  if (rentalUserSelect) {
+    rentalUserSelect.value = '';
+    clearGroupScheduleParticipantSelection('group-schedule-rental-user');
+  }
+  if (rentalTeacherSelect) {
+    rentalTeacherSelect.value = '';
+    clearGroupScheduleParticipantSelection('group-schedule-rental-teacher');
+  }
   if (dateInput) dateInput.value = '';
   if (timeFromInput) timeFromInput.value = '';
   if (timeToInput) timeToInput.value = '';
   if (repeatInterval) repeatInterval.value = '1';
   if (repeatMode) repeatMode.value = 'none';
   if (repeatUntil) repeatUntil.value = '';
+  if (preview) {
+    preview.style.display = 'none';
+    preview.innerHTML = '';
+  }
 
   const weekdayRow = document.getElementById('repeat-weekdays-row');
   const chips = document.querySelectorAll('#repeat-weekdays-row .chip');
@@ -12635,28 +14073,86 @@ function resetGroupScheduleForm() {
     groupScheduleConflictPreviewTimer = null;
   }
   groupScheduleConflictPreviewRequestId += 1;
+
   if (groupSchedulePickerState.active) {
     deactivateGroupSchedulePicker();
     restoreScheduleStateAfterGroupPicker();
   } else {
     clearGroupSchedulePickerPendingStart();
     clearGroupSchedulePickerDraft();
-    updateGroupScheduleHeader();
     setGroupSchedulePickerHint('');
+  }
+
+  updateGroupScheduleTypeSections();
+  if (groupScheduleParticipantsLoaded) {
+    renderAllGroupScheduleParticipantResults();
   }
   clearGroupScheduleValidation();
   updateRepeatSummary();
   updateGroupLiveResult();
 }
 
-function createGroupScheduleEntries(groupId, dates, timeFrom, timeTo) {
+function parsePositiveIntFromField(fieldId) {
+  const element = document.getElementById(fieldId);
+  if (!element) return null;
+  const rawValue = String(element.dataset.selectedId || element.value || '').trim();
+  const parsed = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function buildGroupScheduleCreatePayload() {
+  const objectType = normalizeGroupScheduleFormType(groupScheduleFormType);
+
+  if (objectType === 'group') {
+    const groupId = parsePositiveIntFromField('group-schedule-group');
+    if (!groupId) return null;
+    return {
+      object_type: 'group',
+      object_id: groupId,
+    };
+  }
+
+  if (objectType === 'individual') {
+    const teacherId = parsePositiveIntFromField('group-schedule-individual-teacher');
+    const studentId = parsePositiveIntFromField('group-schedule-individual-student');
+    if (!teacherId || !studentId) return null;
+    return {
+      object_type: 'individual',
+      teacher_id: teacherId,
+      student_id: studentId,
+    };
+  }
+
+  if (objectType === 'rental') {
+    const creatorType = getGroupScheduleRentalCreatorType();
+    const creatorId = creatorType === 'teacher'
+      ? parsePositiveIntFromField('group-schedule-rental-teacher')
+      : parsePositiveIntFromField('group-schedule-rental-user');
+    if (!creatorId) return null;
+    return {
+      object_type: 'rental',
+      creator_type: creatorType,
+      creator_id: creatorId,
+    };
+  }
+
+  return null;
+}
+
+function getGroupScheduleCreatedLabel() {
+  if (groupScheduleFormType === 'individual') return 'Индивидуальные занятия';
+  if (groupScheduleFormType === 'rental') return 'Аренды';
+  return 'Занятия';
+}
+
+function createGroupScheduleEntries(basePayload, dates, timeFrom, timeTo) {
   const headers = getAuthHeaders({ 'Content-Type': 'application/json' });
   const requests = dates.map(d => () => fetch('/schedule/v2', {
     method: 'POST',
     headers,
     body: JSON.stringify({
-      object_type: 'group',
-      object_id: parseInt(groupId, 10),
+      ...basePayload,
       date: d,
       time_from: timeFrom,
       time_to: timeTo
@@ -12665,21 +14161,31 @@ function createGroupScheduleEntries(groupId, dates, timeFrom, timeTo) {
 
   let chain = Promise.resolve();
   requests.forEach(req => {
-    chain = chain.then(() => req());
+    chain = chain
+      .then(() => req())
+      .then(async response => {
+        if (response.ok) return response;
+        let payload = null;
+        try {
+          payload = await response.json();
+        } catch (_) {
+          payload = null;
+        }
+        throw new Error(payload?.error || 'Ошибка создания');
+      });
   });
 
   chain
     .then(() => {
-      showNotification('? Занятия созданы');
+      showNotification(`✅ ${getGroupScheduleCreatedLabel()} созданы`);
       toggleGroupScheduleForm(false);
       loadScheduleV2();
     })
     .catch(err => {
       console.error(err);
-      showNotification('? Ошибка создания');
+      showNotification(`❌ ${err.message || 'Ошибка создания'}`);
     });
 }
-
 function buildRepeatDates(startDateStr, mode, interval, untilStr) {
   const start = new Date(startDateStr);
   if (Number.isNaN(start.getTime())) return [];
@@ -13382,7 +14888,6 @@ function openStaffDetail(id, name, position, specialization, bio, staffMeta = nu
 
   document.getElementById('staff-detail-name').innerText = name;
   document.getElementById('staff-detail-position').innerText = position;
-  document.getElementById('staff-detail-position-full').innerText = position;
   document.getElementById('staff-detail-specialization').innerText = specialization || '—';
   document.getElementById('staff-detail-bio').innerText = bio || '—';
   
@@ -13404,6 +14909,19 @@ function openStaffDetail(id, name, position, specialization, bio, staffMeta = nu
     .catch(() => {
       // если не получилось - оставляем плейсхолдер
     });
+}
+
+function openPersonalScheduleForStaff(staffId, staffName) {
+  personalScheduleOverride = {
+    staffId: Number(staffId) || null,
+    staffName: String(staffName || '').trim(),
+  };
+  showPage('personal-schedule');
+}
+
+function openPersonalScheduleForCurrentStaff() {
+  personalScheduleOverride = null;
+  showPage('personal-schedule');
 }
 
 function buildMediaUrl(photoPath) {
@@ -13454,7 +14972,7 @@ function updateStaffDetailAvatar(photoPath, telegramId) {
 async function deleteCurrentStaff() {
   if (!currentDetailStaffId) return;
   if (!currentDetailStaffCanEdit) {
-    const roleText = document.getElementById('staff-detail-position-full')?.innerText || '';
+  const roleText = document.getElementById('staff-detail-position')?.innerText || '';
     showNotification(getStaffEditBlockReason(roleText));
     return;
   }
@@ -13514,8 +15032,10 @@ async function loadPersonalSchedule() {
   // Дождёмся загрузки профиля, чтобы знать telegram_id/имя
   const staffContext = await ensureCurrentStaffProfileContext();
   const normalize = (v) => (v || '').toString().trim().toLowerCase();
-  const myStaffId = staffContext.staffId;
-  const myName = normalize(staffContext.staffName);
+  const override = personalScheduleOverride;
+  const hasOverride = !!(override && (override.staffId || override.staffName));
+  const myStaffId = hasOverride ? (override.staffId || null) : staffContext.staffId;
+  const myName = normalize(hasOverride ? override.staffName : staffContext.staffName);
 
   try {
     const headers = getAuthHeaders ? getAuthHeaders() : {};
@@ -13947,6 +15467,9 @@ function refreshPersonalSchedule() {
 }
 
 function canCreatePersonalIndividualBooking() {
+  if (personalScheduleOverride && (personalScheduleOverride.staffId || personalScheduleOverride.staffName)) {
+    return false;
+  }
   const role = (currentStaffPosition || '').toLowerCase();
   return role === 'учитель' || role === 'тех. админ';
 }
@@ -14099,7 +15622,7 @@ function renderPersonalIndividualSelectedUser() {
   const selected = personalIndividualBookingState.selectedUser;
   if (!selected) {
     if (input) {
-      input.placeholder = 'Имя, ID или @юзер';
+      input.placeholder = 'Имя, ID, +клиент или @юзер';
     }
     results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Начните вводить для поиска клиента...</p>';
     return;
@@ -14178,16 +15701,31 @@ function initPersonalIndividualBookingPanel() {
   renderPersonalIndividualSelectedUser();
   loadPersonalIndividualOccupancy();
 }
-function renderPersonalIndividualUserResults(users) {
+function renderPersonalIndividualUserResults(users, options = {}) {
   const results = document.getElementById('personal-individual-user-results');
   if (!results) return;
+  const quickIntent = options.quickIntent || null;
+  const isQuickCreating = Boolean(options.quickCreating);
+  const quickCard = quickIntent
+    ? `
+      <div class="card personal-individual-user-card ${isQuickCreating ? 'is-selected' : ''}" onclick="createPersonalIndividualQuickClientDraft()">
+        <div style="font-weight: 600; font-size: 14px;">${escapeHtml(isQuickCreating ? 'Создаем клиента...' : quickClientDraftIntentLabel(quickIntent))}</div>
+        <div style="font-size: 12px; color: var(--hint); margin-top: 2px;">${escapeHtml(quickIntent.mode === 'username' ? `Черновик без Telegram. Логин: @${quickIntent.username}` : 'Черновик без Telegram. Уведомления недоступны.')}</div>
+      </div>
+    `
+    : '';
+
   if (!Array.isArray(users) || !users.length) {
+    if (quickCard) {
+      results.innerHTML = quickCard;
+      return;
+    }
     results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">Пользователи не найдены</p>';
     return;
   }
 
   const selectedId = Number(personalIndividualBookingState.selectedUser?.id || 0);
-  results.innerHTML = users.map((u) => {
+  const cards = users.map((u) => {
     const isSelected = selectedId > 0 && Number(u.id) === selectedId;
     const safeName = escapeHtml(u.name || 'Без имени');
     const username = u.username ? ` • @${escapeHtml(u.username)}` : '';
@@ -14200,6 +15738,23 @@ function renderPersonalIndividualUserResults(users) {
       </div>
     `;
   }).join('');
+  results.innerHTML = quickCard + cards;
+}
+
+function upsertPersonalIndividualSearchUser(rawUser) {
+  const normalized = normalizeClientUserRecord(rawUser);
+  if (!normalized) return null;
+  const current = Array.isArray(personalIndividualBookingState.searchResults)
+    ? personalIndividualBookingState.searchResults.slice()
+    : [];
+  const idx = current.findIndex(item => Number(item.id) === normalized.id);
+  if (idx >= 0) {
+    current[idx] = { ...current[idx], ...normalized };
+  } else {
+    current.unshift(normalized);
+  }
+  personalIndividualBookingState.searchResults = current.slice(0, 80);
+  return normalized;
 }
 
 function selectPersonalIndividualUser(userId) {
@@ -14212,16 +15767,57 @@ function selectPersonalIndividualUser(userId) {
   renderPersonalIndividualSelectedUser();
 }
 
+async function createPersonalIndividualQuickClientDraft() {
+  const input = document.getElementById('personal-individual-user-search');
+  const results = document.getElementById('personal-individual-user-results');
+  if (!input || !results) return;
+
+  const intent = normalizeQuickClientDraftIntent(input.value || '');
+  if (!intent) return;
+  if (quickClientDraftCreateLocks.has('personal-individual')) {
+    return;
+  }
+
+  renderPersonalIndividualUserResults(personalIndividualBookingState.searchResults || [], {
+    quickIntent: intent,
+    quickCreating: true,
+  });
+  try {
+    const payload = await createQuickClientDraft(intent, 'personal-individual');
+    const user = upsertPersonalIndividualSearchUser(payload.user);
+    if (!user) {
+      throw new Error('Не удалось обработать созданного клиента');
+    }
+    personalIndividualBookingState.selectedUser = user;
+    renderPersonalIndividualSelectedUser();
+    const resultLabel = payload.created ? 'Черновик клиента создан' : 'Найден существующий клиент';
+    showNotification(`${resultLabel}: ${user.name || `#${user.id}`}`);
+  } catch (error) {
+    console.error('Ошибка быстрого создания клиента:', error);
+    results.innerHTML = `<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⚠️ ${escapeHtml(error.message || 'Не удалось создать черновик клиента')}</p>`;
+  }
+}
+
 async function searchPersonalIndividualUsers() {
   const input = document.getElementById('personal-individual-user-search');
   const results = document.getElementById('personal-individual-user-results');
   if (!input || !results) return;
 
-  const raw = (input.value || '').trim().toLowerCase();
-  const byUsername = raw.startsWith('@');
-  const clean = raw.replace(/^@/, '');
+  const raw = String(input.value || '').trim();
+  const quickIntent = normalizeQuickClientDraftIntent(raw);
+  let byUsername = raw.startsWith('@');
+  let clean = raw.replace(/^@/, '').trim();
 
-  if (!clean) {
+  if (quickIntent?.mode === 'username') {
+    byUsername = true;
+    clean = String(quickIntent.username || '').trim();
+  } else if (quickIntent?.mode === 'blank') {
+    byUsername = false;
+    const draftName = String(quickIntent.name || '').trim();
+    clean = draftName && draftName !== 'Новый клиент' ? draftName : '';
+  }
+
+  if (!clean && !quickIntent) {
     if (personalIndividualBookingState.selectedUser) {
       renderPersonalIndividualSelectedUser();
     } else {
@@ -14236,24 +15832,50 @@ async function searchPersonalIndividualUsers() {
   }
 
   try {
-    results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Поиск...</p>';
+    if (quickIntent) {
+      renderPersonalIndividualUserResults([], {
+        quickIntent,
+        quickCreating: false,
+      });
+      if (!clean) {
+        personalIndividualBookingState.searchResults = [];
+        return;
+      }
+    } else {
+      results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">⏳ Поиск...</p>';
+    }
+
     const params = new URLSearchParams();
     if (clean) {
       params.append('q', clean);
       if (byUsername) params.append('by_username', 'true');
     }
+    params.append('limit', '80');
 
-    const response = await fetch(`/staff/search?${params.toString()}`, { headers: getAuthHeaders() });
+    const response = await fetch(`/users/search?${params.toString()}`, { headers: getAuthHeaders() });
     if (!response.ok) {
       throw new Error('Не удалось загрузить пользователей');
     }
 
     const users = await response.json();
-    personalIndividualBookingState.searchResults = Array.isArray(users) ? users.slice(0, 80) : [];
-    renderPersonalIndividualUserResults(personalIndividualBookingState.searchResults);
+    personalIndividualBookingState.searchResults = (Array.isArray(users) ? users : [])
+      .map(normalizeClientUserRecord)
+      .filter(Boolean)
+      .slice(0, 80);
+    renderPersonalIndividualUserResults(personalIndividualBookingState.searchResults, {
+      quickIntent,
+      quickCreating: false,
+    });
   } catch (error) {
     console.error('Ошибка при поиске клиентов для индивидуального занятия:', error);
-    results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">❌ Ошибка сети</p>';
+    if (quickIntent) {
+      renderPersonalIndividualUserResults([], {
+        quickIntent,
+        quickCreating: false,
+      });
+    } else {
+      results.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 12px 0;">❌ Ошибка сети</p>';
+    }
   }
 }
 
@@ -15119,9 +16741,7 @@ function updateStaffNavigation() {
   const mailingsBtn = document.getElementById('mailings-btn-work');
   const newsManageBtn = document.getElementById('news-manage-btn-work');
   const statsBtn = document.getElementById('stats-btn');
-  const paymentsBtn = document.getElementById('payments-btn-work');
   const workSettingsBtn = document.getElementById('work-settings-btn-work');
-  const workSettingsPaymentItem = document.getElementById('work-settings-payment-item');
   const workSettingsPricesItem = document.getElementById('work-settings-prices-item');
   const workSettingsOtherItem = document.getElementById('work-settings-other-item');
 
@@ -15176,12 +16796,8 @@ function updateStaffNavigation() {
     setBtnVisible(mailingsBtn, hasPerm('manage_mailings'));
     setBtnVisible(newsManageBtn, hasPerm('create_news'));
     setBtnVisible(statsBtn, hasPerm('view_stats'));
-    setBtnVisible(paymentsBtn, hasPerm('manage_schedule'));
     setBtnVisible(workSettingsBtn, hasPerm('manage_schedule') || hasPerm('create_direction'));
 
-    if (workSettingsPaymentItem) {
-      workSettingsPaymentItem.style.display = hasPerm('manage_schedule') ? 'block' : 'none';
-    }
     if (workSettingsPricesItem) {
       workSettingsPricesItem.style.display = hasPerm('system_settings') ? 'block' : 'none';
     }
@@ -15203,12 +16819,8 @@ function updateStaffNavigation() {
     setBtnVisible(mailingsBtn, false);
     setBtnVisible(newsManageBtn, false);
     setBtnVisible(statsBtn, false);
-    setBtnVisible(paymentsBtn, false);
     setBtnVisible(workSettingsBtn, false);
 
-    if (workSettingsPaymentItem) {
-      workSettingsPaymentItem.style.display = 'none';
-    }
     if (workSettingsPricesItem) {
       workSettingsPricesItem.style.display = 'none';
     }
@@ -15236,6 +16848,7 @@ let personalScheduleDate = null;
 let personalScheduleMonthDate = null;
 let personalScheduleTodaySyncDate = null;
 let personalScheduleItems = [];
+let personalScheduleOverride = null;
 let publicScheduleRefreshLoading = false;
 let personalScheduleRefreshLoading = false;
 let personalIndividualBookingExpanded = false;
@@ -15248,13 +16861,30 @@ let personalIndividualBookingState = {
   occupancyItems: [],
 };
 
+function setMainProfileAvatar(photoUrl = '') {
+  const avatarEl = document.getElementById('avatar');
+  if (!avatarEl) return;
+
+  const normalizedUrl = String(photoUrl || '').trim();
+  if (!normalizedUrl) {
+    avatarEl.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--hint);">👤</div>';
+    return;
+  }
+
+  const safeUrl = toSafeUrl(normalizedUrl);
+  avatarEl.innerHTML = `<img src="${safeUrl}" alt="Аватар">`;
+  const img = avatarEl.querySelector('img');
+  if (img) {
+    img.addEventListener('error', () => {
+      avatarEl.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--hint);">👤</div>';
+    }, { once: true });
+  }
+}
+
 if (user) {
   document.getElementById('profile-name').innerText = user.first_name || '—';
   document.getElementById('profile-username').innerText = user.username ? '@' + user.username : '—';
-
-  if (user.photo_url) {
-    document.getElementById('avatar').innerHTML = `<img src="${user.photo_url}">`;
-  }
+  setMainProfileAvatar(user.photo_url || '');
   
   // Автоматическая регистрация пользователя
   registerUserIfNeeded(user);
@@ -15280,7 +16910,7 @@ async function loadProfileData() {
     // Небольшая задержка, чтобы дать время на регистрацию
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    const response = await fetch('/users/me');
+    const response = await authFetch('/users/me');
     
     if (!response.ok) {
       console.error('Ошибка при загрузке профиля:', response.status);
@@ -15305,6 +16935,8 @@ async function loadProfileData() {
     // Загружаем фото если существует
     if (data.photo_path) {
       displayProfilePhoto(data.photo_path);
+    } else {
+      setMainProfileAvatar(user?.photo_url || '');
     }
     
     // Обновляем информацию на панели персонала
@@ -15325,7 +16957,6 @@ async function saveProfileChanges() {
     return;
   }
   
-  const userId = currentUserData.id;
   const userNotesInput = document.getElementById('profile-input-user-notes');
   
   const updatedData = {
@@ -15350,7 +16981,7 @@ async function saveProfileChanges() {
   try {
     console.log('Отправляем данные:', updatedData);
     
-    const response = await fetch(`/users/${userId}`, {
+    const response = await authFetch('/users/me', {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json'
@@ -15588,289 +17219,6 @@ function loadProfileBookingRequests() {
     });
 }
 
-async function loadPaymentProfilesAdmin() {
-  const activeLabel = document.getElementById('payment-profiles-active-label');
-  if (activeLabel) activeLabel.textContent = 'Загрузка...';
-  try {
-    const response = await fetch('/api/admin/payment-profiles', { headers: getAuthHeaders() });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error((data && data.error) ? data.error : 'Не удалось загрузить реквизиты');
-    }
-    const profiles = Array.isArray(data.profiles) ? data.profiles : [];
-    for (const profile of profiles) {
-      const slot = Number(profile.slot);
-      const bankEl = document.getElementById(`payment-profile-${slot}-bank`);
-      const numberEl = document.getElementById(`payment-profile-${slot}-number`);
-      const fullNameEl = document.getElementById(`payment-profile-${slot}-full-name`);
-      if (bankEl) bankEl.value = profile.recipient_bank || '';
-      if (numberEl) numberEl.value = profile.recipient_number || '';
-      if (fullNameEl) fullNameEl.value = profile.recipient_full_name || '';
-    }
-    const activeSlot = Number(data.active_slot) || 2;
-    if (activeLabel) {
-      activeLabel.textContent = `Активные реквизиты: ${activeSlot}`;
-    }
-    updatePaymentActiveTabs(activeSlot);
-  } catch (error) {
-    if (activeLabel) activeLabel.textContent = error.message || 'Ошибка загрузки';
-    showNotification('Внимание: ' + (error.message || 'Не удалось загрузить реквизиты'));
-  }
-}
-
-async function savePaymentProfile(slot) {
-  const bankEl = document.getElementById(`payment-profile-${slot}-bank`);
-  const numberEl = document.getElementById(`payment-profile-${slot}-number`);
-  const fullNameEl = document.getElementById(`payment-profile-${slot}-full-name`);
-  const recipient_bank = bankEl ? bankEl.value.trim() : '';
-  const recipient_number = numberEl ? numberEl.value.trim() : '';
-  const recipient_full_name = fullNameEl ? fullNameEl.value.trim() : '';
-  if (!recipient_bank || !recipient_number || !recipient_full_name) {
-    showNotification('Внимание: заполните банк, номер и ФИО получателя');
-    return;
-  }
-
-  try {
-    const response = await fetch(`/api/admin/payment-profiles/${slot}`, {
-      method: 'PUT',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ recipient_bank, recipient_number, recipient_full_name }),
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error((data && data.error) ? data.error : 'Не удалось сохранить реквизиты');
-    }
-    showNotification(`Сохранены реквизиты ${slot}`);
-    await loadPaymentProfilesAdmin();
-  } catch (error) {
-    showNotification('Ошибка: ' + (error.message || 'Не удалось сохранить реквизиты'));
-  }
-}
-
-async function switchPaymentProfile(slot) {
-  if (Number(slot) === 1) {
-    showNotification('Реквизиты 1 закреплены и не переключаются');
-    return;
-  }
-
-  try {
-    const response = await fetch('/api/admin/payment-profiles/active', {
-      method: 'PUT',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ active_slot: slot }),
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error((data && data.error) ? data.error : 'Не удалось переключить активные реквизиты');
-    }
-    showNotification(`Активные реквизиты переключены на ${slot}`);
-    await loadPaymentProfilesAdmin();
-  } catch (error) {
-    showNotification('Ошибка: ' + (error.message || 'Не удалось переключить активные реквизиты'));
-  }
-}
-
-function setAdminPaymentsStatus(message, isError = false) {
-  const statusEl = document.getElementById('payments-admin-status');
-  if (!statusEl) return;
-  statusEl.textContent = message || '';
-  statusEl.style.color = isError ? '#ff6b6b' : 'var(--hint)';
-}
-
-function _paymentTypeLabel(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'booking') return 'Бронь';
-  if (normalized === 'abonement') return 'Абонемент';
-  return value || '—';
-}
-
-function _paymentStatusLabel(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'confirmed') return 'Подтверждено';
-  if (normalized === 'rejected') return 'Отклонено';
-  return value || '—';
-}
-
-function _paymentDateText(value) {
-  if (!value) return '—';
-  try {
-    return new Date(value).toLocaleString('ru-RU');
-  } catch (_) {
-    return String(value);
-  }
-}
-
-function _renderAdminPayments(items) {
-  const listEl = document.getElementById('payments-admin-list');
-  if (!listEl) return;
-
-  const rows = Array.isArray(items) ? items : [];
-  if (!rows.length) {
-    listEl.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Оплат пока нет</p>';
-    return;
-  }
-
-  listEl.innerHTML = rows.map((item) => {
-    const amountText = Number.isFinite(Number(item.amount))
-      ? `${new Intl.NumberFormat('ru-RU').format(Number(item.amount))} RUB`
-      : '—';
-    const userText = item.user_name ? `${escapeHtml(String(item.user_name))} (#${Number(item.user_id)})` : `#${Number(item.user_id)}`;
-    const adminText = item.confirmed_by_admin_name
-      ? `${escapeHtml(String(item.confirmed_by_admin_name))} (#${Number(item.confirmed_by_admin)})`
-      : (item.confirmed_by_admin ? `#${Number(item.confirmed_by_admin)}` : '—');
-
-    return `
-      <div class="card" style="margin-bottom:8px;">
-        <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start;">
-          <div style="font-weight:700;">${escapeHtml(_paymentTypeLabel(item.payment_type))} #${Number(item.object_id)}</div>
-          <div class="small" style="color:var(--hint);">${escapeHtml(_paymentStatusLabel(item.status))}</div>
-        </div>
-        <div class="small" style="margin-top:6px;">Сумма: ${escapeHtml(amountText)}</div>
-        <div class="small">Клиент: ${userText}</div>
-        <div class="small">Подтвердил: ${adminText}</div>
-        <div class="small">Подтверждено: ${escapeHtml(_paymentDateText(item.confirmed_at))}</div>
-        <div class="small">Создано: ${escapeHtml(_paymentDateText(item.created_at))}</div>
-        ${item.comment ? `<div class="small" style="margin-top:6px;">Комментарий: ${escapeHtml(String(item.comment))}</div>` : ''}
-      </div>
-    `;
-  }).join('');
-}
-
-async function loadAdminPayments() {
-  const userId = (document.getElementById('payments-filter-user-id')?.value || '').trim();
-  const dateFrom = (document.getElementById('payments-filter-date-from')?.value || '').trim();
-  const dateTo = (document.getElementById('payments-filter-date-to')?.value || '').trim();
-  const paymentType = (document.getElementById('payments-filter-type')?.value || '').trim();
-  const status = (document.getElementById('payments-filter-status')?.value || '').trim();
-
-  const params = new URLSearchParams();
-  if (userId) params.set('user_id', userId);
-  if (dateFrom) params.set('date_from', dateFrom);
-  if (dateTo) params.set('date_to', dateTo);
-  if (paymentType) params.set('payment_type', paymentType);
-  if (status) params.set('status', status);
-
-  setAdminPaymentsStatus('Загрузка журнала...');
-  try {
-    const response = await fetch(`/api/admin/payments?${params.toString()}`, { headers: getAuthHeaders() });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || 'Не удалось загрузить журнал оплат');
-    }
-    _renderAdminPayments(data.items || []);
-    setAdminPaymentsStatus(`Загружено записей: ${Array.isArray(data.items) ? data.items.length : 0}`);
-  } catch (error) {
-    setAdminPaymentsStatus(error.message || 'Ошибка загрузки журнала', true);
-    const listEl = document.getElementById('payments-admin-list');
-    if (listEl) {
-      listEl.innerHTML = `<p class="small" style="text-align: center; color: #ff6b6b; padding: 20px;">${escapeHtml(error.message || 'Ошибка загрузки')}</p>`;
-    }
-  }
-}
-
-async function confirmBookingManualPayment() {
-  const bookingIdRaw = (document.getElementById('payments-booking-id')?.value || '').trim();
-  const amountRaw = (document.getElementById('payments-booking-amount')?.value || '').trim();
-  const comment = (document.getElementById('payments-booking-comment')?.value || '').trim();
-
-  const bookingId = Number.parseInt(bookingIdRaw, 10);
-  if (!Number.isInteger(bookingId) || bookingId <= 0) {
-    showNotification('Укажите корректный Booking ID');
-    return;
-  }
-
-  const payload = {};
-  if (amountRaw) {
-    const amount = Number.parseInt(amountRaw, 10);
-    if (!Number.isInteger(amount) || amount <= 0) {
-      showNotification('Сумма должна быть целым числом > 0');
-      return;
-    }
-    payload.amount = amount;
-  }
-  if (comment) payload.comment = comment;
-
-  try {
-    const response = await fetch(`/api/admin/booking-requests/${bookingId}/confirm-payment`, {
-      method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || 'Не удалось подтвердить оплату брони');
-    }
-    showNotification(`Оплата брони #${bookingId} подтверждена`);
-    const amountEl = document.getElementById('payments-booking-amount');
-    const commentEl = document.getElementById('payments-booking-comment');
-    if (amountEl) amountEl.value = '';
-    if (commentEl) commentEl.value = '';
-    await loadAdminPayments();
-  } catch (error) {
-    showNotification(error.message || 'Ошибка подтверждения оплаты');
-  }
-}
-
-async function confirmAbonementManualPayment() {
-  const abonementIdRaw = (document.getElementById('payments-abonement-id')?.value || '').trim();
-  const amountRaw = (document.getElementById('payments-abonement-amount')?.value || '').trim();
-  const comment = (document.getElementById('payments-abonement-comment')?.value || '').trim();
-
-  const abonementId = Number.parseInt(abonementIdRaw, 10);
-  if (!Number.isInteger(abonementId) || abonementId <= 0) {
-    showNotification('Укажите корректный Abonement ID');
-    return;
-  }
-  const amount = Number.parseInt(amountRaw, 10);
-  if (!Number.isInteger(amount) || amount <= 0) {
-    showNotification('Для абонемента сумма обязательна и должна быть > 0');
-    return;
-  }
-
-  const payload = { amount };
-  if (comment) payload.comment = comment;
-
-  try {
-    const response = await fetch(`/api/admin/group-abonements/${abonementId}/confirm-payment`, {
-      method: 'POST',
-      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || 'Не удалось подтвердить оплату абонемента');
-    }
-    showNotification(`Оплата абонемента #${abonementId} подтверждена`);
-    const amountEl = document.getElementById('payments-abonement-amount');
-    const commentEl = document.getElementById('payments-abonement-comment');
-    if (amountEl) amountEl.value = '';
-    if (commentEl) commentEl.value = '';
-    await loadAdminPayments();
-  } catch (error) {
-    showNotification(error.message || 'Ошибка подтверждения оплаты');
-  }
-}
-
-function selectPaymentProfileTab(slot) {
-  switchPaymentProfile(slot);
-}
-
-function updatePaymentActiveTabs(activeSlot) {
-  const firstTab = document.getElementById('payment-tab-1');
-  const secondTab = document.getElementById('payment-tab-2');
-  const thirdTab = document.getElementById('payment-tab-3');
-  const indicator = document.getElementById('payment-tab-indicator');
-  if (!firstTab || !secondTab || !thirdTab || !indicator) return;
-
-  firstTab.classList.toggle('active', false);
-  secondTab.classList.toggle('active', activeSlot === 2);
-  thirdTab.classList.toggle('active', activeSlot === 3);
-
-  const activeTab = activeSlot === 3 ? thirdTab : secondTab;
-  indicator.style.width = `${activeTab.offsetWidth}px`;
-  indicator.style.transform = `translateX(${activeTab.offsetLeft}px)`;
-}
-
 const ABONEMENT_PRICE_DIRECTIONS = ['dance', 'sport'];
 const ABONEMENT_PRICE_SINGLE_LESSONS = [4, 8, 12, 16];
 const ABONEMENT_PRICE_BUNDLE_LESSONS = [4, 8, 12];
@@ -16004,6 +17352,22 @@ function _readPriceInput(inputId, fieldLabel) {
   return Math.round(parsed);
 }
 
+function _readPercentInput(inputId, fieldLabel) {
+  const input = document.getElementById(inputId);
+  if (!input) {
+    throw new Error(`Поле не найдено: ${fieldLabel}`);
+  }
+  const raw = String(input.value || '').trim().replace(',', '.');
+  if (!raw) {
+    throw new Error(`Заполните поле: ${fieldLabel}`);
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+    throw new Error(`Поле "${fieldLabel}" должно быть числом от 0 до 100`);
+  }
+  return Math.round(parsed);
+}
+
 async function _updateAdminSystemSetting(key, value) {
   const response = await fetch(`/api/admin/system-settings/${encodeURIComponent(key)}`, {
     method: 'PUT',
@@ -16036,6 +17400,7 @@ async function loadWorkSettingsPrices() {
     const settingsMap = _systemSettingsToMap(payload && payload.items);
     const singleVisitPrice = _asNonNegativeInt(settingsMap['abonements.single_visit_price_rub'], 1200);
     const trialPrice = _asNonNegativeInt(settingsMap['abonements.trial_price_rub'], 0);
+    const teacherPercent = Math.min(100, _asNonNegativeInt(settingsMap['teachers.payout_percent'], 40));
     const multiSingleMatrix = _normalizeMultiSingleMatrix(settingsMap['abonements.multi_single_prices_json']);
     const multiBundleMatrix = _normalizeMultiBundleMatrix(settingsMap['abonements.multi_bundle_prices_json']);
 
@@ -16050,6 +17415,10 @@ async function loadWorkSettingsPrices() {
           <div class="work-price-input-wrap">
             <label class="label">Пробное занятие (RUB)</label>
             <input class="form-input" id="work-price-trial" type="number" min="0" step="1" value="${escapeHtml(String(trialPrice))}" />
+          </div>
+          <div class="work-price-input-wrap">
+            <label class="label">Процент преподавателя (%)</label>
+            <input class="form-input" id="work-price-teacher-percent" type="number" min="0" max="100" step="1" value="${escapeHtml(String(teacherPercent))}" />
           </div>
         </div>
       </div>
@@ -16088,6 +17457,7 @@ async function saveWorkSettingsPrices() {
     const singleVisitPrice = _readPriceInput('work-price-single-visit', 'Разовое занятие');
     const trialPrice = _readPriceInput('work-price-trial', 'Пробное занятие');
 
+    const teacherPercent = _readPercentInput('work-price-teacher-percent', 'Процент преподавателя');
     const multiSinglePayload = {};
     for (const direction of ABONEMENT_PRICE_DIRECTIONS) {
       multiSinglePayload[direction] = {};
@@ -16119,6 +17489,7 @@ async function saveWorkSettingsPrices() {
     await _updateAdminSystemSetting('abonements.trial_price_rub', trialPrice);
     await _updateAdminSystemSetting('abonements.multi_single_prices_json', multiSinglePayload);
     await _updateAdminSystemSetting('abonements.multi_bundle_prices_json', multiBundlePayload);
+    await _updateAdminSystemSetting('teachers.payout_percent', teacherPercent);
 
     setWorkSettingsPricesStatus('Сохранено');
     showNotification('✅ Ценники абонементов сохранены');
@@ -16765,7 +18136,6 @@ async function saveStaffProfile() {
     if (Number(currentDetailStaffId) === Number(staffId)) {
       document.getElementById('staff-detail-name').innerText = data.name || '—';
       document.getElementById('staff-detail-position').innerText = data.position || '—';
-      document.getElementById('staff-detail-position-full').innerText = data.position || '—';
       document.getElementById('staff-detail-specialization').innerText = data.specialization || '—';
       document.getElementById('staff-detail-bio').innerText = data.bio || '—';
       updateStaffDetailAvatar(data.photo_path, data.telegram_id);
@@ -17711,6 +19081,8 @@ function _isClientIssueMulti() {
   return _getClientIssueType() === 'multi';
 }
 
+const CLIENT_ISSUE_COMBO_LOCK_MESSAGE = 'Выберите такое же количество занятий, как в первой группе, или удалите дополнительные группы и сначала поменяйте количество в первой.';
+
 function _getClientIssueMainGroupId() {
   const selectEl = document.getElementById('client-abonement-issue-group-main');
   const parsed = Number.parseInt(selectEl?.value || '', 10);
@@ -17721,6 +19093,24 @@ function _getClientIssueMainGroup() {
   const mainGroupId = _getClientIssueMainGroupId();
   if (!mainGroupId) return null;
   return clientIssueGroups.find((item) => Number(item.id) === mainGroupId) || null;
+}
+
+function _getGroupLessonsPerWeekValue(group) {
+  const parsed = Number.parseInt(group?.lessons_per_week, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function _isClientIssueGroupCompatibleByLessons(group) {
+  const mainLessonsPerWeek = _getGroupLessonsPerWeekValue(_getClientIssueMainGroup());
+  const groupLessonsPerWeek = _getGroupLessonsPerWeekValue(group);
+  if (!mainLessonsPerWeek || !groupLessonsPerWeek) return false;
+  return mainLessonsPerWeek === groupLessonsPerWeek;
+}
+
+function handleClientIssueIncompatibleGroupAttempt() {
+  _setClientAbonementIssueStatus(CLIENT_ISSUE_COMBO_LOCK_MESSAGE, true);
+  showNotification(CLIENT_ISSUE_COMBO_LOCK_MESSAGE);
 }
 
 function _getClientIssueBundleGroupIds() {
@@ -17900,16 +19290,30 @@ function _renderClientIssueGroupPicker() {
   pickerEl.classList.remove('hidden');
   document.body.classList.add('client-issue-group-picker-open');
   listEl.innerHTML = available.map((item) => {
-    const lessons = item.lessons_per_week ? `${item.lessons_per_week} в неделю` : 'уроки/нед. не заданы';
+    const lessonsPerWeek = Number.parseInt(item.lessons_per_week, 10);
+    const lessons = Number.isFinite(lessonsPerWeek) && lessonsPerWeek > 0
+      ? `${lessonsPerWeek} в неделю (${lessonsPerWeek * 4} в месяц)`
+      : 'уроки/нед. не заданы';
+    const isCompatible = _isClientIssueGroupCompatibleByLessons(item);
+    const handler = isCompatible
+      ? `selectClientIssueExtraGroup(${Number(item.id)})`
+      : 'handleClientIssueIncompatibleGroupAttempt()';
     return `
-      <div class="client-abonement-group-picker-item">
+      <div class="client-abonement-group-picker-item ${isCompatible ? '' : 'is-disabled'}">
         <div>
           <div style="font-weight:700;">${escapeHtml(item.name || `Группа #${Number(item.id)}`)}</div>
           <div class="small" style="color:var(--hint); margin-top:2px;">
             ${escapeHtml(item.direction_title || 'Направление')} • ${escapeHtml(lessons)}
           </div>
+          ${isCompatible ? '' : '<div class="small" style="color:var(--hint); margin-top:4px;">Для комбо нужно такое же кол-во занятий, как в первой группе.</div>'}
         </div>
-        <button class="save-btn" type="button" style="width:auto; margin:0; padding:6px 10px;" onclick="selectClientIssueExtraGroup(${Number(item.id)})">Выбрать</button>
+        <button
+          class="save-btn ${isCompatible ? '' : 'is-disabled'}"
+          type="button"
+          style="width:auto; margin:0; padding:6px 10px;"
+          aria-disabled="${isCompatible ? 'false' : 'true'}"
+          onclick="${handler}"
+        >${isCompatible ? 'Выбрать' : 'Недоступно'}</button>
       </div>
     `;
   }).join('');
@@ -17932,6 +19336,11 @@ function selectClientIssueExtraGroup(groupIdRaw) {
   if (!_isClientIssueMulti()) return;
   if (clientIssueExtraGroupIds.length >= 2) return;
   if (clientIssueExtraGroupIds.includes(groupId)) return;
+  const groupItem = clientIssueCompatibleGroups.find((item) => Number(item.id) === groupId) || null;
+  if (!_isClientIssueGroupCompatibleByLessons(groupItem)) {
+    handleClientIssueIncompatibleGroupAttempt();
+    return;
+  }
 
   const availableIds = new Set(_getClientIssueAvailableGroups().map((item) => Number(item.id)));
   if (!availableIds.has(groupId)) return;
@@ -17986,10 +19395,17 @@ function _renderClientIssueExtraGroups() {
   }
 
   const available = _getClientIssueAvailableGroups();
+  const compatibleAvailable = available.filter((item) => _isClientIssueGroupCompatibleByLessons(item));
   const canAdd = clientIssueExtraGroupIds.length < 2 && available.length > 0;
   addBtn.disabled = !canAdd;
   if (available.length > 0) {
-    hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3`;
+    if (!compatibleAvailable.length) {
+      hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3 • Доступны только группы с таким же количеством занятий`;
+    } else if (compatibleAvailable.length < available.length) {
+      hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3 • Можно выбрать только группы с таким же количеством занятий`;
+    } else {
+      hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3`;
+    }
   } else {
     hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3 • Больше совместимых групп нет`;
   }
@@ -18032,7 +19448,6 @@ async function loadClientIssueCompatibleGroups() {
   try {
     const params = new URLSearchParams({
       direction_type: directionType,
-      lessons_per_week: String(lessonsPerWeek),
       exclude_group_id: String(Number(main.id)),
     });
     const response = await fetch(`/api/groups/compatible?${params.toString()}`, {
@@ -18179,8 +19594,9 @@ async function submitClientIssueAbonement() {
   const statusEl = document.getElementById('client-abonement-issue-status');
   const weeksEl = document.getElementById('client-abonement-issue-weeks');
   const lessonsEl = document.getElementById('client-abonement-issue-lessons');
+  const priceEl = document.getElementById('client-abonement-issue-price-total');
   const noteEl = document.getElementById('client-abonement-issue-note');
-  if (!typeEl || !statusEl || !weeksEl || !lessonsEl || !noteEl) return;
+  if (!typeEl || !statusEl || !weeksEl || !lessonsEl || !priceEl || !noteEl) return;
 
   const groupId = _getClientIssueMainGroupId();
   if (!Number.isFinite(groupId) || groupId <= 0) {
@@ -18194,6 +19610,7 @@ async function submitClientIssueAbonement() {
   const weeksRaw = (weeksEl.value || '').trim();
   const lessonsRaw = (lessonsEl.value || '').trim();
   const note = (noteEl.value || '').trim();
+  const priceRaw = (priceEl.value || '').trim();
   const payload = {
     group_id: groupId,
     abonement_type: type || 'multi',
@@ -18210,6 +19627,14 @@ async function submitClientIssueAbonement() {
   }
   if (weeksRaw) payload.weeks = Number.parseInt(weeksRaw, 10);
   if (lessonsRaw) payload.lessons = Number.parseInt(lessonsRaw, 10);
+  if (priceRaw) {
+    const price = Number.parseInt(priceRaw, 10);
+    if (!Number.isFinite(price) || price < 0) {
+      _setClientAbonementIssueStatus('Цена абонемента должна быть целым числом >= 0', true);
+      return;
+    }
+    payload.price_total_rub = price;
+  }
 
   _setClientAbonementIssueStatus('Выдаем абонемент...');
   try {
@@ -18900,18 +20325,22 @@ async function submitClientSickLeave() {
 
 /* ====== РАБОТА С ФОТО ПРОФИЛЯ ====== */
 function displayProfilePhoto(photoPath) {
-  const img = document.getElementById('profile-photo-img');
-  const placeholder = document.getElementById('profile-photo-placeholder');
-  if (!img || !placeholder) {
+  const mediaUrl = buildMediaUrl(photoPath);
+  if (!mediaUrl) {
     return;
   }
-  
-  const mediaUrl = buildMediaUrl(photoPath);
-  if (mediaUrl) {
+
+  // Current profile avatar container.
+  setMainProfileAvatar(mediaUrl);
+
+  // Legacy support: old profile photo preview block (if present in markup).
+  const img = document.getElementById('profile-photo-img');
+  const placeholder = document.getElementById('profile-photo-placeholder');
+  if (img && placeholder) {
     img.src = mediaUrl;
+    img.style.display = 'block';
+    placeholder.style.display = 'none';
   }
-  img.style.display = 'block';
-  placeholder.style.display = 'none';
 }
 
 async function uploadProfilePhoto() {
@@ -18927,7 +20356,7 @@ async function registerUserIfNeeded(user) {
   try {
     await authSessionPromise;
     // Проверяем, зарегистрирован ли уже пользователь
-    const checkResponse = await fetch('/users/me');
+    const checkResponse = await authFetch('/users/me');
     
     if (checkResponse.ok) {
       // Пользователь уже зарегистрирован
@@ -19426,6 +20855,10 @@ function openTelegram(username) {
   // Открываем Telegram в новой вкладке
   const telegramUrl = `https://t.me/${username.replace('@', '')}`;
   window.open(telegramUrl, '_blank');
+}
+
+function openExternalLink(url) {
+  window.open(url, '_blank');
 }
 
 function showNotification(message) {

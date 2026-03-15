@@ -5,6 +5,7 @@ from datetime import datetime
 from sqlalchemy import or_
 
 from dance_studio.core.statuses import ABONEMENT_STATUS_ACTIVE
+from dance_studio.core.system_settings_service import get_setting_value
 from dance_studio.db.models import (
     Attendance,
     AttendanceIntention,
@@ -16,6 +17,7 @@ from dance_studio.db.models import (
     User,
 )
 from dance_studio.web.constants import (
+    ATTENDANCE_DEBIT_STATUSES,
     ATTENDANCE_INTENTION_LOCK_DELTA,
     ATTENDANCE_INTENTION_LOCKED_MESSAGE,
     ATTENDANCE_INTENTION_STATUS_WILL_MISS,
@@ -28,7 +30,7 @@ def _attendance_already_debited(db, attendance_id: int) -> bool:
     return bool(exists)
 
 def _debit_abonement_for_attendance(db, attendance: Attendance, staff: Staff | None):
-    if attendance.status == "sick":
+    if attendance.status not in ATTENDANCE_DEBIT_STATUSES:
         return False
     if _attendance_already_debited(db, attendance.id):
         return True
@@ -37,6 +39,30 @@ def _debit_abonement_for_attendance(db, attendance: Attendance, staff: Staff | N
     abon = db.query(GroupAbonement).filter_by(id=attendance.abonement_id).first()
     if not abon or abon.balance_credits is None or abon.balance_credits <= 0:
         return False
+
+    if getattr(attendance, "teacher_payout_rub", None) is None:
+        raw_price = getattr(abon, "price_per_lesson_rub", None)
+        try:
+            lesson_price = int(raw_price)
+        except (TypeError, ValueError):
+            lesson_price = 0
+        if lesson_price < 0:
+            lesson_price = 0
+
+        try:
+            percent = int(get_setting_value(db, "teachers.payout_percent"))
+        except Exception:
+            percent = 40
+        if percent < 0:
+            percent = 0
+        if percent > 100:
+            percent = 100
+
+        payout = (lesson_price * percent) // 100 if lesson_price and percent else 0
+        attendance.lesson_price_rub = lesson_price
+        attendance.teacher_percent = percent
+        attendance.teacher_payout_rub = payout
+
     abon.balance_credits -= 1
     log = GroupAbonementActionLog(
         abonement_id=abon.id,

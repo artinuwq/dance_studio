@@ -217,6 +217,15 @@ SETTING_SPECS: dict[str, SettingSpec] = {
         description="Multi abonement prices for 2/3-group bundles by direction_type and lessons bucket (4/8/12).",
         is_public=False,
     ),
+    "teachers.payout_percent": SettingSpec(
+        key="teachers.payout_percent",
+        value_type="int",
+        default=40,
+        description="Teacher payout percent of abonement lesson price.",
+        is_public=False,
+        min_value=0,
+        max_value=100,
+    ),
 }
 
 USERNAME_SETTING_KEYS = {

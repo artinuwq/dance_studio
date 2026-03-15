@@ -2,14 +2,21 @@ import html
 import json
 from datetime import datetime
 
+from sqlalchemy.orm import object_session
+
 BOOKING_STATUS_LABELS = {
-    "NEW": "NEW — ожидает решения администратора",
-    "APPROVED": "APPROVED — бронь подтверждена, оплата не получена",
-    "AWAITING_PAYMENT": "AWAITING_PAYMENT — ожидаем оплату",
-    "PAID": "PAID — заявка завершена",
-    "REJECTED": "REJECTED — заявка отклонена",
-    "CANCELLED": "CANCELLED — бронь отменена",
-    "PAYMENT_FAILED": "PAYMENT_FAILED — оплата не получена",
+    "new": "Ожидает решения администратора",
+    "created": "Новая заявка",
+    "approved": "Бронь подтверждена, оплата не получена",
+    "awaiting_payment": "Ожидается оплата",
+    "waiting_payment": "Ожидается оплата",
+    "paid": "Заявка завершена",
+    "confirmed": "Подтверждено",
+    "rejected": "Заявка отклонена",
+    "cancelled": "Бронь отменена",
+    "payment_failed": "Оплата не получена",
+    "attended": "Посещено",
+    "no_show": "Неявка",
 }
 
 BOOKING_TYPE_LABELS = {
@@ -101,19 +108,74 @@ def format_overlap_lines(overlaps: list[dict]) -> list[str]:
     return lines
 
 
+def _unique_non_empty_strings(values) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for raw_value in values or []:
+        value = str(raw_value or "").strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def _resolve_booking_group_items(booking) -> list:
+    raw_bundle_groups = getattr(booking, "bundle_groups", None)
+    if isinstance(raw_bundle_groups, list) and raw_bundle_groups:
+        return [item for item in raw_bundle_groups if item]
+
+    bundle_group_ids = parse_bundle_group_ids(getattr(booking, "bundle_group_ids_json", None))
+    main_group = getattr(booking, "group", None)
+
+    groups_by_id: dict[int, object] = {}
+    if main_group and getattr(main_group, "id", None):
+        try:
+            groups_by_id[int(main_group.id)] = main_group
+        except (TypeError, ValueError):
+            pass
+
+    if bundle_group_ids:
+        session = object_session(booking)
+        missing_ids = [group_id for group_id in bundle_group_ids if group_id not in groups_by_id]
+        if session and missing_ids:
+            from dance_studio.db.models import Group
+
+            rows = session.query(Group).filter(Group.id.in_(missing_ids)).all()
+            for row in rows:
+                try:
+                    groups_by_id[int(row.id)] = row
+                except (TypeError, ValueError):
+                    continue
+
+        result = [groups_by_id[group_id] for group_id in bundle_group_ids if group_id in groups_by_id]
+        if result:
+            return result
+
+    return [main_group] if main_group else []
+
+
+def _format_booking_status_label(status) -> str:
+    normalized = str(status or "").strip().lower()
+    if not normalized:
+        return "—"
+    return BOOKING_STATUS_LABELS.get(normalized, html.escape(str(status)))
+
+
 def format_booking_message(booking, user=None) -> str:
     user_name = booking.user_name or (user.name if user else None) or "—"
     username = booking.user_username or (user.username if user else None)
     telegram_id = booking.user_telegram_id or (user.telegram_id if user else None)
 
     safe_name = html.escape(str(user_name))
-    username_display = f"@{html.escape(username)}" if username else "—"
-    contact_links = []
-    if username:
-        contact_links.append(f"<a href=\"https://t.me/{html.escape(username)}\">@{html.escape(username)}</a>")
+    normalized_username = str(username or "").strip().lstrip("@")
+    contact_parts = []
+    if normalized_username:
+        contact_parts.append(f"@{html.escape(normalized_username)}")
     if telegram_id:
-        contact_links.append(f"<a href=\"tg://user?id={telegram_id}\">tg://user?id={telegram_id}</a>")
-    contact_line = " • ".join(contact_links) if contact_links else "—"
+        safe_telegram_id = html.escape(str(telegram_id))
+        contact_parts.append(f"<a href=\"tg://user?id={safe_telegram_id}\">ID {safe_telegram_id}</a>")
+    contact_line = " • ".join(contact_parts) if contact_parts else "—"
 
     header = "🆕 НОВАЯ ЗАЯВКА" if booking.status == "NEW" else "📝 ЗАЯВКА"
     booking_type = BOOKING_TYPE_LABELS.get(booking.object_type, booking.object_type)
@@ -153,7 +215,7 @@ def format_booking_message(booking, user=None) -> str:
                 "✅ Пересечений не обнаружено\n\n"
             )
 
-    status_line = BOOKING_STATUS_LABELS.get(booking.status, booking.status)
+    status_line = _format_booking_status_label(booking.status)
     status_section = f"📌 Статус:\n{status_line}\n"
 
     admin_section = ""
@@ -172,6 +234,17 @@ def format_booking_message(booking, user=None) -> str:
     lesson_section = ""
     if booking.object_type == "group":
         lesson_lines = []
+        group_items = _resolve_booking_group_items(booking)
+        bundle_group_ids = parse_bundle_group_ids(getattr(booking, "bundle_group_ids_json", None))
+        if not bundle_group_ids:
+            bundle_group_ids = []
+            for item in group_items:
+                try:
+                    parsed_group_id = int(getattr(item, "id", None))
+                except (TypeError, ValueError):
+                    continue
+                bundle_group_ids.append(parsed_group_id)
+
         abonement_type_labels = {
             "single": "Разовое",
             "multi": "Многоразовое",
@@ -181,26 +254,37 @@ def format_booking_message(booking, user=None) -> str:
         if abonement_type:
             lesson_lines.append(f"• Тип абонемента: {abonement_type_labels.get(abonement_type, abonement_type)}")
 
-        bundle_group_ids = parse_bundle_group_ids(getattr(booking, "bundle_group_ids_json", None))
         if bundle_group_ids:
             lesson_lines.append(f"• Размер пакета: {len(bundle_group_ids)}")
             lesson_lines.append(f"• Группы пакета (ID): {', '.join(map(str, bundle_group_ids))}")
-        group = getattr(booking, "group", None)
-        if group and group.name:
-            lesson_lines.append(f"• Группа: {html.escape(group.name)}")
-        direction = getattr(group, "direction", None) if group else None
-        if direction and direction.title:
-            lesson_lines.append(f"• Направление: {html.escape(direction.title)}")
-            if direction.base_price:
-                lesson_lines.append(f"• Цена занятия: {direction.base_price} ₽")
-        if group and group.teacher and group.teacher.name:
-            lesson_lines.append(f"• Преподаватель: {html.escape(group.teacher.name)}")
-        if group and group.age_group:
-            lesson_lines.append(f"• Возраст: {html.escape(group.age_group)}")
-        if group and group.lessons_per_week:
-            lesson_lines.append(f"• {group.lessons_per_week} занятий в неделю")
-        if booking.lessons_count:
-            lesson_lines.append(f"• Кол-во занятий: {booking.lessons_count}")
+
+        if len(group_items) > 1:
+            for index, group_item in enumerate(group_items, start=1):
+                group_name = getattr(group_item, "name", None) or f"Группа #{getattr(group_item, 'id', index)}"
+                lesson_lines.append(f"• Группа {index}: {html.escape(str(group_name))}")
+        else:
+            group = group_items[0] if group_items else getattr(booking, "group", None)
+            if group and group.name:
+                lesson_lines.append(f"• Группа: {html.escape(group.name)}")
+
+        direction_titles = _unique_non_empty_strings(
+            getattr(getattr(group_item, "direction", None), "title", None)
+            for group_item in group_items
+        )
+        if len(direction_titles) == 1:
+            lesson_lines.append(f"• Направление: {html.escape(direction_titles[0])}")
+        elif len(direction_titles) > 1:
+            lesson_lines.append(f"• Направления: {html.escape(', '.join(direction_titles))}")
+
+        teacher_names = _unique_non_empty_strings(
+            getattr(getattr(group_item, "teacher", None), "name", None)
+            for group_item in group_items
+        )
+        if len(teacher_names) == 1:
+            lesson_lines.append(f"• Преподаватель: {html.escape(teacher_names[0])}")
+        elif len(teacher_names) > 1:
+            lesson_lines.append(f"• Преподаватели: {html.escape(', '.join(teacher_names))}")
+
         if booking.group_start_date:
             lesson_lines.append(f"• Следующее занятие: {_format_date(booking.group_start_date)}")
         if booking.valid_until:
@@ -226,10 +310,8 @@ def format_booking_message(booking, user=None) -> str:
         f"{header}\n\n"
         "👤 Клиент:\n"
         f"• Имя: {safe_name}\n"
-        f"• Username: {username_display}\n"
-        f"• Написать: {contact_line}\n\n"
-        "📦 Тип:\n"
-        f"{booking_type}\n\n"
+        f"• Контакт: {contact_line}\n\n"
+        f"📦 Тип: {booking_type}\n\n"
         f"{time_section}"
         f"{lesson_section}"
         f"{comment_section}"

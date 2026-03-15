@@ -59,6 +59,13 @@ def test_resolve_multi_lessons_per_group_for_bundle_caps_and_validates():
         _resolve_multi_lessons_per_group(payloads, bundle_size=2, requested_lessons_per_group=16)
 
 
+def test_resolve_multi_lessons_per_group_for_bundle_allows_different_lessons_per_week():
+    payloads = [{"lessons_per_week": 3}, {"lessons_per_week": 4}]
+    assert _resolve_multi_lessons_per_group(payloads, bundle_size=2, requested_lessons_per_group=12) == 12
+    with pytest.raises(AbonementPricingError, match="cannot exceed 12"):
+        _resolve_multi_lessons_per_group(payloads, bundle_size=2, requested_lessons_per_group=16)
+
+
 def test_multi_single_amount_fallback_uses_default_studio_matrix(monkeypatch):
     def _fake_get_setting_value(db, key):
         if key == "abonements.multi_single_prices_json":

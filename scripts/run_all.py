@@ -3,6 +3,7 @@ import threading
 import logging
 import sys
 from pathlib import Path
+from aiogram.exceptions import TelegramNetworkError
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC_PATH = ROOT / "src"
@@ -36,11 +37,16 @@ async def main():
     flask_thread = threading.Thread(target=run_flask, daemon=True)
     flask_thread.start()
 
-    try:
-        await run_bot()
-    except Exception:
-        logging.exception("Bot crashed")
-        raise
+    while True:
+        try:
+            await run_bot()
+            break
+        except TelegramNetworkError:
+            logging.exception("Bot crashed due to Telegram network error, restarting")
+            await asyncio.sleep(10)
+        except Exception:
+            logging.exception("Bot crashed")
+            raise
 
 
 if __name__ == "__main__":

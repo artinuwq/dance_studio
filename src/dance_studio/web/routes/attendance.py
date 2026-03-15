@@ -5,6 +5,7 @@ from flask import Blueprint, g, request
 from dance_studio.db.models import Attendance, AttendanceIntention, Group, IndividualLesson, Schedule, User
 from dance_studio.web.constants import (
     ATTENDANCE_ALLOWED_STATUSES,
+    ATTENDANCE_DEBIT_STATUSES,
     ATTENDANCE_INTENTION_LOCKED_MESSAGE,
     ATTENDANCE_INTENTION_STATUS_WILL_MISS,
 )
@@ -168,12 +169,13 @@ def get_attendance(schedule_id):
         "late": "Опоздал",
         "sick": "Болел",
     }
+    debit_statuses = ", ".join(sorted(ATTENDANCE_DEBIT_STATUSES))
 
     return {
         "items": items,
         "source": roster_source or "manual",
         "status_labels": status_labels,
-        "debit_policy": "Списывается 1 занятие для всех статусов, кроме 'sick'",
+        "debit_policy": f"Списывается 1 занятие только для статусов {debit_statuses}",
         "can_edit": bool(window["is_open"]),
         "attendance_phase": window["phase"],
         "attendance_phase_message": window["message"],

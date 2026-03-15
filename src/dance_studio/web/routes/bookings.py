@@ -223,12 +223,14 @@ def get_compatible_groups():
 
     if direction_type not in ALLOWED_DIRECTION_TYPES:
         return {"error": "direction_type must be dance or sport"}, 400
-    try:
-        lessons_per_week = int(lessons_per_week_raw)
-    except (TypeError, ValueError):
-        return {"error": "lessons_per_week must be an integer"}, 400
-    if lessons_per_week <= 0:
-        return {"error": "lessons_per_week must be > 0"}, 400
+    lessons_per_week = None
+    if lessons_per_week_raw not in (None, ""):
+        try:
+            lessons_per_week = int(lessons_per_week_raw)
+        except (TypeError, ValueError):
+            return {"error": "lessons_per_week must be an integer"}, 400
+        if lessons_per_week <= 0:
+            return {"error": "lessons_per_week must be > 0"}, 400
 
     exclude_group_id = None
     if exclude_group_id_raw not in (None, ""):
@@ -237,7 +239,12 @@ def get_compatible_groups():
         except (TypeError, ValueError):
             return {"error": "exclude_group_id must be an integer"}, 400
 
-    groups = db.query(Group).filter(Group.lessons_per_week == lessons_per_week).order_by(Group.created_at.desc()).all()
+    groups = (
+        db.query(Group)
+        .filter(Group.lessons_per_week.isnot(None), Group.lessons_per_week > 0)
+        .order_by(Group.created_at.desc())
+        .all()
+    )
     occupancy_map = get_group_occupancy_map(db, [group.id for group in groups if group and group.id])
     direction_ids = {g.direction_id for g in groups if g.direction_id}
     directions = db.query(Direction).filter(Direction.direction_id.in_(direction_ids)).all() if direction_ids else []
@@ -249,6 +256,8 @@ def get_compatible_groups():
     result = []
     for group in groups:
         if exclude_group_id and group.id == exclude_group_id:
+            continue
+        if lessons_per_week is not None and int(group.lessons_per_week or 0) != lessons_per_week:
             continue
         direction = directions_by_id.get(group.direction_id)
         if not direction:

@@ -261,12 +261,12 @@ def _resolve_multi_lessons_per_group(
     lessons_per_week_values = [item.get("lessons_per_week") for item in bundle_payloads]
     if any(val is None for val in lessons_per_week_values):
         raise AbonementPricingError("lessons_per_week must be configured for all selected groups.")
-    if any(val not in {1, 2, 3, 4} for val in lessons_per_week_values):
-        raise AbonementPricingError("lessons_per_week must be 1, 2, 3, or 4 for multi abonement.")
-    if len(set(lessons_per_week_values)) != 1:
-        raise AbonementPricingError("All groups in bundle must have the same lessons_per_week.")
 
-    max_lessons_per_group = int(lessons_per_week_values[0]) * 4
+    normalized_lessons_per_week = [int(val) for val in lessons_per_week_values]
+    if any(val <= 0 for val in normalized_lessons_per_week):
+        raise AbonementPricingError("lessons_per_week must be > 0 for multi abonement.")
+
+    max_lessons_per_group = min(val * 4 for val in normalized_lessons_per_week)
     if requested_lessons_per_group is None:
         if bundle_size > 1:
             return min(max_lessons_per_group, max(ALLOWED_MULTI_BUNDLE_LESSON_BUCKETS))
@@ -360,7 +360,7 @@ def quote_group_booking(
     if normalized_type in {ABONEMENT_TYPE_SINGLE, ABONEMENT_TYPE_TRIAL}:
         valid_to = datetime.combine(next_group_date, time.max)
     else:
-        valid_to = datetime.combine(next_group_date + timedelta(days=28), time.max)
+        valid_to = datetime.combine(next_group_date + timedelta(days=30), time.max)
 
     total_lessons = lessons_per_group * bundle_size
     return GroupBookingQuote(

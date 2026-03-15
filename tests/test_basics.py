@@ -5,7 +5,7 @@ def test_constants():
     """Проверка базовых констант проекта"""
     assert "dance" in ALLOWED_DIRECTION_TYPES
     assert "sport" in ALLOWED_DIRECTION_TYPES
-    assert MAX_UPLOAD_MB == 200
+    assert MAX_UPLOAD_MB == 15
 
 def test_logic_mock():
     """Пример теста простой логики"""

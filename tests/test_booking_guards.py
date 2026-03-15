@@ -5,11 +5,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from dance_studio.core.statuses import (
+    ABONEMENT_STATUS_ACTIVE,
+    ABONEMENT_STATUS_CANCELLED,
     BOOKING_STATUS_CANCELLED,
+    BOOKING_STATUS_CONFIRMED,
     BOOKING_STATUS_CREATED,
     BOOKING_STATUS_WAITING_PAYMENT,
 )
-from dance_studio.db.models import Base, BookingRequest, Direction, Group, Staff, User
+from dance_studio.db.models import Base, BookingRequest, Direction, Group, GroupAbonement, Staff, User
 from dance_studio.web.services.bookings import (
     BookingAlreadyExistsError,
     BookingCapacityExceededError,
@@ -110,7 +113,7 @@ def test_group_capacity_is_blocked_when_full():
         db.close()
 
 
-def test_group_duplicate_for_same_user_and_start_date_is_blocked():
+def test_group_pending_duplicate_is_replaced_by_new_booking():
     db = _make_session()
     try:
         group = _seed_group(db, max_students=3)
@@ -133,8 +136,149 @@ def test_group_duplicate_for_same_user_and_start_date_is_blocked():
             group_start_date=date(2026, 3, 10),
             status=BOOKING_STATUS_CREATED,
         )
+        create_booking_request_with_guards(db, booking_2, now=now)
+
+        assert booking_1.status == BOOKING_STATUS_CANCELLED
+        assert booking_1.reserved_until is None
+        assert booking_2.id is not None
+    finally:
+        db.close()
+
+
+def test_group_confirmed_duplicate_with_active_abonement_is_blocked():
+    db = _make_session()
+    try:
+        group = _seed_group(db, max_students=3)
+        user = _seed_user(db, name="User One")
+        now = datetime(2026, 3, 8, 14, 0, 0)
+
+        booking_1 = BookingRequest(
+            user_id=user.id,
+            object_type="group",
+            group_id=group.id,
+            group_start_date=date(2026, 3, 10),
+            valid_until=date(2026, 4, 9),
+            status=BOOKING_STATUS_CONFIRMED,
+        )
+        db.add(booking_1)
+        db.flush()
+        db.add(
+            GroupAbonement(
+                user_id=user.id,
+                group_id=group.id,
+                balance_credits=4,
+                status=ABONEMENT_STATUS_ACTIVE,
+                valid_from=datetime(2026, 3, 10, 0, 0, 0),
+                valid_to=datetime(2026, 4, 9, 23, 59, 59),
+            )
+        )
+        db.flush()
+
+        booking_2 = BookingRequest(
+            user_id=user.id,
+            object_type="group",
+            group_id=group.id,
+            group_start_date=date(2026, 3, 10),
+            valid_until=date(2026, 4, 9),
+            status=BOOKING_STATUS_CREATED,
+        )
         with pytest.raises(BookingAlreadyExistsError):
             create_booking_request_with_guards(db, booking_2, now=now)
+    finally:
+        db.close()
+
+
+def test_group_duplicate_is_ignored_when_old_abonement_was_cancelled():
+    db = _make_session()
+    try:
+        group = _seed_group(db, max_students=3)
+        user = _seed_user(db, name="User One")
+        now = datetime(2026, 3, 8, 14, 0, 0)
+
+        old_booking = BookingRequest(
+            user_id=user.id,
+            object_type="group",
+            group_id=group.id,
+            group_start_date=date(2026, 3, 10),
+            valid_until=date(2026, 4, 9),
+            status=BOOKING_STATUS_CONFIRMED,
+        )
+        db.add(old_booking)
+        db.flush()
+
+        db.add(
+            GroupAbonement(
+                user_id=user.id,
+                group_id=group.id,
+                balance_credits=0,
+                status=ABONEMENT_STATUS_CANCELLED,
+                valid_from=datetime(2026, 3, 10, 0, 0, 0),
+                valid_to=datetime(2026, 4, 9, 23, 59, 59),
+            )
+        )
+        db.flush()
+
+        new_booking = BookingRequest(
+            user_id=user.id,
+            object_type="group",
+            group_id=group.id,
+            group_start_date=date(2026, 3, 10),
+            valid_until=date(2026, 4, 9),
+            status=BOOKING_STATUS_WAITING_PAYMENT,
+        )
+        create_booking_request_with_guards(db, new_booking, now=now)
+
+        assert old_booking.status == BOOKING_STATUS_CANCELLED
+        assert new_booking.id is not None
+        assert new_booking.reserved_until is not None
+    finally:
+        db.close()
+
+
+def test_group_capacity_ignores_old_booking_with_cancelled_abonement():
+    db = _make_session()
+    try:
+        group = _seed_group(db, max_students=1)
+        former_user = _seed_user(db, name="Former Student")
+        new_user = _seed_user(db, name="New Student")
+        now = datetime(2026, 3, 8, 15, 0, 0)
+
+        old_booking = BookingRequest(
+            user_id=former_user.id,
+            object_type="group",
+            group_id=group.id,
+            group_start_date=date(2026, 3, 10),
+            valid_until=date(2026, 4, 9),
+            status=BOOKING_STATUS_CONFIRMED,
+        )
+        db.add(old_booking)
+        db.flush()
+
+        db.add(
+            GroupAbonement(
+                user_id=former_user.id,
+                group_id=group.id,
+                balance_credits=0,
+                status=ABONEMENT_STATUS_CANCELLED,
+                valid_from=datetime(2026, 3, 10, 0, 0, 0),
+                valid_to=datetime(2026, 4, 9, 23, 59, 59),
+            )
+        )
+        db.flush()
+
+        new_booking = BookingRequest(
+            user_id=new_user.id,
+            object_type="group",
+            group_id=group.id,
+            group_start_date=date(2026, 3, 10),
+            valid_until=date(2026, 4, 9),
+            status=BOOKING_STATUS_WAITING_PAYMENT,
+        )
+        create_booking_request_with_guards(db, new_booking, now=now)
+
+        assert old_booking.status == BOOKING_STATUS_CANCELLED
+        assert new_booking.id is not None
+        assert new_booking.reserved_until is not None
     finally:
         db.close()
 

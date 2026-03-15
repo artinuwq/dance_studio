@@ -12,6 +12,7 @@ from dance_studio.core.statuses import (
     set_abonement_status,
     set_booking_status,
 )
+from dance_studio.core.abonement_activation import activate_group_abonement_from_booking
 from dance_studio.db.models import BookingRequest, GroupAbonement, PaymentTransaction, Staff, User
 from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
 from dance_studio.web.services.bookings import (
@@ -97,6 +98,7 @@ def _booking_default_amount(booking: BookingRequest) -> int | None:
 
 
 def _apply_payment_effects(
+    db,
     target,
     *,
     payment_type: str,
@@ -116,6 +118,8 @@ def _apply_payment_effects(
             changed_at=confirmed_at,
         )
         target.reserved_until = None
+        if getattr(target, "object_type", None) == "group":
+            activate_group_abonement_from_booking(db, target)
         return
 
     set_abonement_status(target, ABONEMENT_STATUS_ACTIVE)
@@ -180,6 +184,7 @@ def _create_manual_payment(
     db.add(payment)
 
     _apply_payment_effects(
+        db,
         target,
         payment_type=payment_type,
         status=status,

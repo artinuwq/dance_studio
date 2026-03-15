@@ -27,3 +27,7 @@ config.py
 .idea/
 *.sublime-project
 *.sublime-workspace
+
+scripts/keys/
+
+scripts/backup/

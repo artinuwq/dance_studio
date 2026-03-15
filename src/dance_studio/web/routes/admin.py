@@ -5,7 +5,7 @@ import uuid
 from datetime import date, datetime, time as dt_time, timedelta
 
 import requests
-from flask import Blueprint, current_app, g, jsonify, request, send_from_directory
+from flask import Blueprint, current_app, g, jsonify, make_response, request, send_from_directory
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from werkzeug.utils import secure_filename
@@ -358,7 +358,11 @@ def _staff_editability_payload(db, staff: Staff) -> tuple[bool, str | None]:
 
 @bp.route("/")
 def index():
-    return send_from_directory(FRONTEND_DIR, "index.html")
+    response = make_response(send_from_directory(FRONTEND_DIR, "index.html"))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @bp.route("/health")
@@ -4943,24 +4947,29 @@ def admin_create_client_abonement(user_id: int):
         if not base_direction_type:
             return {"error": "Для основной группы не найдено направление"}, 400
 
-        if lessons_per_week <= 0:
-            return {"error": "Для группы не настроено количество занятий в неделю"}, 400
+        lessons_per_week_values = []
         for bundle_group_id in bundle_group_ids:
             bundle_group = groups_by_id[bundle_group_id]
             current_lessons_per_week = int(bundle_group.lessons_per_week or 0)
-            if current_lessons_per_week != lessons_per_week:
-                return {
-                    "error": (
-                        "Все группы в мульти-абонементе должны иметь одинаковое "
-                        "количество занятий в неделю"
-                    )
-                }, 400
+            if current_lessons_per_week <= 0:
+                return {"error": "Для группы не настроено количество занятий в неделю"}, 400
+            lessons_per_week_values.append(current_lessons_per_week)
             current_direction_type = direction_type_by_id.get(int(bundle_group.direction_id or 0), "")
             if current_direction_type != base_direction_type:
                 return {"error": "Все группы в мульти-абонементе должны быть одного типа направления"}, 400
+        unique_lessons_per_week = set(lessons_per_week_values)
+        if len(unique_lessons_per_week) > 1:
+            return {
+                "error": (
+                    "В комбо-абонементе все группы должны иметь одинаковое количество занятий в неделю "
+                    "(и одинаковый месячный пакет: 4/8/12)."
+                )
+            }, 400
+        lessons_per_week = lessons_per_week_values[0] if lessons_per_week_values else 0
 
     weeks_raw = payload.get("weeks")
     lessons_raw = payload.get("lessons")
+    price_total_raw = payload.get("price_total_rub")
     weeks = None
     lessons = None
 
@@ -5013,11 +5022,25 @@ def admin_create_client_abonement(user_id: int):
     staff = _get_current_staff(db)
     note = (payload.get("note") or "").strip()
 
+    if price_total_raw in (None, ""):
+        price_total_rub = 400
+    else:
+        try:
+            price_total_rub = int(price_total_raw)
+        except (TypeError, ValueError):
+            return {"error": "price_total_rub Ð´Ð¾Ð»Ð¶ÐµÐ½ Ð±Ñ‹Ñ‚ÑŒ Ñ†ÐµÐ»Ñ‹Ð¼ Ñ‡Ð¸ÑÐ»Ð¾Ð¼"}, 400
+        if price_total_rub < 0:
+            return {"error": "price_total_rub Ð´Ð¾Ð»Ð¶ÐµÐ½ Ð±Ñ‹Ñ‚ÑŒ Ð±Ð¾Ð»ÑŒÑˆÐµ Ð¸Ð»Ð¸ Ñ€Ð°Ð²ÐµÐ½ 0"}, 400
+
     if abonement_type in {"single", "trial"}:
         bundle_group_ids = [group_id]
 
     bundle_size = len(bundle_group_ids) if abonement_type == "multi" else 1
     bundle_id = str(uuid.uuid4()) if bundle_size > 1 else None
+    total_lessons = int(lessons or 0) * max(1, int(bundle_size or 1))
+    price_per_lesson = None
+    if total_lessons > 0:
+        price_per_lesson = max(0, int(price_total_rub) // int(total_lessons))
     created_abonements: list[GroupAbonement] = []
     for bundle_group_id in bundle_group_ids:
         abonement = GroupAbonement(
@@ -5027,6 +5050,9 @@ def admin_create_client_abonement(user_id: int):
             bundle_id=bundle_id,
             bundle_size=bundle_size,
             balance_credits=lessons,
+            price_total_rub=price_total_rub,
+            lessons_total=total_lessons if total_lessons > 0 else None,
+            price_per_lesson_rub=price_per_lesson,
             status=target_status,
             valid_from=valid_from,
             valid_to=valid_to,
@@ -5060,6 +5086,9 @@ def admin_create_client_abonement(user_id: int):
                         "lessons": lessons,
                         "lessons_per_week": lessons_per_week,
                         "bundle_size": bundle_size,
+                        "price_total_rub": price_total_rub,
+                        "lessons_total": total_lessons if total_lessons > 0 else None,
+                        "price_per_lesson_rub": price_per_lesson,
                     },
                     ensure_ascii=False,
                 ),
@@ -5300,11 +5329,7 @@ def admin_extend_group_abonement(abonement_id: int):
     target_ids = [int(row.id) for row in target_rows if row and row.id]
     bundle_scope = len(target_ids) > 1
 
-    group = db.query(Group).filter_by(id=abonement.group_id).first()
-    lessons_per_week = int(group.lessons_per_week) if group and group.lessons_per_week else None
-    if not lessons_per_week or lessons_per_week <= 0:
-        return {"error": "Для группы не настроено количество занятий в неделю"}, 400
-
+    lessons_per_week_values = []
     for target in target_rows:
         target_status = str(getattr(target, "status", "") or "").strip().lower()
         if target_status == ABONEMENT_STATUS_CANCELLED:
@@ -5314,20 +5339,14 @@ def admin_extend_group_abonement(abonement_id: int):
                     f"(#{int(target.id)})"
                 )
             }, 400
-
         target_group = db.query(Group).filter_by(id=target.group_id).first()
         target_lessons_per_week = (
             int(target_group.lessons_per_week) if target_group and target_group.lessons_per_week else None
         )
         if not target_lessons_per_week or target_lessons_per_week <= 0:
             return {"error": f"Для группы в абонементе #{int(target.id)} не настроено количество занятий в неделю"}, 400
-        if target_lessons_per_week != lessons_per_week:
-            return {
-                "error": (
-                    "Нельзя продлить пакет: у групп в пакете отличается "
-                    "количество занятий в неделю"
-                )
-            }, 400
+        lessons_per_week_values.append(int(target_lessons_per_week))
+    lessons_per_week = min(lessons_per_week_values) if lessons_per_week_values else None
 
     weeks_raw = payload.get("weeks")
     lessons_raw = payload.get("lessons")

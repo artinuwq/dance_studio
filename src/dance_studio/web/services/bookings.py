@@ -6,7 +6,6 @@ from typing import Iterable
 
 import requests
 from flask import current_app
-from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import object_session
 
@@ -20,16 +19,21 @@ from dance_studio.core.abonement_pricing import (
 )
 from dance_studio.core.booking_utils import build_booking_keyboard_data, format_booking_message
 from dance_studio.core.statuses import (
+    ABONEMENT_STATUS_CANCELLED,
+    ABONEMENT_STATUS_EXPIRED,
     BOOKING_ACTIVE_STATUSES,
+    BOOKING_PAYMENT_CONFIRMED_STATUSES,
+    BOOKING_STATUS_CREATED,
     BOOKING_STATUS_CANCELLED,
     BOOKING_STATUS_WAITING_PAYMENT,
+    normalize_abonement_status,
     normalize_booking_status,
     set_booking_status,
 )
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.config import PROJECT_NAME_FULL
 from dance_studio.core.system_settings_service import get_setting_value
-from dance_studio.db.models import BookingRequest, Group, HallRental, IndividualLesson, Schedule, User
+from dance_studio.db.models import BookingRequest, Group, GroupAbonement, HallRental, IndividualLesson, Schedule, User
 from dance_studio.web.constants import INACTIVE_SCHEDULE_STATUSES
 from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
 
@@ -37,6 +41,10 @@ from dance_studio.web.services.payments import _resolve_payment_profile_payload_
 BOOKING_SEAT_OCCUPYING_STATUSES = set(BOOKING_ACTIVE_STATUSES)
 BOOKING_RESERVATION_EXPIRABLE_STATUSES = {BOOKING_STATUS_WAITING_PAYMENT}
 DEFAULT_GROUP_BOOKING_RESERVE_MINUTES = 48 * 60
+_TERMINAL_ABONEMENT_STATUSES = {
+    ABONEMENT_STATUS_CANCELLED,
+    ABONEMENT_STATUS_EXPIRED,
+}
 
 _BOOKING_DUPLICATE_INDEX_NAMES = {
     "uq_booking_req_user_slot_active",
@@ -138,8 +146,157 @@ def _has_duplicate_non_group_booking(db, booking: BookingRequest) -> bool:
     return duplicate is not None
 
 
+def _matching_group_abonements_for_booking(db, booking: BookingRequest) -> list[GroupAbonement]:
+    if getattr(booking, "object_type", None) != "group":
+        return []
+    if not getattr(booking, "user_id", None) or not getattr(booking, "group_id", None):
+        return []
+
+    group_ids = parse_booking_bundle_group_ids(booking)
+    if not group_ids:
+        group_ids = [int(booking.group_id)]
+
+    query = db.query(GroupAbonement).filter(
+        GroupAbonement.user_id == int(booking.user_id),
+        GroupAbonement.group_id.in_(group_ids),
+    )
+    if booking.abonement_type:
+        query = query.filter(GroupAbonement.abonement_type == str(booking.abonement_type).strip().lower())
+    if booking.group_start_date:
+        window_start = datetime.combine(booking.group_start_date, time.min)
+        window_end = datetime.combine(booking.group_start_date, time.max)
+        query = query.filter(
+            GroupAbonement.valid_from.isnot(None),
+            GroupAbonement.valid_from >= window_start,
+            GroupAbonement.valid_from <= window_end,
+        )
+    if booking.valid_until:
+        window_start = datetime.combine(booking.valid_until, time.min)
+        window_end = datetime.combine(booking.valid_until, time.max)
+        query = query.filter(
+            GroupAbonement.valid_to.isnot(None),
+            GroupAbonement.valid_to >= window_start,
+            GroupAbonement.valid_to <= window_end,
+        )
+    return query.all()
+
+
+def _is_stale_group_booking(db, booking: BookingRequest) -> bool:
+    if getattr(booking, "object_type", None) != "group":
+        return False
+    if normalize_booking_status(getattr(booking, "status", None), default="") not in BOOKING_PAYMENT_CONFIRMED_STATUSES:
+        return False
+
+    abonements = _matching_group_abonements_for_booking(db, booking)
+    if not abonements:
+        return False
+
+    statuses = {
+        normalize_abonement_status(getattr(row, "status", None), default="")
+        for row in abonements
+    }
+    return bool(statuses) and statuses.issubset(_TERMINAL_ABONEMENT_STATUSES)
+
+
+def _group_booking_occupies_seat(db, booking: BookingRequest) -> bool:
+    if getattr(booking, "object_type", None) != "group":
+        return False
+
+    normalized_status = normalize_booking_status(getattr(booking, "status", None), default="")
+    if normalized_status in BOOKING_RESERVATION_EXPIRABLE_STATUSES or normalized_status == "created":
+        return True
+    if normalized_status in BOOKING_PAYMENT_CONFIRMED_STATUSES:
+        return not _is_stale_group_booking(db, booking)
+    return False
+
+
+def _cleanup_inactive_group_bookings(
+    db,
+    *,
+    now: datetime,
+    group_id: int | None = None,
+    user_id: int | None = None,
+    group_start_date: date | None = None,
+) -> set[int]:
+    query = db.query(BookingRequest).filter(
+        BookingRequest.object_type == "group",
+        BookingRequest.status.in_(tuple(BOOKING_PAYMENT_CONFIRMED_STATUSES)),
+    )
+    if group_id is not None:
+        query = query.filter(BookingRequest.group_id == int(group_id))
+    if user_id is not None:
+        query = query.filter(BookingRequest.user_id == int(user_id))
+    if group_start_date is None:
+        query = query.filter(BookingRequest.group_start_date.is_(None))
+    else:
+        query = query.filter(BookingRequest.group_start_date == group_start_date)
+
+    cancelled_ids: set[int] = set()
+    for row in query.all():
+        if not _is_stale_group_booking(db, row):
+            continue
+        set_booking_status(
+            row,
+            BOOKING_STATUS_CANCELLED,
+            actor_name="system: abonement inactive",
+            changed_at=now,
+            allow_same=False,
+        )
+        row.reserved_until = None
+        cancelled_ids.add(int(row.id))
+    return cancelled_ids
+
+
+def _cancel_replaceable_group_bookings(
+    db,
+    booking: BookingRequest,
+    *,
+    now: datetime,
+) -> set[int]:
+    if getattr(booking, "object_type", None) != "group":
+        return set()
+    if not getattr(booking, "user_id", None) or not getattr(booking, "group_id", None):
+        return set()
+
+    query = db.query(BookingRequest).filter(
+        BookingRequest.user_id == int(booking.user_id),
+        BookingRequest.object_type == "group",
+        BookingRequest.group_id == int(booking.group_id),
+        BookingRequest.status.in_((BOOKING_STATUS_CREATED, BOOKING_STATUS_WAITING_PAYMENT)),
+    )
+    if booking.group_start_date is None:
+        query = query.filter(BookingRequest.group_start_date.is_(None))
+    else:
+        query = query.filter(BookingRequest.group_start_date == booking.group_start_date)
+
+    cancelled_ids: set[int] = set()
+    for row in query.all():
+        row_status = normalize_booking_status(getattr(row, "status", None), default="")
+        if row_status == BOOKING_STATUS_CREATED:
+            row.status = BOOKING_STATUS_CANCELLED
+            if hasattr(row, "status_updated_at"):
+                row.status_updated_at = now
+            if hasattr(row, "status_updated_by_name"):
+                row.status_updated_by_name = "system: replaced by newer booking"
+        elif row_status == BOOKING_STATUS_WAITING_PAYMENT:
+            set_booking_status(
+                row,
+                BOOKING_STATUS_CANCELLED,
+                actor_name="system: replaced by newer booking",
+                changed_at=now,
+                allow_same=False,
+            )
+        else:
+            continue
+        row.reserved_until = None
+        if hasattr(row, "payment_deadline_alert_sent_at"):
+            row.payment_deadline_alert_sent_at = None
+        cancelled_ids.add(int(row.id))
+    return cancelled_ids
+
+
 def _has_duplicate_group_booking(db, booking: BookingRequest) -> bool:
-    query = db.query(BookingRequest.id).filter(
+    query = db.query(BookingRequest).filter(
         BookingRequest.user_id == int(booking.user_id),
         BookingRequest.object_type == "group",
         BookingRequest.group_id == int(booking.group_id),
@@ -149,20 +306,20 @@ def _has_duplicate_group_booking(db, booking: BookingRequest) -> bool:
         query = query.filter(BookingRequest.group_start_date.is_(None))
     else:
         query = query.filter(BookingRequest.group_start_date == booking.group_start_date)
-    return query.first() is not None
+    return any(_group_booking_occupies_seat(db, row) for row in query.all())
 
 
 def _count_group_occupied_seats(db, group_id: int) -> int:
-    occupied = (
-        db.query(func.count(BookingRequest.id))
+    rows = (
+        db.query(BookingRequest)
         .filter(
             BookingRequest.object_type == "group",
             BookingRequest.group_id == int(group_id),
             BookingRequest.status.in_(tuple(BOOKING_SEAT_OCCUPYING_STATUSES)),
         )
-        .scalar()
+        .all()
     )
-    return int(occupied or 0)
+    return sum(1 for row in rows if _group_booking_occupies_seat(db, row))
 
 
 def get_group_occupancy_map(db, group_ids: Iterable[int]) -> dict[int, int]:
@@ -179,16 +336,21 @@ def get_group_occupancy_map(db, group_ids: Iterable[int]) -> dict[int, int]:
         return {}
 
     rows = (
-        db.query(BookingRequest.group_id, func.count(BookingRequest.id))
+        db.query(BookingRequest)
         .filter(
             BookingRequest.object_type == "group",
             BookingRequest.group_id.in_(normalized_group_ids),
             BookingRequest.status.in_(tuple(BOOKING_SEAT_OCCUPYING_STATUSES)),
         )
-        .group_by(BookingRequest.group_id)
         .all()
     )
-    return {int(group_id): int(count or 0) for group_id, count in rows if group_id is not None}
+    occupancy_map: dict[int, int] = {}
+    for row in rows:
+        if row.group_id is None or not _group_booking_occupies_seat(db, row):
+            continue
+        normalized_group_id = int(row.group_id)
+        occupancy_map[normalized_group_id] = occupancy_map.get(normalized_group_id, 0) + 1
+    return occupancy_map
 
 
 def count_group_occupied_seats(db, group_id: int) -> int:
@@ -236,6 +398,17 @@ def create_booking_request_with_guards(
         if not group:
             raise ValueError("Group not found")
 
+        _cleanup_inactive_group_bookings(
+            db,
+            now=current_time,
+            group_id=int(booking.group_id),
+            group_start_date=booking.group_start_date,
+        )
+        _cancel_replaceable_group_bookings(
+            db,
+            booking,
+            now=current_time,
+        )
         expire_stale_booking_reservations(
             db,
             now=current_time,
@@ -428,7 +601,7 @@ def _build_booking_payment_request_message(db, booking: BookingRequest) -> str:
         f"• Номер: {number}\n"
         f"• ФИО получателя: {full_name}\n"
         f"• Сумма к оплате: {amount_text}\n\n"
-        "Пожалуйста, после оплаты отправьте чек для подтверждения."
+        "Пожалуйста, после оплаты отправьте чек для подтверждения в этот чат."
     )
 
 def _humanize_userbot_error(raw_reason: str) -> str:
@@ -470,6 +643,30 @@ def _humanize_userbot_error(raw_reason: str) -> str:
 
     return reason
 
+
+def _notify_user_userbot_delivery_failed(telegram_id: int, booking_id: int, reason: str) -> None:
+    fallback_text = (
+        "Не получилось отправить вам реквизиты через userbot.\n"
+        "Пожалуйста, напишите в этот бот, и мы отправим реквизиты здесь."
+    )
+    context_note = (
+        f"Ошибка отправки реквизитов через userbot: booking #{booking_id}; "
+        f"причина: {reason}"
+    )
+    try:
+        send_user_notification_sync(
+            user_id=int(telegram_id),
+            text=fallback_text,
+            context_note=context_note,
+        )
+    except Exception:
+        current_app.logger.exception(
+            "booking %s: failed to notify user %s about userbot delivery issue",
+            booking_id,
+            telegram_id,
+        )
+
+
 def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user: User | None) -> None:
     telegram_id = user.telegram_id if user else booking.user_telegram_id
     if not telegram_id:
@@ -478,8 +675,10 @@ def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user:
 
     try:
         from dance_studio.bot.telegram_userbot import send_private_message_sync
-    except Exception:
+    except Exception as exc:
         current_app.logger.exception("booking %s: userbot import failed", booking.id)
+        reason = _humanize_userbot_error(str(exc))
+        _notify_user_userbot_delivery_failed(int(telegram_id), int(booking.id), reason)
         return
 
     payment_text = _build_booking_payment_request_message(db, booking)
@@ -500,13 +699,14 @@ def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user:
             raise RuntimeError(f"userbot returned: {result!r}")
     except Exception as exc:
         current_app.logger.exception("booking %s: failed to deliver payment details via userbot", booking.id)
+        reason = _humanize_userbot_error(str(exc))
+        _notify_user_userbot_delivery_failed(int(telegram_id), int(booking.id), reason)
         try:
             from dance_studio.core.config import BOT_TOKEN
             admin_chat_id = _resolve_bookings_admin_chat_id(booking)
 
             if BOT_TOKEN and admin_chat_id:
                 username = f"@{user_target['username']}" if user_target.get("username") else "—"
-                reason = _humanize_userbot_error(str(exc))
                 alert_text = (
                     "⚠️ Не удалось отправить реквизиты через userbot.\n"
                     f"Заявка: #{booking.id}\n"

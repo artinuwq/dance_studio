@@ -8,9 +8,10 @@ from dance_studio.core.media_manager import delete_user_photo
 from dance_studio.db.models import News
 from dance_studio.web.constants import PROJECT_ROOT
 from dance_studio.web.services.access import require_permission
-from dance_studio.web.services.api_errors import internal_server_error_response
+from dance_studio.web.services.api_errors import internal_server_error_response, safe_client_error_message
 from dance_studio.web.services.media import _build_image_url
 from dance_studio.web.services.text import sanitize_plain_text
+from dance_studio.web.services.upload_validation import validate_image_upload
 
 bp = Blueprint("news_routes", __name__)
 
@@ -112,16 +113,16 @@ def upload_news_photo(news_id):
     if file.filename == "":
         return {"error": "Файл не выбран"}, 400
 
-    allowed_extensions = {"jpg", "jpeg", "png", "gif"}
-    if not ("." in file.filename and file.filename.rsplit(".", 1)[1].lower() in allowed_extensions):
-        return {"error": "Допустимые форматы: jpg, jpeg, png, gif"}, 400
+    try:
+        file_data, detected_ext = validate_image_upload(file)
+    except ValueError as exc:
+        return {"error": safe_client_error_message(exc)}, 400
 
     try:
         if news.photo_path:
             delete_user_photo(news.photo_path)
 
-        file_data = file.read()
-        filename = "photo." + file.filename.rsplit(".", 1)[1].lower()
+        filename = f"photo{detected_ext}"
 
         from dance_studio.core.media_manager import MEDIA_DIR
 
@@ -201,3 +202,4 @@ def restore_news(news_id):
     db.commit()
 
     return {"ok": True}
+

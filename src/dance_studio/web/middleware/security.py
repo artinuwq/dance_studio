@@ -12,24 +12,31 @@ _CSP_POLICY = "; ".join(
         (
             "script-src 'self' 'unsafe-inline' "
             "https://telegram.org https://*.telegram.org "
-            "https://api-maps.yandex.ru https://*.yandex.ru https://*.yandex.net https://*.yastatic.net"
+            "https://api-maps.yandex.ru https://yandex.ru https://*.yandex.ru "
+            "https://yandex.net https://*.yandex.net https://yastatic.net https://*.yastatic.net"
         ),
         (
             "style-src 'self' 'unsafe-inline' "
-            "https://*.yandex.ru https://*.yandex.net https://*.yastatic.net"
+            "https://yandex.ru https://*.yandex.ru "
+            "https://yandex.net https://*.yandex.net https://yastatic.net https://*.yastatic.net"
         ),
         (
             "img-src 'self' data: blob: "
             "https://telegram.org https://*.telegram.org "
-            "https://*.yandex.ru https://*.yandex.net https://*.yastatic.net"
+            "https://yandex.ru https://*.yandex.ru "
+            "https://yandex.net https://*.yandex.net https://yastatic.net https://*.yastatic.net"
         ),
         (
             "connect-src 'self' "
             "https://telegram.org https://*.telegram.org "
-            "https://api-maps.yandex.ru https://*.yandex.ru https://*.yandex.net https://*.yastatic.net"
+            "https://api-maps.yandex.ru https://yandex.ru https://*.yandex.ru "
+            "https://yandex.net https://*.yandex.net https://yastatic.net https://*.yastatic.net"
         ),
-        "font-src 'self' data: https://*.yastatic.net",
-        "frame-src 'self' https://*.telegram.org https://*.yandex.ru https://*.yandex.net",
+        "font-src 'self' data: https://yastatic.net https://*.yastatic.net",
+        (
+            "frame-src 'self' https://*.telegram.org "
+            "https://yandex.ru https://*.yandex.ru https://yandex.net https://*.yandex.net"
+        ),
         "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org",
     ]
 )
@@ -52,4 +59,3 @@ def _set_security_headers(response):
 
 def register_security_headers_middleware(app: Flask) -> None:
     app.after_request(_set_security_headers)
-
