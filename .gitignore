@@ -4,6 +4,8 @@ __pycache__/
 *.pyo
 *.pyd
 *.env
+.pytest_cache/
+.tmp/
 
 # База данных и данные
 var/
