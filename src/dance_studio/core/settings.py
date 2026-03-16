@@ -100,6 +100,12 @@ BACKUP_AGE_BINARY = (os.getenv('BACKUP_AGE_BINARY', '') or '').strip()
 BACKUP_TELEGRAM_PROXY = (os.getenv('BACKUP_TELEGRAM_PROXY', '') or '').strip()
 TELEGRAM_PROXY = (os.getenv('TELEGRAM_PROXY', '') or '').strip()
 
+VK_MINI_APP_SERVICE_KEY = (os.getenv('VK_MINI_APP_SERVICE_KEY', '') or '').strip()
+VK_MINI_APP_APP_ID = (os.getenv('VK_MINI_APP_APP_ID', '') or '').strip()
+WEB_PUSH_PUBLIC_KEY = (os.getenv('WEB_PUSH_PUBLIC_KEY', '') or '').strip()
+WEB_PUSH_PRIVATE_KEY = (os.getenv('WEB_PUSH_PRIVATE_KEY', '') or '').strip()
+WEB_PUSH_SUBJECT = (os.getenv('WEB_PUSH_SUBJECT', 'mailto:admin@example.com') or '').strip()
+
 APP_SECRET_KEY = os.getenv('APP_SECRET_KEY')
 if not APP_SECRET_KEY:
     raise RuntimeError('APP_SECRET_KEY environment variable is required')

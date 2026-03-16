@@ -12,7 +12,7 @@ from dance_studio.core.config import (
 from dance_studio.core.tg_auth import validate_init_data
 from dance_studio.core.tg_replay import store_used_init_data
 from dance_studio.db import get_session
-from dance_studio.db.models import SessionRecord
+from dance_studio.db.models import SessionRecord, User
 from dance_studio.web.services.auth_session import (
     CSRF_COOKIE_NAME,
     CSRF_EXEMPT_PATHS,
@@ -39,6 +39,7 @@ def before_request():
     g.rotate_sid = None
     g.clear_sid_cookie = False
     g.need_reauth = False
+    g.user_id = None
 
     sid = request.cookies.get("sid", "").strip()
     if request.method in STATE_CHANGING_METHODS:
@@ -105,6 +106,13 @@ def before_request():
             session = db.query(SessionRecord).filter_by(sid_hash=_sid_hash(new_sid)).first()
 
         telegram_id = session.telegram_id
+        user_id = session.user_id
+        if user_id is None and telegram_id is not None:
+            matched_user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if matched_user:
+                user_id = matched_user.id
+                session.user_id = user_id
+
         session.last_seen = now
         session.ip_prefix = ip_prefix or session.ip_prefix
 
@@ -124,7 +132,8 @@ def before_request():
             db.commit()
 
         g.telegram_id = telegram_id
-        g.telegram_user = {"id": telegram_id}
+        g.user_id = user_id
+        g.telegram_user = {"id": telegram_id} if telegram_id is not None else None
     except Exception:
         g.db.rollback()
         current_app.logger.exception("Session validation failed")

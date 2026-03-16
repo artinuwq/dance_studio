@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import json
+from datetime import datetime
+
+from dance_studio.db.models import (
+    Attendance,
+    AttendanceIntention,
+    AttendanceReminder,
+    AuthIdentity,
+    BookingRequest,
+    GroupAbonement,
+    Notification,
+    NotificationChannel,
+    NotificationPreference,
+    PasskeyCredential,
+    PaymentTransaction,
+    User,
+    UserMergeEvent,
+    WebPushSubscription,
+)
+
+
+class AccountMergeService:
+    def score_user(self, db, user_id: int) -> int:
+        return (
+            db.query(BookingRequest).filter(BookingRequest.user_id == user_id).count() * 5
+            + db.query(Attendance).filter(Attendance.user_id == user_id).count() * 3
+            + db.query(GroupAbonement).filter(GroupAbonement.user_id == user_id).count() * 4
+            + db.query(PaymentTransaction).filter(PaymentTransaction.user_id == user_id).count() * 4
+        )
+
+    def choose_primary_user(self, db, user_a_id: int, user_b_id: int) -> tuple[int, int]:
+        score_a = self.score_user(db, user_a_id)
+        score_b = self.score_user(db, user_b_id)
+        if score_a >= score_b:
+            return user_a_id, user_b_id
+        return user_b_id, user_a_id
+
+    def merge_users(self, db, *, user_a_id: int, user_b_id: int, reason: str, strategy: str = "score_based") -> tuple[int, int]:
+        primary_id, secondary_id = self.choose_primary_user(db, user_a_id, user_b_id)
+        if primary_id == secondary_id:
+            return primary_id, secondary_id
+
+        db.query(BookingRequest).filter(BookingRequest.user_id == secondary_id).update({BookingRequest.user_id: primary_id}, synchronize_session=False)
+        db.query(Attendance).filter(Attendance.user_id == secondary_id).update({Attendance.user_id: primary_id}, synchronize_session=False)
+        db.query(AttendanceIntention).filter(AttendanceIntention.user_id == secondary_id).update({AttendanceIntention.user_id: primary_id}, synchronize_session=False)
+        db.query(AttendanceReminder).filter(AttendanceReminder.user_id == secondary_id).update({AttendanceReminder.user_id: primary_id}, synchronize_session=False)
+        db.query(GroupAbonement).filter(GroupAbonement.user_id == secondary_id).update({GroupAbonement.user_id: primary_id}, synchronize_session=False)
+        db.query(PaymentTransaction).filter(PaymentTransaction.user_id == secondary_id).update({PaymentTransaction.user_id: primary_id}, synchronize_session=False)
+        db.query(AuthIdentity).filter(AuthIdentity.user_id == secondary_id).update({AuthIdentity.user_id: primary_id}, synchronize_session=False)
+        db.query(PasskeyCredential).filter(PasskeyCredential.user_id == secondary_id).update({PasskeyCredential.user_id: primary_id}, synchronize_session=False)
+        db.query(Notification).filter(Notification.user_id == secondary_id).update({Notification.user_id: primary_id}, synchronize_session=False)
+        db.query(NotificationChannel).filter(NotificationChannel.user_id == secondary_id).update({NotificationChannel.user_id: primary_id}, synchronize_session=False)
+        db.query(NotificationPreference).filter(NotificationPreference.user_id == secondary_id).update({NotificationPreference.user_id: primary_id}, synchronize_session=False)
+        db.query(WebPushSubscription).filter(WebPushSubscription.user_id == secondary_id).update({WebPushSubscription.user_id: primary_id}, synchronize_session=False)
+
+        secondary = db.query(User).filter(User.id == secondary_id).first()
+        if secondary:
+            secondary.is_archived = True
+            secondary.status = "inactive"
+            secondary.merged_to_user_id = primary_id
+
+        db.add(
+            UserMergeEvent(
+                source_user_id=secondary_id,
+                target_user_id=primary_id,
+                merge_reason=reason,
+                merge_strategy=strategy,
+                payload_json=json.dumps({"merged_at": datetime.utcnow().isoformat()}, ensure_ascii=False),
+            )
+        )
+
+        return primary_id, secondary_id
