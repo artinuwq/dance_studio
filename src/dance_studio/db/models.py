@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean
+from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 from dance_studio.core.statuses import (
@@ -23,6 +23,12 @@ class User(Base):
     status = Column(String, default="active")  # active, inactive, frozen
     user_notes = Column(Text, nullable=True)  # Заметки пользователя (пожелания)
     staff_notes = Column(Text, nullable=True)  # Заметки персонала
+    primary_phone = Column(String, nullable=True)
+    phone_verified_at = Column(DateTime, nullable=True)
+    merged_to_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    is_archived = Column(Boolean, nullable=False, default=False)
+    preferred_notification_channel = Column(String(32), nullable=True)
+    last_login_at = Column(DateTime, nullable=True)
 
 
 
@@ -31,7 +37,8 @@ class SessionRecord(Base):
     __tablename__ = "sessions"
 
     id = Column(String(64), primary_key=True)
-    telegram_id = Column(BigInteger, nullable=False)
+    telegram_id = Column(BigInteger, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     user_agent_hash = Column(String(64), nullable=True)
     sid_hash = Column(String(64), unique=True, nullable=False)
     ip_prefix = Column(String(64), nullable=True)
@@ -603,6 +610,176 @@ class GroupAbonementActionLog(Base):
     payment = relationship("PaymentTransaction", foreign_keys=[payment_id])
 
 
+class AuthIdentity(Base):
+    __tablename__ = "auth_identities"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    provider = Column(String(32), nullable=False)
+    provider_user_id = Column(String(255), nullable=True)
+    provider_username = Column(String(255), nullable=True)
+    provider_payload_json = Column(Text, nullable=True)
+    is_primary = Column(Boolean, nullable=False, default=False)
+    is_verified = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("provider", "provider_user_id", name="uq_auth_identities_provider_user"),
+        Index("ix_auth_identities_user_id", "user_id"),
+        Index("ix_auth_identities_provider", "provider"),
+    )
+
+
+class PhoneVerificationCode(Base):
+    __tablename__ = "phone_verification_codes"
+
+    id = Column(Integer, primary_key=True)
+    phone = Column(String(32), nullable=False)
+    code_hash = Column(String(255), nullable=False)
+    purpose = Column(String(32), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    consumed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    delivery_channel = Column(String(32), nullable=False, default="none")
+    delivery_target = Column(String(255), nullable=True)
+
+    __table_args__ = (
+        Index("ix_phone_verification_codes_phone", "phone"),
+        Index("ix_phone_verification_codes_expires_at", "expires_at"),
+    )
+
+
+class PasskeyCredential(Base):
+    __tablename__ = "passkey_credentials"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    credential_id = Column(String(512), nullable=False, unique=True)
+    public_key = Column(Text, nullable=False)
+    sign_count = Column(Integer, nullable=False, default=0)
+    transports = Column(String(255), nullable=True)
+    device_name = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_used_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_passkey_credentials_user_id", "user_id"),
+    )
+
+
+class UserMergeEvent(Base):
+    __tablename__ = "user_merge_events"
+
+    id = Column(Integer, primary_key=True)
+    source_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    target_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    merge_reason = Column(String(64), nullable=False)
+    merge_strategy = Column(String(64), nullable=False)
+    payload_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_user_merge_events_source_user_id", "source_user_id"),
+        Index("ix_user_merge_events_target_user_id", "target_user_id"),
+    )
+
+
+class NotificationChannel(Base):
+    __tablename__ = "notification_channels"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    channel_type = Column(String(32), nullable=False)
+    target_ref = Column(String(512), nullable=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    is_verified = Column(Boolean, nullable=False, default=False)
+    is_primary = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("channel_type", "target_ref", name="uq_notification_channels_target"),
+        Index("ix_notification_channels_user_id", "user_id"),
+    )
+
+
+class NotificationPreference(Base):
+    __tablename__ = "notification_preferences"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    event_type = Column(String(64), nullable=False)
+    channel_type = Column(String(32), nullable=False)
+    priority = Column(Integer, nullable=False, default=100)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_notification_preferences_user_id", "user_id"),
+        Index("ix_notification_preferences_event_type", "event_type"),
+    )
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    event_type = Column(String(64), nullable=False)
+    title = Column(String(255), nullable=False)
+    body = Column(Text, nullable=False)
+    payload_json = Column(Text, nullable=True)
+    status = Column(String(32), nullable=False, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    scheduled_at = Column(DateTime, nullable=True)
+    processed_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_notifications_user_id", "user_id"),
+        Index("ix_notifications_status", "status"),
+    )
+
+
+class NotificationDelivery(Base):
+    __tablename__ = "notification_deliveries"
+
+    id = Column(Integer, primary_key=True)
+    notification_id = Column(Integer, ForeignKey("notifications.id"), nullable=False)
+    channel_type = Column(String(32), nullable=False)
+    target_ref = Column(String(512), nullable=False)
+    status = Column(String(32), nullable=False, default="pending")
+    provider_message_id = Column(String(255), nullable=True)
+    error_message = Column(Text, nullable=True)
+    attempted_at = Column(DateTime, nullable=True)
+    delivered_at = Column(DateTime, nullable=True)
+    payload_json = Column(Text, nullable=True)
+
+    __table_args__ = (
+        Index("ix_notification_deliveries_notification_id", "notification_id"),
+        Index("ix_notification_deliveries_status", "status"),
+    )
+
+
+class WebPushSubscription(Base):
+    __tablename__ = "web_push_subscriptions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    endpoint = Column(String(1024), nullable=False, unique=True)
+    p256dh = Column(Text, nullable=False)
+    auth = Column(Text, nullable=False)
+    user_agent = Column(String(512), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_web_push_subscriptions_user_id", "user_id"),
+    )
+
+
 class NotificationDispatchLog(Base):
     __tablename__ = "notification_dispatch_logs"
 
@@ -650,4 +827,3 @@ class UserDiscount(Base):
     __table_args__ = (
         Index("ix_user_discounts_user_active_created", "user_id", "is_active", "created_at"),
     )
-
