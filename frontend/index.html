@@ -5,7 +5,10 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
 <title>Dance Studio</title>
+<link rel="manifest" href="/assets/manifest.json">
+<meta name="theme-color" content="#0f0f0f">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
 <style>
 /* ====== БАЗОВАЯ ТЕМНАЯ ПАЛИТРА В СТИЛЕ РЕФЕРЕНСА ====== */
 :root {
@@ -22899,6 +22902,91 @@ function archiveDirection(directionId) {
       .catch(err => alert('? Ошибка: ' + err.message));
   }
 }
+
+
+window.platformAdapter = (function () {
+  function getPlatform() {
+    const hasTelegram = typeof window.Telegram !== 'undefined' && window.Telegram.WebApp;
+    const hasVk = typeof window.vkBridge !== 'undefined' || /vk_platform/i.test(window.location.search);
+    if (hasTelegram) return 'telegram';
+    if (hasVk) return 'vk';
+    return 'web';
+  }
+  function isPWA() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+  async function initPlatform() {
+    const platform = getPlatform();
+    if (platform === 'telegram' && window.Telegram?.WebApp) {
+      window.Telegram.WebApp.ready();
+      window.Telegram.WebApp.expand();
+    }
+    if (platform === 'vk' && window.vkBridge?.send) {
+      try { await window.vkBridge.send('VKWebAppInit'); } catch (e) { console.warn(e); }
+    }
+    return platform;
+  }
+  async function authBootstrap() {
+    const platform = getPlatform();
+    if (platform === 'telegram' && window.Telegram?.WebApp?.initData) {
+      await fetch('/auth/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ init_data: window.Telegram.WebApp.initData }) });
+    }
+    if (platform === 'vk') {
+      const params = new URLSearchParams(window.location.search);
+      const vkUserId = params.get('vk_user_id') || '';
+      if (vkUserId) {
+        await fetch('/auth/vk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vk_user_id: vkUserId }) });
+      }
+    }
+  }
+  function sendHaptic(type = 'impact') {
+    if (getPlatform() === 'telegram' && window.Telegram?.WebApp?.HapticFeedback) {
+      window.Telegram.WebApp.HapticFeedback.impactOccurred(type === 'impact' ? 'medium' : 'light');
+    }
+  }
+  function backButtonBind(handler) {
+    if (getPlatform() === 'telegram' && window.Telegram?.WebApp?.BackButton) {
+      window.Telegram.WebApp.BackButton.show();
+      window.Telegram.WebApp.BackButton.onClick(handler);
+    }
+  }
+  async function getUserContext() {
+    const r = await fetch('/api/app/bootstrap', { credentials: 'include' });
+    return await r.json();
+  }
+  return { getPlatform, isTelegram: () => getPlatform() === 'telegram', isVK: () => getPlatform() === 'vk', isPWA, initPlatform, authBootstrap, sendHaptic, backButtonBind, getUserContext };
+})();
+
+(async function initPlatformAndPWA() {
+  try {
+    await window.platformAdapter.initPlatform();
+    await window.platformAdapter.authBootstrap();
+  } catch (e) {
+    console.warn('platform bootstrap failed', e);
+  }
+
+  if ('serviceWorker' in navigator) {
+    try {
+      await navigator.serviceWorker.register('/assets/sw.js');
+    } catch (e) {
+      console.warn('SW register failed', e);
+    }
+  }
+
+  if ('Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window) {
+    window.registerWebPush = async function registerWebPush() {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: new Uint8Array([1,2,3]) });
+      await fetch('/api/notifications/web-push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sub.toJSON()),
+      });
+    }
+  }
+})();
 
 </script>
 </body>

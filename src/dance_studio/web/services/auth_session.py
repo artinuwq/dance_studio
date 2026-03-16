@@ -20,7 +20,7 @@ from dance_studio.db.models import SessionRecord
 
 SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 3600
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/logout", "/health"}
+CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/vk", "/auth/phone/request-code", "/auth/phone/verify-code", "/auth/passkey/register/begin", "/auth/passkey/register/complete", "/auth/passkey/login/begin", "/auth/passkey/login/complete", "/auth/logout", "/health"}
 CSRF_EXEMPT_PREFIXES = ("/api/directions/photo/",)
 SENSITIVE_PATH_PREFIXES = ("/schedule", "/api/bookings", "/api/payments", "/mailings", "/news")
 CSRF_COOKIE_NAME = "csrf_token"
@@ -65,11 +65,12 @@ def _extract_init_data_from_request() -> str | None:
             return body_data.strip()
     return None
 
-def _create_session(db, telegram_id: int, sid: str, now: datetime, expires_at: datetime, user_agent_hash: str | None, ip_prefix: str | None) -> None:
+def _create_session(db, telegram_id: int | None, sid: str, now: datetime, expires_at: datetime, user_agent_hash: str | None, ip_prefix: str | None, user_id: int | None = None) -> None:
     db.add(SessionRecord(
         id=secrets.token_hex(32),
         sid_hash=_sid_hash(sid),
         telegram_id=telegram_id,
+        user_id=user_id,
         user_agent_hash=user_agent_hash,
         ip_prefix=ip_prefix,
         need_reauth=False,
@@ -173,16 +174,27 @@ def _is_csrf_valid() -> bool:
 
     return _is_double_submit_token_valid()
 
-def _delete_expired_sessions_for_user(db, telegram_id: int) -> None:
-    db.query(SessionRecord).filter(
-        SessionRecord.telegram_id == telegram_id,
+def _delete_expired_sessions_for_user(db, telegram_id: int | None = None, user_id: int | None = None) -> None:
+    q = db.query(SessionRecord)
+    if user_id is not None:
+        q = q.filter(SessionRecord.user_id == user_id)
+    elif telegram_id is not None:
+        q = q.filter(SessionRecord.telegram_id == telegram_id)
+    else:
+        return
+    q.filter(
         SessionRecord.expires_at < datetime.utcnow(),
     ).delete(synchronize_session=False)
 
-def _enforce_session_limit(db, telegram_id: int) -> None:
-    sessions = db.query(SessionRecord).filter(
-        SessionRecord.telegram_id == telegram_id
-    ).order_by(SessionRecord.created_at.desc()).all()
+def _enforce_session_limit(db, telegram_id: int | None = None, user_id: int | None = None) -> None:
+    q = db.query(SessionRecord)
+    if user_id is not None:
+        q = q.filter(SessionRecord.user_id == user_id)
+    elif telegram_id is not None:
+        q = q.filter(SessionRecord.telegram_id == telegram_id)
+    else:
+        return
+    sessions = q.order_by(SessionRecord.created_at.desc()).all()
     stale = sessions[MAX_SESSIONS_PER_USER:]
     for rec in stale:
         db.delete(rec)

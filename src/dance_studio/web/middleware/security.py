@@ -11,7 +11,7 @@ _CSP_POLICY = "; ".join(
         "form-action 'self'",
         (
             "script-src 'self' 'unsafe-inline' "
-            "https://telegram.org https://*.telegram.org "
+            "https://telegram.org https://*.telegram.org https://vk.com https://*.vk.com https://vk.ru https://*.vk.ru "
             "https://api-maps.yandex.ru https://yandex.ru https://*.yandex.ru "
             "https://yandex.net https://*.yandex.net https://yastatic.net https://*.yastatic.net"
         ),
@@ -22,22 +22,22 @@ _CSP_POLICY = "; ".join(
         ),
         (
             "img-src 'self' data: blob: "
-            "https://telegram.org https://*.telegram.org "
+            "https://telegram.org https://*.telegram.org https://vk.com https://*.vk.com https://vk.ru https://*.vk.ru "
             "https://yandex.ru https://*.yandex.ru "
             "https://yandex.net https://*.yandex.net https://yastatic.net https://*.yastatic.net"
         ),
         (
-            "connect-src 'self' "
-            "https://telegram.org https://*.telegram.org "
+            "connect-src 'self' https://api.vk.com https://*.vk.com "
+            "https://telegram.org https://*.telegram.org https://vk.com https://*.vk.com https://vk.ru https://*.vk.ru "
             "https://api-maps.yandex.ru https://yandex.ru https://*.yandex.ru "
             "https://yandex.net https://*.yandex.net https://yastatic.net https://*.yastatic.net"
         ),
         "font-src 'self' data: https://yastatic.net https://*.yastatic.net",
         (
-            "frame-src 'self' https://*.telegram.org "
+            "frame-src 'self' https://*.telegram.org https://*.vk.com https://vk.com "
             "https://yandex.ru https://*.yandex.ru https://yandex.net https://*.yandex.net"
         ),
-        "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org",
+        "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://*.vk.com https://vk.com",
     ]
 )
 
