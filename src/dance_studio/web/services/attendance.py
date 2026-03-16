@@ -80,11 +80,12 @@ def _can_edit_schedule_attendance(db, schedule: Schedule) -> bool:
     return bool(window["is_open"])
 
 def _load_group_roster(db, schedule: Schedule):
-    if not schedule.group_id:
+    group_id = _schedule_group_id(schedule)
+    if not group_id:
         return []
     date_val = schedule.date
     abonements = db.query(GroupAbonement).filter(
-        GroupAbonement.group_id == schedule.group_id,
+        GroupAbonement.group_id == group_id,
         GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
     )
     if date_val:

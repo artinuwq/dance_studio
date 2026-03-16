@@ -5002,6 +5002,12 @@ textarea.form-input {
 <div id="personal-schedule-container">
   <p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>
 </div>
+<div class="card" id="personal-schedule-payout-card" style="margin-top: 10px; display: none;">
+  <h4 style="margin: 0 0 8px 0;">Выплаты за день</h4>
+  <div class="small" id="personal-schedule-payout-summary" style="color: var(--hint);"></div>
+  <div id="personal-schedule-payout-list"></div>
+  <div id="personal-schedule-payout-by-student"></div>
+</div>
 <button class="save-btn" id="personal-individual-toggle-btn" onclick="togglePersonalIndividualBookingPanel()" style="margin-top: 10px; display: none;">Индивидуальное занятие</button>
 <div class="card personal-individual-form" id="personal-individual-booking-card" style="display: none;">
   <h4 style="margin: 0 0 8px 0;">Индивидуальное занятие</h4>
@@ -5529,6 +5535,10 @@ textarea.form-input {
   <div class="attendance-actions-row">
     <button class="save-btn" style="flex:1; background:#444;" onclick="markAllPresent()">Все присутствуют</button>
     <button class="save-btn" style="flex:1; background:#2e2e2e;" onclick="promptAddAttendanceUser()">Добавить</button>
+  </div>
+  <div id="attendance-filter-row" style="display:none; margin: 0 0 8px 0; gap:8px; align-items:center;">
+    <button class="attendance-btn" id="attendance-filter-toggle" onclick="toggleAttendanceAbonementFilter()">Только с абонементом</button>
+    <div class="small" id="attendance-filter-hint" style="color: var(--hint);"></div>
   </div>
   <div class="attendance-lock-banner" id="attendance-lock-banner"></div>
   <div class="attendance-section-title">Участники</div>
@@ -11883,6 +11893,52 @@ let attendanceState = {
   plannedSummary: null
 };
 let attendanceScreenItem = null;
+let attendanceOnlyActiveAbonements = true;
+try {
+  const raw = localStorage.getItem('attendance_only_active_abonements');
+  if (raw === '0' || raw === 'false') attendanceOnlyActiveAbonements = false;
+} catch (e) { /* ignore */ }
+
+function _attendanceIsGroup() {
+  return String(attendanceState?.source || '').toLowerCase() === 'group';
+}
+
+function _attendanceItemHasActiveAbonement(item) {
+  if (!item) return false;
+  if (typeof item.active_abonement !== 'undefined') return !!item.active_abonement;
+  return !!item.abonement_id;
+}
+
+function _updateAttendanceFilterRow() {
+  const row = document.getElementById('attendance-filter-row');
+  const btn = document.getElementById('attendance-filter-toggle');
+  const hint = document.getElementById('attendance-filter-hint');
+  if (!row || !btn || !hint) return;
+
+  if (!_attendanceIsGroup()) {
+    row.style.display = 'none';
+    hint.textContent = '';
+    return;
+  }
+
+  row.style.display = 'flex';
+  const enabled = !!attendanceOnlyActiveAbonements;
+  btn.className = 'attendance-btn' + (enabled ? ' active' : '');
+  btn.textContent = enabled ? 'Только с абонементом' : 'Все участники';
+
+  const allItems = Array.isArray(attendanceState.items) ? attendanceState.items : [];
+  const shownCount = enabled ? allItems.filter(_attendanceItemHasActiveAbonement).length : allItems.length;
+  const hidden = Math.max(0, allItems.length - shownCount);
+  hint.textContent = (enabled && hidden) ? `Скрыто: ${hidden} без абонемента` : '';
+}
+
+function toggleAttendanceAbonementFilter() {
+  attendanceOnlyActiveAbonements = !attendanceOnlyActiveAbonements;
+  try {
+    localStorage.setItem('attendance_only_active_abonements', attendanceOnlyActiveAbonements ? '1' : '0');
+  } catch (e) { /* ignore */ }
+  renderAttendance();
+}
 const ATT_LABELS_FALLBACK = {
   present: 'Присутствовал',
   absent: 'Отсутствовал'
@@ -11936,10 +11992,16 @@ function renderAttendance() {
   if (!container) return;
 
   container.innerHTML = '';
-  if (!attendanceState.items.length) {
-    container.innerHTML = '<div class="small">Нет участников</div>';
+  _updateAttendanceFilterRow();
+
+  const allItems = Array.isArray(attendanceState.items) ? attendanceState.items : [];
+  const filterEnabled = _attendanceIsGroup() && !!attendanceOnlyActiveAbonements;
+  const itemsToRender = filterEnabled ? allItems.filter(_attendanceItemHasActiveAbonement) : allItems;
+
+  if (!itemsToRender.length) {
+    container.innerHTML = `<div class="small">${filterEnabled ? 'Нет участников с абонементом' : 'Нет участников'}</div>`;
   } else {
-    attendanceState.items.forEach(item => {
+    itemsToRender.forEach(item => {
       const wrapper = document.createElement('div');
       wrapper.className = 'attendance-item';
       const top = document.createElement('div');
@@ -11953,7 +12015,28 @@ function renderAttendance() {
       badge.className = 'attendance-badge';
       const plannedStatus = item.planned_status || (item.planned_absence ? 'will_miss' : 'will_come');
       const plannedLabel = ATT_PLAN_LABELS[plannedStatus] || 'Придет';
-      badge.textContent = `${plannedLabel} • ${item.debited ? 'Списано' : (item.abonement_id ? 'Абонемент #' + item.abonement_id : 'Без абонемента')}`;
+
+      const debitLabel = item.debited
+        ? 'Списано'
+        : (item.abonement_id ? ('Не списано (абонемент #' + item.abonement_id + ')') : 'Без абонемента');
+
+      const payoutRub = (item && item.payout_rub != null) ? Number(item.payout_rub) : null;
+      const moneyLabel = Number.isFinite(payoutRub) ? formatBookingAmount(payoutRub, 'RUB') : null;
+      const statusNorm = String(item?.status || '').toLowerCase();
+      const counted = Boolean(item && item.counted) || statusNorm === 'present' || statusNorm === 'late';
+
+      const badgeLine = document.createElement('div');
+      badgeLine.textContent = `${plannedLabel} • ${debitLabel}`;
+      badge.appendChild(badgeLine);
+
+      if (moneyLabel) {
+        const moneyLine = document.createElement('div');
+        moneyLine.textContent = `К выплате: ${moneyLabel}`;
+        moneyLine.style.fontWeight = counted ? '700' : '600';
+        moneyLine.style.color = counted ? 'var(--text)' : 'var(--hint)';
+        moneyLine.style.marginTop = '2px';
+        badge.appendChild(moneyLine);
+      }
 
       top.appendChild(name);
       top.appendChild(badge);
@@ -12034,6 +12117,7 @@ async function loadAttendance(scheduleId) {
     attendanceState = {
       scheduleId,
       items: Array.isArray(data.items) ? data.items : [],
+      source: data.source || null,
       statusLabels: data.status_labels || {},
       canEdit: !!data.can_edit,
       attendancePhase: data.attendance_phase || null,
@@ -12051,20 +12135,29 @@ async function loadAttendance(scheduleId) {
 
 function markAllPresent() {
   if (!attendanceState.canEdit) return;
-  attendanceState.items = attendanceState.items.map(i => ({ ...i, status: 'present' }));
+  const allItems = Array.isArray(attendanceState.items) ? attendanceState.items : [];
+  const filterEnabled = _attendanceIsGroup() && !!attendanceOnlyActiveAbonements;
+  attendanceState.items = allItems.map(i => {
+    if (!filterEnabled) return { ...i, status: 'present' };
+    return _attendanceItemHasActiveAbonement(i) ? { ...i, status: 'present' } : i;
+  });
   renderAttendance();
 }
 
 async function saveAttendance() {
   if (!attendanceState.scheduleId) return;
   try {
+    const allItems = Array.isArray(attendanceState.items) ? attendanceState.items : [];
+    const filterEnabled = _attendanceIsGroup() && !!attendanceOnlyActiveAbonements;
+    const itemsForSave = filterEnabled ? allItems.filter(_attendanceItemHasActiveAbonement) : allItems;
+
     const res = await fetch(`/api/attendance/${attendanceState.scheduleId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...getAuthHeaders()
       },
-      body: JSON.stringify({ items: attendanceState.items })
+      body: JSON.stringify({ items: itemsForSave })
     });
     if (!res.ok) {
       const err = await res.json().catch(() => null);
@@ -15028,6 +15121,7 @@ async function loadPersonalSchedule() {
   updatePersonalScheduleRefreshCapsule();
   container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">⏳ Загрузка...</p>';
   initPersonalIndividualBookingPanel();
+  _hidePersonalSchedulePayoutPanel();
 
   // Дождёмся загрузки профиля, чтобы знать telegram_id/имя
   const staffContext = await ensureCurrentStaffProfileContext();
@@ -15141,6 +15235,7 @@ async function loadPersonalSchedule() {
     }
     initPersonalScheduleStrip();
     renderPersonalScheduleList();
+    loadPersonalSchedulePayout(true);
     personalScheduleRefreshLoading = false;
     updatePersonalScheduleRefreshCapsule();
 
@@ -15438,12 +15533,216 @@ function initPersonalScheduleStrip() {
   monthLabel.textContent = personalScheduleMonthDate.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
 }
 
+function canViewPersonalSchedulePayout() {
+  if (!isStaff) return false;
+  const override = personalScheduleOverride;
+  if (!override || !override.staffId) return false;
+
+  const pricesItem = document.getElementById('work-settings-prices-item');
+  if (!pricesItem) return false;
+
+  // updateStaffNavigation() sets style.display for this element.
+  if (pricesItem.style && pricesItem.style.display === 'none') return false;
+  if (pricesItem.style && pricesItem.style.display) return true;
+  return false;
+}
+
+function _hidePersonalSchedulePayoutPanel() {
+  const card = document.getElementById('personal-schedule-payout-card');
+  if (!card) return;
+  card.style.display = 'none';
+  const summary = document.getElementById('personal-schedule-payout-summary');
+  const list = document.getElementById('personal-schedule-payout-list');
+  const byStudent = document.getElementById('personal-schedule-payout-by-student');
+  if (summary) summary.textContent = '';
+  if (list) list.innerHTML = '';
+  if (byStudent) byStudent.innerHTML = '';
+}
+
+function _setPersonalSchedulePayoutStatus(message, isError = false) {
+  const card = document.getElementById('personal-schedule-payout-card');
+  const summary = document.getElementById('personal-schedule-payout-summary');
+  const list = document.getElementById('personal-schedule-payout-list');
+  const byStudent = document.getElementById('personal-schedule-payout-by-student');
+  if (!card || !summary || !list || !byStudent) return;
+  card.style.display = 'block';
+  summary.textContent = message || '';
+  summary.style.color = isError ? '#ffb3b3' : 'var(--hint)';
+  list.innerHTML = '';
+  byStudent.innerHTML = '';
+}
+
+function _formatPayoutStatus(status) {
+  const s = String(status || '').toLowerCase();
+  if (s === 'present') return 'Присутствовал';
+  if (s === 'late') return 'Опоздал';
+  if (s === 'absent') return 'Отсутствовал';
+  if (s === 'sick') return 'Болел';
+  return s || '—';
+}
+
+function _renderPersonalSchedulePayoutData(data) {
+  const card = document.getElementById('personal-schedule-payout-card');
+  const summary = document.getElementById('personal-schedule-payout-summary');
+  const list = document.getElementById('personal-schedule-payout-list');
+  const byStudent = document.getElementById('personal-schedule-payout-by-student');
+  if (!card || !summary || !list || !byStudent) return;
+
+  card.style.display = 'block';
+  summary.style.color = 'var(--hint)';
+
+  const teacherName = String(personalScheduleOverride?.staffName || '').trim();
+  const dateLabel = formatAttendanceDateLabel(data?.date || personalScheduleDate);
+  const totalPayout = Number(data?.total_payout_rub || 0);
+  const totalRevenue = Number(data?.total_revenue_rub || 0);
+
+  const headerParts = [];
+  if (teacherName) headerParts.push(escapeHtml(teacherName));
+  if (dateLabel) headerParts.push(escapeHtml(dateLabel));
+
+  const payoutText = formatBookingAmount(totalPayout, 'RUB');
+  const revenueText = formatBookingAmount(totalRevenue, 'RUB');
+
+  summary.innerHTML = `
+    ${headerParts.length ? `<div>${headerParts.join(' • ')}</div>` : ''}
+    <div style="margin-top:4px; display:flex; gap:10px; flex-wrap:wrap;">
+      <div><b>К выплате:</b> ${escapeHtml(payoutText)}</div>
+      <div><b>Выручка:</b> ${escapeHtml(revenueText)}</div>
+    </div>
+  `;
+
+  const lessons = Array.isArray(data?.lessons) ? data.lessons : [];
+  if (!lessons.length) {
+    list.innerHTML = `<div class="small" style="color:var(--hint);">Нет занятий за день.</div>`;
+    byStudent.innerHTML = '';
+    return;
+  }
+
+  const totalsByStudent = new Map();
+
+  list.innerHTML = lessons.map((lesson) => {
+    const title = escapeHtml(lesson?.title || 'Занятие');
+    const timeFrom = escapeHtml(lesson?.time_from || '');
+    const timeTo = escapeHtml(lesson?.time_to || '');
+    const timeLabel = (timeFrom || timeTo) ? `${timeFrom || '—'} – ${timeTo || '—'}` : '';
+    const lessonRevenue = Number(lesson?.lesson_revenue_rub || 0);
+    const lessonPayout = Number(lesson?.lesson_payout_rub || 0);
+
+    const students = Array.isArray(lesson?.students) ? lesson.students : [];
+    const studentsHtml = students.length
+      ? students.map((s) => {
+          const uid = Number(s?.user_id || 0);
+          const name = escapeHtml(s?.name || (uid ? `ID ${uid}` : '—'));
+          const statusText = escapeHtml(_formatPayoutStatus(s?.status));
+          const revenue = Number(s?.price_rub || 0);
+          const payout = Number(s?.payout_rub || 0);
+
+          if (uid) {
+            const prev = totalsByStudent.get(uid) || { name: s?.name || `ID ${uid}`, revenue: 0, payout: 0 };
+            totalsByStudent.set(uid, { name: prev.name, revenue: prev.revenue + revenue, payout: prev.payout + payout });
+          }
+
+           return `
+             <div class="rental-occupancy-item">
+               <span>${name} <span class="small" style="color:var(--hint);">(${statusText})</span></span>
+               <span>${formatBookingAmount(payout, 'RUB')}</span>
+             </div>
+           `;
+         }).join('')
+      : `<div class="small" style="color:var(--hint);">Нет отметок посещаемости.</div>`;
+
+    return `
+      <div class="card" style="margin-top: 8px; padding: 12px;">
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+          <div style="font-weight:700;">${timeLabel ? timeLabel + ' • ' : ''}${title}</div>
+          <div class="small" style="color:var(--hint); text-align:right; white-space:nowrap;">
+            Выплата: ${formatBookingAmount(lessonPayout, 'RUB')} • Выручка: ${formatBookingAmount(lessonRevenue, 'RUB')}
+          </div>
+        </div>
+        <div style="margin-top: 8px; display:grid; gap:6px;">${studentsHtml}</div>
+      </div>
+    `;
+  }).join('');
+
+  const totalsArr = Array.from(totalsByStudent.entries())
+    .map(([userId, item]) => ({
+      userId,
+      name: item.name || `ID ${userId}`,
+      revenue: Number(item.revenue || 0),
+      payout: Number(item.payout || 0),
+    }))
+    .sort((a, b) => b.payout - a.payout);
+
+  if (!totalsArr.length) {
+    byStudent.innerHTML = '';
+    return;
+  }
+
+  byStudent.innerHTML = `
+    <div class="small" style="margin-top: 10px; color:var(--hint);">Итого по людям (выплата)</div>
+    ${totalsArr.map((item) => `
+      <div class="rental-occupancy-item">
+        <span>${escapeHtml(item.name || ('ID ' + item.userId))}</span>
+        <span>${formatBookingAmount(item.payout, 'RUB')}</span>
+      </div>
+    `).join('')}
+  `;
+}
+
+async function loadPersonalSchedulePayout(force = false) {
+  if (!canViewPersonalSchedulePayout()) {
+    _hidePersonalSchedulePayoutPanel();
+    return;
+  }
+
+  const teacherId = Number(personalScheduleOverride?.staffId || 0);
+  const dateStr = personalScheduleDate ? String(personalScheduleDate).slice(0, 10) : '';
+  if (!teacherId || !dateStr) {
+    _setPersonalSchedulePayoutStatus('Выберите дату, чтобы увидеть расчет.', false);
+    return;
+  }
+
+  const cacheKey = `${teacherId}|${dateStr}`;
+  if (!force && personalSchedulePayoutCacheKey === cacheKey && personalSchedulePayoutCacheData) {
+    _renderPersonalSchedulePayoutData(personalSchedulePayoutCacheData);
+    return;
+  }
+
+  personalSchedulePayoutRequestId += 1;
+  const requestId = personalSchedulePayoutRequestId;
+  _setPersonalSchedulePayoutStatus('Загрузка выплат...', false);
+
+  try {
+    const params = new URLSearchParams({ teacher_id: String(teacherId), date: dateStr });
+    const headers = getAuthHeaders ? getAuthHeaders() : {};
+    const res = await fetch(`/api/teacher-payout/day?${params.toString()}`, { headers });
+    const payload = await res.json().catch(() => ({}));
+    if (requestId !== personalSchedulePayoutRequestId) return;
+
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        _hidePersonalSchedulePayoutPanel();
+        return;
+      }
+      throw new Error(payload.error || 'Не удалось загрузить выплаты');
+    }
+
+    personalSchedulePayoutCacheKey = cacheKey;
+    personalSchedulePayoutCacheData = payload;
+    _renderPersonalSchedulePayoutData(payload);
+  } catch (error) {
+    if (requestId !== personalSchedulePayoutRequestId) return;
+    _setPersonalSchedulePayoutStatus('Ошибка: ' + (error?.message || 'сеть'), true);
+  }
+}
+
 function setPersonalScheduleDate(dateStr) {
   personalScheduleDate = dateStr;
   const d = new Date(dateStr + 'T00:00:00');
   personalScheduleMonthDate = new Date(d.getFullYear(), d.getMonth(), 1);
   initPersonalScheduleStrip();
   renderPersonalScheduleList();
+  loadPersonalSchedulePayout();
 }
 
 function shiftPersonalScheduleMonth(delta) {
@@ -15460,6 +15759,7 @@ function shiftPersonalScheduleMonth(delta) {
   }
   initPersonalScheduleStrip();
   renderPersonalScheduleList();
+  loadPersonalSchedulePayout();
 }
 
 function refreshPersonalSchedule() {
@@ -16849,6 +17149,9 @@ let personalScheduleMonthDate = null;
 let personalScheduleTodaySyncDate = null;
 let personalScheduleItems = [];
 let personalScheduleOverride = null;
+let personalSchedulePayoutRequestId = 0;
+let personalSchedulePayoutCacheKey = null;
+let personalSchedulePayoutCacheData = null;
 let publicScheduleRefreshLoading = false;
 let personalScheduleRefreshLoading = false;
 let personalIndividualBookingExpanded = false;
@@ -22600,18 +22903,6 @@ function archiveDirection(directionId) {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
