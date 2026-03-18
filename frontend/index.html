@@ -23027,7 +23027,21 @@ window.platformAdapter = (function () {
       const params = new URLSearchParams(window.location.search);
       const vkUserId = params.get('vk_user_id') || '';
       if (vkUserId) {
-        await fetch('/auth/vk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vk_user_id: vkUserId }) });
+        let userInfo = null;
+        try {
+          if (window.vkBridge?.send) {
+            userInfo = await window.vkBridge.send('VKWebAppGetUserInfo');
+          }
+        } catch (e) {
+          console.warn('VKWebAppGetUserInfo failed', e);
+        }
+        const payload = {
+          vk_user_id: vkUserId,
+          screen_name: userInfo?.screen_name,
+          vk_username: userInfo?.first_name && userInfo?.last_name ? `${userInfo.first_name} ${userInfo.last_name}` : undefined,
+          name: userInfo?.first_name && userInfo?.last_name ? `${userInfo.first_name} ${userInfo.last_name}` : undefined,
+        };
+        await fetch('/auth/vk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       }
     }
   }
