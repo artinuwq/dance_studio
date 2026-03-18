@@ -102,6 +102,7 @@ from dance_studio.bot.upload_sessions import direction_upload_session_validation
 from dance_studio.bot.telegram_userbot import send_private_message
 from dance_studio.core.notification_service_async import send_user_notification_async
 from dance_studio.web.services.attendance import _auto_finalize_attendance_from_intentions
+from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -1179,6 +1180,20 @@ async def handle_contact_share(message):
                 user.username = message.from_user.username
             if not user.name:
                 user.name = message.from_user.first_name or "Пользователь"
+
+        user.primary_phone = user.primary_phone or phone_number
+        user.phone_verified_at = datetime.utcnow()
+
+        try:
+            AccountMergeService().try_merge_by_phone(
+                db,
+                user_id=user.id,
+                phone=phone_number,
+                source="telegram_contact",
+            )
+        except Exception:
+            _logger.exception("Failed to auto-merge accounts by phone (telegram contact)")
+
         db.commit()
         await message.answer("Номер телефона сохранен.")
     except Exception:
