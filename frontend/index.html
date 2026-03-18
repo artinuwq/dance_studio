@@ -6749,7 +6749,7 @@ function _toPlainHeaders(headers) {
 function authFetch(url, options = {}) {
   const extraHeaders = _toPlainHeaders(options.headers);
   const mergedHeaders = getAuthHeaders(extraHeaders);
-  return fetch(url, { ...options, headers: mergedHeaders });
+  return fetch(url, { ...options, headers: mergedHeaders, credentials: 'include' });
 }
 
 function updateSafeAreaVars() {
