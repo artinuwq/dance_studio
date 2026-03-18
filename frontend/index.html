@@ -5934,7 +5934,7 @@ textarea.form-input {
 <label>Телефон</label>
 <div style="display: flex; gap: 8px; align-items: center;">
 <input class="form-input" id="profile-input-phone" placeholder="+7 800 555 35 35" type="tel" style="flex: 1;"/>
-<button class="save-btn" id="profile-request-phone-btn" onclick="requestPhoneFromTelegram()" style="width: auto; padding: 10px 12px; white-space: nowrap;">Запросить</button>
+<button class="save-btn" id="profile-request-phone-btn" onclick="requestPhoneFromPlatform()" style="width: auto; padding: 10px 12px; white-space: nowrap;">Запросить</button>
 </div>
 <p class="small" id="profile-request-phone-status" style="margin-top: 6px; color: var(--hint);"></p>
 </div>
@@ -17360,6 +17360,15 @@ function setProfilePhoneRequestStatus(text, isError = false) {
   statusEl.style.color = isError ? '#ffb3b3' : 'var(--hint)';
 }
 
+function requestPhoneFromPlatform() {
+  const platform = window.platformAdapter?.getPlatform ? window.platformAdapter.getPlatform() : 'web';
+  if (platform === 'vk') {
+    requestPhoneFromVK();
+    return;
+  }
+  requestPhoneFromTelegram();
+}
+
 async function requestPhoneFromTelegram() {
   const phoneBtn = document.getElementById('profile-request-phone-btn');
   const userId = currentUserData?.id;
@@ -17368,7 +17377,7 @@ async function requestPhoneFromTelegram() {
     return;
   }
   if (phoneBtn) phoneBtn.disabled = true;
-  setProfilePhoneRequestStatus('Подтвердите отправку номера в Telegram');
+  setProfilePhoneRequestStatus('Подтвердите отправку номера');
 
   let settled = false;
   const finish = async (sent) => {
@@ -17422,6 +17431,51 @@ async function requestPhoneFromTelegram() {
     if (typeof tg.offEvent === 'function') {
       setTimeout(() => tg.offEvent('contactRequested', onContactRequested), 0);
     }
+  }
+}
+
+async function requestPhoneFromVK() {
+  const phoneBtn = document.getElementById('profile-request-phone-btn');
+  if (!window.vkBridge || typeof window.vkBridge.send !== 'function') {
+    setProfilePhoneRequestStatus('Эта функция работает только внутри VK Mini App', true);
+    return;
+  }
+  if (phoneBtn) phoneBtn.disabled = true;
+  setProfilePhoneRequestStatus('Подтвердите отправку номера');
+
+  try {
+    const response = await window.vkBridge.send('VKWebAppGetPhoneNumber');
+    const phone = response?.phone_number || response?.phone || '';
+    if (!phone) {
+      setProfilePhoneRequestStatus('Не удалось получить номер. Попробуйте еще раз', true);
+      if (phoneBtn) phoneBtn.disabled = false;
+      return;
+    }
+
+    const saveRes = await authFetch('/auth/vk/phone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone })
+    });
+
+    if (!saveRes.ok) {
+      const errPayload = await saveRes.json().catch(() => ({}));
+      setProfilePhoneRequestStatus(errPayload?.error || 'Не удалось сохранить номер', true);
+      if (phoneBtn) phoneBtn.disabled = false;
+      return;
+    }
+
+    const payload = await saveRes.json().catch(() => ({}));
+    setProfilePhoneRequestStatus(payload?.merge_notice || 'Спасибо! Номер получен, обновляем профиль...');
+    await loadProfileData();
+    const phoneValue = document.getElementById('profile-input-phone')?.value?.trim();
+    if (!payload?.merge_notice) {
+      setProfilePhoneRequestStatus(phoneValue ? 'Готово! Номер в профиле обновлен' : 'Номер получен. Обновим профиль, как только данные обновятся.');
+    }
+  } catch (err) {
+    setProfilePhoneRequestStatus('Не получилось запросить номер. Попробуйте еще раз', true);
+  } finally {
+    if (phoneBtn) phoneBtn.disabled = false;
   }
 }
 

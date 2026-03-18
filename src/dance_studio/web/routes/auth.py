@@ -122,6 +122,64 @@ def auth_vk():
         return {"error": "vk auth failed"}, 500
 
 
+@bp.route("/auth/vk/phone", methods=["POST"])
+def auth_vk_phone():
+    db = g.db
+    payload = request.get_json(silent=True) or {}
+    phone = str(payload.get("phone") or payload.get("phone_number") or "").strip()
+    if not phone:
+        return {"error": "phone required"}, 400
+
+    user_id = getattr(g, "user_id", None)
+    if not user_id:
+        return {"error": "auth required"}, 401
+
+    user = db.query(User).filter(User.id == int(user_id)).first()
+    if not user:
+        return {"error": "user not found"}, 404
+
+    user.primary_phone = user.primary_phone or phone
+    user.phone = user.phone or phone
+    user.phone_verified_at = datetime.utcnow()
+
+    merge_notice = None
+    merge_status = None
+    try:
+        merge_result = AccountMergeService().try_merge_by_phone(
+            db,
+            user_id=user.id,
+            phone=phone,
+            source="vk_phone",
+        )
+        merge_status = merge_result.get("status")
+        if merge_status == "merged":
+            merge_notice = "Аккаунты объединены. Проверьте, что все данные на месте."
+        elif merge_status == "conflict":
+            merge_notice = "Мы нашли несколько аккаунтов с этим номером. Напишите в поддержку, чтобы объединить их."
+            current_app.logger.warning(
+                "Phone merge conflict for user %s phone %s matches %s",
+                user.id,
+                phone,
+                merge_result.get("conflict_user_ids"),
+            )
+    except Exception:
+        current_app.logger.exception("Failed to auto-merge accounts by phone")
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        current_app.logger.exception("Failed VK phone update")
+        return {"error": "vk phone update failed"}, 500
+
+    payload = {"ok": True, "phone": user.phone}
+    if merge_notice:
+        payload["merge_notice"] = merge_notice
+    if merge_status:
+        payload["merge_status"] = merge_status
+    return payload
+
+
 @bp.route("/auth/phone/request-code", methods=["POST"])
 def request_phone_code():
     db = g.db
