@@ -7,9 +7,10 @@ from dance_studio.auth.providers.passkey import PasskeyAuthProvider
 from dance_studio.auth.providers.phone import PhoneCodeAuthProvider
 from dance_studio.auth.providers.telegram import TelegramAuthProvider
 from dance_studio.auth.providers.vk import VkMiniAppAuthProvider
+from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.core.config import SESSION_TTL_DAYS, TG_INIT_DATA_MAX_AGE_SECONDS
 from dance_studio.core.tg_replay import store_used_init_data
-from dance_studio.db.models import AuthIdentity, NotificationChannel, SessionRecord
+from dance_studio.db.models import AuthIdentity, NotificationChannel, SessionRecord, User
 from dance_studio.web.services.auth_session import (
     _clear_csrf_cookie,
     _clear_sid_cookie,
@@ -27,7 +28,7 @@ from dance_studio.web.services.auth_session import (
 bp = Blueprint('auth_routes', __name__)
 
 
-def _login_user(db, *, user_id: int, telegram_id: int | None):
+def _login_user(db, *, user_id: int, telegram_id: int | None, extra_payload: dict | None = None):
     sid = secrets.token_hex(32)
     now = datetime.utcnow()
     expires_at = now + timedelta(days=SESSION_TTL_DAYS)
@@ -39,7 +40,10 @@ def _login_user(db, *, user_id: int, telegram_id: int | None):
     db.flush()
     _enforce_session_limit(db, user_id=user_id)
 
-    response = jsonify({"ok": True, "user_id": user_id, "telegram_id": telegram_id})
+    payload = {"ok": True, "user_id": user_id, "telegram_id": telegram_id}
+    if extra_payload:
+        payload.update(extra_payload)
+    response = jsonify(payload)
     _set_sid_cookie(response, sid)
     _set_csrf_cookie(response)
     return response
@@ -146,7 +150,48 @@ def verify_phone_code():
         db.rollback()
         return {"error": error}, 400
     try:
-        response = _login_user(db, user_id=user.id, telegram_id=user.telegram_id)
+        merge_notice = None
+        merge_status = None
+        login_user_id = user.id
+        login_telegram_id = user.telegram_id
+        try:
+            merge_result = AccountMergeService().try_merge_by_phone(
+                db,
+                user_id=user.id,
+                phone=phone,
+                source="phone_verification",
+            )
+            merge_status = merge_result.get("status")
+            if merge_status == "merged":
+                login_user_id = int(merge_result.get("primary_user_id") or user.id)
+                if login_user_id != user.id:
+                    primary = db.query(User).filter(User.id == login_user_id).first()
+                    if primary:
+                        login_telegram_id = primary.telegram_id
+                merge_notice = "Аккаунты объединены. Проверьте, что все данные на месте."
+            elif merge_status == "conflict":
+                merge_notice = "Мы нашли несколько аккаунтов с этим номером. Напишите в поддержку, чтобы объединить их."
+                current_app.logger.warning(
+                    "Phone merge conflict for user %s phone %s matches %s",
+                    user.id,
+                    phone,
+                    merge_result.get("conflict_user_ids"),
+                )
+        except Exception:
+            current_app.logger.exception("Failed to auto-merge accounts by phone")
+
+        extra_payload = {}
+        if merge_notice:
+            extra_payload["merge_notice"] = merge_notice
+        if merge_status:
+            extra_payload["merge_status"] = merge_status
+
+        response = _login_user(
+            db,
+            user_id=login_user_id,
+            telegram_id=login_telegram_id,
+            extra_payload=extra_payload or None,
+        )
         db.commit()
         return response
     except Exception:
