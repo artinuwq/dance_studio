@@ -78,20 +78,43 @@ body.bottom-nav-air-gap-disabled {
 /* ====== HEADER ====== */
 header {
   display: none;
+}
+
+body.vk-app header {
+  display: block;
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 56px;
-  padding: 0 12px;
-  background: rgba(12, 12, 12, 0.96);
-  border-bottom: 1px solid var(--border);
+  height: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
   z-index: 1200;
-  align-items: center;
+  pointer-events: none;
 }
 
-body.vk-app header {
-  display: flex;
+body.vk-app .header-back {
+  position: fixed;
+  top: calc(10px + var(--safe-top));
+  left: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  background: rgba(20, 20, 20, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.28);
+}
+
+body.vk-app .header-center,
+body.vk-app .header-spacer {
+  display: none;
 }
 
 .header-back {
@@ -136,10 +159,6 @@ body.tg-mobile .header-back {
   padding: 16px;
   padding-bottom: calc(56px + var(--safe-bottom) + 14px + var(--bottom-nav-offset));
   padding-top: calc(16px + var(--safe-top));
-}
-
-body.vk-app .page {
-  padding-top: calc(56px + var(--safe-top));
 }
 
 .page.active {
