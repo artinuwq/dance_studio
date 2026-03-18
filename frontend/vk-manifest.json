@@ -1,0 +1,11 @@
+{
+  "name": "Dance Studio",
+  "description": "Dance Studio VK Mini App",
+  "app_id": 54486260,
+  "platform": "web",
+  "start_url": "/",
+  "scope": "/",
+  "permissions": [
+    "phone"
+  ]
+}

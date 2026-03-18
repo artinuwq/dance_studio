@@ -23069,6 +23069,9 @@ window.platformAdapter = (function () {
     document.body.classList.toggle('vk-app', platform === 'vk');
     document.body.classList.toggle('tg-app', platform === 'telegram');
     await window.platformAdapter.authBootstrap();
+    if (platform === 'vk') {
+      try { await loadProfileData(); } catch (e) { console.warn('VK profile load failed', e); }
+    }
   } catch (e) {
     console.warn('platform bootstrap failed', e);
   }

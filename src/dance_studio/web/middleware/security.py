@@ -37,7 +37,7 @@ _CSP_POLICY = "; ".join(
             "frame-src 'self' https://*.telegram.org https://*.vk.com https://vk.com "
             "https://yandex.ru https://*.yandex.ru https://yandex.net https://*.yandex.net"
         ),
-        "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://*.vk.com https://vk.com",
+        "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://*.vk.com https://vk.com https://*.vk.ru https://vk.ru",
     ]
 )
 
