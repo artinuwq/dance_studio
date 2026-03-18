@@ -59,6 +59,17 @@ def require_permission(permission, allow_self_staff_id=None):
     return None
 
 def get_current_user_from_request(db):
+    user_id = getattr(g, "user_id", None)
+    if user_id is not None:
+        try:
+            user_id = int(user_id)
+        except (TypeError, ValueError):
+            user_id = None
+        if user_id:
+            user = db.query(User).filter_by(id=user_id).first()
+            if user:
+                return user
+
     telegram_id = getattr(g, "telegram_id", None)
     if not telegram_id:
         return None
