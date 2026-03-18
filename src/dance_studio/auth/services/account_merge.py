@@ -34,11 +34,17 @@ class AccountMergeService:
         )
 
     def choose_primary_user(self, db, user_a_id: int, user_b_id: int) -> tuple[int, int]:
+        user_a = db.query(User).filter(User.id == user_a_id).first()
+        user_b = db.query(User).filter(User.id == user_b_id).first()
+        if user_a and user_b:
+            if user_a.telegram_id and not user_b.telegram_id:
+                return user_a_id, user_b_id
+            if user_b.telegram_id and not user_a.telegram_id:
+                return user_b_id, user_a_id
+
         score_a = self.score_user(db, user_a_id)
         score_b = self.score_user(db, user_b_id)
         if score_a == score_b:
-            user_a = db.query(User).filter(User.id == user_a_id).first()
-            user_b = db.query(User).filter(User.id == user_b_id).first()
             if user_a and user_b and user_a.registered_at and user_b.registered_at:
                 if user_a.registered_at <= user_b.registered_at:
                     return user_a_id, user_b_id
@@ -67,7 +73,12 @@ class AccountMergeService:
         db.query(WebPushSubscription).filter(WebPushSubscription.user_id == secondary_id).update({WebPushSubscription.user_id: primary_id}, synchronize_session=False)
         db.query(SessionRecord).filter(SessionRecord.user_id == secondary_id).update({SessionRecord.user_id: primary_id}, synchronize_session=False)
 
+        primary = db.query(User).filter(User.id == primary_id).first()
         secondary = db.query(User).filter(User.id == secondary_id).first()
+        if primary and secondary:
+            if not primary.telegram_id and secondary.telegram_id:
+                primary.telegram_id = secondary.telegram_id
+
         if secondary:
             secondary.is_archived = True
             secondary.status = "inactive"
