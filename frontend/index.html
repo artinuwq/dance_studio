@@ -8,7 +8,7 @@
 <link rel="manifest" href="/assets/manifest.json">
 <meta name="theme-color" content="#0f0f0f">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+<script src="/assets/vk-bridge.min.js"></script>
 <style>
 /* ====== БАЗОВАЯ ТЕМНАЯ ПАЛИТРА В СТИЛЕ РЕФЕРЕНСА ====== */
 :root {
@@ -78,6 +78,20 @@ body.bottom-nav-air-gap-disabled {
 /* ====== HEADER ====== */
 header {
   display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  padding: 0 12px;
+  background: rgba(12, 12, 12, 0.96);
+  border-bottom: 1px solid var(--border);
+  z-index: 1200;
+  align-items: center;
+}
+
+body.vk-app header {
+  display: flex;
 }
 
 .header-back {
@@ -122,6 +136,10 @@ body.tg-mobile .header-back {
   padding: 16px;
   padding-bottom: calc(56px + var(--safe-bottom) + 14px + var(--bottom-nav-offset));
   padding-top: calc(16px + var(--safe-top));
+}
+
+body.vk-app .page {
+  padding-top: calc(56px + var(--safe-top));
 }
 
 .page.active {
@@ -22907,9 +22925,10 @@ function archiveDirection(directionId) {
 window.platformAdapter = (function () {
   function getPlatform() {
     const hasTelegram = typeof window.Telegram !== 'undefined' && window.Telegram.WebApp;
-    const hasVk = typeof window.vkBridge !== 'undefined' || /vk_platform/i.test(window.location.search);
-    if (hasTelegram) return 'telegram';
+    const params = new URLSearchParams(window.location.search);
+    const hasVk = params.has('vk_user_id') || params.has('vk_platform') || typeof window.vkBridge !== 'undefined';
     if (hasVk) return 'vk';
+    if (hasTelegram && window.Telegram.WebApp.initData) return 'telegram';
     return 'web';
   }
   function isPWA() {
@@ -22959,7 +22978,9 @@ window.platformAdapter = (function () {
 
 (async function initPlatformAndPWA() {
   try {
-    await window.platformAdapter.initPlatform();
+    const platform = await window.platformAdapter.initPlatform();
+    document.body.classList.toggle('vk-app', platform === 'vk');
+    document.body.classList.toggle('tg-app', platform === 'telegram');
     await window.platformAdapter.authBootstrap();
   } catch (e) {
     console.warn('platform bootstrap failed', e);
