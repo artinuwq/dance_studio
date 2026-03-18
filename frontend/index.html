@@ -22999,7 +22999,7 @@ window.platformAdapter = (function () {
   function getPlatform() {
     const hasTelegram = typeof window.Telegram !== 'undefined' && window.Telegram.WebApp;
     const params = new URLSearchParams(window.location.search);
-    const hasVk = params.has('vk_user_id') || params.has('vk_platform') || typeof window.vkBridge !== 'undefined';
+    const hasVk = params.has('vk_user_id') || params.has('vk_platform') || (window.vkBridge?.isWebView?.() === true);
     if (hasVk) return 'vk';
     if (hasTelegram && window.Telegram.WebApp.initData) return 'telegram';
     return 'web';
