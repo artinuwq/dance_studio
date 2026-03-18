@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
+from sqlalchemy import or_
+
 from dance_studio.db.models import (
     Attendance,
     AttendanceIntention,
@@ -91,7 +93,7 @@ class AccountMergeService:
         matches = (
             db.query(User)
             .filter(
-                User.primary_phone == normalized_phone,
+                or_(User.primary_phone == normalized_phone, User.phone == normalized_phone),
                 User.phone_verified_at.isnot(None),
                 User.id != user_id,
                 User.is_archived.is_(False),
