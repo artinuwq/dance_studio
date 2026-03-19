@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 
+from dance_studio.auth.services.common import resolve_user_id_by_telegram
+from dance_studio.auth.services.common import resolve_user_by_telegram, resolve_user_id_by_telegram
 from dance_studio.db.models import Staff, User
 from dance_studio.db.session import Session, engine, get_session
 
@@ -53,24 +55,29 @@ def bootstrap_data() -> None:
 
     try:
         if tech_admin_id:
-            tech_admin = db.query(Staff).filter_by(telegram_id=tech_admin_id).first()
-            tech_admin_name = 'Технический админ'
+            resolved_user_id = resolve_user_id_by_telegram(db, tech_admin_id)
+            tech_admin = None
+            user = None
+            if resolved_user_id:
+                tech_admin = db.query(Staff).filter_by(user_id=resolved_user_id).first()
+                user = db.query(User).filter_by(id=resolved_user_id).first()
 
-            user = db.query(User).filter_by(telegram_id=tech_admin_id).first()
+            tech_admin_name = 'Технический админ'
             if user and user.name:
                 tech_admin_name = user.name
 
-            if not tech_admin:
+            if not tech_admin and resolved_user_id:
                 tech_admin = Staff(
                     name=tech_admin_name,
                     phone=None,
                     telegram_id=tech_admin_id,
+                    user_id=resolved_user_id,
                     position='тех. админ',
                     status='active',
                 )
                 db.add(tech_admin)
                 logger.info('[db] Created technical admin (ID: %s, name: %s)', tech_admin_id, tech_admin_name)
-            else:
+            elif tech_admin:
                 if tech_admin.position != 'тех. админ':
                     tech_admin.position = 'тех. админ'
                     logger.info('[db] Updated technical admin position')
@@ -79,24 +86,29 @@ def bootstrap_data() -> None:
                     logger.info('[db] Filled technical admin name from profile')
 
         for idx, owner_id in enumerate(owner_ids, 1):
-            owner = db.query(Staff).filter_by(telegram_id=owner_id).first()
-            owner_name = f'Владелец {idx}' if len(owner_ids) > 1 else 'Владелец'
+            resolved_user_id = resolve_user_id_by_telegram(db, owner_id)
+            owner = None
+            user = None
+            if resolved_user_id:
+                owner = db.query(Staff).filter_by(user_id=resolved_user_id).first()
+                user = db.query(User).filter_by(id=resolved_user_id).first()
 
-            user = db.query(User).filter_by(telegram_id=owner_id).first()
+            owner_name = f'Владелец {idx}' if len(owner_ids) > 1 else 'Владелец'
             if user and user.name:
                 owner_name = user.name
 
-            if not owner:
+            if not owner and resolved_user_id:
                 owner = Staff(
                     name=owner_name,
                     phone=None,
                     telegram_id=owner_id,
+                    user_id=resolved_user_id,
                     position='владелец',
                     status='active',
                 )
                 db.add(owner)
                 logger.info('[db] Created owner (ID: %s, name: %s)', owner_id, owner_name)
-            else:
+            elif owner:
                 if owner.position != 'владелец':
                     owner.position = 'владелец'
                     logger.info('[db] Updated owner position (ID: %s)', owner_id)

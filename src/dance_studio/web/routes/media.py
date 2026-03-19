@@ -14,11 +14,11 @@ bp = Blueprint("media_routes", __name__)
 
 
 def _photo_permission_error(db, target_user: User):
-    if getattr(g, "telegram_id", None) is None:
+    current_user = get_current_user_from_request(db)
+    if not current_user:
         return {"error": "auth required"}, 401
 
-    current_user = get_current_user_from_request(db)
-    if current_user and current_user.id == target_user.id:
+    if current_user.id == target_user.id:
         return None
 
     return require_permission("manage_staff")
@@ -47,9 +47,6 @@ def serve_frontend_asset(filename):
 @bp.route("/users/<int:user_id>/photo", methods=["POST"])
 def upload_user_photo(user_id):
     db = g.db
-    if getattr(g, "telegram_id", None) is None:
-        return {"error": "auth required"}, 401
-
     user = db.query(User).filter_by(id=user_id).first()
     if not user:
         return {"error": "user not found"}, 404
@@ -58,10 +55,7 @@ def upload_user_photo(user_id):
     if perm_error:
         return perm_error
 
-    if not user.telegram_id:
-        return {"error": "telegram_id is not set for this user"}, 400
-
-    staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
+    staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
     if not staff:
         return {"error": "upload is allowed only for active staff user"}, 403
 
@@ -105,9 +99,6 @@ def upload_user_photo(user_id):
 @bp.route("/users/<int:user_id>/photo", methods=["DELETE"])
 def delete_user_photo_endpoint(user_id):
     db = g.db
-    if getattr(g, "telegram_id", None) is None:
-        return {"error": "auth required"}, 401
-
     user = db.query(User).filter_by(id=user_id).first()
     if not user:
         return {"error": "user not found"}, 404
@@ -116,10 +107,7 @@ def delete_user_photo_endpoint(user_id):
     if perm_error:
         return perm_error
 
-    if not user.telegram_id:
-        return {"error": "telegram_id is not set for this user"}, 400
-
-    staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
+    staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
     if not staff:
         return {"error": "delete is allowed only for active staff user"}, 403
 

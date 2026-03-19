@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from flask import g
 
+from dance_studio.auth.services.common import resolve_user_by_telegram, resolve_user_id_by_telegram
 from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID
 from dance_studio.core.permissions import has_permission
 from dance_studio.db.models import Staff, User
@@ -12,7 +13,9 @@ def _get_staff_by_user_or_telegram(db, user_id=None, telegram_id=None):
     if user_id:
         staff = db.query(Staff).filter_by(user_id=user_id, status="active").first()
     if not staff and telegram_id:
-        staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
+        resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
+        if resolved_user_id:
+            staff = db.query(Staff).filter_by(user_id=resolved_user_id, status="active").first()
     return staff
 
 
@@ -105,11 +108,7 @@ def get_current_user_from_request(db):
     telegram_id = getattr(g, "telegram_id", None)
     if not telegram_id:
         return None
-    try:
-        telegram_id = int(telegram_id)
-    except (TypeError, ValueError):
-        return None
-    return db.query(User).filter_by(telegram_id=telegram_id).first()
+    return resolve_user_by_telegram(db, telegram_id)
 
 __all__ = [
     "_get_current_staff",

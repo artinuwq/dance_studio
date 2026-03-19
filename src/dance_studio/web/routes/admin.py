@@ -37,6 +37,7 @@ from dance_studio.core.statuses import (
 )
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.personal_discounts import resolve_discount_usage_state
+from dance_studio.auth.services.common import resolve_user_by_telegram, resolve_user_id_by_telegram
 from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, PROJECT_NAME_FULL, PROJECT_NAME_SHORT, TECH_ADMIN_ID
 from dance_studio.core.media_manager import delete_user_photo
 from dance_studio.core.system_settings_service import (
@@ -1015,8 +1016,6 @@ def schedule_public():
         staff = None
         if getattr(user, "id", None):
             staff = db.query(Staff).filter_by(user_id=user.id).first()
-        if not staff and getattr(user, "telegram_id", None):
-            staff = db.query(Staff).filter_by(telegram_id=user.telegram_id).first()
         if staff:
             taught_group_ids = [gid for (gid,) in db.query(Group.id).filter(Group.teacher_id == staff.id).all()]
             staff_group_parts = [Schedule.teacher_id == staff.id]
@@ -2036,24 +2035,19 @@ def _serialize_user_payload(user: User, *, include_photo: bool = False) -> dict:
 
 def _build_staff_check_payload(db, telegram_id: int | None = None, user_id: int | None = None) -> dict:
     user = None
-    if user_id is not None:
+    resolved_user_id = user_id
+    if resolved_user_id is None and telegram_id is not None:
+        resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
+
+    if resolved_user_id is not None:
         try:
-            user = db.query(User).filter_by(id=user_id).first()
-        except Exception:
-            user = None
-    if user is None and telegram_id is not None:
-        try:
-            user = db.query(User).filter_by(telegram_id=telegram_id).first()
+            user = db.query(User).filter_by(id=resolved_user_id).first()
         except Exception:
             user = None
 
     staff = None
     if user:
         staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
-    if not staff and telegram_id is not None:
-        staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
-    if not staff and user and user.telegram_id is not None:
-        staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
     if not staff:
         return {"is_staff": False, "staff": None}
 
@@ -2100,7 +2094,7 @@ def register_user():
             return {"error": "telegram_id must be an integer"}, 400
 
     if telegram_id is not None:
-        existing_user = db.query(User).filter_by(telegram_id=telegram_id).first()
+        existing_user = resolve_user_by_telegram(db, telegram_id)
         if existing_user:
             return {"error": "user with this telegram_id already exists"}, 409
 
@@ -2132,7 +2126,7 @@ def register_user_self():
     except (TypeError, ValueError):
         return {"error": "invalid telegram_id"}, 400
 
-    existing_user = db.query(User).filter_by(telegram_id=telegram_id).first()
+    existing_user = resolve_user_by_telegram(db, telegram_id)
     if existing_user:
         return _serialize_user_payload(existing_user), 200
 
@@ -2147,6 +2141,19 @@ def register_user_self():
         user_notes=data.get("user_notes"),
     )
     db.add(user)
+    db.flush()
+
+    db.add(
+        AuthIdentity(
+            user_id=user.id,
+            provider="telegram",
+            provider_user_id=str(telegram_id),
+            provider_username=user.username,
+            provider_payload_json=None,
+            is_primary=True,
+            is_verified=True,
+        )
+    )
     db.commit()
     return _serialize_user_payload(user), 201
 
@@ -2186,14 +2193,11 @@ def get_my_user():
     if provider_map:
         payload["auth_providers"] = provider_map
 
-    if user.telegram_id is not None:
-        staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
-        if not staff and user.telegram_id is not None:
-            staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
-        if staff:
-            photo_path = staff.photo_path or user.photo_path
-            if photo_path:
-                payload["photo_path"] = photo_path
+    staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
+    if staff:
+        photo_path = staff.photo_path or user.photo_path
+        if photo_path:
+            payload["photo_path"] = photo_path
 
     return payload
 
@@ -2282,10 +2286,10 @@ def get_all_staff():
     
     result = []
     for s in staff:
-        # Получаем username из User если есть telegram_id
+        # Получаем username из User если есть user_id
         username = None
-        if s.telegram_id:
-            user = db.query(User).filter_by(telegram_id=s.telegram_id).first()
+        if s.user_id:
+            user = db.query(User).filter_by(id=s.user_id).first()
             if user:
                 username = user.username
         can_edit, edit_block_reason = _staff_editability_payload(db, s)
@@ -2379,7 +2383,9 @@ def create_staff():
     telegram_id = data.get("telegram_id")
     staff_user = None
     if telegram_id is not None:
-        staff_user = db.query(User).filter_by(telegram_id=telegram_id).first()
+        resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
+        if resolved_user_id:
+            staff_user = db.query(User).filter_by(id=resolved_user_id).first()
 
     # Получаем имя: либо из данных, либо из профиля пользователя
     staff_name = data.get("name")
@@ -2416,7 +2422,9 @@ def create_staff():
     if staff_user:
         existing_staff = db.query(Staff).filter_by(user_id=staff_user.id).first()
     if not existing_staff and telegram_id is not None:
-        existing_staff = db.query(Staff).filter_by(telegram_id=telegram_id).first()
+        resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
+        if resolved_user_id:
+            existing_staff = db.query(Staff).filter_by(user_id=resolved_user_id).first()
     if existing_staff:
         if existing_staff.status == "dismissed":
             existing_staff.name = staff_name
@@ -2555,8 +2563,8 @@ def get_staff(staff_id):
 
     username = None
     photo_path = staff.photo_path
-    if staff.telegram_id:
-        user = db.query(User).filter_by(telegram_id=staff.telegram_id).first()
+    if staff.user_id:
+        user = db.query(User).filter_by(id=staff.user_id).first()
         if user:
             username = user.username
             if not photo_path and user.photo_path:
@@ -2595,7 +2603,10 @@ def update_staff_from_telegram(telegram_id):
     db = g.db
     data = request.json or {}
     
-    staff = db.query(Staff).filter_by(telegram_id=telegram_id).first()
+    resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
+    staff = None
+    if resolved_user_id:
+        staff = db.query(Staff).filter_by(user_id=resolved_user_id).first()
     
     if not staff:
         return {"error": "Персонал не найден"}, 404
@@ -3223,15 +3234,24 @@ def get_public_teacher(teacher_id):
         return {"error": "Преподаватель не найден"}, 404
     teacher_username = None
     contact_link = None
-    if teacher.telegram_id:
-        teacher_user = db.query(User).filter_by(telegram_id=teacher.telegram_id).first()
-        teacher_username = (getattr(teacher_user, "username", None) or "").strip() or None
-        if teacher_username:
-            normalized_username = teacher_username[1:] if teacher_username.startswith("@") else teacher_username
-            if normalized_username:
-                contact_link = f"https://t.me/{normalized_username}"
-        if not contact_link:
-            contact_link = f"tg://user?id={teacher.telegram_id}"
+    if teacher.user_id:
+        identity = (
+            db.query(AuthIdentity)
+            .filter(
+                AuthIdentity.user_id == teacher.user_id,
+                AuthIdentity.provider == "telegram",
+            )
+            .order_by(AuthIdentity.id.desc())
+            .first()
+        )
+        if identity:
+            teacher_username = (identity.provider_username or "").strip() or None
+            if teacher_username:
+                normalized_username = teacher_username[1:] if teacher_username.startswith("@") else teacher_username
+                if normalized_username:
+                    contact_link = f"https://t.me/{normalized_username}"
+            if not contact_link and identity.provider_user_id:
+                contact_link = f"tg://user?id={identity.provider_user_id}"
 
     groups = (
         db.query(Group)
@@ -3422,10 +3442,10 @@ def list_all_staff():
     
     result = []
     for s in staff:
-        # Получаем username из User если есть telegram_id
+        # Получаем username из User если есть user_id
         username = None
-        if s.telegram_id:
-            user = db.query(User).filter_by(telegram_id=s.telegram_id).first()
+        if s.user_id:
+            user = db.query(User).filter_by(id=s.user_id).first()
             if user:
                 username = user.username
         can_edit, edit_block_reason = _staff_editability_payload(db, s)
@@ -3997,16 +4017,33 @@ def create_direction_group(direction_id):
     db.commit()
 
     # Создаем чат Telegram через userbot и добавляем преподавателя
-    if teacher.telegram_id:
+    telegram_identity = None
+    telegram_user_id = None
+    if teacher.user_id:
+        telegram_identity = (
+            db.query(AuthIdentity)
+            .filter(
+                AuthIdentity.user_id == teacher.user_id,
+                AuthIdentity.provider == "telegram",
+            )
+            .order_by(AuthIdentity.id.desc())
+            .first()
+        )
+        if telegram_identity and telegram_identity.provider_user_id:
+            try:
+                telegram_user_id = int(telegram_identity.provider_user_id)
+            except (TypeError, ValueError):
+                telegram_user_id = None
+
+    if telegram_user_id:
         try:
             from dance_studio.bot.telegram_userbot import create_group_chat_sync
 
-            teacher_user = db.query(User).filter_by(telegram_id=teacher.telegram_id).first()
             chat_info = create_group_chat_sync(
                 name,
                 [{
-                    "id": teacher.telegram_id,
-                    "username": getattr(teacher_user, "username", None),
+                    "id": telegram_user_id,
+                    "username": telegram_identity.provider_username if telegram_identity else None,
                     "phone": teacher.phone,
                     "name": teacher.name,
                 }],
@@ -4020,7 +4057,7 @@ def create_direction_group(direction_id):
             failed = chat_info.get("failed_user_ids") or []
 
             # Всегда шлём ссылку преподавателю, даже если invite сработал — на случай приватности.
-            target_ids = {teacher.telegram_id} | {uid for uid in failed if uid}
+            target_ids = {telegram_user_id} | {uid for uid in failed if uid}
             for uid in target_ids:
                 try:
                     msg_text = f"Присоединиться к чату группы \"{name}\" можно по ссылке: {group.chat_invite_link}"
@@ -4071,7 +4108,10 @@ def create_direction_upload_session():
     except (TypeError, ValueError):
         return {"error": "Неверный telegram_id"}, 400
 
-    admin = db.query(Staff).filter_by(telegram_id=telegram_user_id).first()
+    resolved_user_id = resolve_user_id_by_telegram(db, telegram_user_id)
+    admin = None
+    if resolved_user_id:
+        admin = db.query(Staff).filter_by(user_id=resolved_user_id).first()
     if not admin or admin.position not in ["администратор", "старший админ", "владелец", "тех. админ"]:
         return {"error": "У вас нет прав администратора"}, 403
     

@@ -42,6 +42,7 @@ from dance_studio.core.config import (
 from dance_studio.db.session import get_session
 from dance_studio.core.permissions import has_permission
 from dance_studio.db.models import (
+    AuthIdentity,
     News,
     User,
     Mailing,
@@ -103,6 +104,7 @@ from dance_studio.bot.telegram_userbot import send_private_message
 from dance_studio.core.notification_service_async import send_user_notification_async
 from dance_studio.web.services.attendance import _auto_finalize_attendance_from_intentions
 from dance_studio.auth.services.account_merge import AccountMergeService
+from dance_studio.auth.services.common import resolve_user_by_telegram, resolve_user_id_by_telegram
 from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -993,7 +995,10 @@ async def _can_run_backup(user_id: int) -> bool:
         return True
     db = get_session()
     try:
-        staff = db.query(Staff).filter_by(telegram_id=user_id, status="active").first()
+        resolved_user_id = resolve_user_id_by_telegram(db, user_id)
+        staff = None
+        if resolved_user_id:
+            staff = db.query(Staff).filter_by(user_id=resolved_user_id, status="active").first()
         if not staff or not staff.position:
             return False
         position = staff.position.strip().lower()
@@ -1164,7 +1169,7 @@ async def handle_contact_share(message):
 
     db = get_session()
     try:
-        user = db.query(User).filter_by(telegram_id=message.from_user.id).first()
+        user = resolve_user_by_telegram(db, message.from_user.id)
         if not user:
             user = User(
                 telegram_id=message.from_user.id,
@@ -1219,7 +1224,7 @@ async def register_user_in_db(telegram_id, name, from_user=None):
     
     try:
         # Проверяем, существует ли пользователь
-        existing_user = db.query(User).filter_by(telegram_id=telegram_id).first()
+        existing_user = resolve_user_by_telegram(db, telegram_id)
         
         if existing_user:
             print(f"✓ Пользователь {telegram_id} уже в системе")
@@ -1234,6 +1239,19 @@ async def register_user_in_db(telegram_id, name, from_user=None):
             status="active"
         )
         db.add(new_user)
+        db.flush()
+        
+        db.add(
+            AuthIdentity(
+                user_id=new_user.id,
+                provider="telegram",
+                provider_user_id=str(telegram_id),
+                provider_username=new_user.username,
+                payload_json=None,
+                is_primary=True,
+                is_verified=True,
+            )
+        )
         db.commit()
         username_str = f"@{from_user.username}" if from_user and from_user.username else "без username"
         print(f"✅ Пользователь {telegram_id} зарегистрирован ({username_str})")
@@ -2768,7 +2786,7 @@ async def _handle_attendance_response_callback(
             await callback.answer("Пользователь не найден", show_alert=True)
             return
 
-        user = db.query(User).filter_by(telegram_id=telegram_id).first()
+        user = resolve_user_by_telegram(db, telegram_id)
         if not user:
             await callback.answer("Профиль пользователя не найден", show_alert=True)
             return
@@ -2963,7 +2981,10 @@ async def handle_booking_action(callback: CallbackQuery):
             next_status = BOOKING_STATUS_CANCELLED
 
         admin_user = callback.from_user
-        staff = db.query(Staff).filter_by(telegram_id=admin_user.id, status="active").first()
+        resolved_user_id = resolve_user_id_by_telegram(db, admin_user.id)
+        staff = None
+        if resolved_user_id:
+            staff = db.query(Staff).filter_by(user_id=resolved_user_id, status="active").first()
 
         if next_status == BOOKING_STATUS_CONFIRMED:
             try:
@@ -3247,7 +3268,10 @@ async def start_direction_upload(message, state: FSMContext):
     db = get_session()
     try:
         from dance_studio.db.models import Staff
-        admin = db.query(Staff).filter_by(telegram_id=user_id).first()
+        resolved_user_id = resolve_user_id_by_telegram(db, user_id)
+        admin = None
+        if resolved_user_id:
+            admin = db.query(Staff).filter_by(user_id=resolved_user_id).first()
         
         if not admin or admin.position not in ["администратор", "владелец", "тех. админ"]:
             await message.answer(
