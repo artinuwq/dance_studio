@@ -14821,7 +14821,7 @@ function displaySearchResults(users) {
     const bgColor = isSelected ? 'var(--accent-soft)' : 'var(--card)';
     
     return `
-      <div class="card" id="user-card-${u.id}" style="margin-bottom: 8px; cursor: pointer; background: ${bgColor}; border-left: 4px solid ${borderColor}; transition: all 0.2s;" onclick="selectStaffUser(${u.id}, '${safeName}', ${u.telegram_id}, '${safePhone}', '${safeEmail}')">
+      <div class="card" id="user-card-${u.id}" style="margin-bottom: 8px; cursor: pointer; background: ${bgColor}; border-left: 4px solid ${borderColor}; transition: all 0.2s;" onclick="selectStaffUser(${u.id}, '${safeName}', '${safePhone}', '${safeEmail}')">
         <div style="font-weight: 600; font-size: 14px;">
           ${u.name}
           ${window.selectedStaffUserData && window.selectedStaffUserData.id === u.id ? ' ?' : ''}
@@ -14835,12 +14835,11 @@ function displaySearchResults(users) {
   document.getElementById('staff-user-search-results').innerHTML = resultsHtml;
 }
 
-function selectStaffUser(id, name, telegramId, phone, email) {
+function selectStaffUser(id, name, phone, email) {
   window.selectedStaffUserData = {
     id,
     user_id: id,
     name,
-    telegram_id: telegramId,
     phone,
     email
   };
