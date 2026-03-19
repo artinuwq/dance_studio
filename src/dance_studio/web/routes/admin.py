@@ -37,7 +37,7 @@ from dance_studio.core.statuses import (
 )
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.personal_discounts import resolve_discount_usage_state
-from dance_studio.auth.services.common import resolve_user_by_telegram, resolve_user_id_by_telegram
+from dance_studio.auth.services.common import resolve_telegram_id_by_user, resolve_user_by_telegram, resolve_user_id_by_telegram
 from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, PROJECT_NAME_FULL, PROJECT_NAME_SHORT, TECH_ADMIN_ID
 from dance_studio.core.media_manager import delete_user_photo
 from dance_studio.core.system_settings_service import (
@@ -2388,11 +2388,20 @@ def create_staff():
     data = request.json or {}
 
     telegram_id = data.get("telegram_id")
+    user_id = data.get("user_id")
     staff_user = None
-    if telegram_id is not None:
+    if user_id is not None:
+        try:
+            staff_user = db.query(User).filter_by(id=int(user_id)).first()
+        except (TypeError, ValueError):
+            staff_user = None
+    if not staff_user and telegram_id is not None:
         resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
         if resolved_user_id:
             staff_user = db.query(User).filter_by(id=resolved_user_id).first()
+
+    if telegram_id is None and staff_user:
+        telegram_id = resolve_telegram_id_by_user(db, staff_user.id)
 
     # Получаем имя: либо из данных, либо из профиля пользователя
     staff_name = data.get("name")
@@ -3459,6 +3468,7 @@ def list_all_staff():
         
         result.append({
             "id": s.id,
+            "user_id": s.user_id,
             "name": s.name,
             "position": s.position,
             "specialization": s.specialization,

@@ -14683,7 +14683,7 @@ function searchStaffManage() {
 
 // Хранилище для выбранного пользователя и текущего персонала
 window.selectedStaffUserData = null;
-window.currentStaffTelegramIds = []; // Список telegram_id текущего персонала
+window.currentStaffUserIds = []; // Список user_id текущего персонала
 
 function showAddStaffForm() {
   // Очищаем поле поиска и форму
@@ -14727,7 +14727,7 @@ async function loadCurrentStaffAndUsers() {
     const staffResponse = await fetch('/staff/list/all');
     if (staffResponse.ok) {
       const staffList = await staffResponse.json();
-      window.currentStaffTelegramIds = staffList.map(s => s.telegram_id);
+      window.currentStaffUserIds = staffList.map(s => s.user_id).filter(Boolean);
     }
     
     // Загружаем всех пользователей
@@ -14736,7 +14736,7 @@ async function loadCurrentStaffAndUsers() {
     
     const users = await response.json();
     // Фильтруем - исключаем уже добавленный персонал
-    const filteredUsers = users.filter(u => !window.currentStaffTelegramIds.includes(u.telegram_id));
+    const filteredUsers = users.filter(u => !window.currentStaffUserIds.includes(u.id));
     displaySearchResults(filteredUsers);
   } catch (error) {
     console.error('Ошибка при загрузке пользователей:', error);
@@ -14750,7 +14750,7 @@ async function loadAllStaffUsers() {
     
     const users = await response.json();
     // Фильтруем - исключаем уже добавленный персонал
-    const filteredUsers = users.filter(u => !window.currentStaffTelegramIds.includes(u.telegram_id));
+    const filteredUsers = users.filter(u => !window.currentStaffUserIds.includes(u.id));
     displaySearchResults(filteredUsers);
   } catch (error) {
     console.error('Ошибка при загрузке пользователей:', error);
@@ -14789,7 +14789,7 @@ async function searchForStaffUser() {
     
     const users = await response.json();
     // Фильтруем - исключаем уже добавленный персонал
-    const filteredUsers = users.filter(u => !window.currentStaffTelegramIds.includes(u.telegram_id));
+    const filteredUsers = users.filter(u => !window.currentStaffUserIds.includes(u.id));
     
     // Если поле поиска пусто, показываем всех пользователей
     if (!cleanSearch) {
@@ -14838,6 +14838,7 @@ function displaySearchResults(users) {
 function selectStaffUser(id, name, telegramId, phone, email) {
   window.selectedStaffUserData = {
     id,
+    user_id: id,
     name,
     telegram_id: telegramId,
     phone,
@@ -14889,7 +14890,7 @@ async function saveNewStaff() {
   try {
     const payload = {
       name: window.selectedStaffUserData.name,
-      telegram_id: window.selectedStaffUserData.telegram_id,
+      user_id: window.selectedStaffUserData.user_id,
       position,
       specialization: specialization || undefined,
       bio: bio || undefined,
@@ -15296,7 +15297,7 @@ async function ensureCurrentStaffProfileContext() {
     try { await loadProfileData(); } catch (_) {}
   }
 
-  if (!window.currentStaffProfileId && currentUserData?.telegram_id) {
+  if (!window.currentStaffProfileId && currentUserData?.id) {
     try {
       const staffRes = await fetch('/staff/me', { headers: getAuthHeaders() });
       if (staffRes.ok) {

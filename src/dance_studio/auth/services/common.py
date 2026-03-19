@@ -68,6 +68,26 @@ def resolve_user_by_telegram(db, telegram_id: int | str | None, *, allow_legacy:
     return user
 
 
+def resolve_telegram_id_by_user(db, user_id: int | None) -> int | None:
+    if not user_id:
+        return None
+    identity = (
+        db.query(AuthIdentity)
+        .filter(
+            AuthIdentity.user_id == int(user_id),
+            AuthIdentity.provider == "telegram",
+        )
+        .order_by(AuthIdentity.id.desc())
+        .first()
+    )
+    if not identity or not identity.provider_user_id:
+        return None
+    try:
+        return int(identity.provider_user_id)
+    except (TypeError, ValueError):
+        return None
+
+
 def get_or_create_identity(db, *, provider: str, provider_user_id: str | None, username: str | None, payload_json: str | None, fallback_name: str) -> User:
     identity = None
     if provider_user_id:
