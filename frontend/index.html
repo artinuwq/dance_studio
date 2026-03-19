@@ -17043,19 +17043,22 @@ async function checkStaffStatus(telegramId) {
       currentStaffPosition = data.staff.position.toLowerCase();
       
       // Обновляем имя из Telegram для расширенных админ-ролей
-      const user = tg.initDataUnsafe?.user;
-      if (user && (currentStaffPosition === 'владелец' || currentStaffPosition === 'старший админ' || currentStaffPosition === 'администратор')) {
-        try {
-          await fetch(`/staff/update-from-telegram/${telegramId}`, {
-            method: 'PUT',
-            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify({
-              first_name: user.first_name,
-              last_name: user.last_name
-            })
-          });
-        } catch (error) {
-          console.log('Не удалось обновить имя из Telegram:', error);
+      const tgUser = tg.initDataUnsafe?.user;
+      if (tgUser && (currentStaffPosition === 'владелец' || currentStaffPosition === 'старший админ' || currentStaffPosition === 'администратор')) {
+        const tgUserId = telegramId || tgUser.id;
+        if (tgUserId) {
+          try {
+            await fetch(`/staff/update-from-telegram/${tgUserId}`, {
+              method: 'PUT',
+              headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+              body: JSON.stringify({
+                first_name: tgUser.first_name,
+                last_name: tgUser.last_name
+              })
+            });
+          } catch (error) {
+            console.log('Не удалось обновить имя из Telegram:', error);
+          }
         }
       }
     }
@@ -17262,7 +17265,9 @@ if (user) {
   registerUserIfNeeded(user);
   
   // Загружаем данные профиля из БД
-  profileLoadedPromise = loadProfileData();
+  profileLoadedPromise = loadProfileData().then(() => {
+    if (!user) checkStaffStatus();
+  });
   
   // Проверяем, является ли пользователь сотрудником
   const cachedStaff = getCachedStaffStatus();
