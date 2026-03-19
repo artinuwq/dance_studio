@@ -49,6 +49,7 @@ from dance_studio.core.system_settings_service import (
 )
 from dance_studio.db.models import (
     Attendance,
+    AuthIdentity,
     BookingRequest,
     Direction,
     DirectionUploadSession,
@@ -1012,7 +1013,9 @@ def schedule_public():
 
         # Если пользователь связан с сотрудником (преподаватель) — добавляем его группы
         staff = None
-        if getattr(user, "telegram_id", None):
+        if getattr(user, "id", None):
+            staff = db.query(Staff).filter_by(user_id=user.id).first()
+        if not staff and getattr(user, "telegram_id", None):
             staff = db.query(Staff).filter_by(telegram_id=user.telegram_id).first()
         if staff:
             taught_group_ids = [gid for (gid,) in db.query(Group.id).filter(Group.teacher_id == staff.id).all()]
@@ -2032,15 +2035,23 @@ def _serialize_user_payload(user: User, *, include_photo: bool = False) -> dict:
 
 
 def _build_staff_check_payload(db, telegram_id: int) -> dict:
-    staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
-    if not staff:
-        return {"is_staff": False, "staff": None}
-
-    # Load user profile to fill possible missing staff fields.
+    user = None
     try:
         user = db.query(User).filter_by(telegram_id=telegram_id).first()
     except Exception:
         user = None
+
+    staff = None
+    if user:
+        staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
+    if not staff:
+        staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
+    if not staff:
+        return {"is_staff": False, "staff": None}
+
+    # Load user profile to fill possible missing staff fields.
+    if not user and staff.user_id:
+        user = db.query(User).filter_by(id=staff.user_id).first()
 
     can_edit, edit_block_reason = _staff_editability_payload(db, staff)
     staff_data = {
@@ -2155,8 +2166,22 @@ def get_my_user():
         return {"error": "user not found"}, 404
     payload = _serialize_user_payload(user)
 
+    identities = db.query(AuthIdentity).filter(AuthIdentity.user_id == user.id).all()
+    provider_map = {}
+    for identity in identities:
+        if identity.provider not in {"telegram", "vk"}:
+            continue
+        provider_map[identity.provider] = {
+            "id": identity.provider_user_id,
+            "username": identity.provider_username,
+        }
+    if provider_map:
+        payload["auth_providers"] = provider_map
+
     if user.telegram_id is not None:
-        staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
+        staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
+        if not staff and user.telegram_id is not None:
+            staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
         if staff:
             photo_path = staff.photo_path or user.photo_path
             if photo_path:
@@ -2334,13 +2359,16 @@ def create_staff():
 
     db = g.db
     data = request.json or {}
-    
+
+    telegram_id = data.get("telegram_id")
+    staff_user = None
+    if telegram_id is not None:
+        staff_user = db.query(User).filter_by(telegram_id=telegram_id).first()
+
     # Получаем имя: либо из данных, либо из профиля пользователя
     staff_name = data.get("name")
-    if not staff_name and data.get("telegram_id"):
-        user = db.query(User).filter_by(telegram_id=data.get("telegram_id")).first()
-        if user and user.name:
-            staff_name = user.name
+    if not staff_name and staff_user and staff_user.name:
+        staff_name = staff_user.name
     
     if not staff_name or not data.get("position"):
         return {"error": "name (или telegram_id с профилем) и position обязательны"}, 400
@@ -2367,50 +2395,57 @@ def create_staff():
         teaches_value = teaches_raw
 
     
-    # Защита от дублей по telegram_id
-    if data.get("telegram_id"):
-        existing_staff = db.query(Staff).filter_by(telegram_id=data.get("telegram_id")).first()
-        if existing_staff:
-            if existing_staff.status == "dismissed":
-                existing_staff.name = staff_name
-                existing_staff.position = data["position"]
-                existing_staff.specialization = data.get("specialization")
-                existing_staff.bio = data.get("bio")
-                existing_staff.status = "active"
-                existing_staff.teaches = teaches_value
-                db.commit()
+    # Защита от дублей по user_id / telegram_id
+    existing_staff = None
+    if staff_user:
+        existing_staff = db.query(Staff).filter_by(user_id=staff_user.id).first()
+    if not existing_staff and telegram_id is not None:
+        existing_staff = db.query(Staff).filter_by(telegram_id=telegram_id).first()
+    if existing_staff:
+        if existing_staff.status == "dismissed":
+            existing_staff.name = staff_name
+            existing_staff.position = data["position"]
+            existing_staff.specialization = data.get("specialization")
+            existing_staff.bio = data.get("bio")
+            existing_staff.status = "active"
+            existing_staff.teaches = teaches_value
+            if staff_user:
+                existing_staff.user_id = staff_user.id
+            if telegram_id is not None:
+                existing_staff.telegram_id = telegram_id
+            db.commit()
 
-                if data.get("telegram_id"):
-                    try_fetch_telegram_avatar(data.get("telegram_id"), db, staff_obj=existing_staff)
+            if telegram_id is not None:
+                try_fetch_telegram_avatar(telegram_id, db, staff_obj=existing_staff)
 
-                if data.get("telegram_id") and notify_user:
-                    try:
-                        import requests
-                        from dance_studio.core.config import BOT_TOKEN
+            if telegram_id is not None and notify_user:
+                try:
+                    import requests
+                    from dance_studio.core.config import BOT_TOKEN
 
-                        position_display = {
-                            "учитель": "👩‍🏫 Учитель",
-                            "администратор": "📋 Администратор",
-                            "старший админ": "🛡️ Старший админ",
-                            "владелец": "👑 Владелец",
-                            "тех. админ": "⚙️ Технический администратор"
-                        }
+                    position_display = {
+                        "учитель": "👩‍🏫 Учитель",
+                        "администратор": "📋 Администратор",
+                        "старший админ": "🛡️ Старший админ",
+                        "владелец": "👑 Владелец",
+                        "тех. админ": "⚙️ Технический администратор"
+                    }
 
-                        position_name = position_display.get(data["position"], data["position"])
-                        message_text = (
-                            f"🎉 Вы снова в команде!\n\n"
-                            f"Вам назначена должность:\n"
-                            f"<b>{position_name}</b>\n\n"
-                            f"Добро пожаловать обратно!"
-                        )
+                    position_name = position_display.get(data["position"], data["position"])
+                    message_text = (
+                        f"🎉 Вы снова в команде!\n\n"
+                        f"Вам назначена должность:\n"
+                        f"<b>{position_name}</b>\n\n"
+                        f"Добро пожаловать обратно!"
+                    )
 
-                        send_user_notification_sync(
-                            user_id=data.get("telegram_id"),
-                            text=message_text,
-                            context_note="Восстановление сотрудника"
-                        )
-                    except Exception:
-                        pass
+                    send_user_notification_sync(
+                        user_id=data.get("telegram_id"),
+                        text=message_text,
+                        context_note="Восстановление сотрудника"
+                    )
+                except Exception:
+                    pass
 
                 return {
                     "message": "Персонал восстановлен",
@@ -2427,7 +2462,8 @@ def create_staff():
         name=staff_name,
         phone=data.get("phone") or "+7 000 000 00 00",  # Телефон опциональный
         email=data.get("email"),
-        telegram_id=data.get("telegram_id"),
+        telegram_id=telegram_id,
+        user_id=staff_user.id if staff_user else None,
         position=data["position"],
         specialization=data.get("specialization"),
         bio=data.get("bio"),

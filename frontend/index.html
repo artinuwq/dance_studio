@@ -17224,9 +17224,36 @@ function setMainProfileAvatar(photoUrl = '') {
   }
 }
 
+function updateProfileHeader(data) {
+  if (!data) return;
+  const nameEl = document.getElementById('profile-name');
+  const usernameEl = document.getElementById('profile-username');
+  if (nameEl) nameEl.textContent = data.name || '—';
+
+  const platform = window.platformAdapter?.getPlatform ? window.platformAdapter.getPlatform() : 'web';
+  const providers = data.auth_providers || {};
+  let subline = '—';
+
+  if (platform === 'telegram') {
+    const tgInfo = providers.telegram || {};
+    if (tgInfo.username) {
+      subline = `@${tgInfo.username}`;
+    } else if (tgInfo.id || data.telegram_id) {
+      subline = `Telegram ID: ${tgInfo.id || data.telegram_id}`;
+    }
+  } else if (platform === 'vk') {
+    const vkInfo = providers.vk || {};
+    if (vkInfo.id) {
+      subline = `VK ID: ${vkInfo.id}`;
+    }
+  }
+
+  if (usernameEl) usernameEl.textContent = subline;
+}
+
 if (user) {
-  document.getElementById('profile-name').innerText = user.first_name || '—';
-  document.getElementById('profile-username').innerText = user.username ? '@' + user.username : '—';
+  document.getElementById('profile-name').innerText = '—';
+  document.getElementById('profile-username').innerText = '—';
   setMainProfileAvatar(user.photo_url || '');
   
   // Автоматическая регистрация пользователя
@@ -17263,6 +17290,7 @@ async function loadProfileData() {
     
     const data = await response.json();
     currentUserData = data;
+    updateProfileHeader(data);
     
     console.log('? Профиль загружен:', data);
     
@@ -17339,7 +17367,8 @@ async function saveProfileChanges() {
       console.log('? Профиль сохранен:', newData);
       
       // Обновляем отображение имени
-      document.getElementById('profile-name').innerText = newData.name;
+      currentUserData = { ...currentUserData, ...newData };
+      updateProfileHeader(currentUserData);
       
       showNotification('? Профиль успешно обновлен!');
     } else {
