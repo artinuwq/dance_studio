@@ -2607,8 +2607,8 @@ def get_staff(staff_id):
     }
 
 
-@bp.route("/staff/update-from-telegram/<int:telegram_id>", methods=["PUT"])
-def update_staff_from_telegram(telegram_id):
+@bp.route("/staff/update-from-telegram", methods=["PUT"])
+def update_staff_from_telegram():
     """
     Обновляет имя и другие данные персонала из Telegram профиля
     """
@@ -2618,30 +2618,50 @@ def update_staff_from_telegram(telegram_id):
 
     db = g.db
     data = request.json or {}
-    
-    resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
+
+    user_id = data.get("user_id")
+    telegram_id = data.get("telegram_id")
+
+    resolved_user_id = None
+    if user_id is not None:
+        try:
+            resolved_user_id = int(user_id)
+        except (TypeError, ValueError):
+            resolved_user_id = None
+
+    if resolved_user_id is None and telegram_id is not None:
+        resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
+
     staff = None
     if resolved_user_id:
         staff = db.query(Staff).filter_by(user_id=resolved_user_id).first()
-    
+
     if not staff:
         return {"error": "Персонал не найден"}, 404
-    
+
     if "first_name" in data:
         # Формируем полное имя из first_name и last_name
         name = data["first_name"]
         if data.get("last_name"):
             name += " " + data["last_name"]
         staff.name = name
-    
+
     db.commit()
-    
+
     return {
         "id": staff.id,
         "name": staff.name,
         "position": staff.position,
         "message": "Имя обновлено из Telegram"
     }
+
+
+@bp.route("/staff/update-from-telegram/<int:telegram_id>", methods=["PUT"])
+def update_staff_from_telegram_legacy(telegram_id):
+    """
+    Legacy endpoint: updates staff name by telegram_id.
+    """
+    return update_staff_from_telegram()
 
 
 @bp.route("/staff/<int:staff_id>", methods=["PUT"])

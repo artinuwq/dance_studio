@@ -17046,20 +17046,20 @@ async function checkStaffStatus(telegramId) {
       // Обновляем имя из Telegram для расширенных админ-ролей
       const tgUser = tg.initDataUnsafe?.user;
       if (tgUser && (currentStaffPosition === 'владелец' || currentStaffPosition === 'старший админ' || currentStaffPosition === 'администратор')) {
-        const tgUserId = telegramId || tgUser.id;
-        if (tgUserId) {
-          try {
-            await fetch(`/staff/update-from-telegram/${tgUserId}`, {
-              method: 'PUT',
-              headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-              body: JSON.stringify({
-                first_name: tgUser.first_name,
-                last_name: tgUser.last_name
-              })
-            });
-          } catch (error) {
-            console.log('Не удалось обновить имя из Telegram:', error);
-          }
+        const payload = {
+          user_id: currentUserData?.id,
+          telegram_id: tgUser.id,
+          first_name: tgUser.first_name,
+          last_name: tgUser.last_name
+        };
+        try {
+          await fetch('/staff/update-from-telegram', {
+            method: 'PUT',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify(payload)
+          });
+        } catch (error) {
+          console.log('Не удалось обновить имя из Telegram:', error);
         }
       }
     }
