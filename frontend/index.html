@@ -17245,6 +17245,8 @@ function updateProfileHeader(data) {
     const vkInfo = providers.vk || {};
     if (vkInfo.id) {
       subline = `VK ID: ${vkInfo.id}`;
+    } else if (window.__vkUserInfo?.id) {
+      subline = `VK ID: ${window.__vkUserInfo.id}`;
     }
   }
 
@@ -23060,6 +23062,7 @@ window.platformAdapter = (function () {
         try {
           if (window.vkBridge?.send) {
             userInfo = await window.vkBridge.send('VKWebAppGetUserInfo');
+            window.__vkUserInfo = userInfo || null;
           }
         } catch (e) {
           console.warn('VKWebAppGetUserInfo failed', e);
