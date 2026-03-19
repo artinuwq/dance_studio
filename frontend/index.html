@@ -17298,6 +17298,10 @@ async function loadProfileData() {
     const data = await response.json();
     currentUserData = data;
     updateProfileHeader(data);
+
+    if (!user) {
+      checkStaffStatus();
+    }
     
     console.log('? Профиль загружен:', data);
     
