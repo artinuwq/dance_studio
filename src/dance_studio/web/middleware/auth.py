@@ -71,6 +71,15 @@ def before_request():
         ip_prefix = _extract_ip_prefix()
         should_commit = False
 
+        telegram_id = session.telegram_id
+        user_id = session.user_id
+        if user_id is None and telegram_id is not None:
+            matched_user = db.query(User).filter(User.telegram_id == telegram_id).first()
+            if matched_user:
+                user_id = matched_user.id
+                session.user_id = user_id
+                should_commit = True
+
         if session.ip_prefix and ip_prefix and session.ip_prefix != ip_prefix:
             session.need_reauth = True
             session.reauth_reason = "ip_prefix_changed"
@@ -82,6 +91,9 @@ def before_request():
             should_commit = True
 
         if session.need_reauth and _is_sensitive_endpoint():
+            if not session.telegram_id:
+                return {"error": "need_reauth", "code": "need_reauth"}, 401
+
             init_data = _extract_init_data_from_request()
             if not init_data:
                 return {"error": "need_reauth", "code": "need_reauth"}, 401
@@ -96,22 +108,23 @@ def before_request():
 
             new_sid = secrets.token_hex(32)
             new_expires_at = now + timedelta(days=SESSION_TTL_DAYS)
-            _create_session(db, session.telegram_id, new_sid, now, new_expires_at, session.user_agent_hash, ip_prefix)
+            _create_session(
+                db,
+                session.telegram_id,
+                new_sid,
+                now,
+                new_expires_at,
+                session.user_agent_hash,
+                ip_prefix,
+                user_id=session.user_id,
+            )
             db.delete(session)
             db.flush()
-            _enforce_session_limit(db, session.telegram_id)
+            _enforce_session_limit(db, user_id=session.user_id)
             g.rotate_sid = new_sid
             should_commit = True
 
             session = db.query(SessionRecord).filter_by(sid_hash=_sid_hash(new_sid)).first()
-
-        telegram_id = session.telegram_id
-        user_id = session.user_id
-        if user_id is None and telegram_id is not None:
-            matched_user = db.query(User).filter(User.telegram_id == telegram_id).first()
-            if matched_user:
-                user_id = matched_user.id
-                session.user_id = user_id
 
         session.last_seen = now
         session.ip_prefix = ip_prefix or session.ip_prefix
@@ -119,10 +132,19 @@ def before_request():
         if session.expires_at - now < timedelta(days=ROTATE_IF_DAYS_LEFT):
             new_sid = secrets.token_hex(32)
             new_expires_at = now + timedelta(days=SESSION_TTL_DAYS)
-            _create_session(db, session.telegram_id, new_sid, now, new_expires_at, session.user_agent_hash, session.ip_prefix)
+            _create_session(
+                db,
+                session.telegram_id,
+                new_sid,
+                now,
+                new_expires_at,
+                session.user_agent_hash,
+                session.ip_prefix,
+                user_id=session.user_id,
+            )
             db.delete(session)
             db.flush()
-            _enforce_session_limit(db, session.telegram_id)
+            _enforce_session_limit(db, user_id=session.user_id)
             g.rotate_sid = new_sid
             should_commit = True
         else:

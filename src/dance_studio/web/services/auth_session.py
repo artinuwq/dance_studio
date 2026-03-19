@@ -65,7 +65,16 @@ def _extract_init_data_from_request() -> str | None:
             return body_data.strip()
     return None
 
-def _create_session(db, telegram_id: int | None, sid: str, now: datetime, expires_at: datetime, user_agent_hash: str | None, ip_prefix: str | None, user_id: int | None = None) -> None:
+def _create_session(
+    db,
+    telegram_id: int | None,
+    sid: str,
+    now: datetime,
+    expires_at: datetime,
+    user_agent_hash: str | None,
+    ip_prefix: str | None,
+    user_id: int | None = None,
+) -> None:
     db.add(SessionRecord(
         id=secrets.token_hex(32),
         sid_hash=_sid_hash(sid),
@@ -185,6 +194,7 @@ def _delete_expired_sessions_for_user(db, telegram_id: int | None = None, user_i
     q.filter(
         SessionRecord.expires_at < datetime.utcnow(),
     ).delete(synchronize_session=False)
+
 
 def _enforce_session_limit(db, telegram_id: int | None = None, user_id: int | None = None) -> None:
     q = db.query(SessionRecord)
