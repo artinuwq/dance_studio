@@ -2052,6 +2052,8 @@ def _build_staff_check_payload(db, telegram_id: int | None = None, user_id: int 
         staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
     if not staff and telegram_id is not None:
         staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
+    if not staff and user and user.telegram_id is not None:
+        staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
     if not staff:
         return {"is_staff": False, "staff": None}
 
