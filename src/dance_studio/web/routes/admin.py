@@ -2034,17 +2034,23 @@ def _serialize_user_payload(user: User, *, include_photo: bool = False) -> dict:
     return payload
 
 
-def _build_staff_check_payload(db, telegram_id: int) -> dict:
+def _build_staff_check_payload(db, telegram_id: int | None = None, user_id: int | None = None) -> dict:
     user = None
-    try:
-        user = db.query(User).filter_by(telegram_id=telegram_id).first()
-    except Exception:
-        user = None
+    if user_id is not None:
+        try:
+            user = db.query(User).filter_by(id=user_id).first()
+        except Exception:
+            user = None
+    if user is None and telegram_id is not None:
+        try:
+            user = db.query(User).filter_by(telegram_id=telegram_id).first()
+        except Exception:
+            user = None
 
     staff = None
     if user:
         staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
-    if not staff:
+    if not staff and telegram_id is not None:
         staff = db.query(Staff).filter_by(telegram_id=telegram_id, status="active").first()
     if not staff:
         return {"is_staff": False, "staff": None}
@@ -2328,16 +2334,24 @@ def check_staff_by_telegram(telegram_id):
 @bp.route("/staff/me")
 def check_current_staff():
     telegram_id = getattr(g, "telegram_id", None)
-    if not telegram_id:
+    user_id = getattr(g, "user_id", None)
+
+    if not telegram_id and not user_id:
         return {"error": "auth required"}, 401
+
     try:
-        telegram_id = int(telegram_id)
+        telegram_id = int(telegram_id) if telegram_id is not None else None
     except (TypeError, ValueError):
         return {"error": "invalid telegram_id"}, 400
 
     try:
+        user_id = int(user_id) if user_id is not None else None
+    except (TypeError, ValueError):
+        user_id = None
+
+    try:
         db = g.db
-        return jsonify(_build_staff_check_payload(db, telegram_id))
+        return jsonify(_build_staff_check_payload(db, telegram_id=telegram_id, user_id=user_id))
     except Exception as e:
         print(f"⚠️ Ошибка при проверке сотрудника: {e}")
         return jsonify({
