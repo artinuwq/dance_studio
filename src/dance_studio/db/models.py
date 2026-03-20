@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean, UniqueConstraint
+from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean, UniqueConstraint, text
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 from dance_studio.core.statuses import (
@@ -29,6 +29,7 @@ class User(Base):
     is_archived = Column(Boolean, nullable=False, default=False)
     preferred_notification_channel = Column(String(32), nullable=True)
     last_login_at = Column(DateTime, nullable=True)
+    requires_manual_merge = Column(Boolean, nullable=False, default=False)
 
 
 
@@ -646,9 +647,15 @@ class UserPhone(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("phone_e164", name="uq_user_phones_phone_e164"),
         Index("ix_user_phones_user_id", "user_id"),
-        Index("ix_user_phones_phone_e164", "phone_e164", unique=True),
+        Index("ix_user_phones_phone_e164", "phone_e164"),
+        Index(
+            "ix_user_phones_verified_phone_unique",
+            "phone_e164",
+            unique=True,
+            postgresql_where=text("verified_at IS NOT NULL"),
+            sqlite_where=text("verified_at IS NOT NULL"),
+        ),
     )
 
 

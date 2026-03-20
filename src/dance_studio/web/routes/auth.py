@@ -8,9 +8,16 @@ from dance_studio.auth.providers.phone import PhoneCodeAuthProvider
 from dance_studio.auth.providers.telegram import TelegramAuthProvider
 from dance_studio.auth.providers.vk import VkMiniAppAuthProvider
 from dance_studio.auth.services.account_merge import AccountMergeService
+from dance_studio.auth.services.common import (
+    DuplicateIdentityError,
+    ManualMergeRequiredError,
+    VerifiedPhoneConflictError,
+    normalize_phone_e164,
+)
+from dance_studio.auth.services.rate_limit import RateLimitExceededError, hit_rate_limit
 from dance_studio.core.config import SESSION_TTL_DAYS, TG_INIT_DATA_MAX_AGE_SECONDS
 from dance_studio.core.tg_replay import store_used_init_data
-from dance_studio.db.models import AuthIdentity, NotificationChannel, PasskeyCredential, SessionRecord, User
+from dance_studio.db.models import AuthIdentity, NotificationChannel, SessionRecord, User
 from dance_studio.web.services.auth_session import (
     _clear_csrf_cookie,
     _clear_sid_cookie,
@@ -26,6 +33,30 @@ from dance_studio.web.services.auth_session import (
 )
 
 bp = Blueprint('auth_routes', __name__)
+
+
+MERGE_CONFLICT_NOTICE = "Мы нашли несколько аккаунтов с этим номером. Напишите в поддержку, чтобы объединить их."
+MANUAL_MERGE_NOTICE = "Мы нашли данные, которые требуют ручной проверки перед объединением аккаунтов. Напишите в поддержку."
+
+
+def _rate_limit_subject() -> str:
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    ip = forwarded.split(",")[0].strip() or request.remote_addr or "unknown"
+    return ip
+
+
+
+def _handle_auth_provider_error(error: Exception):
+    if isinstance(error, RateLimitExceededError):
+        return {"error": "rate_limited"}, 429
+    if isinstance(error, VerifiedPhoneConflictError):
+        return {"error": "verified_phone_conflict", "conflict_user_ids": error.user_ids}, 409
+    if isinstance(error, ManualMergeRequiredError):
+        return {"error": "manual_merge_required"}, 409
+    if isinstance(error, DuplicateIdentityError):
+        return {"error": "identity_already_linked"}, 409
+    raise error
+
 
 
 def _login_user(db, *, user_id: int, telegram_id: int | None, extra_payload: dict | None = None):
@@ -55,15 +86,22 @@ def auth_telegram():
     init_data = _extract_init_data_from_request()
     if not init_data:
         return {"error": "Authorization initData is required"}, 400
-
-    provider = TelegramAuthProvider()
-    payload = request.get_json(silent=True) or {}
-    user, error = provider.authenticate(
-        db,
-        init_data,
-        current_user_id=getattr(g, "user_id", None),
-        verified_phone=payload.get("phone") if payload.get("phone_verified") else None,
-    )
+    try:
+        hit_rate_limit("telegram_login", _rate_limit_subject())
+        provider = TelegramAuthProvider()
+        payload = request.get_json(silent=True) or {}
+        user, error = provider.authenticate(
+            db,
+            init_data,
+            current_user_id=getattr(g, "user_id", None),
+            verified_phone=payload.get("phone") if payload.get("phone_verified") else None,
+        )
+    except Exception as exc:
+        handled = _handle_auth_provider_error(exc)
+        if handled:
+            db.rollback()
+            return handled
+        raise
     if error:
         return {"error": error}, 401
 
@@ -79,6 +117,8 @@ def auth_telegram():
         if replay_key and not store_used_init_data(db, replay_key, replay_ttl):
             return {"error": "replay detected", "code": "replay_detected"}, 401
 
+        if verified_identity:
+            verified_identity.last_login_at = datetime.utcnow()
         if user.telegram_id:
             channel = db.query(NotificationChannel).filter(
                 NotificationChannel.channel_type == "telegram",
@@ -103,12 +143,23 @@ def auth_telegram():
 def auth_vk():
     db = g.db
     payload = request.get_json(silent=True) or {}
-    provider = VkMiniAppAuthProvider()
-    user, error = provider.authenticate(db, payload, current_user_id=getattr(g, "user_id", None))
+    try:
+        hit_rate_limit("vk_login", _rate_limit_subject())
+        provider = VkMiniAppAuthProvider()
+        user, error = provider.authenticate(db, payload, current_user_id=getattr(g, "user_id", None))
+    except Exception as exc:
+        handled = _handle_auth_provider_error(exc)
+        if handled:
+            db.rollback()
+            return handled
+        raise
     if error:
         return {"error": error}, 400
     try:
         vk_user_id = str(payload.get("vk_user_id") or payload.get("user_id"))
+        identity = db.query(AuthIdentity).filter(AuthIdentity.user_id == user.id, AuthIdentity.provider == "vk", AuthIdentity.provider_user_id == vk_user_id).first()
+        if identity:
+            identity.last_login_at = datetime.utcnow()
         channel = db.query(NotificationChannel).filter(
             NotificationChannel.channel_type == "vk",
             NotificationChannel.target_ref == vk_user_id,
@@ -144,10 +195,6 @@ def auth_vk_phone():
     if not user:
         return {"error": "user not found"}, 404
 
-    user.primary_phone = user.primary_phone or phone
-    user.phone = user.phone or phone
-    user.phone_verified_at = datetime.utcnow()
-
     merge_notice = None
     merge_status = None
     try:
@@ -161,14 +208,14 @@ def auth_vk_phone():
         if merge_status == "merged":
             merge_notice = "Аккаунты объединены. Проверьте, что все данные на месте."
         elif merge_status == "conflict":
-            merge_notice = "Мы нашли несколько аккаунтов с этим номером. Напишите в поддержку, чтобы объединить их."
-            current_app.logger.warning(
-                "Phone merge conflict for user %s phone %s matches %s",
-                user.id,
-                phone,
-                merge_result.get("conflict_user_ids"),
-            )
-    except Exception:
+            merge_notice = MERGE_CONFLICT_NOTICE
+        elif merge_status == "manual_review_required":
+            merge_notice = MANUAL_MERGE_NOTICE
+    except Exception as exc:
+        handled = _handle_auth_provider_error(exc)
+        if handled:
+            db.rollback()
+            return handled
         current_app.logger.exception("Failed to auto-merge accounts by phone")
 
     try:
@@ -178,7 +225,7 @@ def auth_vk_phone():
         current_app.logger.exception("Failed VK phone update")
         return {"error": "vk phone update failed"}, 500
 
-    payload = {"ok": True, "phone": user.phone}
+    payload = {"ok": True, "phone": normalize_phone_e164(phone)}
     if merge_notice:
         payload["merge_notice"] = merge_notice
     if merge_status:
@@ -195,10 +242,17 @@ def request_phone_code():
         return {"error": "phone required"}, 400
     provider = PhoneCodeAuthProvider()
     try:
+        hit_rate_limit("otp_request", f"{_rate_limit_subject()}:{normalize_phone_e164(phone) or phone}")
         code = provider.request_code(db, phone=phone, purpose=str(payload.get("purpose") or "login"))
     except ValueError as exc:
         db.rollback()
         return {"error": str(exc)}, 400
+    except Exception as exc:
+        handled = _handle_auth_provider_error(exc)
+        if handled:
+            db.rollback()
+            return handled
+        raise
     db.commit()
     return {"ok": True, "delivery": "internal", "debug_code": code}
 
@@ -213,7 +267,15 @@ def verify_phone_code():
         return {"error": "phone_and_code_required"}, 400
 
     provider = PhoneCodeAuthProvider()
-    user, error = provider.verify_code(db, phone=phone, code=code, current_user_id=getattr(g, "user_id", None))
+    try:
+        hit_rate_limit("otp_verify", f"{_rate_limit_subject()}:{normalize_phone_e164(phone) or phone}")
+        user, error = provider.verify_code(db, phone=phone, code=code, current_user_id=getattr(g, "user_id", None))
+    except Exception as exc:
+        handled = _handle_auth_provider_error(exc)
+        if handled:
+            db.rollback()
+            return handled
+        raise
     if error:
         db.rollback()
         return {"error": error}, 400
@@ -222,31 +284,24 @@ def verify_phone_code():
         merge_status = None
         login_user_id = user.id
         login_telegram_id = user.telegram_id
-        try:
-            merge_result = AccountMergeService().try_merge_by_phone(
-                db,
-                user_id=user.id,
-                phone=phone,
-                source="phone_verification",
-            )
-            merge_status = merge_result.get("status")
-            if merge_status == "merged":
-                login_user_id = int(merge_result.get("primary_user_id") or user.id)
-                if login_user_id != user.id:
-                    primary = db.query(User).filter(User.id == login_user_id).first()
-                    if primary:
-                        login_telegram_id = primary.telegram_id
-                merge_notice = "Аккаунты объединены. Проверьте, что все данные на месте."
-            elif merge_status == "conflict":
-                merge_notice = "Мы нашли несколько аккаунтов с этим номером. Напишите в поддержку, чтобы объединить их."
-                current_app.logger.warning(
-                    "Phone merge conflict for user %s phone %s matches %s",
-                    user.id,
-                    phone,
-                    merge_result.get("conflict_user_ids"),
-                )
-        except Exception:
-            current_app.logger.exception("Failed to auto-merge accounts by phone")
+        merge_result = AccountMergeService().try_merge_by_phone(
+            db,
+            user_id=user.id,
+            phone=phone,
+            source="phone_verification",
+        )
+        merge_status = merge_result.get("status")
+        if merge_status == "merged":
+            login_user_id = int(merge_result.get("primary_user_id") or user.id)
+            if login_user_id != user.id:
+                primary = db.query(User).filter(User.id == login_user_id).first()
+                if primary:
+                    login_telegram_id = primary.telegram_id
+            merge_notice = "Аккаунты объединены. Проверьте, что все данные на месте."
+        elif merge_status == "conflict":
+            merge_notice = MERGE_CONFLICT_NOTICE
+        elif merge_status == "manual_review_required":
+            merge_notice = MANUAL_MERGE_NOTICE
 
         extra_payload = {}
         if merge_notice:
@@ -262,7 +317,11 @@ def verify_phone_code():
         )
         db.commit()
         return response
-    except Exception:
+    except Exception as exc:
+        handled = _handle_auth_provider_error(exc)
+        if handled:
+            db.rollback()
+            return handled
         db.rollback()
         current_app.logger.exception("Failed phone auth")
         return {"error": "phone auth failed"}, 500
@@ -290,6 +349,25 @@ def passkey_register_complete():
     return {"ok": True, "credential_id": credential.credential_id}
 
 
+@bp.route("/auth/passkey/delete", methods=["POST"])
+def passkey_delete():
+    db = g.db
+    user_id = getattr(g, "user_id", None)
+    if not user_id:
+        return {"error": "auth required"}, 401
+    payload = request.get_json(silent=True) or {}
+    credential_id = str(payload.get("credential_id") or "").strip()
+    if not credential_id:
+        return {"error": "credential_id_required"}, 400
+    provider = PasskeyAuthProvider()
+    deleted = provider.delete_credential(db, user_id=int(user_id), credential_id=credential_id)
+    if not deleted:
+        db.rollback()
+        return {"error": "credential_not_found"}, 404
+    db.commit()
+    return {"ok": True}
+
+
 @bp.route("/auth/passkey/login/begin", methods=["POST"])
 def passkey_login_begin():
     provider = PasskeyAuthProvider()
@@ -299,15 +377,23 @@ def passkey_login_begin():
 @bp.route("/auth/passkey/login/complete", methods=["POST"])
 def passkey_login_complete():
     db = g.db
-    provider = PasskeyAuthProvider()
-    credential, error = provider.login_complete(db, request.get_json(silent=True) or {})
+    try:
+        hit_rate_limit("passkey_login", _rate_limit_subject())
+        provider = PasskeyAuthProvider()
+        credential, error = provider.login_complete(db, request.get_json(silent=True) or {})
+    except Exception as exc:
+        handled = _handle_auth_provider_error(exc)
+        if handled:
+            db.rollback()
+            return handled
+        raise
     if error:
         db.rollback()
-        return {"error": error}, 400
+        return {"error": error, "fallback_auth_methods": ["telegram", "vk", "phone"]}, 400
     user = db.query(User).filter(User.id == credential.user_id).first()
     if not user:
         db.rollback()
-        return {"error": "user_not_found"}, 404
+        return {"error": "user_not_found", "fallback_auth_methods": ["telegram", "vk", "phone"]}, 404
     response = _login_user(db, user_id=user.id, telegram_id=user.telegram_id, extra_payload={"passkey": True})
     db.commit()
     return response

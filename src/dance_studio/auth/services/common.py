@@ -1,11 +1,56 @@
 from __future__ import annotations
 
+from collections import defaultdict
+from contextlib import contextmanager
 from datetime import datetime
+from threading import RLock
 
+from sqlalchemy import text
 from dance_studio.db.models import AuthIdentity, User, UserPhone
 
 
 PROVIDERS_WITH_PHONE_MERGE = {"telegram", "vk", "phone"}
+_PHONE_LOCKS: dict[str, RLock] = defaultdict(RLock)
+
+
+class AuthFlowConflictError(RuntimeError):
+    pass
+
+
+class ManualMergeRequiredError(RuntimeError):
+    pass
+
+
+class DuplicateIdentityError(RuntimeError):
+    pass
+
+
+class VerifiedPhoneConflictError(RuntimeError):
+    def __init__(self, user_ids: list[int]):
+        super().__init__("verified_phone_conflict")
+        self.user_ids = user_ids
+
+
+@contextmanager
+def phone_operation_lock(db, phone_e164: str | None):
+    if not phone_e164:
+        yield
+        return
+    lock = _PHONE_LOCKS[phone_e164]
+    lock.acquire()
+    try:
+        bind = db.get_bind()
+        dialect = getattr(bind.dialect, "name", "")
+        if dialect == "postgresql":
+            db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:phone))"), {"phone": phone_e164})
+        else:
+            try:
+                db.query(UserPhone).filter(UserPhone.phone_e164 == phone_e164).with_for_update().all()
+            except Exception:
+                pass
+        yield
+    finally:
+        lock.release()
 
 
 def normalize_phone_e164(phone: str | None) -> str | None:
@@ -41,8 +86,19 @@ def get_verified_phone_user(db, *, phone_e164: str | None, exclude_user_id: int 
     user_ids = sorted({row.user_id for row in rows})
     if len(user_ids) != 1:
         return None, user_ids
-    user = db.query(User).filter(User.id == user_ids[0]).first()
+    user = db.query(User).filter(User.id == user_ids[0], User.is_archived.is_(False)).first()
     return user, user_ids
+
+
+def set_primary_phone(db, *, user_id: int, phone_row: UserPhone) -> None:
+    db.query(UserPhone).filter(UserPhone.user_id == user_id).update({UserPhone.is_primary: False}, synchronize_session=False)
+    phone_row.is_primary = True
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.primary_phone = phone_row.phone_e164
+        user.phone = phone_row.phone_e164
+        user.phone_verified_at = phone_row.verified_at
+
 
 
 def ensure_user_phone(
@@ -56,29 +112,30 @@ def ensure_user_phone(
 ) -> UserPhone | None:
     if not phone_e164:
         return None
-    phone = db.query(UserPhone).filter(UserPhone.phone_e164 == phone_e164).first()
-    if phone and phone.user_id != user_id:
+    with phone_operation_lock(db, phone_e164):
+        phone = db.query(UserPhone).filter(UserPhone.user_id == user_id, UserPhone.phone_e164 == phone_e164).first()
+        if not phone:
+            phone = db.query(UserPhone).filter(UserPhone.phone_e164 == phone_e164).order_by(UserPhone.id.asc()).first()
+        if phone and phone.user_id != user_id and phone.verified_at is not None and verified_at is not None:
+            raise VerifiedPhoneConflictError([phone.user_id, user_id])
+        if not phone:
+            phone = UserPhone(
+                user_id=user_id,
+                phone_e164=phone_e164,
+                source=source,
+                verified_at=verified_at,
+                is_primary=False,
+            )
+            db.add(phone)
+            db.flush()
+        else:
+            phone.user_id = user_id if phone.user_id == user_id or phone.verified_at is None else phone.user_id
+            phone.source = source or phone.source
+            phone.verified_at = verified_at or phone.verified_at
+        if phone.user_id == user_id and (is_primary or phone.is_primary or verified_at):
+            set_primary_phone(db, user_id=user_id, phone_row=phone)
         return phone
-    if not phone:
-        phone = UserPhone(
-            user_id=user_id,
-            phone_e164=phone_e164,
-            source=source,
-            verified_at=verified_at,
-            is_primary=is_primary,
-        )
-        db.add(phone)
-        db.flush()
-    else:
-        phone.source = source or phone.source
-        phone.verified_at = verified_at or phone.verified_at
-        phone.is_primary = phone.is_primary or is_primary
-    user = db.query(User).filter(User.id == user_id).first()
-    if user and verified_at:
-        user.primary_phone = phone_e164
-        user.phone = user.phone or phone_e164
-        user.phone_verified_at = verified_at
-    return phone
+
 
 
 def _link_identity_to_user(
@@ -96,10 +153,13 @@ def _link_identity_to_user(
         identity = (
             db.query(AuthIdentity)
             .filter(AuthIdentity.provider == provider, AuthIdentity.provider_user_id == provider_user_id)
+            .with_for_update()
             .first()
         )
     now = datetime.utcnow()
     if identity:
+        if identity.user_id not in (None, user.id) and identity.is_verified:
+            raise DuplicateIdentityError(f"identity already linked to user {identity.user_id}")
         identity.user_id = user.id
         identity.provider_username = username
         identity.provider_payload_json = payload_json
@@ -119,7 +179,9 @@ def _link_identity_to_user(
         is_verified=verified,
     )
     db.add(identity)
+    db.flush()
     return identity
+
 
 
 def get_or_create_identity(
@@ -134,64 +196,71 @@ def get_or_create_identity(
     current_user_id: int | None = None,
     is_verified: bool = True,
 ) -> User:
-    identity = None
-    if provider_user_id:
-        identity = (
-            db.query(AuthIdentity)
-            .filter(AuthIdentity.provider == provider, AuthIdentity.provider_user_id == provider_user_id)
-            .first()
-        )
-    if identity:
-        user = db.query(User).filter(User.id == identity.user_id).first()
-        if user:
-            user.last_login_at = datetime.utcnow()
-            identity.provider_username = username
-            identity.provider_payload_json = payload_json
-            identity.last_login_at = user.last_login_at
-            if verified_phone:
-                ensure_user_phone(
-                    db,
-                    user_id=user.id,
-                    phone_e164=verified_phone,
-                    source=provider,
-                    verified_at=datetime.utcnow(),
-                    is_primary=user.primary_phone in (None, verified_phone),
-                )
-            return user
+    normalized_phone = normalize_phone_e164(verified_phone)
+    with phone_operation_lock(db, normalized_phone):
+        identity = None
+        if provider_user_id:
+            identity = (
+                db.query(AuthIdentity)
+                .filter(AuthIdentity.provider == provider, AuthIdentity.provider_user_id == provider_user_id)
+                .with_for_update()
+                .first()
+            )
+        if identity:
+            user = db.query(User).filter(User.id == identity.user_id, User.is_archived.is_(False)).first()
+            if user:
+                user.last_login_at = datetime.utcnow()
+                identity.provider_username = username
+                identity.provider_payload_json = payload_json
+                identity.last_login_at = user.last_login_at
+                if normalized_phone:
+                    ensure_user_phone(
+                        db,
+                        user_id=user.id,
+                        phone_e164=normalized_phone,
+                        source=provider,
+                        verified_at=datetime.utcnow(),
+                        is_primary=True,
+                    )
+                return user
 
-    target_user = None
-    if current_user_id:
-        target_user = db.query(User).filter(User.id == current_user_id).first()
+        target_user = None
+        if current_user_id:
+            target_user = db.query(User).filter(User.id == current_user_id, User.is_archived.is_(False)).first()
 
-    matched_ids: list[int] = []
-    if target_user is None and provider in PROVIDERS_WITH_PHONE_MERGE and verified_phone:
-        target_user, matched_ids = get_verified_phone_user(db, phone_e164=verified_phone)
+        matched_ids: list[int] = []
+        if target_user is None and provider in PROVIDERS_WITH_PHONE_MERGE and normalized_phone:
+            target_user, matched_ids = get_verified_phone_user(db, phone_e164=normalized_phone)
+            if len(matched_ids) > 1:
+                raise VerifiedPhoneConflictError(matched_ids)
+            if target_user and target_user.requires_manual_merge:
+                raise ManualMergeRequiredError("requires_manual_merge")
 
-    if target_user is None:
-        target_user = User(name=fallback_name)
-        db.add(target_user)
-        db.flush()
+        if target_user is None:
+            target_user = User(name=fallback_name)
+            db.add(target_user)
+            db.flush()
 
-    target_user.last_login_at = datetime.utcnow()
-    _link_identity_to_user(
-        db,
-        user=target_user,
-        provider=provider,
-        provider_user_id=provider_user_id,
-        username=username,
-        payload_json=payload_json,
-        verified=is_verified,
-    )
-
-    if verified_phone:
-        ensure_user_phone(
+        target_user.last_login_at = datetime.utcnow()
+        _link_identity_to_user(
             db,
-            user_id=target_user.id,
-            phone_e164=verified_phone,
-            source=provider,
-            verified_at=datetime.utcnow(),
-            is_primary=target_user.primary_phone in (None, verified_phone),
+            user=target_user,
+            provider=provider,
+            provider_user_id=provider_user_id,
+            username=username,
+            payload_json=payload_json,
+            verified=is_verified,
         )
 
-    target_user._phone_match_user_ids = matched_ids  # type: ignore[attr-defined]
-    return target_user
+        if normalized_phone:
+            ensure_user_phone(
+                db,
+                user_id=target_user.id,
+                phone_e164=normalized_phone,
+                source=provider,
+                verified_at=datetime.utcnow(),
+                is_primary=True,
+            )
+
+        target_user._phone_match_user_ids = matched_ids  # type: ignore[attr-defined]
+        return target_user
