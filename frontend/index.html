@@ -7391,6 +7391,10 @@ function resetRentalBookingForm() {
 
 function submitRentalBooking() {
   if (rentalBookingState.submitting) return;
+  if (requiresVerifiedPhoneForBooking()) {
+    setRentalBookingMessage(getPhoneVerificationRequiredMessage(), true);
+    return;
+  }
   const dateState = getRentalDateInputState();
   const startMinutes = rentalBookingState.selectedStartMinutes;
   const durationMinutes = rentalBookingState.selectedDurationMinutes;
@@ -8747,6 +8751,10 @@ function setIndividualBookingMessage(text, isError) {
 
 function submitIndividualBooking() {
   const state = individualBookingState;
+  if (requiresVerifiedPhoneForBooking()) {
+    setIndividualBookingMessage(getPhoneVerificationRequiredMessage(), true);
+    return;
+  }
   if (!state.selectedTeacherId) {
     setIndividualBookingMessage('Выберите преподавателя', true);
     return;
@@ -10534,6 +10542,11 @@ function buildSingleGroupBookingPayload(groupId, note) {
 async function submitGroupBookingForm() {
   if (!activeGroupBookingId) {
     showNotification('Группа не выбрана');
+    return;
+  }
+
+  if (requiresVerifiedPhoneForBooking()) {
+    showNotification(getPhoneVerificationRequiredMessage());
     return;
   }
 
@@ -17304,6 +17317,14 @@ function setAuthState(patch = {}) {
 
 function getCurrentUserId() {
   return currentAuthState?.currentUser?.id || currentUserData?.id || null;
+}
+
+function requiresVerifiedPhoneForBooking() {
+  return !Boolean(currentAuthState?.currentUser?.phone_verified);
+}
+
+function getPhoneVerificationRequiredMessage() {
+  return 'Сначала подтвердите номер телефона в профиле, затем отправляйте заявку.';
 }
 
 function renderAuthStateUI() {

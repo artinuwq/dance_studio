@@ -32,3 +32,12 @@ def test_frontend_auth_headers_no_longer_use_telegram_id_as_primary_identity():
     assert "headers['X-Telegram-Id']" not in source
     assert "telegram_user_id:" not in source
     assert "user_id: currentUserId" in source
+
+
+def test_frontend_blocks_booking_flows_until_phone_is_verified():
+    source = _source()
+    assert "function requiresVerifiedPhoneForBooking()" in source
+    assert "Сначала подтвердите номер телефона в профиле, затем отправляйте заявку." in source
+    assert "setRentalBookingMessage(getPhoneVerificationRequiredMessage(), true);" in source
+    assert "setIndividualBookingMessage(getPhoneVerificationRequiredMessage(), true);" in source
+    assert "showNotification(getPhoneVerificationRequiredMessage());" in source
