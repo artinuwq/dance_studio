@@ -4,9 +4,12 @@ from flask import Blueprint, g, request
 
 from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.db.models import (
+    AuthIdentity,
     NotificationChannel,
     NotificationPreference,
+    PasskeyCredential,
     User,
+    UserPhone,
     WebPushSubscription,
 )
 from dance_studio.notifications.services.notification_service import NotificationService
@@ -18,11 +21,14 @@ bp = Blueprint("platform_api_routes", __name__, url_prefix="/api")
 def app_bootstrap():
     db = g.db
     user_id = getattr(g, "user_id", None)
+    available_auth_methods = ["telegram", "vk", "phone", "passkey"]
     if not user_id:
         return {
+            "session": {"authenticated": False},
             "user": None,
-            "platform": "web",
-            "auth_methods": ["telegram", "vk", "phone", "passkey"],
+            "platform": request.args.get("platform", "web"),
+            "auth_methods": available_auth_methods,
+            "fallback_auth_methods": available_auth_methods,
             "channels": [],
             "preferences": [],
             "feature_flags": {"passkey_scaffold": True},
@@ -31,16 +37,34 @@ def app_bootstrap():
     user = db.query(User).filter(User.id == user_id).first()
     channels = db.query(NotificationChannel).filter(NotificationChannel.user_id == user_id).all()
     prefs = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).all()
+    identities = db.query(AuthIdentity).filter(AuthIdentity.user_id == user_id).all()
+    passkeys = db.query(PasskeyCredential).filter(PasskeyCredential.user_id == user_id).all()
+    phones = db.query(UserPhone).filter(UserPhone.user_id == user_id).all()
+    auth_methods = sorted({identity.provider for identity in identities if identity.provider} | ({"passkey"} if passkeys else set()))
+    phone_verified = any(phone.verified_at is not None for phone in phones)
     return {
+        "session": {"authenticated": True},
         "user": {
             "id": user.id,
             "name": user.name,
-            "telegram_id": user.telegram_id,
-            "primary_phone": user.primary_phone,
-            "preferred_notification_channel": user.preferred_notification_channel,
+            "phone_verified": phone_verified,
+            "requires_manual_merge": bool(user.requires_manual_merge),
+            "auth_methods": auth_methods,
+            "identities": {
+                "telegram": {"linked": any(identity.provider == "telegram" for identity in identities)},
+                "vk": {"linked": any(identity.provider == "vk" for identity in identities)},
+                "phone": {"linked": any(identity.provider == "phone" for identity in identities), "verified": phone_verified},
+                "passkey": {"linked": bool(passkeys), "count": len(passkeys)},
+            },
+            "legacy": {
+                "telegram_id": user.telegram_id,
+                "primary_phone": user.primary_phone,
+                "preferred_notification_channel": user.preferred_notification_channel,
+            },
         },
         "platform": request.args.get("platform", "web"),
-        "auth_methods": ["telegram", "vk", "phone", "passkey"],
+        "auth_methods": available_auth_methods,
+        "fallback_auth_methods": [],
         "channels": [
             {
                 "id": c.id,

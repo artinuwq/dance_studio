@@ -278,6 +278,29 @@ def test_race_condition_on_identity_link_keeps_single_target_user(session_factor
     assert results == [user.id, user.id]
 
 
+
+def test_app_bootstrap_returns_user_centric_contract(app, session_factory):
+    db = session_factory()
+    user = User(name="Bootstrap User", telegram_id=321321)
+    db.add(user)
+    db.commit()
+    db.add(UserPhone(user_id=user.id, phone_e164="+79990000007", verified_at=datetime.utcnow(), source="sms", is_primary=True))
+    db.add(AuthIdentity(user_id=user.id, provider="telegram", provider_user_id="321321", is_verified=True))
+    db.add(PasskeyCredential(user_id=user.id, credential_id="bootstrap-passkey", public_key="pk", sign_count=1))
+    db.commit()
+
+    client = app.test_client()
+    _login_by_session(client, db, user.id, telegram_id=user.telegram_id)
+
+    response = client.get('/api/app/bootstrap')
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['session']['authenticated'] is True
+    assert payload['user']['id'] == user.id
+    assert payload['user']['phone_verified'] is True
+    assert payload['user']['identities']['telegram']['linked'] is True
+    assert payload['user']['identities']['passkey']['count'] == 1
+
 def test_notifications_preferences_and_web_push(app, session_factory):
     db = session_factory()
     user = User(name="Tester", telegram_id=9001)
