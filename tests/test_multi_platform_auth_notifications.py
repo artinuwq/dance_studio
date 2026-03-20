@@ -220,9 +220,14 @@ def test_manual_merge_flag_blocks_auto_merge(session_factory):
     assert result["status"] == "manual_review_required"
 
 
-def test_parallel_login_with_same_verified_phone_does_not_duplicate_identity(session_factory):
+def test_parallel_login_with_same_verified_phone_does_not_duplicate_identity(session_factory, tmp_path):
+    race_db_url = f"sqlite:///{tmp_path / 'auth_race.db'}"
+    race_engine = create_engine(race_db_url, connect_args={"check_same_thread": False})
+    Base.metadata.create_all(race_engine)
+    race_session_factory = sessionmaker(bind=race_engine, autoflush=False, autocommit=False)
+
     def worker(provider_user_id: str):
-        db = session_factory()
+        db = race_session_factory()
         user = get_or_create_identity(
             db,
             provider="vk",
@@ -240,7 +245,7 @@ def test_parallel_login_with_same_verified_phone_does_not_duplicate_identity(ses
 
     assert len(set(results)) == 1
 
-    db = session_factory()
+    db = race_session_factory()
     users = db.query(User).filter(User.name == "Concurrent", User.is_archived.is_(False)).all()
     identities = db.query(AuthIdentity).filter(AuthIdentity.provider == "vk", AuthIdentity.provider_user_id.in_(["parallel-1", "parallel-2"])).all()
     verified_phones = db.query(UserPhone).filter(UserPhone.phone_e164 == "+79990000005", UserPhone.verified_at.isnot(None)).all()
