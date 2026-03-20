@@ -10,7 +10,7 @@ from dance_studio.auth.providers.vk import VkMiniAppAuthProvider
 from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.core.config import SESSION_TTL_DAYS, TG_INIT_DATA_MAX_AGE_SECONDS
 from dance_studio.core.tg_replay import store_used_init_data
-from dance_studio.db.models import AuthIdentity, NotificationChannel, SessionRecord, User
+from dance_studio.db.models import AuthIdentity, NotificationChannel, PasskeyCredential, SessionRecord, User
 from dance_studio.web.services.auth_session import (
     _clear_csrf_cookie,
     _clear_sid_cookie,
@@ -57,7 +57,13 @@ def auth_telegram():
         return {"error": "Authorization initData is required"}, 400
 
     provider = TelegramAuthProvider()
-    user, error = provider.authenticate(db, init_data)
+    payload = request.get_json(silent=True) or {}
+    user, error = provider.authenticate(
+        db,
+        init_data,
+        current_user_id=getattr(g, "user_id", None),
+        verified_phone=payload.get("phone") if payload.get("phone_verified") else None,
+    )
     if error:
         return {"error": error}, 401
 
@@ -98,7 +104,7 @@ def auth_vk():
     db = g.db
     payload = request.get_json(silent=True) or {}
     provider = VkMiniAppAuthProvider()
-    user, error = provider.authenticate(db, payload)
+    user, error = provider.authenticate(db, payload, current_user_id=getattr(g, "user_id", None))
     if error:
         return {"error": error}, 400
     try:
@@ -188,7 +194,11 @@ def request_phone_code():
     if not phone:
         return {"error": "phone required"}, 400
     provider = PhoneCodeAuthProvider()
-    code = provider.request_code(db, phone=phone, purpose=str(payload.get("purpose") or "login"))
+    try:
+        code = provider.request_code(db, phone=phone, purpose=str(payload.get("purpose") or "login"))
+    except ValueError as exc:
+        db.rollback()
+        return {"error": str(exc)}, 400
     db.commit()
     return {"ok": True, "delivery": "internal", "debug_code": code}
 
@@ -203,7 +213,7 @@ def verify_phone_code():
         return {"error": "phone_and_code_required"}, 400
 
     provider = PhoneCodeAuthProvider()
-    user, error = provider.verify_code(db, phone=phone, code=code)
+    user, error = provider.verify_code(db, phone=phone, code=code, current_user_id=getattr(g, "user_id", None))
     if error:
         db.rollback()
         return {"error": error}, 400
@@ -260,16 +270,24 @@ def verify_phone_code():
 
 @bp.route("/auth/passkey/register/begin", methods=["POST"])
 def passkey_register_begin():
-    payload = request.get_json(silent=True) or {}
-    user_id = int(payload.get("user_id") or 0)
+    user_id = getattr(g, "user_id", None)
+    if not user_id:
+        return {"error": "auth required"}, 401
     provider = PasskeyAuthProvider()
-    return provider.register_begin(user_id)
+    return provider.register_begin(int(user_id))
 
 
 @bp.route("/auth/passkey/register/complete", methods=["POST"])
 def passkey_register_complete():
+    db = g.db
+    user_id = getattr(g, "user_id", None)
     provider = PasskeyAuthProvider()
-    return provider.register_complete(request.get_json(silent=True) or {})
+    credential, error = provider.register_complete(db, user_id=int(user_id or 0), payload=request.get_json(silent=True) or {})
+    if error:
+        db.rollback()
+        return {"error": error}, 400 if error != "auth_required" else 401
+    db.commit()
+    return {"ok": True, "credential_id": credential.credential_id}
 
 
 @bp.route("/auth/passkey/login/begin", methods=["POST"])
@@ -280,8 +298,19 @@ def passkey_login_begin():
 
 @bp.route("/auth/passkey/login/complete", methods=["POST"])
 def passkey_login_complete():
+    db = g.db
     provider = PasskeyAuthProvider()
-    return provider.login_complete(request.get_json(silent=True) or {})
+    credential, error = provider.login_complete(db, request.get_json(silent=True) or {})
+    if error:
+        db.rollback()
+        return {"error": error}, 400
+    user = db.query(User).filter(User.id == credential.user_id).first()
+    if not user:
+        db.rollback()
+        return {"error": "user_not_found"}, 404
+    response = _login_user(db, user_id=user.id, telegram_id=user.telegram_id, extra_payload={"passkey": True})
+    db.commit()
+    return response
 
 
 @bp.route("/auth/logout", methods=["POST"])

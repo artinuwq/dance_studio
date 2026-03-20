@@ -619,6 +619,8 @@ class AuthIdentity(Base):
     provider_user_id = Column(String(255), nullable=True)
     provider_username = Column(String(255), nullable=True)
     provider_payload_json = Column(Text, nullable=True)
+    linked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_login_at = Column(DateTime, nullable=True)
     is_primary = Column(Boolean, nullable=False, default=False)
     is_verified = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -628,6 +630,25 @@ class AuthIdentity(Base):
         UniqueConstraint("provider", "provider_user_id", name="uq_auth_identities_provider_user"),
         Index("ix_auth_identities_user_id", "user_id"),
         Index("ix_auth_identities_provider", "provider"),
+    )
+
+
+class UserPhone(Base):
+    __tablename__ = "user_phones"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    phone_e164 = Column(String(32), nullable=False)
+    verified_at = Column(DateTime, nullable=True)
+    source = Column(String(32), nullable=False, default="sms")
+    is_primary = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("phone_e164", name="uq_user_phones_phone_e164"),
+        Index("ix_user_phones_user_id", "user_id"),
+        Index("ix_user_phones_phone_e164", "phone_e164", unique=True),
     )
 
 

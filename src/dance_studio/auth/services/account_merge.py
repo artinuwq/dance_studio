@@ -3,8 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from sqlalchemy import or_
-
+from dance_studio.auth.services.common import ensure_user_phone, normalize_phone_e164
 from dance_studio.db.models import (
     Attendance,
     AttendanceIntention,
@@ -19,6 +18,7 @@ from dance_studio.db.models import (
     PaymentTransaction,
     SessionRecord,
     User,
+    UserPhone,
     UserMergeEvent,
     WebPushSubscription,
 )
@@ -86,36 +86,44 @@ class AccountMergeService:
         return primary_id, secondary_id
 
     def try_merge_by_phone(self, db, *, user_id: int, phone: str, source: str = "phone_verification") -> dict:
-        normalized_phone = (phone or "").strip()
+        normalized_phone = normalize_phone_e164(phone)
         if not normalized_phone:
             return {"status": "no_phone"}
 
+        ensure_user_phone(
+            db,
+            user_id=user_id,
+            phone_e164=normalized_phone,
+            source=source,
+            verified_at=datetime.utcnow(),
+            is_primary=True,
+        )
+
         matches = (
-            db.query(User)
+            db.query(UserPhone)
             .filter(
-                or_(User.primary_phone == normalized_phone, User.phone == normalized_phone),
-                User.phone_verified_at.isnot(None),
-                User.id != user_id,
-                User.is_archived.is_(False),
+                UserPhone.phone_e164 == normalized_phone,
+                UserPhone.verified_at.isnot(None),
+                UserPhone.user_id != user_id,
             )
             .all()
         )
+        match_user_ids = sorted({row.user_id for row in matches})
 
-        if not matches:
+        if not match_user_ids:
             return {"status": "no_match"}
 
-        if len(matches) > 1:
-            conflict_ids = [u.id for u in matches]
+        if len(match_user_ids) > 1:
             db.add(
                 UserMergeEvent(
                     source_user_id=user_id,
-                    target_user_id=conflict_ids[0],
+                    target_user_id=match_user_ids[0],
                     merge_reason="phone_conflict",
                     merge_strategy="auto_by_phone",
                     payload_json=json.dumps(
                         {
                             "phone": normalized_phone,
-                            "conflict_user_ids": conflict_ids,
+                            "conflict_user_ids": match_user_ids,
                             "source": source,
                             "conflict_at": datetime.utcnow().isoformat(),
                         },
@@ -123,9 +131,12 @@ class AccountMergeService:
                     ),
                 )
             )
-            return {"status": "conflict", "conflict_user_ids": conflict_ids}
+            return {"status": "conflict", "conflict_user_ids": match_user_ids}
 
-        other = matches[0]
+        other = db.query(User).filter(User.id == match_user_ids[0], User.is_archived.is_(False)).first()
+        if not other:
+            return {"status": "no_match"}
+
         primary_id, secondary_id = self.merge_users(
             db,
             user_a_id=user_id,

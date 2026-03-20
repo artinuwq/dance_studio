@@ -7,6 +7,8 @@ from types import SimpleNamespace
 import pytest
 
 from dance_studio.core import abonement_notifications
+
+from dance_studio.auth.services.common import normalize_phone_e164
 from dance_studio.web.routes import bookings as bookings_routes
 from dance_studio.web.routes import admin as admin_routes
 from dance_studio.web.constants import ATTENDANCE_INTENTION_LOCKED_MESSAGE
@@ -665,3 +667,10 @@ def test_staff_role_hierarchy_assignment_rules():
     assert admin_routes._can_assign_staff_role_by_roles("владелец", "старший админ") is True
     assert admin_routes._can_assign_staff_role_by_roles("старший админ", "владелец") is False
     assert admin_routes._can_assign_staff_role_by_roles("владелец", "тех. админ") is False
+
+
+def test_normalize_phone_e164_handles_russian_formats():
+    assert normalize_phone_e164("8 (999) 123-45-67") == "+79991234567"
+    assert normalize_phone_e164("9991234567") == "+79991234567"
+    assert normalize_phone_e164("+7 999 123 45 67") == "+79991234567"
+    assert normalize_phone_e164("abc") is None
