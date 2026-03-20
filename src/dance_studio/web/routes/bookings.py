@@ -36,6 +36,7 @@ from dance_studio.db.models import (
     Staff,
     User,
 )
+from dance_studio.auth.services.verification import VerifiedPhoneRequiredError, require_verified_phone, verified_phone_required_payload
 from dance_studio.web.constants import ALLOWED_DIRECTION_TYPES, INACTIVE_SCHEDULE_STATUSES
 from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
 from dance_studio.web.services.api_errors import safe_client_error_message
@@ -576,6 +577,10 @@ def create_booking_request():
     user = get_current_user_from_request(db)
     if not user:
         return {"error": "Authentication required"}, 401
+    try:
+        require_verified_phone(db, user=user)
+    except VerifiedPhoneRequiredError:
+        return verified_phone_required_payload(), 403
 
     object_type = data.get("object_type")
     if object_type not in ["rental", "individual", "group"]:
@@ -1114,6 +1119,10 @@ def create_group_abonement():
     user = get_current_user_from_request(db)
     if not user:
         return {"error": "Authentication required"}, 401
+    try:
+        require_verified_phone(db, user=user)
+    except VerifiedPhoneRequiredError:
+        return verified_phone_required_payload(), 403
 
     raw_group_id = data.get("group_id")
     try:
