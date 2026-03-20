@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#0f0f0f">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="/assets/vk-bridge.min.js"></script>
+<script src="/assets/auth_ui_state.js"></script>
 <style>
 /* ====== БАЗОВАЯ ТЕМНАЯ ПАЛИТРА В СТИЛЕ РЕФЕРЕНСА ====== */
 :root {
@@ -300,6 +301,35 @@ body.tg-mobile .header-back {
 
 .menu-item:active {
   opacity: 0.7;
+}
+.account-banner {
+  margin-top: 14px;
+}
+
+.account-banner-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.auth-methods-list {
+  display: grid;
+  gap: 10px;
+}
+
+.auth-method-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+}
+
+.auth-method-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 /* ====== НИЖНЕЕ МЕНЮ ====== */
@@ -5918,6 +5948,14 @@ textarea.form-input {
 <h3 id="profile-name">—</h3>
 <p class="small" id="profile-username">—</p>
 </div>
+<div class="card account-banner" id="account-verification-banner">
+<div class="account-banner-title">Подтвердите аккаунт</div>
+<p class="small" id="account-verification-banner-text">Объединяйте входы через Telegram, VK и сайт, быстрее восстанавливайте доступ и включайте быстрый вход.</p>
+<div style="display:grid; gap:8px; margin-top:10px;">
+<button class="save-btn" onclick="showPage('profile-info')">Подтвердить номер</button>
+<button class="save-btn" onclick="showPage('profile-settings')">Подключить ещё один способ входа</button>
+</div>
+</div>
 <div class="menu-item" onclick="showPage('profile-info')">📋 Личная информация</div>
 <div class="menu-item" onclick="showPage('profile-abonements')">🎟️ Абонементы</div>
 <div class="menu-item" onclick="showPage('profile-booking-requests')">🧾 Мои заявки</div>
@@ -5961,6 +5999,18 @@ textarea.form-input {
 </div>
 </div>
 <div class="page" data-title="⚙️ Настройки" id="profile-settings">
+<div class="card">
+<h4 style="margin-top:0;">Способы входа</h4>
+<div class="auth-methods-list" id="auth-methods-list"></div>
+<div class="auth-method-actions">
+<button class="save-btn" onclick="handleConnectTelegram()">Подключить Telegram</button>
+<button class="save-btn" onclick="handleConnectVK()">Подключить VK</button>
+<button class="save-btn" onclick="showPage('profile-info')">Подтвердить телефон</button>
+<button class="save-btn" onclick="beginPasskeySetup()">Включить быстрый вход</button>
+<button class="save-btn" onclick="deleteCurrentPasskey()">Удалить passkey</button>
+</div>
+<p class="small" id="auth-state-status" style="margin-top:8px; color:var(--hint);"></p>
+</div>
 <div class="menu-item" onclick="showPage('display-settings')">🖥️ Отображение</div>
 </div>
 <div class="page" data-title="🖥️ Отображение" id="display-settings">
@@ -6714,18 +6764,11 @@ async function ensureAuthSession() {
 }
 
 function getAuthHeaders(extraHeaders = {}) {
-  const debugTelegramId =
-    (typeof localStorage !== 'undefined' && localStorage.getItem('debug_telegram_id')) || '';
-  const telegramId = tg?.initDataUnsafe?.user?.id || debugTelegramId;
   const headers = { ...extraHeaders };
-  if (telegramId) {
-    headers['X-Telegram-Id'] = telegramId;
-  }
   if (tg?.initData) {
     headers['X-TG-Init-Data'] = tg.initData;
     headers['X-Telegram-Init-Data'] = tg.initData;
   }
-  // Нужен sid cookie для защищённых эндпоинтов
   headers['X-Requested-With'] = 'XMLHttpRequest';
   const csrfToken = getCookie('csrf_token');
   if (csrfToken) {
@@ -7349,6 +7392,10 @@ function resetRentalBookingForm() {
 
 function submitRentalBooking() {
   if (rentalBookingState.submitting) return;
+  if (requiresVerifiedPhoneForBooking()) {
+    setRentalBookingMessage(getPhoneVerificationRequiredMessage(), true);
+    return;
+  }
   const dateState = getRentalDateInputState();
   const startMinutes = rentalBookingState.selectedStartMinutes;
   const durationMinutes = rentalBookingState.selectedDurationMinutes;
@@ -8705,6 +8752,10 @@ function setIndividualBookingMessage(text, isError) {
 
 function submitIndividualBooking() {
   const state = individualBookingState;
+  if (requiresVerifiedPhoneForBooking()) {
+    setIndividualBookingMessage(getPhoneVerificationRequiredMessage(), true);
+    return;
+  }
   if (!state.selectedTeacherId) {
     setIndividualBookingMessage('Выберите преподавателя', true);
     return;
@@ -10492,6 +10543,11 @@ function buildSingleGroupBookingPayload(groupId, note) {
 async function submitGroupBookingForm() {
   if (!activeGroupBookingId) {
     showNotification('Группа не выбрана');
+    return;
+  }
+
+  if (requiresVerifiedPhoneForBooking()) {
+    showNotification(getPhoneVerificationRequiredMessage());
     return;
   }
 
@@ -17182,8 +17238,19 @@ function updateStaffNavigation() {
   }
 }
 
-/* ====== ПРОФИЛЬ ИЗ TELEGRAM ====== */
+/* ====== ПРОФИЛЬ И НОВОЕ USER-CENTRIC AUTH STATE ====== */
 const user = tg.initDataUnsafe?.user;
+const AUTH_HINTS_STORAGE_KEY = 'auth_state_snapshot_v2';
+let currentAuthState = {
+  isAuthenticated: false,
+  isLoading: true,
+  currentUser: null,
+  authProvider: null,
+  fallbackAuthMethods: [],
+  manualMergeRequired: false,
+  verifiedPhoneConflict: false,
+  authError: null,
+};
 let currentUserData = null;
 let isStaff = false;
 let profileLoadedPromise = null;
@@ -17207,6 +17274,187 @@ let personalIndividualBookingState = {
   occupancyItems: [],
 };
 
+function getStoredAuthSnapshot() {
+  try {
+    const raw = localStorage.getItem(AUTH_HINTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function persistAuthSnapshot() {
+  try {
+    localStorage.setItem(AUTH_HINTS_STORAGE_KEY, JSON.stringify({
+      currentUser: currentAuthState.currentUser,
+      authProvider: currentAuthState.authProvider,
+      fallbackAuthMethods: currentAuthState.fallbackAuthMethods || [],
+      manualMergeRequired: !!currentAuthState.manualMergeRequired,
+    }));
+  } catch (_) {}
+}
+
+function normalizeBootstrapUser(bootstrapUser, profileData = null) {
+  return window.AuthUiState.normalizeBootstrapUser(bootstrapUser, profileData);
+}
+
+function setAuthState(patch = {}) {
+  currentAuthState = { ...currentAuthState, ...patch };
+  persistAuthSnapshot();
+  renderAuthStateUI();
+}
+
+function getCurrentUserId() {
+  return currentAuthState?.currentUser?.id || currentUserData?.id || null;
+}
+
+function requiresVerifiedPhoneForBooking() {
+  return window.AuthUiState.requiresVerifiedPhoneForBooking(currentAuthState?.currentUser);
+}
+
+function getPhoneVerificationRequiredMessage() {
+  return window.AuthUiState.getPhoneVerificationRequiredMessage();
+}
+
+function renderAuthStateUI() {
+  const banner = document.getElementById('account-verification-banner');
+  const bannerText = document.getElementById('account-verification-banner-text');
+  const methodsList = document.getElementById('auth-methods-list');
+  const statusEl = document.getElementById('auth-state-status');
+  const authUser = currentAuthState.currentUser;
+
+  if (banner && bannerText) {
+    banner.style.display = window.AuthUiState.shouldShowVerificationBanner(authUser) ? '' : 'none';
+    bannerText.textContent = window.AuthUiState.getVerificationBannerText(currentAuthState);
+  }
+
+  if (methodsList) {
+    const rows = window.AuthUiState.getIdentityRows(authUser);
+    methodsList.innerHTML = rows.map(([label, value]) => `
+      <div class="auth-method-row">
+        <div>${label}</div>
+        <div class="small" style="color: var(--hint);">${value}</div>
+      </div>
+    `).join('');
+  }
+
+  if (statusEl) {
+    statusEl.textContent = window.AuthUiState.getAuthStatusText(currentAuthState);
+  }
+}
+
+function applyAuthResponse(payload, provider = null) {
+  const normalized = window.AuthUiState.normalizeAuthResponse(payload, provider);
+  setAuthState({
+    authProvider: normalized.authProvider,
+    fallbackAuthMethods: normalized.fallbackAuthMethods,
+    manualMergeRequired: normalized.manualMergeRequired,
+    verifiedPhoneConflict: normalized.verifiedPhoneConflict,
+    authError: normalized.authError,
+  });
+  if (normalized.message) {
+    showNotification(`⚠️ ${normalized.message}`);
+  }
+}
+
+async function refreshBootstrapAfterAuthChange(action) {
+  if (!window.AuthUiState.shouldRefreshBootstrapAfterAuthAction(action)) return null;
+  return await loadAuthContext();
+}
+
+async function loadAuthContext() {
+  const response = await authFetch('/api/app/bootstrap');
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload?.error || 'Не удалось получить auth context');
+  const currentUser = payload?.user ? normalizeBootstrapUser(payload.user, currentUserData) : null;
+  setAuthState({
+    isAuthenticated: Boolean(payload?.session?.authenticated),
+    isLoading: false,
+    currentUser,
+    fallbackAuthMethods: payload?.fallback_auth_methods || [],
+    manualMergeRequired: Boolean(currentUser?.requires_manual_merge),
+    verifiedPhoneConflict: false,
+    authError: null,
+  });
+  return payload;
+}
+
+function handleConnectTelegram() {
+  showNotification('Откройте приложение через Telegram, чтобы привязать этот способ входа к currentUser.id.');
+}
+
+function handleConnectVK() {
+  showNotification('Откройте приложение через VK Mini App, чтобы привязать этот способ входа к currentUser.id.');
+}
+
+async function beginPasskeySetup() {
+  const currentUserId = getCurrentUserId();
+  if (!currentUserId) {
+    showNotification('⚠️ Сначала войдите в аккаунт');
+    return;
+  }
+  if (!window.PublicKeyCredential || !window.crypto?.subtle) {
+    setAuthState({ fallbackAuthMethods: ['telegram', 'vk', 'phone'] });
+    showNotification('⚠️ Этот браузер не поддерживает passkey. Используйте другой способ входа.');
+    return;
+  }
+  const beginRes = await authFetch('/auth/passkey/register/begin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+  const beginPayload = await beginRes.json().catch(() => ({}));
+  if (!beginRes.ok) {
+    applyAuthResponse(beginPayload, 'passkey');
+    return;
+  }
+
+  const secretBytes = crypto.getRandomValues(new Uint8Array(32));
+  const publicKey = btoa(String.fromCharCode(...secretBytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  const credentialId = `passkey-${currentUserId}-${Date.now()}`;
+  const clientDataJSON = btoa(JSON.stringify({ type: 'webauthn.create', challenge: beginPayload.challenge, origin: beginPayload.origin })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  const attestationObject = btoa(JSON.stringify({ rpId: beginPayload.rp_id, credentialId, publicKey, signCount: 1, deviceName: navigator.userAgent || 'browser', transports: ['internal'] })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+
+  const completeRes = await authFetch('/auth/passkey/register/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      credential: {
+        id: credentialId,
+        type: 'public-key',
+        response: { clientDataJSON, attestationObject },
+      },
+    }),
+  });
+  const completePayload = await completeRes.json().catch(() => ({}));
+  if (!completeRes.ok) {
+    applyAuthResponse(completePayload, 'passkey');
+    return;
+  }
+  await refreshBootstrapAfterAuthChange('passkey_register');
+  showNotification('✅ Быстрый вход включён');
+}
+
+async function deleteCurrentPasskey() {
+  if (!currentAuthState.currentUser?.identities?.passkey?.linked) {
+    showNotification('Passkey пока не настроен');
+    return;
+  }
+  const firstPasskey = currentAuthState.currentUser?.identities?.passkey?.items?.[0];
+  if (!firstPasskey?.credential_id) {
+    showNotification('Не удалось определить passkey для удаления');
+    return;
+  }
+  const response = await authFetch('/auth/passkey/delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ credential_id: firstPasskey.credential_id }),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showNotification(payload?.message || payload?.error || 'Не удалось удалить passkey');
+    return;
+  }
+  await refreshBootstrapAfterAuthChange('passkey_delete');
+  showNotification('Passkey удалён');
+}
+
 function setMainProfileAvatar(photoUrl = '') {
   const avatarEl = document.getElementById('avatar');
   if (!avatarEl) return;
@@ -17227,105 +17475,88 @@ function setMainProfileAvatar(photoUrl = '') {
   }
 }
 
-function updateProfileHeader(data) {
-  if (!data) return;
-  const nameEl = document.getElementById('profile-name');
-  const usernameEl = document.getElementById('profile-username');
-  if (nameEl) nameEl.textContent = data.name || '—';
-
-  const platform = window.platformAdapter?.getPlatform ? window.platformAdapter.getPlatform() : 'web';
-  const providers = data.auth_providers || {};
-  let subline = '—';
-
-  if (platform === 'telegram') {
-    const tgInfo = providers.telegram || {};
-    if (tgInfo.username) {
-      subline = `@${tgInfo.username}`;
-    } else if (tgInfo.id || data.telegram_id) {
-      subline = `Telegram ID: ${tgInfo.id || data.telegram_id}`;
-    }
-  } else if (platform === 'vk') {
-    const vkInfo = providers.vk || {};
-    if (vkInfo.id) {
-      subline = `VK ID: ${vkInfo.id}`;
-    } else if (window.__vkUserInfo?.id) {
-      subline = `VK ID: ${window.__vkUserInfo.id}`;
-    }
-  }
-
-  if (usernameEl) usernameEl.textContent = subline;
+const storedAuthSnapshot = getStoredAuthSnapshot();
+if (storedAuthSnapshot?.currentUser) {
+  currentAuthState.currentUser = storedAuthSnapshot.currentUser;
+  currentAuthState.isAuthenticated = true;
+  currentAuthState.authProvider = storedAuthSnapshot.authProvider || null;
+  currentAuthState.fallbackAuthMethods = storedAuthSnapshot.fallbackAuthMethods || [];
+  currentAuthState.manualMergeRequired = Boolean(storedAuthSnapshot.manualMergeRequired);
 }
 
 if (user) {
   document.getElementById('profile-name').innerText = '—';
   document.getElementById('profile-username').innerText = '—';
   setMainProfileAvatar(user.photo_url || '');
-  
-  // Автоматическая регистрация пользователя
   registerUserIfNeeded(user);
-  
-  // Загружаем данные профиля из БД
-  profileLoadedPromise = loadProfileData().then(() => {
-    if (!user) checkStaffStatus();
-  });
-  
-  // Проверяем, является ли пользователь сотрудником
-  const cachedStaff = getCachedStaffStatus();
-  if (cachedStaff) {
-    isStaff = cachedStaff.isStaff;
-    currentStaffPosition = cachedStaff.position || '';
-    updateStaffNavigation();
-  }
+}
 
+profileLoadedPromise = loadProfileData();
+
+const cachedStaff = getCachedStaffStatus();
+if (cachedStaff) {
+  isStaff = cachedStaff.isStaff;
+  currentStaffPosition = cachedStaff.position || '';
+  updateStaffNavigation();
+}
+
+if (user?.id) {
   checkStaffStatus(user.id);
 }
+renderAuthStateUI();
 
 /* ====== ЗАГРУЗКА ДАННЫХ ПРОФИЛЯ ====== */
 async function loadProfileData() {
   try {
     await authSessionPromise;
-    // Небольшая задержка, чтобы дать время на регистрацию
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const response = await authFetch('/users/me');
-    
-    if (!response.ok) {
-      console.error('Ошибка при загрузке профиля:', response.status);
+    await new Promise(resolve => setTimeout(resolve, 250));
+
+    const [bootstrapResponse, profileResponse] = await Promise.all([
+      authFetch('/api/app/bootstrap'),
+      authFetch('/users/me')
+    ]);
+
+    const bootstrapPayload = await bootstrapResponse.json().catch(() => ({}));
+    const profilePayload = profileResponse.ok ? await profileResponse.json() : null;
+
+    if (!bootstrapResponse.ok || !profileResponse.ok || !profilePayload) {
+      console.error('Ошибка при загрузке профиля:', bootstrapResponse.status, profileResponse.status);
+      applyAuthResponse(bootstrapPayload);
       showNotification('⚠️ Не удалось загрузить профиль. Попробуйте позже.');
       return;
     }
-    
-    const data = await response.json();
-    currentUserData = data;
-    updateProfileHeader(data);
 
-    if (!user) {
-      checkStaffStatus();
-    }
-    
-    console.log('? Профиль загружен:', data);
-    
-    // Заполняем форму данными
-    document.getElementById('profile-input-name').value = data.name || '';
-    document.getElementById('profile-input-phone').value = data.phone || '';
-    document.getElementById('profile-input-birth-date').value = data.birth_date || '';
+    currentUserData = profilePayload;
+    const currentUser = normalizeBootstrapUser(bootstrapPayload.user || {}, profilePayload);
+    setAuthState({
+      isAuthenticated: true,
+      isLoading: false,
+      currentUser,
+      fallbackAuthMethods: bootstrapPayload.fallback_auth_methods || [],
+      manualMergeRequired: Boolean(currentUser.requires_manual_merge),
+      verifiedPhoneConflict: false,
+      authError: null,
+    });
+
+    document.getElementById('profile-name').innerText = profilePayload.name || user?.first_name || '—';
+    document.getElementById('profile-username').innerText = profilePayload.username ? '@' + profilePayload.username : '—';
+    document.getElementById('profile-input-name').value = profilePayload.name || '';
+    document.getElementById('profile-input-phone').value = profilePayload.phone || '';
+    document.getElementById('profile-input-birth-date').value = profilePayload.birth_date || '';
     const userNotesInput = document.getElementById('profile-input-user-notes');
-    if (userNotesInput) userNotesInput.value = data.user_notes || '';
-    document.getElementById('profile-status').innerText = getStatusText(data.status);
-    document.getElementById('profile-registered').innerText = formatDate(data.registered_at);
-    
-    // Загружаем фото если существует
-    if (data.photo_path) {
-      displayProfilePhoto(data.photo_path);
+    if (userNotesInput) userNotesInput.value = profilePayload.user_notes || '';
+    document.getElementById('profile-status').innerText = getStatusText(profilePayload.status);
+    document.getElementById('profile-registered').innerText = formatDate(profilePayload.registered_at);
+
+    if (profilePayload.photo_path) {
+      displayProfilePhoto(profilePayload.photo_path);
     } else {
       setMainProfileAvatar(user?.photo_url || '');
     }
-    
-    // Обновляем информацию на панели персонала
+
     if (isStaff) {
-      displayStaffInfo(data);
+      displayStaffInfo(profilePayload);
     }
-    
   } catch (error) {
     console.error('Ошибка при загрузке профиля:', error);
     showNotification('❌ Ошибка при загрузке профиля');
@@ -21762,22 +21993,18 @@ async function createDirectionUploadSessionFromForm() {
     return;
   }
   
-  // Получаем Telegram ID админа
-  const telegramUserId =
-    tg?.initDataUnsafe?.user?.id ||
-    ((typeof localStorage !== 'undefined' && localStorage.getItem('debug_telegram_id')) || '');
-  if (!telegramUserId) {
-    showDirectionError('Не удалось получить telegram_id (откройте WebApp в Telegram или задайте debug_telegram_id)');
+  const currentUserId = getCurrentUserId();
+  if (!currentUserId) {
+    showDirectionError('Не удалось определить currentUser.id. Авторизуйтесь заново.');
     return null;
   }
   
   try {
-    // Создаем сессию на сервере
     const response = await authFetch('/api/directions/create-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        telegram_user_id: telegramUserId,
+        user_id: currentUserId,
         title: title,
         direction_type: directionType,
         description: description,
@@ -23061,7 +23288,11 @@ window.platformAdapter = (function () {
   async function authBootstrap() {
     const platform = getPlatform();
     if (platform === 'telegram' && window.Telegram?.WebApp?.initData) {
-      await fetch('/auth/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ init_data: window.Telegram.WebApp.initData }) });
+      const response = await fetch('/auth/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ init_data: window.Telegram.WebApp.initData }) });
+      const payload = await response.json().catch(() => ({}));
+      applyAuthResponse(payload, 'telegram');
+      if (response.ok) await refreshBootstrapAfterAuthChange(payload?.linked ? 'telegram_link' : 'telegram_login');
+      return payload;
     }
     if (platform === 'vk') {
       const params = new URLSearchParams(window.location.search);
@@ -23077,14 +23308,21 @@ window.platformAdapter = (function () {
           console.warn('VKWebAppGetUserInfo failed', e);
         }
         const payload = {
+          sign: params.get('sign') || '',
+          vk_ts: params.get('vk_ts') || '',
           vk_user_id: vkUserId,
           screen_name: userInfo?.screen_name,
           vk_username: userInfo?.first_name && userInfo?.last_name ? `${userInfo.first_name} ${userInfo.last_name}` : undefined,
           name: userInfo?.first_name && userInfo?.last_name ? `${userInfo.first_name} ${userInfo.last_name}` : undefined,
         };
-        await fetch('/auth/vk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const response = await fetch('/auth/vk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) });
+        const authPayload = await response.json().catch(() => ({}));
+        applyAuthResponse(authPayload, 'vk');
+        if (response.ok) await refreshBootstrapAfterAuthChange(authPayload?.linked ? 'vk_link' : 'vk_login');
+        return authPayload;
       }
     }
+    return loadAuthContext();
   }
   function sendHaptic(type = 'impact') {
     if (getPlatform() === 'telegram' && window.Telegram?.WebApp?.HapticFeedback) {
@@ -23110,9 +23348,8 @@ window.platformAdapter = (function () {
     document.body.classList.toggle('vk-app', platform === 'vk');
     document.body.classList.toggle('tg-app', platform === 'telegram');
     await window.platformAdapter.authBootstrap();
-    if (platform === 'vk') {
-      try { await loadProfileData(); } catch (e) { console.warn('VK profile load failed', e); }
-    }
+    await loadAuthContext();
+    try { await loadProfileData(); } catch (e) { console.warn('Profile load failed', e); }
   } catch (e) {
     console.warn('platform bootstrap failed', e);
   }
