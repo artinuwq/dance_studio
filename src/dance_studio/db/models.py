@@ -30,7 +30,7 @@ class User(Base):
     preferred_notification_channel = Column(String(32), nullable=True)
     last_login_at = Column(DateTime, nullable=True)
 
-
+    staff_profile = relationship("Staff", back_populates="user", uselist=False)
 
 
 class SessionRecord(Base):
@@ -76,6 +76,7 @@ class Staff(Base):
     phone = Column(String, nullable=True)
     email = Column(String, nullable=True)
     telegram_id = Column(BigInteger, nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     # Должности:
     # - "тех. админ" - Технический администратор, все права
     # - "учитель" - Может отменять/переносить занятия, арендовать зал
@@ -89,6 +90,8 @@ class Staff(Base):
     status = Column(String, default="active")  # active, on_leave, dismissed
     created_at = Column(DateTime, default=datetime.now, nullable=False)
     
+    user = relationship("User", back_populates="staff_profile", foreign_keys=[user_id])
+
     # Отношение к расписанию
     schedules = relationship("Schedule", back_populates="teacher_staff", foreign_keys="Schedule.teacher_id")
 
