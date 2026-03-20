@@ -108,8 +108,9 @@ def test_booking_requests_require_verified_phone(app, session_factory):
 
     assert response.status_code == 403
     assert response.get_json() == {
-        "error": "Подтвердите номер телефона в профиле перед отправкой заявки",
-        "code": "phone_verification_required",
+        "error": "phone_verification_required",
+        "message": "Ваш аккаунт не подтверждён",
+        "action": "verify_phone",
     }
 
 

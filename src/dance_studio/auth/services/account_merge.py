@@ -154,6 +154,10 @@ class AccountMergeService:
                 target_user_id=primary_id,
                 merge_reason=reason,
                 merge_strategy=strategy,
+                case_status="resolved",
+                conflict_source=reason,
+                review_result="approved" if reason.startswith("manual_") else None,
+                resolved_at=datetime.utcnow(),
                 payload_json=json.dumps({"merged_at": datetime.utcnow().isoformat()}, ensure_ascii=False),
             )
         )
@@ -204,6 +208,8 @@ class AccountMergeService:
                         target_user_id=match_user_ids[0],
                         merge_reason="phone_conflict",
                         merge_strategy="auto_by_phone",
+                        case_status="pending_review",
+                        conflict_source=source,
                         payload_json=json.dumps(
                             {
                                 "phone": normalized_phone,
@@ -232,6 +238,8 @@ class AccountMergeService:
                         target_user_id=other.id,
                         merge_reason="manual_merge_required",
                         merge_strategy="auto_by_phone_blocked",
+                        case_status="pending_review",
+                        conflict_source=source,
                         payload_json=json.dumps({"phone": normalized_phone, "source": source}, ensure_ascii=False),
                     )
                 )
@@ -263,3 +271,75 @@ class AccountMergeService:
                 "primary_user_id": primary_id,
                 "secondary_user_id": secondary_id,
             }
+
+    def list_pending_merge_cases(self, db) -> list[UserMergeEvent]:
+        return (
+            db.query(UserMergeEvent)
+            .filter(UserMergeEvent.case_status == "pending_review")
+            .order_by(UserMergeEvent.created_at.asc(), UserMergeEvent.id.asc())
+            .all()
+        )
+
+    def get_merge_case(self, db, *, event_id: int) -> UserMergeEvent | None:
+        return db.query(UserMergeEvent).filter(UserMergeEvent.id == event_id).first()
+
+    def review_merge_case(
+        self,
+        db,
+        *,
+        event_id: int,
+        decision: str,
+        reviewed_by: int,
+        reason: str | None = None,
+    ) -> UserMergeEvent | None:
+        event = self.get_merge_case(db, event_id=event_id)
+        if not event:
+            return None
+
+        now = datetime.utcnow()
+        event.reviewed_by = reviewed_by
+        event.reviewed_at = now
+
+        if decision == "approve":
+            primary_id, secondary_id = self.merge_users(
+                db,
+                user_a_id=event.source_user_id,
+                user_b_id=event.target_user_id,
+                reason="manual_review_approved",
+                strategy="manual_review",
+            )
+            event.case_status = "resolved"
+            event.review_result = "approved"
+            event.resolved_at = now
+            event.payload_json = json.dumps(
+                {
+                    "decision_reason": reason,
+                    "primary_user_id": primary_id,
+                    "secondary_user_id": secondary_id,
+                    "reviewed_at": now.isoformat(),
+                },
+                ensure_ascii=False,
+            )
+            return event
+
+        if decision == "reject":
+            event.case_status = "resolved"
+            event.review_result = "rejected"
+            event.resolved_at = now
+            event.payload_json = json.dumps(
+                {"decision_reason": reason, "reviewed_at": now.isoformat()},
+                ensure_ascii=False,
+            )
+            return event
+
+        if decision == "ignore":
+            event.case_status = "ignored"
+            event.review_result = "ignored"
+            event.resolved_at = now
+            event.payload_json = json.dumps(
+                {"decision_reason": reason, "reviewed_at": now.isoformat()},
+                ensure_ascii=False,
+            )
+            return event
+
+        raise ValueError("unsupported_merge_review_decision")

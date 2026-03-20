@@ -167,10 +167,10 @@ def test_admin_endpoints_require_admin(app, session_factory):
         db.close()
 
     admin_client = app.test_client()
-    admin_client.set_cookie("localhost", "sid", admin_sid)
+    admin_client.set_cookie("sid", admin_sid)
 
     non_admin_client = app.test_client()
-    non_admin_client.set_cookie("localhost", "sid", non_admin_sid)
+    non_admin_client.set_cookie("sid", non_admin_sid)
 
     for rule, method in _iter_rules(app):
         if not rule.rule.startswith("/api/admin/"):

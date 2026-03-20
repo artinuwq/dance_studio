@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#0f0f0f">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="/assets/vk-bridge.min.js"></script>
+<script src="/assets/auth_ui_state.js"></script>
 <style>
 /* ====== БАЗОВАЯ ТЕМНАЯ ПАЛИТРА В СТИЛЕ РЕФЕРЕНСА ====== */
 :root {
@@ -17291,22 +17292,7 @@ function persistAuthSnapshot() {
 }
 
 function normalizeBootstrapUser(bootstrapUser, profileData = null) {
-  const authMethods = Array.isArray(bootstrapUser?.auth_methods) ? bootstrapUser.auth_methods : [];
-  const identities = bootstrapUser?.identities || {};
-  return {
-    id: String(bootstrapUser?.id ?? profileData?.id ?? ''),
-    phone_verified: Boolean(bootstrapUser?.phone_verified),
-    requires_manual_merge: Boolean(bootstrapUser?.requires_manual_merge),
-    auth_methods: authMethods,
-    identities: {
-      telegram: { linked: Boolean(identities?.telegram?.linked) },
-      vk: { linked: Boolean(identities?.vk?.linked) },
-      passkey: { linked: Boolean(identities?.passkey?.linked), count: Number(identities?.passkey?.count || 0) },
-      phone: { linked: Boolean(identities?.phone?.linked), verified: Boolean(identities?.phone?.verified) },
-    },
-    profile: profileData || null,
-    legacy: bootstrapUser?.legacy || {},
-  };
+  return window.AuthUiState.normalizeBootstrapUser(bootstrapUser, profileData);
 }
 
 function setAuthState(patch = {}) {
@@ -17320,11 +17306,11 @@ function getCurrentUserId() {
 }
 
 function requiresVerifiedPhoneForBooking() {
-  return !Boolean(currentAuthState?.currentUser?.phone_verified);
+  return window.AuthUiState.requiresVerifiedPhoneForBooking(currentAuthState?.currentUser);
 }
 
 function getPhoneVerificationRequiredMessage() {
-  return 'Сначала подтвердите номер телефона в профиле, затем отправляйте заявку.';
+  return window.AuthUiState.getPhoneVerificationRequiredMessage();
 }
 
 function renderAuthStateUI() {
@@ -17335,25 +17321,12 @@ function renderAuthStateUI() {
   const authUser = currentAuthState.currentUser;
 
   if (banner && bannerText) {
-    const needsVerification = !authUser?.phone_verified || !authUser?.identities?.passkey?.linked;
-    banner.style.display = needsVerification ? '' : 'none';
-    if (currentAuthState.manualMergeRequired) {
-      bannerText.textContent = 'Аккаунт требует ручной проверки перед объединением. Используйте другой способ входа или обратитесь в поддержку.';
-    } else if (currentAuthState.verifiedPhoneConflict) {
-      bannerText.textContent = 'По подтверждённому номеру найден конфликт. Выберите другой способ входа или напишите в поддержку.';
-    } else {
-      bannerText.textContent = 'Объединяйте входы через Telegram, VK и сайт, быстрее восстанавливайте доступ и включайте быстрый вход.';
-    }
+    banner.style.display = window.AuthUiState.shouldShowVerificationBanner(authUser) ? '' : 'none';
+    bannerText.textContent = window.AuthUiState.getVerificationBannerText(currentAuthState);
   }
 
   if (methodsList) {
-    const identities = authUser?.identities || {};
-    const rows = [
-      ['Telegram', identities.telegram?.linked ? 'подключён' : 'не подключён'],
-      ['VK', identities.vk?.linked ? 'подключён' : 'не подключён'],
-      ['Телефон', identities.phone?.verified ? 'подтверждён' : 'не подтверждён'],
-      ['Passkey', identities.passkey?.linked ? `настроен${identities.passkey?.count ? ` (${identities.passkey.count})` : ''}` : 'не настроен'],
-    ];
+    const rows = window.AuthUiState.getIdentityRows(authUser);
     methodsList.innerHTML = rows.map(([label, value]) => `
       <div class="auth-method-row">
         <div>${label}</div>
@@ -17363,33 +17336,27 @@ function renderAuthStateUI() {
   }
 
   if (statusEl) {
-    if (currentAuthState.manualMergeRequired) {
-      statusEl.textContent = 'manual_merge_required — для продолжения используйте поддержку или альтернативный вход.';
-    } else if (currentAuthState.verifiedPhoneConflict) {
-      statusEl.textContent = 'verified_phone_conflict — попробуйте другой способ входа.';
-    } else if (currentAuthState.fallbackAuthMethods?.length) {
-      statusEl.textContent = `Доступные способы входа: ${currentAuthState.fallbackAuthMethods.join(', ')}`;
-    } else {
-      statusEl.textContent = authUser?.id ? `Текущий пользователь: #${authUser.id}` : '';
-    }
+    statusEl.textContent = window.AuthUiState.getAuthStatusText(currentAuthState);
   }
 }
 
 function applyAuthResponse(payload, provider = null) {
-  const authError = payload?.error || null;
-  const fallbackAuthMethods = Array.isArray(payload?.fallback_auth_methods) ? payload.fallback_auth_methods : [];
+  const normalized = window.AuthUiState.normalizeAuthResponse(payload, provider);
   setAuthState({
-    authProvider: provider,
-    fallbackAuthMethods,
-    manualMergeRequired: authError === 'manual_merge_required',
-    verifiedPhoneConflict: authError === 'verified_phone_conflict',
-    authError,
+    authProvider: normalized.authProvider,
+    fallbackAuthMethods: normalized.fallbackAuthMethods,
+    manualMergeRequired: normalized.manualMergeRequired,
+    verifiedPhoneConflict: normalized.verifiedPhoneConflict,
+    authError: normalized.authError,
   });
-  if (authError === 'manual_merge_required') {
-    showNotification('⚠️ Аккаунт требует ручной проверки перед объединением.');
-  } else if (authError === 'verified_phone_conflict') {
-    showNotification('⚠️ Найден конфликт по подтверждённому номеру телефона.');
+  if (normalized.message) {
+    showNotification(`⚠️ ${normalized.message}`);
   }
+}
+
+async function refreshBootstrapAfterAuthChange(action) {
+  if (!window.AuthUiState.shouldRefreshBootstrapAfterAuthAction(action)) return null;
+  return await loadAuthContext();
 }
 
 async function loadAuthContext() {
@@ -17423,7 +17390,7 @@ async function beginPasskeySetup() {
     showNotification('⚠️ Сначала войдите в аккаунт');
     return;
   }
-  if (!window.PublicKeyCredential) {
+  if (!window.PublicKeyCredential || !window.crypto?.subtle) {
     setAuthState({ fallbackAuthMethods: ['telegram', 'vk', 'phone'] });
     showNotification('⚠️ Этот браузер не поддерживает passkey. Используйте другой способ входа.');
     return;
@@ -17434,18 +17401,30 @@ async function beginPasskeySetup() {
     applyAuthResponse(beginPayload, 'passkey');
     return;
   }
+
+  const secretBytes = crypto.getRandomValues(new Uint8Array(32));
+  const publicKey = btoa(String.fromCharCode(...secretBytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   const credentialId = `passkey-${currentUserId}-${Date.now()}`;
+  const clientDataJSON = btoa(JSON.stringify({ type: 'webauthn.create', challenge: beginPayload.challenge, origin: beginPayload.origin })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  const attestationObject = btoa(JSON.stringify({ rpId: beginPayload.rp_id, credentialId, publicKey, signCount: 1, deviceName: navigator.userAgent || 'browser', transports: ['internal'] })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+
   const completeRes = await authFetch('/auth/passkey/register/complete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ credential_id: credentialId, public_key: 'browser-passkey-placeholder', device_name: navigator.userAgent || 'browser', transports: ['internal'] }),
+    body: JSON.stringify({
+      credential: {
+        id: credentialId,
+        type: 'public-key',
+        response: { clientDataJSON, attestationObject },
+      },
+    }),
   });
   const completePayload = await completeRes.json().catch(() => ({}));
   if (!completeRes.ok) {
     applyAuthResponse(completePayload, 'passkey');
     return;
   }
-  await loadAuthContext();
+  await refreshBootstrapAfterAuthChange('passkey_register');
   showNotification('✅ Быстрый вход включён');
 }
 
@@ -17454,18 +17433,22 @@ async function deleteCurrentPasskey() {
     showNotification('Passkey пока не настроен');
     return;
   }
-  const credentialId = `passkey-${getCurrentUserId()}`;
+  const firstPasskey = currentAuthState.currentUser?.identities?.passkey?.items?.[0];
+  if (!firstPasskey?.credential_id) {
+    showNotification('Не удалось определить passkey для удаления');
+    return;
+  }
   const response = await authFetch('/auth/passkey/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ credential_id: credentialId }),
+    body: JSON.stringify({ credential_id: firstPasskey.credential_id }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    showNotification(payload?.error || 'Не удалось удалить passkey');
+    showNotification(payload?.message || payload?.error || 'Не удалось удалить passkey');
     return;
   }
-  await loadAuthContext();
+  await refreshBootstrapAfterAuthChange('passkey_delete');
   showNotification('Passkey удалён');
 }
 
@@ -23304,6 +23287,7 @@ window.platformAdapter = (function () {
       const response = await fetch('/auth/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ init_data: window.Telegram.WebApp.initData }) });
       const payload = await response.json().catch(() => ({}));
       applyAuthResponse(payload, 'telegram');
+      if (response.ok) await refreshBootstrapAfterAuthChange(payload?.linked ? 'telegram_link' : 'telegram_login');
       return payload;
     }
     if (platform === 'vk') {
@@ -23329,6 +23313,7 @@ window.platformAdapter = (function () {
         const response = await fetch('/auth/vk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) });
         const authPayload = await response.json().catch(() => ({}));
         applyAuthResponse(authPayload, 'vk');
+        if (response.ok) await refreshBootstrapAfterAuthChange(authPayload?.linked ? 'vk_link' : 'vk_login');
         return authPayload;
       }
     }

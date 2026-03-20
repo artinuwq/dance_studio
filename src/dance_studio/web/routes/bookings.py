@@ -26,7 +26,6 @@ from dance_studio.core.statuses import (
     normalize_booking_status,
 )
 from dance_studio.db.models import (
-    AuthIdentity,
     BookingRequest,
     Direction,
     Group,
@@ -36,8 +35,8 @@ from dance_studio.db.models import (
     Schedule,
     Staff,
     User,
-    UserPhone,
 )
+from dance_studio.auth.services.verification import VerifiedPhoneRequiredError, require_verified_phone, verified_phone_required_payload
 from dance_studio.web.constants import ALLOWED_DIRECTION_TYPES, INACTIVE_SCHEDULE_STATUSES
 from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
 from dance_studio.web.services.api_errors import safe_client_error_message
@@ -60,41 +59,6 @@ from dance_studio.web.services.payments import (
 )
 from dance_studio.web.services.studio_rules import interval_overlaps_service_break
 bp = Blueprint('bookings_routes', __name__)
-
-
-def _user_has_verified_phone_or_identity(db, user: User | None) -> bool:
-    if not user or not getattr(user, "id", None):
-        return False
-    if getattr(user, "phone_verified_at", None):
-        return True
-    verified_phone_exists = (
-        db.query(UserPhone.id)
-        .filter(UserPhone.user_id == user.id, UserPhone.verified_at.isnot(None))
-        .first()
-        is not None
-    )
-    if verified_phone_exists:
-        return True
-    verified_phone_identity_exists = (
-        db.query(AuthIdentity.id)
-        .filter(
-            AuthIdentity.user_id == user.id,
-            AuthIdentity.provider == "phone",
-            AuthIdentity.is_verified.is_(True),
-        )
-        .first()
-        is not None
-    )
-    return verified_phone_identity_exists
-
-
-def _require_verified_phone_gate(db, user: User | None):
-    if _user_has_verified_phone_or_identity(db, user):
-        return None
-    return {
-        "error": "Подтвердите номер телефона в профиле перед отправкой заявки",
-        "code": "phone_verification_required",
-    }, 403
 
 
 def _send_group_chat_message(chat_id: int | None, text: str) -> tuple[bool, str | None]:
@@ -613,9 +577,10 @@ def create_booking_request():
     user = get_current_user_from_request(db)
     if not user:
         return {"error": "Authentication required"}, 401
-    verification_error = _require_verified_phone_gate(db, user)
-    if verification_error:
-        return verification_error
+    try:
+        require_verified_phone(db, user=user)
+    except VerifiedPhoneRequiredError:
+        return verified_phone_required_payload(), 403
 
     object_type = data.get("object_type")
     if object_type not in ["rental", "individual", "group"]:
@@ -1154,9 +1119,10 @@ def create_group_abonement():
     user = get_current_user_from_request(db)
     if not user:
         return {"error": "Authentication required"}, 401
-    verification_error = _require_verified_phone_gate(db, user)
-    if verification_error:
-        return verification_error
+    try:
+        require_verified_phone(db, user=user)
+    except VerifiedPhoneRequiredError:
+        return verified_phone_required_payload(), 403
 
     raw_group_id = data.get("group_id")
     try:

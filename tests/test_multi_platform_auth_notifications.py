@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
+import json
+import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
@@ -10,11 +13,14 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+os.environ.setdefault("APP_SECRET_KEY", "test-secret")
+os.environ.setdefault("DATABASE_URL", "sqlite://")
+
 import dance_studio.db as db_module
 import dance_studio.web.middleware.auth as auth_middleware
 from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.auth.services.common import ensure_user_phone, get_or_create_identity
-from dance_studio.db.models import AuthIdentity, Base, PasskeyCredential, SessionRecord, User, UserMergeEvent, UserPhone
+from dance_studio.db.models import AuthIdentity, Base, PasskeyChallenge, PasskeyCredential, SessionRecord, Staff, User, UserMergeEvent, UserPhone
 from dance_studio.web.app import create_app
 from dance_studio.web.services.auth_session import _sid_hash
 
@@ -68,6 +74,23 @@ def _vk_payload(**overrides):
     base = "&".join(f"{key}={payload[key]}" for key in sorted(payload)) + "test-secret"
     payload["sign"] = hashlib.md5(base.encode("utf-8")).hexdigest()
     return payload
+
+
+def _b64url_json(payload: dict) -> str:
+    import base64
+
+    return base64.urlsafe_b64encode(json.dumps(payload).encode("utf-8")).rstrip(b"=").decode("ascii")
+
+
+def _passkey_signature(public_key: str, authenticator_data: str, client_data_json: str) -> str:
+    import base64
+
+    digest = hmac.new(
+        public_key.encode("utf-8"),
+        f"{authenticator_data}.{client_data_json}".encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
 def test_auth_vk_and_phone_flow(app, session_factory, monkeypatch):
@@ -128,27 +151,79 @@ def test_passkey_register_duplicate_delete_and_login(app, session_factory):
 
     begin = client.post("/auth/passkey/register/begin", json={})
     assert begin.status_code == 200
-    assert begin.get_json()["status"] == "ok"
-    assert begin.get_json()["fallback_auth_methods"] == ["telegram", "vk", "phone"]
+    begin_payload = begin.get_json()
+    assert begin_payload["status"] == "ok"
+    assert begin_payload["fallback_auth_methods"] == ["telegram", "vk", "phone"]
+    assert begin_payload["publicKey"]["rp"]["id"] == "localhost"
+
+    client_data_json = _b64url_json(
+        {"type": "webauthn.create", "challenge": begin_payload["challenge"], "origin": begin_payload["origin"]}
+    )
+    attestation_object = _b64url_json(
+        {
+            "rpId": begin_payload["rp_id"],
+            "credentialId": "cred-1",
+            "publicKey": "pk-1",
+            "signCount": 1,
+            "transports": ["internal"],
+            "deviceName": "Browser Passkey",
+        }
+    )
 
     complete = client.post(
         "/auth/passkey/register/complete",
-        json={"credential_id": "cred-1", "public_key": "pk-1", "transports": ["internal"]},
+        json={"credential": {"id": "cred-1", "type": "public-key", "response": {"clientDataJSON": client_data_json, "attestationObject": attestation_object}}},
     )
     assert complete.status_code == 200
 
+    duplicate_begin = client.post("/auth/passkey/register/begin", json={})
+    duplicate_payload = duplicate_begin.get_json()
     duplicate = client.post(
         "/auth/passkey/register/complete",
-        json={"credential_id": "cred-1", "public_key": "pk-1", "transports": ["internal"]},
+        json={
+            "credential": {
+                "id": "cred-1",
+                "type": "public-key",
+                "response": {
+                    "clientDataJSON": _b64url_json({"type": "webauthn.create", "challenge": duplicate_payload["challenge"], "origin": duplicate_payload["origin"]}),
+                    "attestationObject": _b64url_json({"rpId": duplicate_payload["rp_id"], "credentialId": "cred-1", "publicKey": "pk-1", "signCount": 2}),
+                },
+            }
+        },
     )
     assert duplicate.status_code == 400
     assert duplicate.get_json()["error"] == "duplicate_passkey"
 
-    login = client.post("/auth/passkey/login/complete", json={"credential_id": "cred-1", "sign_count": 1})
+    listed = client.get("/auth/passkeys")
+    assert listed.status_code == 200
+    assert listed.get_json()["items"][0]["credential_id"] == "cred-1"
+
+    login_begin = client.post("/auth/passkey/login/begin", json={})
+    assert login_begin.status_code == 200
+    login_begin_payload = login_begin.get_json()
+    login_client_data = _b64url_json(
+        {"type": "webauthn.get", "challenge": login_begin_payload["challenge"], "origin": login_begin_payload["origin"]}
+    )
+    authenticator_data = _b64url_json({"rpId": login_begin_payload["rp_id"], "signCount": 2, "userPresent": True})
+    signature = _passkey_signature("pk-1", authenticator_data, login_client_data)
+    login = client.post(
+        "/auth/passkey/login/complete",
+        json={"credential": {"id": "cred-1", "type": "public-key", "response": {"clientDataJSON": login_client_data, "authenticatorData": authenticator_data, "signature": signature}}},
+    )
     assert login.status_code == 200
     assert login.get_json()["user_id"] == user.id
 
-    bad_counter = client.post("/auth/passkey/login/complete", json={"credential_id": "cred-1", "sign_count": 0})
+    bad_login_begin = client.post("/auth/passkey/login/begin", json={})
+    bad_begin_payload = bad_login_begin.get_json()
+    bad_client_data = _b64url_json(
+        {"type": "webauthn.get", "challenge": bad_begin_payload["challenge"], "origin": bad_begin_payload["origin"]}
+    )
+    bad_authenticator_data = _b64url_json({"rpId": bad_begin_payload["rp_id"], "signCount": 1, "userPresent": True})
+    bad_signature = _passkey_signature("pk-1", bad_authenticator_data, bad_client_data)
+    bad_counter = client.post(
+        "/auth/passkey/login/complete",
+        json={"credential": {"id": "cred-1", "type": "public-key", "response": {"clientDataJSON": bad_client_data, "authenticatorData": bad_authenticator_data, "signature": bad_signature}}},
+    )
     assert bad_counter.status_code == 400
     assert bad_counter.get_json()["fallback_auth_methods"] == ["telegram", "vk", "phone"]
 
@@ -158,6 +233,7 @@ def test_passkey_register_duplicate_delete_and_login(app, session_factory):
     db.expire_all()
     cred = db.query(PasskeyCredential).filter(PasskeyCredential.credential_id == "cred-1").first()
     assert cred is None
+    assert db.query(PasskeyChallenge).count() >= 1
 
 
 def test_multiple_phones_switches_primary(session_factory):
@@ -305,6 +381,10 @@ def test_app_bootstrap_returns_user_centric_contract(app, session_factory):
     assert payload['user']['phone_verified'] is True
     assert payload['user']['identities']['telegram']['linked'] is True
     assert payload['user']['identities']['passkey']['count'] == 1
+    assert payload['user']['identities']['passkey']['items'][0]['credential_id'] == 'bootstrap-passkey'
+    assert payload['user']['deprecated']['legacy_user_fields']['telegram_id'] == 321321
+    assert payload['feature_flags']['passkey_scaffold'] is False
+    assert payload['feature_flags']['passkey_webauthn'] is True
 
 def test_notifications_preferences_and_web_push(app, session_factory):
     db = session_factory()
@@ -339,3 +419,60 @@ def test_account_merge_preview_and_confirm(app, session_factory):
 
     confirm = client.post("/api/account/merge/confirm", json={"user_a_id": u1.id, "user_b_id": u2.id, "reason": "test"})
     assert confirm.status_code == 200
+
+
+def test_vk_link_flow_returns_link_contract_and_bootstrap_updates(app, session_factory, monkeypatch):
+    monkeypatch.setattr("dance_studio.auth.providers.vk.APP_SECRET_KEY", "test-secret")
+    db = session_factory()
+    user = User(name="Link Me", telegram_id=40001)
+    db.add(user)
+    db.commit()
+
+    client = app.test_client()
+    _login_by_session(client, db, user.id, telegram_id=user.telegram_id)
+
+    response = client.post("/auth/vk", json=_vk_payload(vk_user_id="link-55", name="VK Link User"))
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["linked"] is True
+    assert payload["provider"] == "vk"
+    assert payload["user_id"] == user.id
+    assert payload["identities"]["vk"]["linked"] is True
+
+    bootstrap = client.get("/api/app/bootstrap")
+    assert bootstrap.status_code == 200
+    assert bootstrap.get_json()["user"]["identities"]["vk"]["linked"] is True
+
+
+def test_manual_merge_queue_admin_review_flow(app, session_factory):
+    db = session_factory()
+    staff = Staff(name="Manager", telegram_id=50001, position="владелец", status="active")
+    source = User(name="Merge Source")
+    target = User(name="Merge Target", requires_manual_merge=True)
+    db.add_all([staff, source, target])
+    db.commit()
+    db.add(UserPhone(user_id=target.id, phone_e164="+79997770000", verified_at=datetime.utcnow(), source="sms", is_primary=True))
+    db.commit()
+
+    AccountMergeService().try_merge_by_phone(db, user_id=source.id, phone="+79997770000", source="review_test")
+    db.commit()
+    event = db.query(UserMergeEvent).order_by(UserMergeEvent.id.desc()).first()
+    assert event.case_status == "pending_review"
+
+    client = app.test_client()
+    _login_by_session(client, db, source.id, telegram_id=staff.telegram_id)
+
+    listing = client.get("/api/admin/manual-merge-cases")
+    assert listing.status_code == 200
+    listed_ids = {item["id"] for item in listing.get_json()["items"]}
+    assert event.id in listed_ids
+
+    details = client.get(f"/api/admin/manual-merge-cases/{event.id}")
+    assert details.status_code == 200
+    assert details.get_json()["case_status"] == "pending_review"
+
+    review = client.post(f"/api/admin/manual-merge-cases/{event.id}/review", json={"decision": "ignore", "reason": "False positive"})
+    assert review.status_code == 200
+    reviewed_case = review.get_json()["case"]
+    assert reviewed_case["review_result"] == "ignored"
+    assert reviewed_case["case_status"] == "ignored"

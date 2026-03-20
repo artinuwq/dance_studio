@@ -3,13 +3,14 @@ from __future__ import annotations
 from flask import Blueprint, g, request
 
 from dance_studio.auth.services.account_merge import AccountMergeService
+from dance_studio.auth.services.bootstrap import AVAILABLE_AUTH_METHODS, auth_feature_flags, build_user_auth_contract
+from dance_studio.web.services.access import _get_current_staff, require_permission
 from dance_studio.db.models import (
-    AuthIdentity,
     NotificationChannel,
     NotificationPreference,
-    PasskeyCredential,
+    Staff,
     User,
-    UserPhone,
+    UserMergeEvent,
     WebPushSubscription,
 )
 from dance_studio.notifications.services.notification_service import NotificationService
@@ -17,53 +18,50 @@ from dance_studio.notifications.services.notification_service import Notificatio
 bp = Blueprint("platform_api_routes", __name__, url_prefix="/api")
 
 
+def _serialize_merge_case(db, event: UserMergeEvent) -> dict:
+    reviewer = db.query(Staff).filter(Staff.id == event.reviewed_by).first() if event.reviewed_by else None
+    return {
+        "id": event.id,
+        "source_user_id": event.source_user_id,
+        "target_user_id": event.target_user_id,
+        "merge_reason": event.merge_reason,
+        "merge_strategy": event.merge_strategy,
+        "case_status": event.case_status,
+        "conflict_source": event.conflict_source,
+        "reviewed_by": event.reviewed_by,
+        "reviewed_by_name": reviewer.name if reviewer else None,
+        "reviewed_at": event.reviewed_at.isoformat() if event.reviewed_at else None,
+        "review_result": event.review_result,
+        "resolved_at": event.resolved_at.isoformat() if event.resolved_at else None,
+        "payload_json": event.payload_json,
+        "created_at": event.created_at.isoformat() if event.created_at else None,
+    }
+
+
 @bp.route("/app/bootstrap", methods=["GET"])
 def app_bootstrap():
     db = g.db
     user_id = getattr(g, "user_id", None)
-    available_auth_methods = ["telegram", "vk", "phone", "passkey"]
     if not user_id:
         return {
             "session": {"authenticated": False},
             "user": None,
             "platform": request.args.get("platform", "web"),
-            "auth_methods": available_auth_methods,
-            "fallback_auth_methods": available_auth_methods,
+            "auth_methods": AVAILABLE_AUTH_METHODS,
+            "fallback_auth_methods": AVAILABLE_AUTH_METHODS,
             "channels": [],
             "preferences": [],
-            "feature_flags": {"passkey_scaffold": True},
+            "feature_flags": auth_feature_flags(),
         }
 
     user = db.query(User).filter(User.id == user_id).first()
     channels = db.query(NotificationChannel).filter(NotificationChannel.user_id == user_id).all()
     prefs = db.query(NotificationPreference).filter(NotificationPreference.user_id == user_id).all()
-    identities = db.query(AuthIdentity).filter(AuthIdentity.user_id == user_id).all()
-    passkeys = db.query(PasskeyCredential).filter(PasskeyCredential.user_id == user_id).all()
-    phones = db.query(UserPhone).filter(UserPhone.user_id == user_id).all()
-    auth_methods = sorted({identity.provider for identity in identities if identity.provider} | ({"passkey"} if passkeys else set()))
-    phone_verified = any(phone.verified_at is not None for phone in phones)
     return {
         "session": {"authenticated": True},
-        "user": {
-            "id": user.id,
-            "name": user.name,
-            "phone_verified": phone_verified,
-            "requires_manual_merge": bool(user.requires_manual_merge),
-            "auth_methods": auth_methods,
-            "identities": {
-                "telegram": {"linked": any(identity.provider == "telegram" for identity in identities)},
-                "vk": {"linked": any(identity.provider == "vk" for identity in identities)},
-                "phone": {"linked": any(identity.provider == "phone" for identity in identities), "verified": phone_verified},
-                "passkey": {"linked": bool(passkeys), "count": len(passkeys)},
-            },
-            "legacy": {
-                "telegram_id": user.telegram_id,
-                "primary_phone": user.primary_phone,
-                "preferred_notification_channel": user.preferred_notification_channel,
-            },
-        },
+        "user": build_user_auth_contract(db, user),
         "platform": request.args.get("platform", "web"),
-        "auth_methods": available_auth_methods,
+        "auth_methods": AVAILABLE_AUTH_METHODS,
         "fallback_auth_methods": [],
         "channels": [
             {
@@ -85,7 +83,7 @@ def app_bootstrap():
             }
             for p in prefs
         ],
-        "feature_flags": {"passkey_scaffold": True},
+        "feature_flags": auth_feature_flags(),
     }
 
 
@@ -222,6 +220,63 @@ def account_merge_confirm():
         g.db.rollback()
         raise
     return {"ok": True, "primary_user_id": primary_id, "secondary_user_id": secondary_id}
+
+
+@bp.route("/admin/manual-merge-cases", methods=["GET"])
+def list_manual_merge_cases():
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+    svc = AccountMergeService()
+    return {"items": [_serialize_merge_case(g.db, event) for event in svc.list_pending_merge_cases(g.db)]}
+
+
+@bp.route("/admin/manual-merge-cases/<int:event_id>", methods=["GET"])
+def get_manual_merge_case(event_id: int):
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+    svc = AccountMergeService()
+    event = svc.get_merge_case(g.db, event_id=event_id)
+    if not event:
+        return {"error": "merge_case_not_found"}, 404
+    return _serialize_merge_case(g.db, event)
+
+
+@bp.route("/admin/manual-merge-cases/<int:event_id>/review", methods=["POST"])
+def review_manual_merge_case(event_id: int):
+    perm_error = require_permission("manage_staff")
+    if perm_error:
+        return perm_error
+    payload = request.get_json(silent=True) or {}
+    decision = str(payload.get("decision") or "").strip().lower()
+    if decision not in {"approve", "reject", "ignore"}:
+        return {"error": "decision_must_be_approve_reject_or_ignore"}, 400
+
+    reviewer_id = None
+    current_staff = _get_current_staff(g.db)
+    if current_staff and getattr(current_staff, "id", None):
+        reviewer_id = int(current_staff.id)
+    if reviewer_id is None:
+        return {"error": "reviewer_not_found"}, 403
+
+    svc = AccountMergeService()
+    try:
+        event = svc.review_merge_case(
+            g.db,
+            event_id=event_id,
+            decision=decision,
+            reviewed_by=reviewer_id,
+            reason=str(payload.get("reason") or "").strip() or None,
+        )
+    except ValueError as exc:
+        g.db.rollback()
+        return {"error": str(exc)}, 400
+    if not event:
+        g.db.rollback()
+        return {"error": "merge_case_not_found"}, 404
+    g.db.commit()
+    return {"ok": True, "case": _serialize_merge_case(g.db, event)}
 
 
 @bp.route("/account/link/request", methods=["POST"])

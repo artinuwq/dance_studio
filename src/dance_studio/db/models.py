@@ -696,6 +696,45 @@ class PasskeyCredential(Base):
     )
 
 
+class PasskeyChallenge(Base):
+    __tablename__ = "passkey_challenges"
+
+    id = Column(Integer, primary_key=True)
+    challenge = Column(String(255), nullable=False, unique=True)
+    flow_type = Column(String(32), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    session_user_id = Column(Integer, nullable=True)
+    rp_id = Column(String(255), nullable=False)
+    origin = Column(String(255), nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    credential_id = Column(String(512), nullable=True)
+    payload_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_passkey_challenges_user_id", "user_id"),
+        Index("ix_passkey_challenges_expires_at", "expires_at"),
+    )
+
+
+class AuthAuditEvent(Base):
+    __tablename__ = "auth_audit_events"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    event_type = Column(String(64), nullable=False)
+    provider = Column(String(32), nullable=True)
+    status = Column(String(32), nullable=False, default="ok")
+    payload_json = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_auth_audit_events_user_id", "user_id"),
+        Index("ix_auth_audit_events_event_type", "event_type"),
+    )
+
+
 class UserMergeEvent(Base):
     __tablename__ = "user_merge_events"
 
@@ -704,6 +743,12 @@ class UserMergeEvent(Base):
     target_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     merge_reason = Column(String(64), nullable=False)
     merge_strategy = Column(String(64), nullable=False)
+    case_status = Column(String(32), nullable=False, default="resolved")
+    conflict_source = Column(String(64), nullable=True)
+    reviewed_by = Column(Integer, ForeignKey("staff.id"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+    review_result = Column(String(32), nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
     payload_json = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
