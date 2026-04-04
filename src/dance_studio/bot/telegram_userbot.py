@@ -1,11 +1,11 @@
 import asyncio
 import os
 from pathlib import Path
-from typing import Sequence, Optional, Any
+from typing import Any
 
 from telethon import TelegramClient
-from telethon.tl import functions, types
 from telethon.errors import RPCError
+from telethon.tl import functions, types
 
 
 def _load_dotenv():
@@ -36,22 +36,14 @@ _lock = asyncio.Lock()
 
 
 async def _get_client() -> TelegramClient:
-    """
-    Создаёт новый клиент под каждый вызов.
-    Это чуть медленнее, но избавляет от ошибки
-    'The asyncio event loop must not change after connection'.
-    """
     if not API_ID or not API_HASH:
-        raise RuntimeError("TELEGRAM_API_ID/TELEGRAM_API_HASH не заданы для userbot")
+        raise RuntimeError("TELEGRAM_API_ID/TELEGRAM_API_HASH not set for userbot")
     client = TelegramClient(SESSION_PATH, int(API_ID), API_HASH)
     await client.start()
     return client
 
 
 def _normalize_user(user: Any) -> dict:
-    """
-    Accepts int|str|dict and returns dict with id/username/phone/name.
-    """
     if isinstance(user, dict):
         return {
             "id": user.get("id"),
@@ -64,7 +56,6 @@ def _normalize_user(user: Any) -> dict:
     if isinstance(user, str):
         if user.startswith("@"):
             return {"username": user[1:]}
-        # if numeric str
         if user.isdigit():
             return {"id": int(user)}
         return {"username": user}
@@ -72,24 +63,18 @@ def _normalize_user(user: Any) -> dict:
 
 
 async def _resolve_user_entity(client: TelegramClient, user: Any):
-    """
-    Try resolving user entity by username -> phone -> id.
-    Adds contact by phone if needed to obtain access_hash.
-    """
     u = _normalize_user(user)
     uid = u.get("id")
     username = u.get("username")
     phone = u.get("phone")
     display_name = u.get("name") or (f"user{uid}" if uid else "contact")
 
-    # 1) username first (fast, works without access hash)
     if username:
         try:
             return await client.get_input_entity(f"@{username}")
         except Exception:
             pass
 
-    # 2) phone number: import contact to get access hash
     if phone:
         try:
             contact = types.InputPhoneContact(
@@ -104,107 +89,28 @@ async def _resolve_user_entity(client: TelegramClient, user: Any):
         except Exception:
             pass
 
-    # 3) raw id (works only if userbot уже видел пользователя и имеет access_hash)
     if uid:
         try:
             return await client.get_input_entity(types.PeerUser(int(uid)))
         except Exception:
             pass
 
-    raise RuntimeError(f"Не могу получить entity для пользователя (id={uid}, username={username}, phone={phone}) — попросите его написать userbot'у или укажите username/phone")
-
-
-async def create_group_chat(title: str, users: Sequence[Any]) -> dict:
-    """
-    Создает группу от имени userbot и добавляет указанных пользователей.
-    Возвращает {chat_id, invite_link}
-    """
-    async with _lock:
-        client = await _get_client()
-        try:
-            print(f"[userbot] creating group '{title}' for users={users}")
-            peers = [await _resolve_user_entity(client, u) for u in users]
-
-            # Пытаемся создать мегагруппу
-            chat = None
-            try:
-                created = await client(functions.channels.CreateChannelRequest(
-                    title=title,
-                    about="",
-                    megagroup=True,
-                ))
-                if getattr(created, "chats", None):
-                    chat = created.chats[0]
-                    print(f"[userbot] megagroup created id={chat.id}")
-                else:
-                    print(f"[userbot] CreateChannelRequest returned {type(created).__name__} without chats, fallback to CreateChatRequest")
-            except RPCError as e:
-                print(f"[userbot] CreateChannelRequest failed: {e}, fallback to CreateChatRequest")
-
-            if chat is None:
-                # fallback to обычный групповой чат
-                created = await client(functions.messages.CreateChatRequest(
-                    users=peers,
-                    title=title,
-                ))
-                # CreateChatRequest возвращает InvitedUsers, нужный чат лежит в updates/chats
-                if hasattr(created, "chats") and created.chats:
-                    chat = created.chats[0]
-                elif hasattr(created, "updates"):
-                    updates_chats = [u.chat for u in created.updates if hasattr(u, "chat")]
-                    if updates_chats:
-                        chat = updates_chats[0]
-                if chat is None:
-                    raise RuntimeError(f"CreateChatRequest вернул {type(created).__name__} без чата")
-                print(f"[userbot] basic chat created id={chat.id}")
-
-            invited = []
-            failed = []
-            if peers:
-                try:
-                    res = await client(functions.channels.InviteToChannelRequest(
-                        channel=chat,
-                        users=peers,
-                    ))
-                    # res.users may be absent; rely on peers length
-                    invited = [getattr(p, "user_id", None) or getattr(p, "id", None) for p in peers]
-                    print(f"[userbot] invited users {invited}")
-                except RPCError as e:
-                    failed = [getattr(p, "user_id", None) or getattr(p, "id", None) for p in peers]
-                    print(f"[userbot] invite failed for {failed}: {e}")
-                    # даже если приглашение не удалось, ссылку всё равно вернём
-
-            invite = await client(functions.messages.ExportChatInviteRequest(peer=chat))
-            return {
-                "chat_id": chat.id,
-                "invite_link": invite.link,
-                "invited_user_ids": invited,
-                "failed_user_ids": failed,
-            }
-        except RPCError as e:
-            raise RuntimeError(f"Telethon RPC error: {e}")
-        finally:
-            try:
-                await client.disconnect()
-            except Exception:
-                pass
+    raise RuntimeError(
+        f"Cannot resolve Telegram entity for user (id={uid}, username={username}, phone={phone})"
+    )
 
 
 async def send_private_message(user: Any, text: str) -> dict:
-    """
-    Sends direct message from userbot account to a user.
-    Returns {"ok": True} or raises RuntimeError with reason.
-    """
     async with _lock:
         client = await _get_client()
         try:
             entity = await _resolve_user_entity(client, user)
             await client.send_message(entity=entity, message=text)
             return {"ok": True}
-        except RPCError as e:
-            raise RuntimeError(f"Telethon RPC error: {e}") from e
-        except Exception as e:
-            raise RuntimeError(str(e)) from e
+        except RPCError as exc:
+            raise RuntimeError(f"Telethon RPC error: {exc}") from exc
+        except Exception as exc:
+            raise RuntimeError(str(exc)) from exc
         finally:
             try:
                 await client.disconnect()
@@ -215,30 +121,16 @@ async def send_private_message(user: Any, text: str) -> dict:
 def send_private_message_sync(user: Any, text: str) -> dict | None:
     try:
         return asyncio.run(send_private_message(user, text))
-    except Exception as e:
-        reason = str(e).strip() or repr(e)
-        print(f"⚠️ Не удалось отправить сообщение от userbot: {reason}")
+    except Exception as exc:
+        reason = str(exc).strip() or repr(exc)
+        print(f"Failed to send userbot message: {reason}")
         return {"ok": False, "error": reason}
 
 
-def create_group_chat_sync(title: str, users: Sequence[Any]) -> dict | None:
-    """
-    Синхронная обертка для Flask.
-    """
-    try:
-        return asyncio.run(create_group_chat(title, users))
-    except Exception as e:
-        print(f"⚠️ Не удалось создать чат Telegram: {e}")
-        return None
-
-
 async def _login_cli():
-    """
-    Принудительный запуск userbot для получения кода/пароля и сохранения сессии.
-    """
     client = await _get_client()
     me = await client.get_me()
-    print(f"✓ Userbot session готов, залогинен как @{me.username or me.first_name}")
+    print(f"Userbot session ready as @{me.username or me.first_name}")
     await client.disconnect()
 
 

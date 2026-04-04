@@ -100,11 +100,10 @@ from dance_studio.core.statuses import (
     set_booking_status,
 )
 from dance_studio.bot.upload_sessions import direction_upload_session_validation_error
-from dance_studio.bot.telegram_userbot import send_private_message
 from dance_studio.core.notification_service_async import send_user_notification_async
 from dance_studio.web.services.attendance import _auto_finalize_attendance_from_intentions
 from dance_studio.auth.services.account_merge import AccountMergeService
-from dance_studio.auth.services.common import resolve_user_by_telegram, resolve_user_id_by_telegram
+from dance_studio.auth.services.common import normalize_phone_e164, resolve_user_by_telegram, resolve_user_id_by_telegram
 from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
@@ -1162,8 +1161,8 @@ async def handle_contact_share(message):
         await message.answer("Пожалуйста, отправьте ваш собственный номер.")
         return
 
-    phone_number = (contact.phone_number or "").strip()
-    if not phone_number:
+    normalized_phone_number = normalize_phone_e164((contact.phone_number or "").strip())
+    if not normalized_phone_number:
         await message.answer("Не удалось получить номер телефона.")
         return
 
@@ -1175,25 +1174,27 @@ async def handle_contact_share(message):
                 telegram_id=message.from_user.id,
                 username=message.from_user.username,
                 name=message.from_user.first_name or "Пользователь",
-                phone=phone_number,
+                phone=normalized_phone_number,
                 status="active",
             )
             db.add(user)
         else:
-            user.phone = phone_number
+            user.phone = normalized_phone_number
             if message.from_user.username:
                 user.username = message.from_user.username
             if not user.name:
                 user.name = message.from_user.first_name or "Пользователь"
 
-        user.primary_phone = user.primary_phone or phone_number
+        db.flush()
+
+        user.primary_phone = normalize_phone_e164(user.primary_phone) or normalized_phone_number
         user.phone_verified_at = datetime.utcnow()
 
         try:
             AccountMergeService().try_merge_by_phone(
                 db,
                 user_id=user.id,
-                phone=phone_number,
+                phone=normalized_phone_number,
                 source="telegram_contact",
             )
         except Exception:
@@ -3177,19 +3178,19 @@ async def _send_payment_message_from_admin_account(user: User | None, booking: B
         payment_text = _build_payment_request_message(local_db, booking)
     finally:
         local_db.close()
-    user_target = {
-        "id": telegram_id,
-        "username": user.username if user else None,
-        "phone": user.phone if user else None,
-        "name": user.name if user else None,
-    }
-
     try:
-        await asyncio.wait_for(send_private_message(user_target, payment_text), timeout=15)
+        sent_ok = await send_user_notification_async(
+            bot=bot,
+            user_id=telegram_id,
+            text=payment_text,
+            context_note=f"Payment details for booking #{booking.id}",
+        )
+        if not sent_ok:
+            raise RuntimeError("notification service returned failed")
     except Exception as exc:
         reason = str(exc).strip() or "неизвестная ошибка"
         if isinstance(exc, asyncio.TimeoutError):
-            reason = "таймаут отправки сообщения от userbot (15 сек)"
+            reason = "таймаут отправки сообщения от notification service (15 сек)"
         await _notify_payment_delivery_failed(user, booking, reason, payment_text)
         try:
             fallback_text = (
@@ -3200,7 +3201,7 @@ async def _send_payment_message_from_admin_account(user: User | None, booking: B
                 bot=bot,
                 user_id=telegram_id,
                 text=fallback_text,
-                context_note="Ошибка отправки реквизитов (userbot fail)"
+                context_note="Ошибка отправки реквизитов (primary delivery fail)"
             )
         except Exception:
             pass
@@ -3228,18 +3229,19 @@ async def _notify_user_on_status_change(user: User | None, booking: BookingReque
         return
 
     if normalized_status in BOOKING_PAYMENT_CONFIRMED_STATUSES:
-        user_target = {
-            "id": telegram_id,
-            "username": user.username if user else None,
-            "phone": user.phone if user else None,
-            "name": user.name if user else None,
-        }
         try:
-            await asyncio.wait_for(send_private_message(user_target, message_text), timeout=15)
+            sent_ok = await send_user_notification_async(
+                bot=bot,
+                user_id=telegram_id,
+                text=message_text,
+                context_note=f"Booking status changed: {normalized_status}",
+            )
+            if not sent_ok:
+                raise RuntimeError("notification service returned failed")
         except Exception as exc:
             reason = str(exc).strip() or "неизвестная ошибка"
             if isinstance(exc, asyncio.TimeoutError):
-                reason = "таймаут отправки сообщения от userbot (15 сек)"
+                reason = "таймаут отправки сообщения от notification service (15 сек)"
             await _notify_payment_delivery_failed(user, booking, reason, message_text)
         return
 

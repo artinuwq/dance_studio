@@ -35,7 +35,7 @@ async def main():
         bootstrap_data()
 
     flask_thread = threading.Thread(target=run_flask, daemon=True)
-    flask_thread.start()
+    flask_thread.start() 
 
     while True:
         try:

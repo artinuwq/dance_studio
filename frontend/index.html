@@ -7,7 +7,7 @@
 <title>Dance Studio</title>
 <link rel="manifest" href="/assets/manifest.json">
 <meta name="theme-color" content="#0f0f0f">
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="/assets/vendor/telegram-web-app.js?v=20260401"></script>
 <script src="/assets/vk-bridge.min.js"></script>
 <script src="/assets/auth_ui_state.js"></script>
 <style>
@@ -311,25 +311,234 @@ body.tg-mobile .header-back {
   margin-bottom: 8px;
 }
 
+.profile-settings-layout {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-auth-block {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 14px;
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(254, 88, 21, 0.12), transparent 48%),
+    rgba(255, 255, 255, 0.02);
+}
+
+.settings-auth-title {
+  margin: 0 0 10px 0;
+}
+
+.settings-phone-value {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.settings-phone-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.profile-phone-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-phone-inline .form-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.profile-phone-inline .form-input[readonly] {
+  cursor: default;
+}
+
+.profile-phone-inline .save-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.settings-compact-btn {
+  width: auto !important;
+  margin: 0 !important;
+  padding: 8px 12px !important;
+  font-size: 13px;
+  line-height: 1.2;
+  border-radius: 10px;
+}
+
+.settings-phone-status {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  border: 1px solid transparent;
+  color: var(--hint);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.settings-phone-status.ok {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.settings-phone-status.warn {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.settings-phone-status.pending {
+  color: var(--hint);
+}
+
 .auth-methods-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
-.auth-method-row {
+.auth-service-row {
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
+  align-items: center;
+  gap: 10px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: rgba(255,255,255,0.02);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px;
 }
 
-.auth-method-actions {
+.auth-service-meta {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.auth-service-title {
+  font-weight: 600;
+}
+
+.auth-service-note {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.auth-service-status {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.auth-service-status.active {
+  color: #34d399;
+}
+
+.auth-service-status.linked {
+  color: #93c5fd;
+}
+
+.auth-service-status.pending {
+  color: #fbbf24;
+}
+
+.auth-service-action {
+  flex-shrink: 0;
+}
+
+.auth-service-action .save-btn {
+  margin: 0 !important;
+}
+
+.notifications-priority-list {
   display: grid;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 10px;
+}
+
+.notification-priority-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px;
+}
+
+.notification-priority-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notification-priority-title {
+  font-weight: 600;
+}
+
+.notification-priority-note {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.notification-priority-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.notification-priority-btn {
+  width: 34px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.notification-priority-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.passkey-controls {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.passkey-controls .save-btn {
+  margin: 0 !important;
+}
+
+.passkey-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.passkey-item {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.passkey-danger {
+  border-color: rgba(239, 83, 80, 0.55) !important;
+}
+
+#profile-settings .save-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 /* ====== НИЖНЕЕ МЕНЮ ====== */
@@ -1473,19 +1682,42 @@ textarea.form-input {
   margin-top: 2px;
 }
 
+.client-detail-actions-title {
+  margin: 0 0 12px;
+}
+
+.client-detail-social-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .client-detail-actions-list {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
+.client-detail-social-row .save-btn,
 .client-detail-actions-list .save-btn {
   width: 100%;
   margin: 0;
 }
 
-.client-detail-actions-list .save-btn.client-detail-telegram-btn {
+.client-detail-social-row .save-btn.client-detail-telegram-btn {
   background: #229ed9;
+}
+
+.client-detail-social-row .save-btn.client-detail-vk-btn {
+  background: #0077ff;
+}
+
+.client-detail-actions .save-btn[disabled],
+.client-detail-actions .save-btn.is-disabled {
+  background: #444 !important;
+  color: rgba(255, 255, 255, 0.66);
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .client-abonement-action-toggle {
@@ -4964,7 +5196,7 @@ textarea.form-input {
 </svg>
 </span>
 <div>
-<div class="contact-label">Instagram • Sheba sport</div>
+<div class="contact-label">Instagram • SHEBA SPORT</div>
 <div class="contact-value">@sheba_sport.academy</div>
 </div>
 </div>
@@ -4980,7 +5212,7 @@ textarea.form-input {
 </svg>
 </span>
 <div>
-<div class="contact-label">Instagram • Lissa DNC</div>
+<div class="contact-label">Instagram • LISSA DNC</div>
 <div class="contact-value">@lissa_dnc</div>
 </div>
 </div>
@@ -5724,11 +5956,18 @@ textarea.form-input {
 </div>
 <div class="form-group">
 <label>Неправильный профиль (source)</label>
-<select class="form-input" id="client-merge-source-id"></select>
+<div class="card" id="client-merge-primary-card" style="margin:0; padding:12px;"></div>
+<div class="small" id="client-merge-primary-hint" style="margin-top:8px; color:var(--hint);"></div>
+<select class="form-input" id="client-merge-source-id" style="display:none;"></select>
 </div>
 <div class="form-group">
 <label>Правильный профиль (target)</label>
-<select class="form-input" id="client-merge-target-id"></select>
+<input class="form-input" id="client-merge-search" oninput="handleClientMergeSearchInput(this.value)" placeholder="Ð ËœÐ Ñ˜Ð¡Ð, Ñ‚ÐµÐ»ÐµÑ„Ð¾Ð½, @username, tg id, #id" type="text"/>
+<div class="small" id="client-merge-search-hint" style="margin-top:8px; color:var(--hint);"></div>
+<div class="card" id="client-merge-selected-card" style="display:none; margin-top:8px; padding:12px;"></div>
+<div id="client-merge-candidate-list" style="display:grid; gap:8px; margin-top:8px;"></div>
+<div class="card" id="client-merge-preview-card" style="padding:12px; margin-top:12px;"></div>
+<select class="form-input" id="client-merge-target-id" style="display:none;"></select>
 </div>
 <div class="form-group">
 <label>Комментарий</label>
@@ -5948,8 +6187,14 @@ textarea.form-input {
 <h3 id="profile-name">—</h3>
 <p class="small" id="profile-username">—</p>
 </div>
+<div class="card" id="profile-guest-card" style="display:none;">
+<h4>Гостевой режим</h4>
+<p class="small" id="profile-guest-text">Для доступа к личному кабинету войдите через Telegram или VK Mini App.</p>
+<button class="save-btn" onclick="showGuestLoginInfo()">Как войти в аккаунт</button>
+</div>
+<div id="profile-account-sections">
 <div class="card account-banner" id="account-verification-banner">
-<div class="account-banner-title">Подтвердите аккаунт</div>
+<div class="account-banner-title" id="account-verification-banner-title">Подтвердите аккаунт</div>
 <p class="small" id="account-verification-banner-text">Объединяйте входы через Telegram, VK и сайт, быстрее восстанавливайте доступ и включайте быстрый вход.</p>
 <div style="display:grid; gap:8px; margin-top:10px;">
 <button class="save-btn" onclick="showPage('profile-info')">Подтвердить номер</button>
@@ -5961,6 +6206,7 @@ textarea.form-input {
 <div class="menu-item" onclick="showPage('profile-booking-requests')">🧾 Мои заявки</div>
 <div class="menu-item" onclick="showPage('profile-settings')">⚙️ Настройки</div>
 </div>
+</div>
 <div class="page" data-title="📋 Личная информация" id="profile-info">
 <div class="card">
 <h4>Личная информация</h4>
@@ -5970,11 +6216,11 @@ textarea.form-input {
 </div>
 <div class="form-group">
 <label>Телефон</label>
-<div style="display: flex; gap: 8px; align-items: center;">
-<input class="form-input" id="profile-input-phone" placeholder="+7 800 555 35 35" type="tel" style="flex: 1;"/>
-<button class="save-btn" id="profile-request-phone-btn" onclick="requestPhoneFromPlatform()" style="width: auto; padding: 10px 12px; white-space: nowrap;">Запросить</button>
+<div class="profile-phone-inline">
+<input class="form-input" id="profile-input-phone" placeholder="+7 800 555 35 35" readonly type="tel"/>
+<button class="save-btn settings-compact-btn profile-request-phone-btn" onclick="requestPhoneFromPlatform()">Из приложения</button>
 </div>
-<p class="small" id="profile-request-phone-status" style="margin-top: 6px; color: var(--hint);"></p>
+<p class="small profile-request-phone-status" style="margin-top: 6px; color: var(--hint);"></p>
 </div>
 <div class="form-group">
 <label>Дата рождения</label>
@@ -6000,16 +6246,32 @@ textarea.form-input {
 </div>
 <div class="page" data-title="⚙️ Настройки" id="profile-settings">
 <div class="card">
-<h4 style="margin-top:0;">Способы входа</h4>
-<div class="auth-methods-list" id="auth-methods-list"></div>
-<div class="auth-method-actions">
-<button class="save-btn" onclick="handleConnectTelegram()">Подключить Telegram</button>
-<button class="save-btn" onclick="handleConnectVK()">Подключить VK</button>
-<button class="save-btn" onclick="showPage('profile-info')">Подтвердить телефон</button>
-<button class="save-btn" onclick="beginPasskeySetup()">Включить быстрый вход</button>
-<button class="save-btn" onclick="deleteCurrentPasskey()">Удалить passkey</button>
+<div class="profile-settings-layout">
+<div class="settings-auth-block">
+<h4 class="settings-auth-title">Телефон</h4>
+<div class="settings-phone-value" id="settings-phone-value">-</div>
+<div class="settings-phone-actions">
+<button class="save-btn settings-compact-btn profile-request-phone-btn" id="profile-request-phone-btn" onclick="requestPhoneFromPlatform()">Из приложения</button>
 </div>
-<p class="small" id="auth-state-status" style="margin-top:8px; color:var(--hint);"></p>
+<div class="settings-phone-status pending profile-request-phone-status" id="profile-request-phone-status">Проверьте и подтвердите номер телефона</div>
+</div>
+
+<div class="settings-auth-block">
+<h4 class="settings-auth-title">Способы входа</h4>
+<div class="auth-methods-list" id="auth-methods-list"></div>
+</div>
+
+<div class="settings-auth-block" id="notifications-priority-block">
+<h4 class="settings-auth-title">Уведомления</h4>
+<p class="small" id="notifications-priority-summary" style="margin:0; color:var(--hint);">Загрузка настроек...</p>
+<div class="notifications-priority-list" id="notifications-priority-list"></div>
+<div class="settings-phone-actions">
+<button class="save-btn settings-compact-btn" id="notifications-priority-save-btn" onclick="saveNotificationPrioritySettings()" disabled>Сохранить порядок</button>
+</div>
+<p class="small" id="notifications-priority-status" style="margin-top:8px; color:var(--hint);"></p>
+</div>
+
+</div>
 </div>
 <div class="menu-item" onclick="showPage('display-settings')">🖥️ Отображение</div>
 </div>
@@ -6719,9 +6981,185 @@ textarea.form-input {
 </div>
 <script>
 /* ====== TELEGRAM ====== */
-const tg = window.Telegram?.WebApp;
-if (tg && typeof tg.ready === 'function') {
-  tg.ready();
+let tg = window.Telegram?.WebApp || null;
+const TELEGRAM_INIT_DATA_TIMEOUT_MS = 4200;
+const TELEGRAM_SDK_PRIME_WAIT_MS = 1400;
+const TELEGRAM_PLATFORM_RESOLVE_TIMEOUT_MS = 250;
+const PLATFORM_BOOTSTRAP_BLOCKING_GRACE_MS = 350;
+let telegramContextSnapshot = null;
+let telegramContextResolvePromise = null;
+let telegramAuthSessionPromise = null;
+
+function getTelegramWebApp() {
+  tg = window.Telegram?.WebApp || tg || null;
+  return tg;
+}
+const initialTelegramWebApp = getTelegramWebApp();
+if (initialTelegramWebApp && typeof initialTelegramWebApp.ready === 'function') {
+  initialTelegramWebApp.ready();
+}
+
+function _extractTgWebAppData(rawPart) {
+  if (!rawPart) return '';
+  const source = String(rawPart).trim();
+  if (!source) return '';
+  const normalized = source.startsWith('?') || source.startsWith('#') ? source.slice(1) : source;
+  if (!normalized) return '';
+  const params = new URLSearchParams(normalized);
+  return (params.get('tgWebAppData') || '').trim();
+}
+
+let _telegramInitDataFromUrlCache = null;
+function getTelegramInitDataFromUrl() {
+  if (_telegramInitDataFromUrlCache !== null) {
+    return _telegramInitDataFromUrlCache;
+  }
+  const fromSearch = _extractTgWebAppData(window.location.search);
+  if (fromSearch) {
+    _telegramInitDataFromUrlCache = fromSearch;
+    return fromSearch;
+  }
+  const fromHash = _extractTgWebAppData(window.location.hash);
+  if (fromHash) {
+    _telegramInitDataFromUrlCache = fromHash;
+    return fromHash;
+  }
+  _telegramInitDataFromUrlCache = '';
+  return '';
+}
+
+function hasRemoteSdkFeatures(webApp) {
+  return Boolean(
+    webApp
+    && (
+      typeof webApp.onEvent === 'function'
+      || typeof webApp.offEvent === 'function'
+      || typeof webApp.sendData === 'function'
+      || typeof webApp.close === 'function'
+      || typeof webApp.requestContact === 'function'
+      || typeof webApp.requestPhoneNumber === 'function'
+    )
+  );
+}
+
+function hasTelegramEnvironmentHint() {
+  const userAgent = (navigator.userAgent || '').toLowerCase();
+  const referrer = (document.referrer || '').toLowerCase();
+  return userAgent.includes('telegram')
+    || referrer.includes('t.me')
+    || referrer.includes('telegram');
+}
+
+function buildTelegramContextSnapshot() {
+  const webApp = getTelegramWebApp();
+  const initDataFromWebApp = typeof webApp?.initData === 'string' ? webApp.initData.trim() : '';
+  const initDataFromUrl = getTelegramInitDataFromUrl();
+  const initData = initDataFromWebApp || initDataFromUrl;
+  const userIdRaw = webApp?.initDataUnsafe?.user?.id;
+  const parsedUserId = Number(userIdRaw);
+  const userId = Number.isFinite(parsedUserId) && parsedUserId > 0 ? parsedUserId : null;
+  const hasLaunchDataHint = Boolean(initDataFromUrl);
+  const hasEnvironmentHint = hasTelegramEnvironmentHint();
+  const hasTelegramContext = Boolean(initData || userId || hasLaunchDataHint);
+  return {
+    webApp,
+    initData,
+    initDataFromWebApp,
+    initDataFromUrl,
+    hasLaunchDataHint,
+    hasEnvironmentHint,
+    hasRemoteSdkFeatures: hasRemoteSdkFeatures(webApp),
+    hasUserContext: Boolean(userId),
+    hasTelegramContext,
+    userId,
+    platform: hasTelegramContext ? 'telegram' : 'web',
+    phase: hasTelegramContext ? 'ready' : (hasEnvironmentHint ? 'pending' : 'web'),
+  };
+}
+
+function getTelegramContext() {
+  const snapshot = buildTelegramContextSnapshot();
+  telegramContextSnapshot = snapshot;
+  return snapshot;
+}
+
+async function waitForTelegramSdkReady(timeoutMs = TELEGRAM_SDK_PRIME_WAIT_MS) {
+  if (!window.__tgSdkReady || typeof window.__tgSdkReady.then !== 'function') {
+    return getTelegramWebApp();
+  }
+  if (timeoutMs <= 0) {
+    return getTelegramWebApp();
+  }
+  try {
+    await Promise.race([
+      window.__tgSdkReady,
+      new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+  } catch (_) {}
+  return getTelegramWebApp();
+}
+
+async function waitForTelegramInitDataRaw(timeoutMs = TELEGRAM_INIT_DATA_TIMEOUT_MS, pollMs = 100) {
+  const immediate = buildTelegramContextSnapshot();
+  if (immediate.initData) return immediate.initData;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+    const current = buildTelegramContextSnapshot();
+    if (current.initData) return current.initData;
+  }
+  return '';
+}
+
+async function resolveTelegramContext(options = {}) {
+  const timeoutMs = Number(options?.timeoutMs) > 0 ? Number(options.timeoutMs) : TELEGRAM_INIT_DATA_TIMEOUT_MS;
+  const force = options?.force === true;
+  const immediate = buildTelegramContextSnapshot();
+  if (!force && immediate.phase !== 'pending') {
+    telegramContextSnapshot = immediate;
+    return immediate;
+  }
+  if (!force && telegramContextResolvePromise) {
+    return telegramContextResolvePromise;
+  }
+
+  telegramContextResolvePromise = (async () => {
+    const startedAt = Date.now();
+    await waitForTelegramSdkReady(Math.min(timeoutMs, TELEGRAM_SDK_PRIME_WAIT_MS));
+    const initData = await waitForTelegramInitDataRaw(timeoutMs);
+    const resolved = buildTelegramContextSnapshot();
+    if (initData && !resolved.initData) {
+      resolved.initData = initData;
+      resolved.platform = 'telegram';
+      resolved.phase = 'ready';
+      resolved.hasTelegramContext = true;
+    }
+    if (!resolved.hasTelegramContext) {
+      resolved.platform = 'web';
+      resolved.phase = 'web';
+    }
+    resolved.resolvedAt = Date.now();
+    resolved.resolutionMs = resolved.resolvedAt - startedAt;
+    telegramContextSnapshot = resolved;
+    telegramContextResolvePromise = null;
+    return resolved;
+  })();
+  return telegramContextResolvePromise;
+}
+
+function getTelegramInitData() {
+  return getTelegramContext().initData || '';
+}
+
+function hasTelegramUserContext() {
+  return Boolean(getTelegramContext().hasUserContext);
+}
+
+async function waitForTelegramInitData(timeoutMs = TELEGRAM_INIT_DATA_TIMEOUT_MS, pollMs = 100) {
+  const context = await resolveTelegramContext({ timeoutMs });
+  if (context.initData) return context.initData;
+  if (context.phase === 'web') return '';
+  return await waitForTelegramInitDataRaw(timeoutMs, pollMs);
 }
 
 function getSidCookie() {
@@ -6735,39 +7173,129 @@ function getCookie(name) {
   return m ? m.slice(prefix.length) : '';
 }
 
-async function ensureAuthSession() {
-  // If already have a sid or no telegram context, skip.
-  if (getSidCookie()) return;
-  if (!tg || !tg.initData) return;
+function buildTelegramAuthHeaders(initData) {
+  return {
+    'X-TG-Init-Data': initData,
+    'X-Telegram-Init-Data': initData,
+    'Content-Type': 'application/json',
+  };
+}
 
-  try {
-    const res = await fetch('/auth/telegram', {
-      method: 'POST',
-      headers: {
-        // Backend accepts both names; send both for safety.
-        'X-TG-Init-Data': tg.initData,
-        'X-Telegram-Init-Data': tg.initData,
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify({ init_data: tg.initData }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || `Auth failed (${res.status})`);
-    }
-    console.log('Auth session bootstrapped');
-  } catch (err) {
-    console.error('Auth bootstrap failed', err);
-    showNotification('❌ Требуется аутентификация: откройте приложение через Telegram');
+async function ensureTelegramAuthSession(options = {}) {
+  const force = options?.force === true;
+  if (!force && telegramAuthSessionPromise) {
+    return telegramAuthSessionPromise;
   }
+
+  telegramAuthSessionPromise = (async () => {
+    if (getSidCookie()) {
+      return { ok: true, skipped: 'sid_present' };
+    }
+    const context = await resolveTelegramContext({ timeoutMs: TELEGRAM_INIT_DATA_TIMEOUT_MS, force });
+    if (context.platform !== 'telegram') {
+      return { ok: false, skipped: 'not_telegram', context };
+    }
+    const initData = context.initData || await waitForTelegramInitDataRaw(TELEGRAM_INIT_DATA_TIMEOUT_MS);
+    if (!initData) {
+      return {
+        ok: false,
+        status: 400,
+        error: 'init_data_required',
+        payload: { ok: false, error: 'init_data_required' },
+        context,
+      };
+    }
+
+    try {
+      const res = await fetch('/auth/telegram', {
+        method: 'POST',
+        headers: buildTelegramAuthHeaders(initData),
+        credentials: 'include',
+        body: JSON.stringify({ init_data: initData }),
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          ok: false,
+          status: res.status,
+          error: payload?.error || `http_${res.status}`,
+          payload,
+          context: { ...context, initData },
+        };
+      }
+      return {
+        ok: true,
+        status: res.status,
+        payload,
+        context: { ...context, initData },
+      };
+    } catch (error) {
+      console.error('Telegram auth bootstrap request failed', error);
+      return {
+        ok: false,
+        status: 0,
+        error: 'network_error',
+        payload: { ok: false, error: 'network_error' },
+        context: { ...context, initData },
+      };
+    }
+  })().then((result) => {
+    if (!result?.ok) {
+      telegramAuthSessionPromise = null;
+    }
+    return result;
+  });
+  return telegramAuthSessionPromise;
+}
+
+function getTelegramAuthErrorMessage(errorCode) {
+  const normalized = String(errorCode || '').trim().toLowerCase();
+  if (!normalized || normalized === 'replay_detected') return '';
+  if (normalized === 'init_data_required') {
+    return 'Telegram не передал launch data. Закройте и заново откройте Mini App из Telegram.';
+  }
+  if (normalized === 'invalid_init_data') {
+    return 'Данные запуска Telegram устарели или повреждены. Откройте Mini App заново.';
+  }
+  if (normalized === 'rate_limited') {
+    return 'Слишком много попыток входа через Telegram. Попробуйте чуть позже.';
+  }
+  if (normalized === 'network_error') {
+    return 'Не удалось связаться с сервером для входа через Telegram.';
+  }
+  return 'Не удалось подтвердить вход через Telegram. Откройте Mini App заново.';
+}
+
+async function clearStaleTelegramSession() {
+  console.warn('Telegram user context present, but initData is empty; clearing stale session');
+  if (getSidCookie()) {
+    try {
+      await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch (e) {
+      console.warn('Failed to clear stale session', e);
+    }
+  }
+  currentUserData = null;
+  resetEntryTabsPreloadState();
+  setAuthState({
+    isAuthenticated: false,
+    isLoading: false,
+    currentUser: null,
+    authProvider: null,
+    fallbackAuthMethods: [],
+    manualMergeRequired: false,
+    verifiedPhoneConflict: false,
+    vkPermissionRequired: false,
+    authError: 'auth_required',
+  });
 }
 
 function getAuthHeaders(extraHeaders = {}) {
   const headers = { ...extraHeaders };
-  if (tg?.initData) {
-    headers['X-TG-Init-Data'] = tg.initData;
-    headers['X-Telegram-Init-Data'] = tg.initData;
+  const initData = getTelegramInitData();
+  if (initData) {
+    headers['X-TG-Init-Data'] = initData;
+    headers['X-Telegram-Init-Data'] = initData;
   }
   headers['X-Requested-With'] = 'XMLHttpRequest';
   const csrfToken = getCookie('csrf_token');
@@ -6796,7 +7324,8 @@ function authFetch(url, options = {}) {
 }
 
 function updateSafeAreaVars() {
-  const inset = tg.safeAreaInset || tg.contentSafeAreaInset || {};
+  const webApp = getTelegramWebApp();
+  const inset = webApp?.safeAreaInset || webApp?.contentSafeAreaInset || {};
   const top = Number(inset.top) || 0;
   const bottom = Number(inset.bottom) || 0;
   document.documentElement.style.setProperty('--safe-top', `${top}px`);
@@ -6811,12 +7340,12 @@ let androidNavGapListenersBound = false;
 let bottomNavAirGapEnabled = true;
 
 function isMobileTelegramPlatform() {
-  const platform = (tg?.platform || '').toLowerCase();
+  const platform = (getTelegramWebApp()?.platform || '').toLowerCase();
   return platform === 'android' || platform === 'ios';
 }
 
 function isAndroidClient() {
-  const platform = (tg?.platform || '').toLowerCase();
+  const platform = (getTelegramWebApp()?.platform || '').toLowerCase();
   if (platform === 'android') return true;
   const userAgent = (navigator.userAgent || '').toLowerCase();
   return userAgent.includes('android');
@@ -6920,6 +7449,7 @@ function renderDisplayModeStatus() {
     el.textContent = 'На ПК используется Fullsize (fullscreen доступен только на мобильных устройствах).';
     return;
   }
+  tg = getTelegramWebApp();
   const mode = getDisplayModePref();
   const actual = tg?.isFullscreen ? 'Fullscreen активен' : 'Fullscreen не активен';
   el.textContent = mode === 'fullscreen'
@@ -6928,6 +7458,7 @@ function renderDisplayModeStatus() {
 }
 
 function applyDisplayModePref() {
+  tg = getTelegramWebApp();
   const mode = getDisplayModePref();
   const supportsFullscreen = !!(tg && typeof tg.requestFullscreen === 'function' && tg.isVersionAtLeast?.('8.0'));
   const isMobile = isMobileTelegramPlatform();
@@ -6984,6 +7515,7 @@ function initDisplaySettingsPage() {
 }
 
 function initMobileViewport() {
+  tg = getTelegramWebApp();
   const isMobile = isMobileTelegramPlatform();
   if (isAndroidClient()) {
     document.body.classList.add('android-webview');
@@ -6996,12 +7528,14 @@ function initMobileViewport() {
   document.body.classList.add('tg-mobile');
   initAndroidNavGapHandlers();
 
-  try {
-    if (!tg.isExpanded) {
-      tg.expand();
+  if (tg) {
+    try {
+      if (!tg.isExpanded) {
+        tg.expand();
+      }
+    } catch (err) {
+      // ignore expand errors
     }
-  } catch (err) {
-    // ignore expand errors
   }
   setTimeout(() => {
     applyDisplayModePref();
@@ -7010,8 +7544,10 @@ function initMobileViewport() {
 
 initMobileViewport();
 updateSafeAreaVars();
-if (typeof tg.onEvent === 'function') {
+tg = getTelegramWebApp();
+if (tg && typeof tg.onEvent === 'function') {
   tg.onEvent('viewportChanged', () => {
+    tg = getTelegramWebApp();
     updateSafeAreaVars();
     scheduleAndroidNavGapUpdate();
     // Если пользователь выбрал fullscreen, пытаемся вернуть его после изменений viewport.
@@ -7027,11 +7563,15 @@ if (typeof tg.onEvent === 'function') {
 scheduleAndroidNavGapUpdate();
 applyDisplayModePref();
 
-// Bootstrap auth session once WebApp is ready.
-const authSessionPromise = ensureAuthSession();
 
 /* ====== НАВИГАЦИЯ ====== */
 const ROOT_PAGES = ['home', 'schedule', 'staff', 'profile'];
+const PROFILE_AUTH_REQUIRED_PAGES = new Set([
+  'profile-info',
+  'profile-abonements',
+  'profile-booking-requests',
+  'profile-settings',
+]);
 let currentPageId = 'home';
 let activeModalBackHandler = null;
 const CLIENT_ACTION_PAGE_IDS = new Set([
@@ -7045,12 +7585,53 @@ let clientActionBackHandlerActive = false;
 const header = document.getElementById('header');
 const headerTitle = document.getElementById('header-title');
 const headerBack = document.getElementById('header-back');
-const hasTelegramBackButton = typeof tg.BackButton !== 'undefined';
+let telegramBackButtonBoundTo = null;
 
-if (hasTelegramBackButton && typeof tg.BackButton.onClick === 'function') {
-  tg.BackButton.onClick(() => {
+function getTelegramBackButton() {
+  const webApp = getTelegramWebApp();
+  const hasTelegramContext = Boolean(
+    (typeof webApp?.initData === 'string' && webApp.initData.trim())
+    || webApp?.initDataUnsafe?.user?.id
+    || getTelegramInitDataFromUrl()
+  );
+  if (!hasTelegramContext) return null;
+  const backButton = webApp?.BackButton || null;
+  if (!backButton) return null;
+  if (typeof backButton.show !== 'function' || typeof backButton.hide !== 'function') {
+    return null;
+  }
+  return backButton;
+}
+
+function hasTelegramBackButton() {
+  return Boolean(getTelegramBackButton());
+}
+
+function bindTelegramBackButton() {
+  const backButton = getTelegramBackButton();
+  if (!backButton || typeof backButton.onClick !== 'function') {
+    return false;
+  }
+  if (telegramBackButtonBoundTo === backButton) {
+    return true;
+  }
+  backButton.onClick(() => {
     goBack();
   });
+  telegramBackButtonBoundTo = backButton;
+  return true;
+}
+
+bindTelegramBackButton();
+if (window.__tgSdkReady && typeof window.__tgSdkReady.then === 'function') {
+  window.__tgSdkReady.then(() => {
+    tg = getTelegramWebApp();
+    telegramContextSnapshot = buildTelegramContextSnapshot();
+    updateSafeAreaVars();
+    renderDisplayModeStatus();
+    bindTelegramBackButton();
+    syncTelegramBackButton(Boolean(activeModalBackHandler) || !ROOT_PAGES.includes(currentPageId));
+  }).catch(() => {});
 }
 const pageTitleCache = {
   home: 'Sheba x Lissa',
@@ -7072,11 +7653,13 @@ function setHeaderBackVisible(isVisible) {
 }
 
 function syncTelegramBackButton(isVisible) {
-  if (hasTelegramBackButton) {
+  const backButton = getTelegramBackButton();
+  if (backButton) {
+    bindTelegramBackButton();
     if (isVisible) {
-      tg.BackButton.show();
+      backButton.show();
     } else {
-      tg.BackButton.hide();
+      backButton.hide();
     }
     if (headerBack) {
       headerBack.style.display = 'none';
@@ -7155,6 +7738,10 @@ function showPage(id) {
   if (clientActionBackHandlerActive && !CLIENT_ACTION_PAGE_IDS.has(id)) {
     clearClientActionBackHandler();
   }
+  if (PROFILE_AUTH_REQUIRED_PAGES.has(id) && !_hasAuthenticatedCurrentUser()) {
+    showNotification('Для этого раздела войдите через Telegram или VK Mini App.');
+    id = 'profile';
+  }
   // Получаем текущую страницу
   const currentPage = Array.from(document.querySelectorAll('.page')).find(p => p.classList.contains('active'));
   
@@ -7176,6 +7763,13 @@ function showPage(id) {
   }
 
   applyHeaderForPage(id);
+
+  if (id === 'profile'
+      || id === 'staff'
+      || id.startsWith('profile-')
+      || id.startsWith('staff-')) {
+    void ensureProfileLoaded().catch(() => null);
+  }
 
   if (id === 'stats') {
     initStatsPageDefaults();
@@ -7280,6 +7874,7 @@ function showPage(id) {
 
   if (id === 'profile-settings') {
     setHeaderTitle('Настройки');
+    loadNotificationPrioritySettings();
   }
   if (id === 'work-settings') {
     setHeaderTitle('Параметры настройки');
@@ -8702,9 +9297,11 @@ function updateDurationDisplay() {
 
 function setModalBackHandler(handler) {
   activeModalBackHandler = typeof handler === 'function' ? handler : null;
-  if (!hasTelegramBackButton) return;
+  const backButton = getTelegramBackButton();
+  if (!backButton) return;
+  bindTelegramBackButton();
   if (activeModalBackHandler) {
-    tg.BackButton.show();
+    backButton.show();
     return;
   }
   const isRoot = ROOT_PAGES.includes(currentPageId);
@@ -11589,8 +12186,11 @@ async function cancelCurrentSchedule() {
     if (Number.isFinite(Number(data.refunded_credits))) {
       details.push(`возвращено занятий: ${data.refunded_credits}`);
     }
+    if (Number.isFinite(Number(data.group_notification_total)) && Number(data.group_notification_total) > 0) {
+      details.push(`уведомлено: ${Number(data.group_notification_sent) || 0}/${Number(data.group_notification_total)}`);
+    }
     if (data.group_notify_error) {
-      details.push(`ошибка TG: ${data.group_notify_error}`);
+      details.push(`ошибка уведомления: ${data.group_notify_error}`);
     }
     if (data.student_notify_error) {
       details.push(`уведомление ученику: ${data.student_notify_error}`);
@@ -11686,8 +12286,11 @@ async function moveCurrentSchedule() {
     if (moveType === 'low_attendance' && Number.isFinite(Number(data.present_count))) {
       details.push(`пришло: ${data.present_count}`);
     }
+    if (Number.isFinite(Number(data.group_notification_total)) && Number(data.group_notification_total) > 0) {
+      details.push(`уведомлено: ${Number(data.group_notification_sent) || 0}/${Number(data.group_notification_total)}`);
+    }
     if (data.group_notify_error) {
-      details.push(`ошибка TG: ${data.group_notify_error}`);
+      details.push(`ошибка уведомления: ${data.group_notify_error}`);
     }
     if (data.student_notify_error) {
       details.push(`уведомление ученику: ${data.student_notify_error}`);
@@ -11723,35 +12326,10 @@ function loadGroupScheduleDetails(groupId) {
       if (!res.ok) throw new Error('Ошибка загрузки группы');
       return res.json();
     })
-    .then(async group => {
-      let directionTitle = '—';
-      let directionPrice = null;
-      let teacherName = '—';
-
-      if (group.direction_id) {
-        try {
-          const dirRes = await fetch(`/api/directions/${group.direction_id}`, { headers: getAuthHeaders() });
-          if (dirRes.ok) {
-            const dir = await dirRes.json();
-            directionTitle = dir.title || directionTitle;
-            directionPrice = dir.base_price || directionPrice;
-          }
-        } catch (err) {
-          // ignore
-        }
-      }
-
-      if (group.teacher_id) {
-        try {
-          const staffRes = await fetch(`/staff/${group.teacher_id}`, { headers: getAuthHeaders() });
-          if (staffRes.ok) {
-            const staff = await staffRes.json();
-            teacherName = staff.name || teacherName;
-          }
-        } catch (err) {
-          // ignore
-        }
-      }
+    .then(group => {
+      const directionTitle = group.direction_title || '—';
+      const directionPrice = group.direction_base_price || null;
+      const teacherName = group.teacher_name || '—';
 
       const rows = [
         renderScheduleDetailArrowRow('👥', 'Группа', group.name || '—'),
@@ -11945,6 +12523,21 @@ function buildStudentChatLink(student) {
 
 function buildClientChatLink(client) {
   return buildStudentChatLink(client);
+}
+
+function buildClientVkLink(client) {
+  if (!client) return null;
+  const rawUsername = String(client?.vk_username || '').trim().replace(/^@+/, '');
+  if (rawUsername) {
+    return `https://vk.ru/${encodeURIComponent(rawUsername)}`;
+  }
+  const rawId = String(client?.vk_user_id || '').trim();
+  if (!rawId) return null;
+  const normalizedNumericId = rawId.replace(/^id/i, '');
+  if (/^\d+$/.test(normalizedNumericId)) {
+    return `https://vk.ru/id${normalizedNumericId}`;
+  }
+  return `https://vk.ru/${encodeURIComponent(rawId)}`;
 }
 
 function buildRentalCreatorChatLink(item) {
@@ -12450,7 +13043,15 @@ function quickClientDraftIntentLabel(intent) {
 function normalizeClientUserRecord(rawUser) {
   const id = Number.parseInt(rawUser?.id, 10);
   if (!Number.isFinite(id) || id <= 0) return null;
+  const authProviders = Array.isArray(rawUser?.auth_providers)
+    ? rawUser.auth_providers
+      .map((item) => String(item || '').trim().toLowerCase())
+      .filter(Boolean)
+    : [];
+  const vkUserId = String(rawUser?.vk_user_id || '').trim() || null;
+  const vkUsername = String(rawUser?.vk_username || '').trim().replace(/^@+/, '') || null;
   return {
+    ...rawUser,
     id,
     telegram_id: rawUser?.telegram_id ?? null,
     username: String(rawUser?.username || '').replace(/^@+/, ''),
@@ -12462,6 +13063,9 @@ function normalizeClientUserRecord(rawUser) {
     status: rawUser?.status ?? 'active',
     user_notes: rawUser?.user_notes ?? null,
     staff_notes: rawUser?.staff_notes ?? null,
+    auth_providers: authProviders,
+    vk_user_id: vkUserId,
+    vk_username: vkUsername,
   };
 }
 
@@ -14185,20 +14789,12 @@ function updateGroupFormDefaults() {
         });
       }
 
-      if (group.direction_id && preview) {
-        fetch(`/api/directions/${group.direction_id}`, { headers: getAuthHeaders() })
-          .then(async res => {
-            if (!res.ok) throw new Error('Не удалось загрузить направление');
-            return res.json();
-          })
-          .then(direction => {
-            const rows = preview.querySelectorAll('.schedule-detail-row');
-            if (rows.length >= 2) {
-              rows[rows.length - 2].innerHTML = `🎯 <strong>Направление:</strong> ${direction.title || '—'}`;
-              rows[rows.length - 1].innerHTML = `💰 <strong>Цена:</strong> ${direction.base_price ? direction.base_price + ' ?' : '—'}`;
-            }
-          })
-          .catch(() => {});
+      if (preview) {
+        const rows = preview.querySelectorAll('.schedule-detail-row');
+        if (rows.length >= 2) {
+          rows[rows.length - 2].innerHTML = `🎯 <strong>Направление:</strong> ${group.direction_title || '—'}`;
+          rows[rows.length - 1].innerHTML = `💰 <strong>Цена:</strong> ${group.direction_base_price ? group.direction_base_price + ' ₽' : '—'}`;
+        }
       }
       updateGroupLiveResult();
     })
@@ -14546,22 +15142,49 @@ function applyStaffRoleOptionGuards(selectEl, currentValue = '') {
   });
 }
 
-function getCachedStaffStatus() {
+function normalizeStaffCacheUserId(value) {
+  const normalized = String(value ?? '').trim();
+  return normalized || null;
+}
+
+function clearCachedStaffStatus() {
+  try {
+    localStorage.removeItem(STAFF_CACHE_KEY);
+  } catch (err) {
+    // ignore cache remove errors
+  }
+}
+
+function getCachedStaffStatusForUserId(userId) {
+  const normalizedUserId = normalizeStaffCacheUserId(userId);
+  if (!normalizedUserId) return null;
   try {
     const raw = localStorage.getItem(STAFF_CACHE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (typeof parsed !== 'object' || parsed === null) return null;
     if (typeof parsed.isStaff !== 'boolean') return null;
+    const cachedUserId = normalizeStaffCacheUserId(parsed.userId || parsed.user_id);
+    if (!cachedUserId || cachedUserId !== normalizedUserId) return null;
     return parsed;
   } catch (err) {
     return null;
   }
 }
 
-function setCachedStaffStatus(isStaffValue, positionValue) {
+function getCachedStaffStatus() {
+  return getCachedStaffStatusForUserId(getCurrentUserId());
+}
+
+function setCachedStaffStatusForUserId(userId, isStaffValue, positionValue) {
+  const normalizedUserId = normalizeStaffCacheUserId(userId);
+  if (!normalizedUserId) {
+    clearCachedStaffStatus();
+    return;
+  }
   try {
     const payload = {
+      userId: normalizedUserId,
       isStaff: Boolean(isStaffValue),
       position: positionValue || '',
       updatedAt: Date.now()
@@ -14570,6 +15193,56 @@ function setCachedStaffStatus(isStaffValue, positionValue) {
   } catch (err) {
     // ignore cache write errors
   }
+}
+
+function setCachedStaffStatus(isStaffValue, positionValue) {
+  setCachedStaffStatusForUserId(getCurrentUserId(), isStaffValue, positionValue);
+}
+
+function applyResolvedStaffStatus(statusPayload, options = {}) {
+  const normalizedUserId = normalizeStaffCacheUserId(options?.userId || getCurrentUserId());
+  const payload = statusPayload && typeof statusPayload === 'object' ? statusPayload : null;
+  const nextIsStaff = Boolean(payload?.is_staff ?? payload?.isStaff);
+  const nextPosition = nextIsStaff
+    ? String(payload?.staff?.position || payload?.position || '').trim().toLowerCase()
+    : '';
+
+  isStaff = nextIsStaff;
+  currentStaffPosition = nextPosition;
+
+  if (normalizedUserId) {
+    setCachedStaffStatusForUserId(normalizedUserId, nextIsStaff, nextPosition);
+  } else if (!nextIsStaff) {
+    clearCachedStaffStatus();
+  }
+
+  updateStaffNavigation();
+  return nextIsStaff;
+}
+
+function applyBootstrapStaffStatus(bootstrapPayload) {
+  const userId = normalizeStaffCacheUserId(bootstrapPayload?.user?.id);
+  if (!bootstrapPayload?.session?.authenticated || !userId) {
+    isStaff = false;
+    currentStaffPosition = '';
+    clearCachedStaffStatus();
+    updateStaffNavigation();
+    return false;
+  }
+
+  if (bootstrapPayload?.staff && typeof bootstrapPayload.staff.is_staff === 'boolean') {
+    return applyResolvedStaffStatus(bootstrapPayload.staff, { userId });
+  }
+
+  const cachedStaff = getCachedStaffStatusForUserId(userId);
+  if (cachedStaff) {
+    return applyResolvedStaffStatus(cachedStaff, { userId });
+  }
+
+  isStaff = false;
+  currentStaffPosition = '';
+  updateStaffNavigation();
+  return false;
 }
 let currentScheduleId = null;
 
@@ -15203,7 +15876,8 @@ async function loadStaffSchedule() {
 }
 
 // Личное расписание преподавателя
-async function loadPersonalSchedule() {
+async function loadPersonalSchedule(options = {}) {
+  const force = Boolean(options?.force);
   const container = document.getElementById('personal-schedule-container');
   if (!container) return;
   const todayStr = formatDateLocal(new Date());
@@ -15228,37 +15902,9 @@ async function loadPersonalSchedule() {
   const myName = normalize(hasOverride ? override.staffName : staffContext.staffName);
 
   try {
-    const headers = getAuthHeaders ? getAuthHeaders() : {};
-
-    // 1) базовое расписание
-    let schedules = [];
-    try {
-      const response = await fetch('/schedule', { headers });
-      if (response.ok) {
-        schedules = await response.json();
-      }
-    } catch (_) { /* ignore */ }
-
-    // 2) публичное расписание (может содержать учителя в полях teacher_id/teacher_name)
-    try {
-      const pubRes = await fetch('/schedule/public', { headers });
-      if (pubRes.ok) {
-        const pub = await pubRes.json();
-        if (Array.isArray(pub)) {
-          schedules = schedules.concat(pub);
-        }
-      }
-    } catch (_) { /* ignore */ }
-
-    // 3) если есть staffId — пробуем v2 с фильтром teacher_id (может дать 403 для простого учителя)
-    if (myStaffId) {
-      try {
-        const v2res = await fetch(`/schedule/v2?teacher_id=${myStaffId}`, { headers });
-        if (v2res.ok) {
-          const v2 = await v2res.json();
-          if (Array.isArray(v2)) schedules = schedules.concat(v2);
-        }
-      } catch (_) { /* ignore */ }
+    let schedules = await fetchPersonalScheduleSourceItems(myStaffId, { force });
+    if (!Array.isArray(schedules)) {
+      schedules = [];
     }
 
     // Фильтрация по преподавателю
@@ -15344,12 +15990,13 @@ async function loadPersonalSchedule() {
 }
 
 async function ensureCurrentStaffProfileContext() {
-  try { await authSessionPromise; } catch (_) {}
+  await ensureTelegramAuthSession();
 
   if (profileLoadedPromise) {
     try { await profileLoadedPromise; } catch (_) {}
-  } else if (!currentUserData && user?.id) {
-    try { await loadProfileData(); } catch (_) {}
+  }
+  if (!currentUserData) {
+    try { await ensureProfileLoaded(); } catch (_) {}
   }
 
   if (!window.currentStaffProfileId && currentUserData?.id) {
@@ -15386,21 +16033,7 @@ async function loadPersonalGroups() {
       return;
     }
 
-    const response = await fetch(`/api/teachers/${staffId}`, { headers: getAuthHeaders ? getAuthHeaders() : {} });
-    let data = {};
-    try {
-      data = await response.json();
-    } catch (_) {
-      data = {};
-    }
-
-    if (!response.ok) {
-      const message = data?.error || 'Не удалось загрузить группы';
-      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">❌ ${escapeHtml(message)}</p>`;
-      return;
-    }
-
-    const groups = Array.isArray(data.groups) ? data.groups : [];
+    const groups = await fetchPersonalGroupsData(staffId);
     if (!groups.length) {
       container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">У этого преподавателя пока нет групп</p>';
       return;
@@ -15859,7 +16492,7 @@ function shiftPersonalScheduleMonth(delta) {
 }
 
 function refreshPersonalSchedule() {
-  loadPersonalSchedule();
+  loadPersonalSchedule({ force: true });
 }
 
 function canCreatePersonalIndividualBooking() {
@@ -16352,7 +16985,7 @@ async function submitPersonalIndividualBooking() {
       setPersonalIndividualBookingMessage('Заявка отправлена админам на подтверждение.', false);
     }
     showNotification('Заявка на индивидуальное отправлена');
-    loadPersonalSchedule();
+    loadPersonalSchedule({ force: true });
   } catch (error) {
     console.error('Ошибка при создании заявки на индивидуальное занятие:', error);
     setPersonalIndividualBookingMessage(error.message || 'Ошибка сети', true);
@@ -16529,7 +17162,6 @@ async function loadPublicSchedule(force = false) {
       window.publicScheduleMonthDate = new Date(today.getFullYear(), today.getMonth(), 1);
     }
 
-    await preloadPublicDirections();
     initPublicScheduleStrip();
     updatePublicTypeTabs();
     updatePublicViewTabs();
@@ -16543,34 +17175,6 @@ async function loadPublicSchedule(force = false) {
   } finally {
     setPublicScheduleRefreshLoading(false);
   }
-}
-
-function preloadPublicDirections() {
-  const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
-  const missingIds = Array.from(new Set(items
-    .filter(s => s.direction_id && !s.direction_image)
-    .map(s => s.direction_id)
-  ));
-  if (!missingIds.length) return Promise.resolve();
-  if (!window.publicDirectionsCache) window.publicDirectionsCache = {};
-
-  return Promise.all(missingIds.map(id => {
-    if (window.publicDirectionsCache[id]) return Promise.resolve();
-    return fetch(`/api/directions/${id}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(dir => {
-        if (dir && dir.image_path) {
-          window.publicDirectionsCache[id] = dir.image_path;
-        }
-      })
-      .catch(() => {});
-  })).then(() => {
-    items.forEach(s => {
-      if (!s.direction_image && s.direction_id && window.publicDirectionsCache[s.direction_id]) {
-        s.direction_image = window.publicDirectionsCache[s.direction_id];
-      }
-    });
-  });
 }
 
 function initPublicScheduleStrip() {
@@ -17080,9 +17684,9 @@ async function deleteSchedule() {
 }
 
 /* ====== ПРОВЕРКА СТАТУСА ПЕРСОНАЛА ====== */
-async function checkStaffStatus(telegramId) {
+async function checkStaffStatus() {
   try {
-    await authSessionPromise;
+    await ensureTelegramAuthSession();
     const response = await fetch('/staff/me', { headers: getAuthHeaders() });
     
     if (!response.ok) {
@@ -17099,7 +17703,7 @@ async function checkStaffStatus(telegramId) {
       currentStaffPosition = data.staff.position.toLowerCase();
       
       // Обновляем имя из Telegram для расширенных админ-ролей
-      const tgUser = tg.initDataUnsafe?.user;
+      const tgUser = tg?.initDataUnsafe?.user;
       if (tgUser && (currentStaffPosition === 'владелец' || currentStaffPosition === 'старший админ' || currentStaffPosition === 'администратор')) {
         const payload = {
           user_id: currentUserData?.id,
@@ -17129,6 +17733,19 @@ async function checkStaffStatus(telegramId) {
     setCachedStaffStatus(false, '');
     updateStaffNavigation();
   }
+}
+
+let staffStatusRefreshPromise = null;
+function refreshStaffStatusInBackground() {
+  if (staffStatusRefreshPromise) return staffStatusRefreshPromise;
+  staffStatusRefreshPromise = checkStaffStatus()
+    .catch((error) => {
+      console.warn('Staff status refresh failed:', error);
+    })
+    .finally(() => {
+      staffStatusRefreshPromise = null;
+    });
+  return staffStatusRefreshPromise;
 }
 
 function updateStaffNavigation() {
@@ -17239,8 +17856,11 @@ function updateStaffNavigation() {
 }
 
 /* ====== ПРОФИЛЬ И НОВОЕ USER-CENTRIC AUTH STATE ====== */
-const user = tg.initDataUnsafe?.user;
+const user = tg?.initDataUnsafe?.user;
 const AUTH_HINTS_STORAGE_KEY = 'auth_state_snapshot_v2';
+const VK_LAUNCH_PAYLOAD_STORAGE_KEY = 'vk_launch_payload_v1';
+const NOTIFICATION_PRIORITY_EVENT_TYPE = '*';
+const NOTIFICATION_PRIORITY_CHANNEL_TYPES = ['telegram', 'vk'];
 let currentAuthState = {
   isAuthenticated: false,
   isLoading: true,
@@ -17249,7 +17869,19 @@ let currentAuthState = {
   fallbackAuthMethods: [],
   manualMergeRequired: false,
   verifiedPhoneConflict: false,
+  vkPermissionRequired: false,
   authError: null,
+};
+let notificationPriorityState = {
+  loaded: false,
+  loading: false,
+  saving: false,
+  requestingVkPermission: false,
+  availableChannels: [],
+  order: [],
+  savedOrder: [],
+  error: null,
+  vkPermissionRequired: false,
 };
 let currentUserData = null;
 let isStaff = false;
@@ -17264,6 +17896,25 @@ let personalSchedulePayoutCacheKey = null;
 let personalSchedulePayoutCacheData = null;
 let publicScheduleRefreshLoading = false;
 let personalScheduleRefreshLoading = false;
+const PROFILE_RELOAD_THROTTLE_MS = 5000;
+const TAB_PRELOAD_CACHE_TTL_MS = 45000;
+const TAB_PRELOAD_DELAY_MS = 320;
+let profileLastLoadAttemptAt = 0;
+let profileAbonementsCache = null;
+let profileAbonementsCacheUpdatedAt = 0;
+let profileAbonementsCacheUserKey = null;
+let profileAbonementsPromise = null;
+let profileBookingRequestsCache = null;
+let profileBookingRequestsCacheUpdatedAt = 0;
+let profileBookingRequestsCacheUserKey = null;
+let profileBookingRequestsPromise = null;
+const personalGroupsDataCache = new Map();
+const personalGroupsPromiseCache = new Map();
+const personalScheduleSourcesCache = new Map();
+const personalScheduleSourcesPromiseCache = new Map();
+let entryTabsPreloadUserKey = null;
+let entryTabsPreloadTimer = null;
+let entryTabsPreloadPromise = null;
 let personalIndividualBookingExpanded = false;
 let personalIndividualBookingState = {
   selectedUser: null,
@@ -17290,6 +17941,7 @@ function persistAuthSnapshot() {
       authProvider: currentAuthState.authProvider,
       fallbackAuthMethods: currentAuthState.fallbackAuthMethods || [],
       manualMergeRequired: !!currentAuthState.manualMergeRequired,
+      vkPermissionRequired: !!currentAuthState.vkPermissionRequired,
     }));
   } catch (_) {}
 }
@@ -17298,14 +17950,81 @@ function normalizeBootstrapUser(bootstrapUser, profileData = null) {
   return window.AuthUiState.normalizeBootstrapUser(bootstrapUser, profileData);
 }
 
+function _hasVkNotificationPermissionIssue(channels) {
+  return (Array.isArray(channels) ? channels : []).some((channel) => {
+    const channelType = String(channel?.channel_type || '').trim().toLowerCase();
+    return channelType === 'vk' && channel?.is_enabled !== false && channel?.is_verified === false;
+  });
+}
+
 function setAuthState(patch = {}) {
   currentAuthState = { ...currentAuthState, ...patch };
   persistAuthSnapshot();
   renderAuthStateUI();
 }
 
+function syncVkPermissionRequiredState(required) {
+  const normalized = Boolean(required);
+  if (Boolean(currentAuthState?.vkPermissionRequired) === normalized) {
+    return;
+  }
+  setAuthState({ vkPermissionRequired: normalized });
+}
+
 function getCurrentUserId() {
   return currentAuthState?.currentUser?.id || currentUserData?.id || null;
+}
+
+function _hasAuthenticatedCurrentUser() {
+  if (window.AuthUiState?.hasCurrentUser) {
+    return window.AuthUiState.hasCurrentUser(currentAuthState);
+  }
+  const rawId = currentAuthState?.currentUser?.id;
+  return Boolean(String(rawId ?? '').trim());
+}
+
+function _hasLoadedProfileData() {
+  return Boolean(String(currentUserData?.id ?? '').trim());
+}
+
+async function ensureProfileLoaded(options = {}) {
+  const force = Boolean(options?.force);
+  const bootstrapPayloadHint = options?.bootstrapPayloadHint;
+  const hasValidBootstrapHint = _isBootstrapContextPayload(bootstrapPayloadHint);
+  const hasSessionCookie = Boolean(getSidCookie());
+
+  if (!force && _hasLoadedProfileData()) {
+    return currentUserData;
+  }
+
+  if (!force && !hasValidBootstrapHint && !_hasAuthenticatedCurrentUser() && !hasSessionCookie) {
+    return currentUserData;
+  }
+
+  if (profileLoadedPromise) {
+    try { await profileLoadedPromise; } catch (_) {}
+    if (!force || _hasLoadedProfileData()) {
+      return currentUserData;
+    }
+  }
+
+  if (!force) {
+    const now = Date.now();
+    if ((now - profileLastLoadAttemptAt) < PROFILE_RELOAD_THROTTLE_MS) {
+      return currentUserData;
+    }
+    profileLastLoadAttemptAt = now;
+  } else {
+    profileLastLoadAttemptAt = Date.now();
+  }
+
+  profileLoadedPromise = loadProfileData(hasValidBootstrapHint ? bootstrapPayloadHint : null)
+    .finally(() => {
+      profileLoadedPromise = null;
+    });
+
+  try { await profileLoadedPromise; } catch (_) {}
+  return currentUserData;
 }
 
 function requiresVerifiedPhoneForBooking() {
@@ -17316,44 +18035,1018 @@ function getPhoneVerificationRequiredMessage() {
   return window.AuthUiState.getPhoneVerificationRequiredMessage();
 }
 
+function _normalizePhoneDisplay(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '-';
+  if (raw.startsWith('+') || raw.includes(' ')) return raw;
+  const digits = raw.replace(/\D+/g, '');
+  if (digits.length === 11 && digits.startsWith('7')) {
+    return `+7 ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
+  }
+  if (digits.length === 11 && digits.startsWith('8')) {
+    return `+7 ${digits.slice(1, 4)} ${digits.slice(4, 7)}-${digits.slice(7, 9)}-${digits.slice(9, 11)}`;
+  }
+  return raw;
+}
+
+function _resolveActiveAuthProvider(authUser) {
+  const identities = authUser?.identities || {};
+  const direct = String(currentAuthState.authProvider || '').toLowerCase();
+  if (direct && identities?.[direct]?.linked) return direct;
+  const platform = window.platformAdapter?.getPlatform?.();
+  if (platform === 'telegram' && identities?.telegram?.linked) return 'telegram';
+  if (platform === 'vk' && identities?.vk?.linked) return 'vk';
+  if (identities?.phone?.verified) return 'phone';
+  return null;
+}
+
+function _renderSettingsPhoneBlock(authUser) {
+  const valueEl = document.getElementById('settings-phone-value');
+  const statusEls = Array.from(document.querySelectorAll('.profile-request-phone-status'));
+  if (valueEl) {
+    valueEl.textContent = _normalizePhoneDisplay(currentUserData?.phone || authUser?.deprecated?.legacy_user_fields?.primary_phone || '');
+  }
+  if (!statusEls.length) return;
+
+  const hasPhone = Boolean(String(currentUserData?.phone || '').trim());
+  const phoneVerified = Boolean(authUser?.phone_verified || authUser?.identities?.phone?.verified);
+  const statusText = phoneVerified
+    ? 'Номер подтвержден и готов для входа и записи'
+    : (hasPhone ? 'Номер сохранен, но еще требует подтверждения' : 'Номер не указан или не подтвержден');
+  const statusClass = phoneVerified ? 'ok' : 'warn';
+
+  statusEls.forEach((statusEl) => {
+    statusEl.classList.remove('ok', 'warn', 'pending');
+    statusEl.classList.add(statusClass);
+    statusEl.textContent = statusText;
+  });
+}
+
+function _renderAuthMethods(authUser) {
+  const methodsList = document.getElementById('auth-methods-list');
+  if (!methodsList) return;
+  const identities = authUser?.identities || {};
+  const activeProvider = _resolveActiveAuthProvider(authUser);
+  const providers = [
+    {
+      key: 'telegram',
+      label: 'Telegram',
+      linked: Boolean(identities?.telegram?.linked),
+      actionLabel: 'Подключить',
+      action: 'handleConnectTelegram()',
+      hint: 'Вход через Telegram Mini App',
+    },
+    {
+      key: 'vk',
+      label: 'VK',
+      linked: Boolean(identities?.vk?.linked),
+      actionLabel: 'Подключить',
+      action: 'handleConnectVK()',
+      hint: 'Вход через VK Mini App',
+    },
+  ];
+
+  methodsList.innerHTML = providers.map((provider) => {
+    const isActive = provider.linked && activeProvider === provider.key;
+    const statusText = isActive
+      ? 'Текущий вход через этот сервис'
+      : (provider.linked ? 'Подключен' : 'Не подключен');
+    const statusClass = isActive
+      ? 'active'
+      : (provider.linked ? 'linked' : 'pending');
+    const actionHtml = provider.linked
+      ? ''
+      : `<div class="auth-service-action"><button class="save-btn settings-compact-btn" onclick="${provider.action}">${provider.actionLabel}</button></div>`;
+    return `
+      <div class="auth-service-row">
+        ${actionHtml}
+        <div class="auth-service-meta">
+          <div class="auth-service-title">${provider.label}</div>
+          <div class="auth-service-note">${provider.hint}</div>
+          <div class="auth-service-status ${statusClass}">${statusText}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function _resetNotificationPriorityState() {
+  notificationPriorityState = {
+    loaded: false,
+    loading: false,
+    saving: false,
+    requestingVkPermission: false,
+    availableChannels: [],
+    order: [],
+    savedOrder: [],
+    error: null,
+    vkPermissionRequired: false,
+  };
+}
+
+function _notificationChannelLabel(channelType) {
+  const normalized = String(channelType || '').trim().toLowerCase();
+  if (normalized === 'telegram') return 'Telegram';
+  if (normalized === 'vk') return 'VK';
+  if (normalized === 'web_push') return 'Браузер';
+  return normalized || 'Канал';
+}
+
+function _notificationOrdersEqual(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (String(a[i]) !== String(b[i])) return false;
+  }
+  return true;
+}
+
+function _resolveNotificationPriorityOrder(availableChannels, preferenceItems) {
+  const availableTypes = new Set(
+    (Array.isArray(availableChannels) ? availableChannels : [])
+      .map((channel) => String(channel?.channel_type || '').trim().toLowerCase())
+      .filter((channelType) => channelType && NOTIFICATION_PRIORITY_CHANNEL_TYPES.includes(channelType))
+  );
+  if (!availableTypes.size) return [];
+
+  const wildcardPrefs = (Array.isArray(preferenceItems) ? preferenceItems : [])
+    .filter((item) => String(item?.event_type || '').trim() === NOTIFICATION_PRIORITY_EVENT_TYPE)
+    .filter((item) => Boolean(item?.is_enabled))
+    .map((item) => ({
+      channelType: String(item?.channel_type || '').trim().toLowerCase(),
+      priority: Number(item?.priority ?? 100),
+      id: Number(item?.id ?? 0),
+    }))
+    .filter((item) => availableTypes.has(item.channelType))
+    .sort((a, b) => (a.priority - b.priority) || (a.id - b.id));
+
+  const ordered = [];
+  const seen = new Set();
+  wildcardPrefs.forEach((item) => {
+    if (seen.has(item.channelType)) return;
+    seen.add(item.channelType);
+    ordered.push(item.channelType);
+  });
+
+  if (!ordered.length) {
+    const fallbackSorted = (Array.isArray(availableChannels) ? [...availableChannels] : [])
+      .sort((a, b) => {
+        const primaryDiff = Number(Boolean(b?.is_primary)) - Number(Boolean(a?.is_primary));
+        if (primaryDiff) return primaryDiff;
+        return Number(a?.id ?? 0) - Number(b?.id ?? 0);
+      });
+    fallbackSorted.forEach((channel) => {
+      const channelType = String(channel?.channel_type || '').trim().toLowerCase();
+      if (!channelType || seen.has(channelType) || !availableTypes.has(channelType)) return;
+      seen.add(channelType);
+      ordered.push(channelType);
+    });
+  }
+
+  availableTypes.forEach((channelType) => {
+    if (!seen.has(channelType)) ordered.push(channelType);
+  });
+  return ordered;
+}
+
+function _setNotificationPriorityStatus(text = '', color = 'var(--hint)') {
+  const statusEl = document.getElementById('notifications-priority-status');
+  if (!statusEl) return;
+  statusEl.textContent = text || '';
+  statusEl.style.color = color;
+}
+
+function _findNotificationPrimaryChannel(order = null) {
+  const resolvedOrder = Array.isArray(order)
+    ? order
+    : (Array.isArray(notificationPriorityState.order) ? notificationPriorityState.order : []);
+  const primaryType = String(resolvedOrder[0] || '').trim().toLowerCase();
+  if (!primaryType) return null;
+  const channels = Array.isArray(notificationPriorityState.availableChannels)
+    ? notificationPriorityState.availableChannels
+    : [];
+  return (
+    channels.find((channel) => String(channel?.channel_type || '').trim().toLowerCase() === primaryType)
+    || null
+  );
+}
+
+function _isVkChannelVerificationRequired(channel) {
+  if (!channel) return false;
+  const channelType = String(channel?.channel_type || '').trim().toLowerCase();
+  return channelType === 'vk' && !Boolean(channel?.is_verified);
+}
+
+function _isVkPermissionDeferredError(message) {
+  const normalized = String(message || '').trim().toLowerCase();
+  if (!normalized) return false;
+  return normalized === 'vk_permission_deferred'
+    || normalized === 'vk_bridge_unavailable'
+    || normalized.includes('bridge is unavailable');
+}
+
+function _getVkChannelLookupPayload(channel) {
+  const channelId = Number(channel?.id || 0);
+  if (channelId > 0) {
+    return { channel_id: channelId };
+  }
+  const targetRef = String(channel?.target_ref || '').trim();
+  if (targetRef) {
+    return { target_ref: targetRef };
+  }
+  return {};
+}
+
+async function _loadCurrentVkNotificationChannel() {
+  const channelsRes = await authFetch('/api/notifications/channels');
+  const channelsPayload = await channelsRes.json().catch(() => ({}));
+  if (!channelsRes.ok) {
+    throw new Error(String(channelsPayload?.error || 'vk_channels_load_failed').trim() || 'vk_channels_load_failed');
+  }
+  const channels = Array.isArray(channelsPayload?.items) ? channelsPayload.items : [];
+  const vkChannel = channels.find((item) => String(item?.channel_type || '').trim().toLowerCase() === 'vk');
+  if (!vkChannel) {
+    throw new Error('vk_channel_not_found');
+  }
+  return vkChannel;
+}
+
+async function _requestVkPermissionKey(channel) {
+  const response = await authFetch('/api/notifications/channels/vk/request-permission', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(_getVkChannelLookupPayload(channel)),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || !payload?.ok) {
+    throw new Error(String(payload?.error || 'vk_permission_key_request_failed').trim() || 'vk_permission_key_request_failed');
+  }
+  const permissionKey = String(payload?.permission_key || '').trim();
+  if (!permissionKey) {
+    throw new Error('vk_permission_key_missing');
+  }
+  return {
+    permissionKey,
+    channel: payload?.channel || channel,
+    groupId: Number(payload?.group_id || 0) > 0 ? Number(payload.group_id) : null,
+  };
+}
+
+function _formatVkPermissionFlowError(errorCode) {
+  const normalized = String(errorCode || '').trim().toLowerCase();
+  if (!normalized) return 'Не удалось подтвердить разрешение VK.';
+  if (normalized === 'vk_channel_not_found') return 'Канал уведомлений VK не найден.';
+  if (normalized === 'vk_permission_not_granted') return 'Разрешение на сообщения от сообщества VK не подтверждено.';
+  if (normalized === 'vk_group_id_missing') return 'Не удалось определить сообщество VK для подтверждения сообщений.';
+  if (normalized === 'vk_bridge_unavailable') return 'Подтверждение VK доступно только внутри VK Mini App.';
+  if (
+    normalized === 'vk_permission_key_required'
+    || normalized === 'vk_permission_key_missing'
+    || normalized === 'vk_permission_key_invalid'
+    || normalized === 'vk_permission_key_request_failed'
+    || normalized === 'vk_channels_load_failed'
+  ) {
+    return 'Подтверждение VK устарело. Обновите мини-приложение и попробуйте снова.';
+  }
+  return `Не удалось подтвердить разрешение VK: ${normalized}`;
+}
+
+async function _ensureVkPrimaryChannelVerifiedLegacy(channel) {
+  if (!_isVkChannelVerificationRequired(channel)) {
+    return channel;
+  }
+  const platform = window.platformAdapter?.getPlatform?.() || 'web';
+  if (platform !== 'vk') {
+    throw new Error('Откройте приложение через VK Mini App, чтобы подтвердить уведомления VK.');
+  }
+  if (typeof window.platformAdapter?.requestVkAllowMessagesFromGroup !== 'function') {
+    throw new Error('Уведомления VK можно подтвердить только внутри VK Mini App.');
+  }
+
+  const permissionContext = await _requestVkPermissionKey(channel);
+  try {
+    await window.platformAdapter.requestVkAllowMessagesFromGroup(permissionContext.permissionKey, { groupId: permissionContext.groupId });
+  } catch (error) {
+    const message = String(error?.message || '').trim();
+    if (_isVkPermissionDeferredError(message)) {
+      throw new Error('Уведомления VK можно подтвердить только внутри VK Mini App.');
+    }
+    throw new Error(message ? `Не удалось подтвердить уведомления VK: ${message}` : 'Не удалось подтвердить уведомления VK.');
+  }
+
+  const verifyResponse = await authFetch('/api/notifications/channels/vk/mark-verified', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ..._getVkChannelLookupPayload(permissionContext.channel || channel),
+      permission_key: permissionContext.permissionKey,
+    }),
+  });
+  const verifyPayload = await verifyResponse.json().catch(() => ({}));
+  if (!verifyResponse.ok || !verifyPayload?.ok) {
+    const reason = String(verifyPayload?.error || 'vk_verify_update_failed').trim();
+    throw new Error(`Не удалось подтвердить канал VK: ${reason}`);
+  }
+
+  const updatedChannelId = Number(verifyPayload?.channel?.id || channel?.id || 0);
+  notificationPriorityState.availableChannels = (Array.isArray(notificationPriorityState.availableChannels) ? notificationPriorityState.availableChannels : [])
+    .map((item) => {
+      if (Number(item?.id || 0) !== updatedChannelId) return item;
+      return {
+        ...item,
+        is_enabled: verifyPayload?.channel?.is_enabled !== false,
+        is_verified: true,
+      };
+    });
+  notificationPriorityState.vkPermissionRequired = false;
+  _renderNotificationPrioritySettings();
+
+  return (
+    (notificationPriorityState.availableChannels || [])
+      .find((item) => Number(item?.id || 0) === updatedChannelId)
+    || {
+      ...channel,
+      is_verified: true,
+    }
+  );
+}
+
+async function _ensureVkPrimaryChannelVerified(channel) {
+  if (!_isVkChannelVerificationRequired(channel)) {
+    return channel;
+  }
+  const platform = window.platformAdapter?.getPlatform?.() || 'web';
+  if (platform !== 'vk') {
+    throw new Error('Откройте приложение через VK Mini App, чтобы подтвердить сообщения от сообщества VK.');
+  }
+  if (typeof window.platformAdapter?.requestVkAllowMessagesFromGroup !== 'function') {
+    throw new Error('Разрешение VK можно подтвердить только внутри VK Mini App.');
+  }
+
+  const permissionContext = await _requestVkPermissionKey(channel);
+  try {
+    await window.platformAdapter.requestVkAllowMessagesFromGroup(permissionContext.permissionKey, { groupId: permissionContext.groupId });
+  } catch (error) {
+    const message = String(error?.message || '').trim();
+    if (_isVkPermissionDeferredError(message)) {
+      throw new Error('Разрешение VK можно подтвердить только внутри VK Mini App.');
+    }
+    throw new Error(_formatVkPermissionFlowError(message));
+  }
+
+  const verifyResponse = await authFetch('/api/notifications/channels/vk/mark-verified', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ..._getVkChannelLookupPayload(permissionContext.channel || channel),
+      permission_key: permissionContext.permissionKey,
+    }),
+  });
+  const verifyPayload = await verifyResponse.json().catch(() => ({}));
+  if (!verifyResponse.ok || !verifyPayload?.ok) {
+    throw new Error(_formatVkPermissionFlowError(verifyPayload?.error || 'vk_verify_update_failed'));
+  }
+
+  const updatedChannelId = Number(verifyPayload?.channel?.id || channel?.id || 0);
+  notificationPriorityState.availableChannels = (Array.isArray(notificationPriorityState.availableChannels) ? notificationPriorityState.availableChannels : [])
+    .map((item) => {
+      if (Number(item?.id || 0) !== updatedChannelId) return item;
+      return {
+        ...item,
+        is_enabled: verifyPayload?.channel?.is_enabled !== false,
+        is_verified: true,
+      };
+    });
+  notificationPriorityState.vkPermissionRequired = false;
+  _renderNotificationPrioritySettings();
+
+  return (
+    (notificationPriorityState.availableChannels || [])
+      .find((item) => Number(item?.id || 0) === updatedChannelId)
+    || {
+      ...channel,
+      is_verified: true,
+    }
+  );
+}
+
+async function requestVkNotificationPermissionFromSettings(channelId = 0) {
+  if (notificationPriorityState.requestingVkPermission) return;
+  const resolvedId = Number(channelId || 0);
+  const channels = Array.isArray(notificationPriorityState.availableChannels)
+    ? notificationPriorityState.availableChannels
+    : [];
+  const targetChannel = channels.find((item) => {
+    const isVk = String(item?.channel_type || '').trim().toLowerCase() === 'vk';
+    if (!isVk) return false;
+    if (resolvedId > 0) return Number(item?.id || 0) === resolvedId;
+    return true;
+  });
+
+  if (!targetChannel) {
+    _setNotificationPriorityStatus('Канал VK не найден.', '#fca5a5');
+    showNotification('Не найден канал VK.');
+    return;
+  }
+  if (!_isVkChannelVerificationRequired(targetChannel)) {
+    _setNotificationPriorityStatus('Уведомления VK уже включены.', '#34d399');
+    return;
+  }
+
+  notificationPriorityState.requestingVkPermission = true;
+  _renderNotificationPrioritySettings();
+  _setNotificationPriorityStatus('Подключаем уведомления VK...', 'var(--hint)');
+  try {
+    await _ensureVkPrimaryChannelVerified(targetChannel);
+    await loadNotificationPrioritySettings(true);
+    _setNotificationPriorityStatus('Уведомления VK подключены.', '#34d399');
+    showNotification('Канал VK подключен');
+  } catch (error) {
+    const message = String(error?.message || '').trim() || 'Не удалось включить уведомления VK';
+    _setNotificationPriorityStatus(message, '#fca5a5');
+    showNotification(`Ошибка: ${message}`);
+  } finally {
+    notificationPriorityState.requestingVkPermission = false;
+    _renderNotificationPrioritySettings();
+  }
+}
+
+
+async function _selectPrimaryNotificationChannel(primaryChannel) {
+  if (!primaryChannel?.id) return;
+
+  let selected = primaryChannel;
+  if (_isVkChannelVerificationRequired(selected)) {
+    selected = await _ensureVkPrimaryChannelVerified(selected);
+  }
+
+  let response = await authFetch('/api/notifications/channels/select-primary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ channel_id: Number(selected.id) }),
+  });
+
+  if (response.ok) return;
+
+  let payload = await response.json().catch(() => ({}));
+  if (response.status === 409 && String(payload?.error || '').trim() === 'vk_permission_required') {
+    selected = await _ensureVkPrimaryChannelVerified(selected);
+    response = await authFetch('/api/notifications/channels/select-primary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ channel_id: Number(selected.id) }),
+    });
+    if (response.ok) return;
+    payload = await response.json().catch(() => ({}));
+  }
+
+  const reason = String(payload?.error || '').trim();
+  throw new Error(reason ? `Не удалось выбрать основной канал: ${reason}` : 'Не удалось выбрать основной канал.');
+}
+
+function _renderNotificationPrioritySettings() {
+  const summaryEl = document.getElementById('notifications-priority-summary');
+  const listEl = document.getElementById('notifications-priority-list');
+  const saveBtn = document.getElementById('notifications-priority-save-btn');
+  if (!summaryEl || !listEl || !saveBtn) return;
+
+  if (!_hasAuthenticatedCurrentUser()) {
+    summaryEl.textContent = 'Настройте порядок каналов уведомлений ниже в профиле.';
+    listEl.innerHTML = '';
+    saveBtn.disabled = true;
+    _setNotificationPriorityStatus('');
+    return;
+  }
+
+  if (notificationPriorityState.loading) {
+    summaryEl.textContent = 'Загружаем настройки уведомлений...';
+    listEl.innerHTML = '<div class="passkey-item">Загрузка...</div>';
+    saveBtn.disabled = true;
+    return;
+  }
+
+  if (notificationPriorityState.error) {
+    summaryEl.textContent = 'Не удалось загрузить настройки уведомлений.';
+    listEl.innerHTML = `<div class="passkey-item">${escapeHtml(String(notificationPriorityState.error))}</div>`;
+    saveBtn.disabled = true;
+    return;
+  }
+
+  const availableChannels = Array.isArray(notificationPriorityState.availableChannels)
+    ? notificationPriorityState.availableChannels
+    : [];
+  const order = Array.isArray(notificationPriorityState.order) ? notificationPriorityState.order : [];
+  if (!availableChannels.length || !order.length) {
+    summaryEl.textContent = 'Подключите Telegram или VK, чтобы настроить порядок уведомлений.';
+    listEl.innerHTML = '<div class="passkey-item">Доступные каналы пока не найдены</div>';
+    saveBtn.disabled = true;
+    return;
+  }
+
+  summaryEl.textContent = `Порядок каналов: ${order.map((item) => _notificationChannelLabel(item)).join(' -> ')}`;
+  const primaryChannel = _findNotificationPrimaryChannel(order);
+  const hasVkPermissionIssue = _hasVkNotificationPermissionIssue(availableChannels);
+  notificationPriorityState.vkPermissionRequired = hasVkPermissionIssue;
+  if (hasVkPermissionIssue) {
+    summaryEl.textContent += ' (для VK нужно заново разрешить сообщения от сообщества)';
+  }
+
+  listEl.innerHTML = order.map((channelType, index) => {
+    const channel = availableChannels.find((item) => String(item?.channel_type || '').trim().toLowerCase() === channelType);
+    const targetRef = String(channel?.target_ref || '').trim();
+    const safeTitle = escapeHtml(_notificationChannelLabel(channelType));
+    const vkNeedsPermission = _isVkChannelVerificationRequired(channel);
+    let channelNote = targetRef ? escapeHtml(targetRef) : 'не указан';
+    if (vkNeedsPermission) {
+      channelNote += ' - разрешите сообщения от сообщества заново';
+    }
+
+    const disableMoveUp = index === 0 || (vkNeedsPermission && index === 1);
+    const disableMoveDown = index === order.length - 1;
+    const requestPermissionButton = vkNeedsPermission
+      ? `<button class="save-btn settings-compact-btn" type="button" onclick="requestVkNotificationPermissionFromSettings(${Number(channel?.id || 0)})" ${notificationPriorityState.requestingVkPermission ? 'disabled' : ''}>Включить VK</button>`
+      : '';
+
+    return `
+      <div class="notification-priority-row">
+        <div class="notification-priority-meta">
+          <div class="notification-priority-title">${safeTitle}</div>
+          <div class="notification-priority-note">${channelNote}</div>
+        </div>
+        <div class="notification-priority-actions">
+          ${requestPermissionButton}
+          <button class="notification-priority-btn" type="button" onclick="moveNotificationPriorityChannel('${channelType}', -1)" ${disableMoveUp ? 'disabled' : ''}>&#8593;</button>
+          <button class="notification-priority-btn" type="button" onclick="moveNotificationPriorityChannel('${channelType}', 1)" ${disableMoveDown ? 'disabled' : ''}>&#8595;</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  const dirty = !_notificationOrdersEqual(notificationPriorityState.order, notificationPriorityState.savedOrder);
+  const blockedByVkPrimary = _isVkChannelVerificationRequired(primaryChannel);
+  if (blockedByVkPrimary) {
+    _setNotificationPriorityStatus('Сообщество VK больше не может писать вам. Откройте VK Mini App и снова разрешите сообщения от сообщества.', '#fca5a5');
+  }
+  saveBtn.disabled = !dirty || notificationPriorityState.saving || notificationPriorityState.requestingVkPermission || blockedByVkPrimary;
+}
+
+async function loadNotificationPrioritySettings(force = false) {
+  if (!_hasAuthenticatedCurrentUser()) {
+    _resetNotificationPriorityState();
+    _renderNotificationPrioritySettings();
+    return;
+  }
+  if (notificationPriorityState.loading) return;
+  if (notificationPriorityState.loaded && !force) {
+    _renderNotificationPrioritySettings();
+    return;
+  }
+
+  notificationPriorityState.loading = true;
+  notificationPriorityState.error = null;
+  _renderNotificationPrioritySettings();
+  _setNotificationPriorityStatus('');
+  try {
+    const [channelsRes, preferencesRes] = await Promise.all([
+      authFetch('/api/notifications/channels'),
+      authFetch('/api/notifications/preferences'),
+    ]);
+    const channelsPayload = channelsRes.ok ? await channelsRes.json().catch(() => ({ items: [] })) : null;
+    const preferencesPayload = preferencesRes.ok ? await preferencesRes.json().catch(() => ({ items: [] })) : null;
+    if (!channelsRes.ok || !preferencesRes.ok) {
+      throw new Error('Сервис уведомлений временно недоступен');
+    }
+
+    const availableChannels = (Array.isArray(channelsPayload?.items) ? channelsPayload.items : [])
+      .map((channel) => ({
+        ...channel,
+        id: Number(channel?.id ?? 0),
+        channel_type: String(channel?.channel_type || '').trim().toLowerCase(),
+        is_verified: channel?.is_verified !== false,
+      }))
+      .filter((channel) => channel.id > 0)
+      .filter((channel) => channel.is_enabled !== false)
+      .filter((channel) => NOTIFICATION_PRIORITY_CHANNEL_TYPES.includes(channel.channel_type));
+
+    const preferences = Array.isArray(preferencesPayload?.items) ? preferencesPayload.items : [];
+    const resolvedOrder = _resolveNotificationPriorityOrder(availableChannels, preferences);
+    notificationPriorityState.availableChannels = availableChannels;
+    notificationPriorityState.order = [...resolvedOrder];
+    notificationPriorityState.savedOrder = [...resolvedOrder];
+    notificationPriorityState.vkPermissionRequired = _hasVkNotificationPermissionIssue(availableChannels);
+    notificationPriorityState.error = null;
+    notificationPriorityState.loaded = true;
+  } catch (error) {
+    notificationPriorityState.error = error?.message || 'Неизвестная ошибка';
+    notificationPriorityState.availableChannels = [];
+    notificationPriorityState.order = [];
+    notificationPriorityState.savedOrder = [];
+    notificationPriorityState.vkPermissionRequired = Boolean(currentAuthState?.vkPermissionRequired);
+    notificationPriorityState.loaded = true;
+  } finally {
+    notificationPriorityState.loading = false;
+    syncVkPermissionRequiredState(_hasAuthenticatedCurrentUser() && notificationPriorityState.vkPermissionRequired);
+    _renderNotificationPrioritySettings();
+  }
+}
+
+function moveNotificationPriorityChannel(channelType, direction = 0) {
+  const normalized = String(channelType || '').trim().toLowerCase();
+  if (!normalized) return;
+  const order = Array.isArray(notificationPriorityState.order) ? [...notificationPriorityState.order] : [];
+  const index = order.indexOf(normalized);
+  if (index < 0) return;
+  const delta = Number(direction);
+  if (!Number.isFinite(delta) || delta === 0) return;
+  const nextIndex = index + (delta > 0 ? 1 : -1);
+  if (nextIndex < 0 || nextIndex >= order.length) return;
+
+  const channel = (Array.isArray(notificationPriorityState.availableChannels) ? notificationPriorityState.availableChannels : [])
+    .find((item) => String(item?.channel_type || '').trim().toLowerCase() === normalized);
+  if (nextIndex === 0 && _isVkChannelVerificationRequired(channel)) {
+    _setNotificationPriorityStatus('Сначала включите уведомления VK, потом можно поднять канал на первое место.', '#fca5a5');
+    return;
+  }
+
+  const [item] = order.splice(index, 1);
+  order.splice(nextIndex, 0, item);
+  notificationPriorityState.order = order;
+  _renderNotificationPrioritySettings();
+}
+
+async function saveNotificationPrioritySettings() {
+  if (!_hasAuthenticatedCurrentUser()) {
+    showNotification('Сначала войдите в аккаунт');
+    return;
+  }
+  if (notificationPriorityState.saving || notificationPriorityState.requestingVkPermission) return;
+  const order = Array.isArray(notificationPriorityState.order) ? notificationPriorityState.order : [];
+  if (!order.length) {
+    showNotification('Нет каналов для сохранения');
+    return;
+  }
+
+  const primaryChannel = _findNotificationPrimaryChannel(order);
+  if (_isVkChannelVerificationRequired(primaryChannel)) {
+    const message = 'VK нельзя сделать основным без подтверждения. Сначала включите уведомления VK.';
+    _setNotificationPriorityStatus(message, '#fca5a5');
+    showNotification(`Ошибка: ${message}`);
+    return;
+  }
+
+  notificationPriorityState.saving = true;
+  _renderNotificationPrioritySettings();
+  _setNotificationPriorityStatus('Сохраняем порядок...', 'var(--hint)');
+  try {
+    const requests = [];
+    order.forEach((channelType, index) => {
+      requests.push(
+        authFetch('/api/notifications/preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_type: NOTIFICATION_PRIORITY_EVENT_TYPE,
+            channel_type: channelType,
+            priority: index + 1,
+            is_enabled: true,
+          }),
+        })
+      );
+    });
+
+    const managedTypes = new Set(
+      (Array.isArray(notificationPriorityState.availableChannels) ? notificationPriorityState.availableChannels : [])
+        .map((channel) => String(channel?.channel_type || '').trim().toLowerCase())
+        .filter((channelType) => channelType && NOTIFICATION_PRIORITY_CHANNEL_TYPES.includes(channelType))
+    );
+    managedTypes.forEach((channelType) => {
+      if (order.includes(channelType)) return;
+      requests.push(
+        authFetch('/api/notifications/preferences', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event_type: NOTIFICATION_PRIORITY_EVENT_TYPE,
+            channel_type: channelType,
+            priority: 999,
+            is_enabled: false,
+          }),
+        })
+      );
+    });
+
+    const responses = await Promise.all(requests);
+    const failed = responses.find((response) => !response.ok);
+    if (failed) {
+      throw new Error('Не удалось сохранить новый порядок');
+    }
+
+    if (primaryChannel?.id) {
+      await _selectPrimaryNotificationChannel(primaryChannel);
+    }
+
+    notificationPriorityState.savedOrder = [...order];
+    _setNotificationPriorityStatus('Порядок уведомлений сохранен', '#34d399');
+    showNotification('Приоритет уведомлений обновлен');
+  } catch (error) {
+    const message = error?.message || 'Не удалось сохранить изменения';
+    _setNotificationPriorityStatus(message, '#fca5a5');
+    showNotification(`Ошибка: ${message}`);
+  } finally {
+    notificationPriorityState.saving = false;
+    _renderNotificationPrioritySettings();
+  }
+}
+
+function _sortPasskeys(items) {
+  const normalized = Array.isArray(items) ? [...items] : [];
+  normalized.sort((a, b) => {
+    const aTs = Date.parse(a?.last_used_at || a?.created_at || 0) || 0;
+    const bTs = Date.parse(b?.last_used_at || b?.created_at || 0) || 0;
+    return bTs - aTs;
+  });
+  return normalized;
+}
+
+function _isPasskeyWebAuthnSupported() {
+  let topLevel = false;
+  try {
+    topLevel = window.top === window.self;
+  } catch (_) {
+    topLevel = false;
+  }
+  const platform = window.platformAdapter?.getPlatform?.() || 'web';
+  if (platform === 'vk') return false;
+  return Boolean(
+    window.isSecureContext
+    && topLevel
+    && window.PublicKeyCredential
+    && navigator.credentials
+    && typeof navigator.credentials.create === 'function'
+  );
+}
+
+function _passkeyBase64UrlToArrayBuffer(value) {
+  const normalized = String(value || '').trim();
+  if (!normalized) return new Uint8Array(0).buffer;
+  const base64 = normalized.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes.buffer;
+}
+
+function _passkeyArrayBufferToBase64Url(value) {
+  const bytes = value instanceof Uint8Array ? value : new Uint8Array(value || []);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function _passkeyStripNullish(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => _passkeyStripNullish(item))
+      .filter((item) => item !== null && item !== undefined);
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  const normalized = {};
+  Object.entries(value).forEach(([key, raw]) => {
+    if (raw === null || raw === undefined) return;
+    const cleaned = _passkeyStripNullish(raw);
+    if (cleaned === null || cleaned === undefined) return;
+    normalized[key] = cleaned;
+  });
+  return normalized;
+}
+
+function _passkeyDropKeyDeep(value, keyName) {
+  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => _passkeyDropKeyDeep(item, keyName));
+  }
+  if (!value || typeof value !== 'object') {
+    return value;
+  }
+  const normalized = {};
+  Object.entries(value).forEach(([key, raw]) => {
+    if (key === keyName) return;
+    normalized[key] = _passkeyDropKeyDeep(raw, keyName);
+  });
+  return normalized;
+}
+
+function _normalizePasskeyCreationOptions(beginPayload, currentUserId) {
+  const source = (beginPayload && typeof beginPayload.publicKey === 'object' && beginPayload.publicKey)
+    ? beginPayload.publicKey
+    : {};
+  const options = _passkeyDropKeyDeep(_passkeyStripNullish({ ...source }), 'sameOriginWithAncestors');
+  if (!options.challenge && beginPayload?.challenge) {
+    options.challenge = beginPayload.challenge;
+  }
+  if (!options.rp || typeof options.rp !== 'object') {
+    options.rp = { id: beginPayload?.rp_id || '', name: 'Dance Studio' };
+  } else if (!options.rp.id && beginPayload?.rp_id) {
+    options.rp = { ...options.rp, id: beginPayload.rp_id };
+  }
+  if (!options.user || typeof options.user !== 'object') {
+    options.user = {};
+  }
+  if (!options.user.id) {
+    const encoded = new TextEncoder().encode(String(currentUserId));
+    options.user.id = _passkeyArrayBufferToBase64Url(encoded);
+  }
+  if (!options.user.name) {
+    options.user.name = `user-${currentUserId}`;
+  }
+  if (!options.user.displayName) {
+    options.user.displayName = options.user.name;
+  }
+  if (!Array.isArray(options.pubKeyCredParams) || !options.pubKeyCredParams.length) {
+    options.pubKeyCredParams = [{ alg: -7, type: 'public-key' }];
+  }
+
+  const normalized = {
+    ...options,
+    challenge: _passkeyBase64UrlToArrayBuffer(options.challenge),
+    user: {
+      ...options.user,
+      id: _passkeyBase64UrlToArrayBuffer(options.user.id),
+    },
+  };
+
+  if (Array.isArray(options.excludeCredentials)) {
+    normalized.excludeCredentials = options.excludeCredentials
+      .filter((item) => item && item.id)
+      .map((item) => ({ ...item, id: _passkeyBase64UrlToArrayBuffer(item.id) }));
+  }
+  if (Array.isArray(options.allowCredentials)) {
+    normalized.allowCredentials = options.allowCredentials
+      .filter((item) => item && item.id)
+      .map((item) => ({ ...item, id: _passkeyBase64UrlToArrayBuffer(item.id) }));
+  }
+  return normalized;
+}
+
+function _renderPasskeyBlock(authUser) {
+  const passkeyStatusLine = document.getElementById('passkey-status-line');
+  const passkeyItemsList = document.getElementById('passkey-items-list');
+  const savePasskeyBtn = document.getElementById('passkey-save-btn');
+  const deleteCurrentBtn = document.getElementById('passkey-delete-current-btn');
+  const deleteOthersBtn = document.getElementById('passkey-delete-others-btn');
+  const hasAuthUser = Boolean(String(authUser?.id ?? '').trim());
+  const passkeyItems = _sortPasskeys(authUser?.identities?.passkey?.items || []);
+  const hasPasskeys = passkeyItems.length > 0;
+  const passkeySupported = _isPasskeyWebAuthnSupported();
+
+  if (passkeyStatusLine) {
+    if (!hasAuthUser) {
+      passkeyStatusLine.textContent = 'Быстрый вход доступен после входа в аккаунт';
+      passkeyStatusLine.style.color = 'var(--hint)';
+    } else if (!hasPasskeys) {
+      passkeyStatusLine.textContent = 'Быстрый вход не настроен';
+      passkeyStatusLine.style.color = 'var(--hint)';
+    } else {
+      passkeyStatusLine.textContent = `Настроено passkey: ${passkeyItems.length}`;
+      passkeyStatusLine.style.color = '#34d399';
+    }
+  }
+
+  if (passkeyItemsList) {
+    if (!hasPasskeys) {
+      passkeyItemsList.innerHTML = '<div class="passkey-item">Сохраненных passkey пока нет</div>';
+    } else {
+      passkeyItemsList.innerHTML = passkeyItems.map((item, index) => {
+        const safeName = escapeHtml(item?.device_name || `Устройство ${index + 1}`);
+        const lastUsedRaw = item?.last_used_at || item?.created_at || null;
+        const safeLastUsed = lastUsedRaw ? escapeHtml(formatDate(lastUsedRaw)) : 'еще не использовался';
+        const badge = index === 0 ? 'текущий' : 'другой';
+        return `<div class="passkey-item"><strong>${safeName}</strong> - ${badge}, последний вход: ${safeLastUsed}</div>`;
+      }).join('');
+    }
+  }
+
+  if (savePasskeyBtn) savePasskeyBtn.disabled = !passkeySupported || !hasAuthUser;
+  if (deleteCurrentBtn) deleteCurrentBtn.disabled = !hasPasskeys;
+  if (deleteOthersBtn) deleteOthersBtn.disabled = passkeyItems.length <= 1;
+}
+
+function _resetProfileFieldsForGuest() {
+  const nameInput = document.getElementById('profile-input-name');
+  const phoneInput = document.getElementById('profile-input-phone');
+  const birthDateInput = document.getElementById('profile-input-birth-date');
+  const userNotesInput = document.getElementById('profile-input-user-notes');
+  const statusEl = document.getElementById('profile-status');
+  const registeredEl = document.getElementById('profile-registered');
+  if (nameInput) nameInput.value = '';
+  if (phoneInput) phoneInput.value = '';
+  if (birthDateInput) birthDateInput.value = '';
+  if (userNotesInput) userNotesInput.value = '';
+  if (statusEl) statusEl.innerText = '—';
+  if (registeredEl) registeredEl.innerText = '—';
+}
+
+function _renderProfileGuestState(authUser) {
+  const hasAccount = Boolean(String(authUser?.id ?? '').trim());
+  const accountSections = document.getElementById('profile-account-sections');
+  const guestCard = document.getElementById('profile-guest-card');
+  const guestText = document.getElementById('profile-guest-text');
+  const profileName = document.getElementById('profile-name');
+  const profileUsername = document.getElementById('profile-username');
+  const platform = window.platformAdapter?.getPlatform?.() || 'web';
+
+  if (accountSections) {
+    accountSections.style.display = hasAccount ? '' : 'none';
+  }
+  if (guestCard) {
+    guestCard.style.display = hasAccount ? 'none' : '';
+  }
+  if (hasAccount) return;
+
+  _resetProfileFieldsForGuest();
+  if (profileName) profileName.innerText = 'Гость';
+  if (profileUsername) {
+    profileUsername.innerText = platform === 'web'
+      ? 'Аккаунт не подключен'
+      : 'Ожидаем подтверждение входа';
+  }
+  if (guestText) {
+    guestText.textContent = platform === 'web'
+      ? 'Вы можете пользоваться расписанием без входа. Для личного кабинета сначала войдите через Telegram или VK Mini App.'
+      : 'Если вход не выполнился автоматически, откройте мини-приложение заново.';
+  }
+  if (platform === 'web') {
+    setMainProfileAvatar('');
+  }
+}
+
+function showGuestLoginInfo() {
+  const platform = window.platformAdapter?.getPlatform?.() || 'web';
+  if (platform === 'web') {
+    showNotification('Первый вход и регистрация доступны только через Telegram или VK Mini App.');
+    return;
+  }
+  showNotification('В мини-приложении вход выполняется автоматически.');
+}
+
 function renderAuthStateUI() {
   const banner = document.getElementById('account-verification-banner');
+  const bannerTitle = document.getElementById('account-verification-banner-title');
   const bannerText = document.getElementById('account-verification-banner-text');
-  const methodsList = document.getElementById('auth-methods-list');
-  const statusEl = document.getElementById('auth-state-status');
   const authUser = currentAuthState.currentUser;
+  const hasAccount = Boolean(String(authUser?.id ?? '').trim());
 
-  if (banner && bannerText) {
-    banner.style.display = window.AuthUiState.shouldShowVerificationBanner(authUser) ? '' : 'none';
+  _renderProfileGuestState(authUser);
+  if (!hasAccount) {
+    _resetNotificationPriorityState();
+  } else if (currentPageId === 'profile-settings' && !notificationPriorityState.loaded && !notificationPriorityState.loading) {
+    loadNotificationPrioritySettings();
+  }
+  _renderNotificationPrioritySettings();
+
+  const shouldShowBanner = Boolean(currentAuthState?.vkPermissionRequired) || window.AuthUiState.shouldShowVerificationBanner(authUser);
+  if (banner && bannerText && hasAccount) {
+    banner.style.display = shouldShowBanner ? '' : 'none';
+    if (bannerTitle) {
+      bannerTitle.textContent = window.AuthUiState.getVerificationBannerTitle(currentAuthState);
+    }
     bannerText.textContent = window.AuthUiState.getVerificationBannerText(currentAuthState);
+  } else if (banner) {
+    banner.style.display = 'none';
   }
 
-  if (methodsList) {
-    const rows = window.AuthUiState.getIdentityRows(authUser);
-    methodsList.innerHTML = rows.map(([label, value]) => `
-      <div class="auth-method-row">
-        <div>${label}</div>
-        <div class="small" style="color: var(--hint);">${value}</div>
-      </div>
-    `).join('');
-  }
-
-  if (statusEl) {
-    statusEl.textContent = window.AuthUiState.getAuthStatusText(currentAuthState);
-  }
+  _renderSettingsPhoneBlock(authUser);
+  _renderAuthMethods(authUser);
 }
 
 function applyAuthResponse(payload, provider = null) {
   const normalized = window.AuthUiState.normalizeAuthResponse(payload, provider);
-  setAuthState({
+  const hasAuthError = Boolean(normalized.authError);
+  const nextState = {
     authProvider: normalized.authProvider,
     fallbackAuthMethods: normalized.fallbackAuthMethods,
     manualMergeRequired: normalized.manualMergeRequired,
     verifiedPhoneConflict: normalized.verifiedPhoneConflict,
     authError: normalized.authError,
-  });
+  };
+  if (hasAuthError) {
+    currentUserData = null;
+    resetEntryTabsPreloadState();
+    nextState.isAuthenticated = false;
+    nextState.currentUser = null;
+  }
+  setAuthState(nextState);
   if (normalized.message) {
-    showNotification(`⚠️ ${normalized.message}`);
+    showNotification(`Warning: ${normalized.message}`);
   }
 }
 
@@ -17362,11 +19055,34 @@ async function refreshBootstrapAfterAuthChange(action) {
   return await loadAuthContext();
 }
 
+function applyProfilePayloadToView(profilePayload) {
+  document.getElementById('profile-name').innerText = profilePayload.name || user?.first_name || '—';
+  document.getElementById('profile-username').innerText = profilePayload.username ? '@' + profilePayload.username : '—';
+  document.getElementById('profile-input-name').value = profilePayload.name || '';
+  document.getElementById('profile-input-phone').value = profilePayload.phone || '';
+  document.getElementById('profile-input-birth-date').value = profilePayload.birth_date || '';
+  const userNotesInput = document.getElementById('profile-input-user-notes');
+  if (userNotesInput) userNotesInput.value = profilePayload.user_notes || '';
+  document.getElementById('profile-status').innerText = getStatusText(profilePayload.status);
+  document.getElementById('profile-registered').innerText = formatDate(profilePayload.registered_at);
+
+  if (profilePayload.photo_path) {
+    displayProfilePhoto(profilePayload.photo_path);
+  } else {
+    setMainProfileAvatar(user?.photo_url || '');
+  }
+
+  if (isStaff) {
+    displayStaffInfo(profilePayload);
+  }
+}
+
 async function loadAuthContext() {
   const response = await authFetch('/api/app/bootstrap');
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload?.error || 'Не удалось получить auth context');
   const currentUser = payload?.user ? normalizeBootstrapUser(payload.user, currentUserData) : null;
+  const vkPermissionRequired = _hasVkNotificationPermissionIssue(payload?.channels);
   setAuthState({
     isAuthenticated: Boolean(payload?.session?.authenticated),
     isLoading: false,
@@ -17374,9 +19090,245 @@ async function loadAuthContext() {
     fallbackAuthMethods: payload?.fallback_auth_methods || [],
     manualMergeRequired: Boolean(currentUser?.requires_manual_merge),
     verifiedPhoneConflict: false,
+    vkPermissionRequired,
     authError: null,
   });
+  applyBootstrapStaffStatus(payload);
   return payload;
+}
+
+function _isBootstrapContextPayload(payload) {
+  return Boolean(payload && typeof payload === 'object' && payload.session && Object.prototype.hasOwnProperty.call(payload, 'feature_flags'));
+}
+
+function _getCurrentAuthUserKey() {
+  const userId = getCurrentUserId();
+  if (userId == null) return '';
+  const normalized = String(userId).trim();
+  return normalized || '';
+}
+
+function _isTabPreloadCacheFresh(updatedAt, ttlMs = TAB_PRELOAD_CACHE_TTL_MS) {
+  if (!Number.isFinite(Number(updatedAt)) || updatedAt <= 0) return false;
+  return (Date.now() - Number(updatedAt)) < ttlMs;
+}
+
+function _personalGroupsCacheKey(staffId) {
+  const normalized = Number(staffId);
+  return Number.isFinite(normalized) && normalized > 0 ? String(normalized) : '';
+}
+
+function _personalScheduleSourcesCacheKey(staffId) {
+  const normalized = Number(staffId);
+  return Number.isFinite(normalized) && normalized > 0 ? `staff:${normalized}` : 'staff:0';
+}
+
+async function _safeFetchArray(url, headers = {}) {
+  try {
+    const response = await fetch(url, { headers });
+    if (!response.ok) return [];
+    const payload = await response.json().catch(() => []);
+    return Array.isArray(payload) ? payload : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+async function fetchProfileAbonementsData(options = {}) {
+  const force = Boolean(options?.force);
+  const userKey = _getCurrentAuthUserKey();
+  if (!force
+      && userKey
+      && profileAbonementsCacheUserKey === userKey
+      && _isTabPreloadCacheFresh(profileAbonementsCacheUpdatedAt)
+      && Array.isArray(profileAbonementsCache)) {
+    return profileAbonementsCache;
+  }
+  if (profileAbonementsPromise) {
+    return profileAbonementsPromise;
+  }
+  profileAbonementsPromise = (async () => {
+    const response = await fetch('/api/group-abonements/my', { headers: getAuthHeaders() });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Не удалось загрузить абонементы');
+    }
+    const normalized = Array.isArray(payload) ? payload : [];
+    profileAbonementsCache = normalized;
+    profileAbonementsCacheUpdatedAt = Date.now();
+    profileAbonementsCacheUserKey = userKey || _getCurrentAuthUserKey();
+    return normalized;
+  })().finally(() => {
+    profileAbonementsPromise = null;
+  });
+  return profileAbonementsPromise;
+}
+
+async function fetchProfileBookingRequestsData(options = {}) {
+  const force = Boolean(options?.force);
+  const userKey = _getCurrentAuthUserKey();
+  if (!force
+      && userKey
+      && profileBookingRequestsCacheUserKey === userKey
+      && _isTabPreloadCacheFresh(profileBookingRequestsCacheUpdatedAt)
+      && Array.isArray(profileBookingRequestsCache)) {
+    return profileBookingRequestsCache;
+  }
+  if (profileBookingRequestsPromise) {
+    return profileBookingRequestsPromise;
+  }
+  profileBookingRequestsPromise = (async () => {
+    const response = await fetch('/api/booking-requests/my', { headers: getAuthHeaders() });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Не удалось загрузить заявки');
+    }
+    const normalized = Array.isArray(payload) ? payload : [];
+    profileBookingRequestsCache = normalized;
+    profileBookingRequestsCacheUpdatedAt = Date.now();
+    profileBookingRequestsCacheUserKey = userKey || _getCurrentAuthUserKey();
+    return normalized;
+  })().finally(() => {
+    profileBookingRequestsPromise = null;
+  });
+  return profileBookingRequestsPromise;
+}
+
+async function fetchPersonalGroupsData(staffId, options = {}) {
+  const force = Boolean(options?.force);
+  const cacheKey = _personalGroupsCacheKey(staffId);
+  if (!cacheKey) return [];
+  const cached = personalGroupsDataCache.get(cacheKey);
+  if (!force && cached && _isTabPreloadCacheFresh(cached.updatedAt)) {
+    return cached.items;
+  }
+  const existingPromise = personalGroupsPromiseCache.get(cacheKey);
+  if (existingPromise) {
+    return existingPromise;
+  }
+  const requestPromise = (async () => {
+    const response = await fetch(`/api/teachers/${encodeURIComponent(cacheKey)}`, {
+      headers: getAuthHeaders ? getAuthHeaders() : {}
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Не удалось загрузить группы');
+    }
+    const groups = Array.isArray(payload?.groups) ? payload.groups : [];
+    personalGroupsDataCache.set(cacheKey, {
+      updatedAt: Date.now(),
+      items: groups
+    });
+    return groups;
+  })().finally(() => {
+    personalGroupsPromiseCache.delete(cacheKey);
+  });
+  personalGroupsPromiseCache.set(cacheKey, requestPromise);
+  return requestPromise;
+}
+
+async function fetchPersonalScheduleSourceItems(staffId, options = {}) {
+  const force = Boolean(options?.force);
+  const cacheKey = _personalScheduleSourcesCacheKey(staffId);
+  const cached = personalScheduleSourcesCache.get(cacheKey);
+  if (!force && cached && _isTabPreloadCacheFresh(cached.updatedAt)) {
+    return cached.items;
+  }
+  const existingPromise = personalScheduleSourcesPromiseCache.get(cacheKey);
+  if (existingPromise) {
+    return existingPromise;
+  }
+
+  const normalizedStaffId = Number(staffId);
+  const hasStaffId = Number.isFinite(normalizedStaffId) && normalizedStaffId > 0;
+  const headers = getAuthHeaders ? getAuthHeaders() : {};
+  const requestPromise = (async () => {
+    const [baseItems, publicItems, v2Items] = await Promise.all([
+      _safeFetchArray('/schedule', headers),
+      _safeFetchArray('/schedule/public', headers),
+      hasStaffId
+        ? _safeFetchArray(`/schedule/v2?teacher_id=${encodeURIComponent(String(normalizedStaffId))}`, headers)
+        : Promise.resolve([])
+    ]);
+    const merged = [];
+    if (Array.isArray(baseItems) && baseItems.length) merged.push(...baseItems);
+    if (Array.isArray(publicItems) && publicItems.length) merged.push(...publicItems);
+    if (Array.isArray(v2Items) && v2Items.length) merged.push(...v2Items);
+    personalScheduleSourcesCache.set(cacheKey, {
+      updatedAt: Date.now(),
+      items: merged
+    });
+    return merged;
+  })().finally(() => {
+    personalScheduleSourcesPromiseCache.delete(cacheKey);
+  });
+  personalScheduleSourcesPromiseCache.set(cacheKey, requestPromise);
+  return requestPromise;
+}
+
+async function preloadEntryTabsData() {
+  const userKey = _getCurrentAuthUserKey();
+  if (!userKey) return;
+
+  await Promise.allSettled([
+    fetchProfileAbonementsData(),
+    fetchProfileBookingRequestsData(),
+  ]);
+
+  try {
+    await refreshStaffStatusInBackground();
+  } catch (_) {
+    // ignore preload errors
+  }
+
+  if (!isStaff) return;
+
+  try {
+    const staffContext = await ensureCurrentStaffProfileContext();
+    const staffId = Number(staffContext?.staffId || 0);
+    if (!Number.isFinite(staffId) || staffId <= 0) return;
+    await Promise.allSettled([
+      fetchPersonalGroupsData(staffId),
+      fetchPersonalScheduleSourceItems(staffId),
+    ]);
+  } catch (_) {
+    // ignore preload errors
+  }
+}
+
+function scheduleEntryTabsPreload() {
+  const userKey = _getCurrentAuthUserKey();
+  if (!userKey) return;
+  if (entryTabsPreloadUserKey === userKey) return;
+  entryTabsPreloadUserKey = userKey;
+  if (entryTabsPreloadTimer) {
+    clearTimeout(entryTabsPreloadTimer);
+  }
+  entryTabsPreloadTimer = setTimeout(() => {
+    entryTabsPreloadTimer = null;
+    entryTabsPreloadPromise = preloadEntryTabsData().catch(() => null);
+  }, TAB_PRELOAD_DELAY_MS);
+}
+
+function resetEntryTabsPreloadState() {
+  profileAbonementsCache = null;
+  profileAbonementsCacheUpdatedAt = 0;
+  profileAbonementsCacheUserKey = null;
+  profileAbonementsPromise = null;
+  profileBookingRequestsCache = null;
+  profileBookingRequestsCacheUpdatedAt = 0;
+  profileBookingRequestsCacheUserKey = null;
+  profileBookingRequestsPromise = null;
+  personalGroupsDataCache.clear();
+  personalGroupsPromiseCache.clear();
+  personalScheduleSourcesCache.clear();
+  personalScheduleSourcesPromiseCache.clear();
+  entryTabsPreloadUserKey = null;
+  entryTabsPreloadPromise = null;
+  if (entryTabsPreloadTimer) {
+    clearTimeout(entryTabsPreloadTimer);
+    entryTabsPreloadTimer = null;
+  }
 }
 
 function handleConnectTelegram() {
@@ -17390,35 +19342,86 @@ function handleConnectVK() {
 async function beginPasskeySetup() {
   const currentUserId = getCurrentUserId();
   if (!currentUserId) {
-    showNotification('⚠️ Сначала войдите в аккаунт');
+    showNotification('Сначала войдите в аккаунт');
     return;
   }
-  if (!window.PublicKeyCredential || !window.crypto?.subtle) {
-    setAuthState({ fallbackAuthMethods: ['telegram', 'vk', 'phone'] });
-    showNotification('⚠️ Этот браузер не поддерживает passkey. Используйте другой способ входа.');
+  const platform = window.platformAdapter?.getPlatform?.() || 'web';
+  if (platform === 'vk') {
+    showNotification('Passkey is not supported inside VK Mini App. Open web/PWA version to create passkey.');
     return;
   }
-  const beginRes = await authFetch('/auth/passkey/register/begin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) });
+  if (!_isPasskeyWebAuthnSupported()) {
+    showNotification('Passkey не поддерживается в этом браузере');
+    return;
+  }
+  const beginRes = await authFetch('/auth/passkey/register/begin', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({}),
+  });
   const beginPayload = await beginRes.json().catch(() => ({}));
   if (!beginRes.ok) {
     applyAuthResponse(beginPayload, 'passkey');
     return;
   }
+  const publicKeyOptions = _normalizePasskeyCreationOptions(beginPayload, currentUserId);
 
-  const secretBytes = crypto.getRandomValues(new Uint8Array(32));
-  const publicKey = btoa(String.fromCharCode(...secretBytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-  const credentialId = `passkey-${currentUserId}-${Date.now()}`;
-  const clientDataJSON = btoa(JSON.stringify({ type: 'webauthn.create', challenge: beginPayload.challenge, origin: beginPayload.origin })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
-  const attestationObject = btoa(JSON.stringify({ rpId: beginPayload.rp_id, credentialId, publicKey, signCount: 1, deviceName: navigator.userAgent || 'browser', transports: ['internal'] })).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  let createdCredential = null;
+  let createError = null;
+  try {
+    createdCredential = await navigator.credentials.create({ publicKey: publicKeyOptions });
+  } catch (error) {
+    const messageLower = String(error?.message || '').toLowerCase();
+    if (messageLower.includes('sameoriginwithancestors')) {
+      try {
+        const retryOptions = _passkeyDropKeyDeep(publicKeyOptions, 'sameOriginWithAncestors');
+        createdCredential = await navigator.credentials.create({ publicKey: retryOptions });
+      } catch (retryError) {
+        createError = retryError;
+      }
+    } else {
+      createError = error;
+    }
+  }
+  if (!createdCredential) {
+    const error = createError;
+    const message = String(error?.message || '');
+    if (error?.name === 'NotAllowedError') {
+      showNotification('Создание passkey отменено');
+    } else {
+      showNotification(`Не удалось создать passkey${message ? `: ${message}` : ""}`);
+    }
+    return;
+  }
+
+  if (!createdCredential || createdCredential.type !== 'public-key') {
+    showNotification('Не удалось получить данные passkey');
+    return;
+  }
+
+  const credentialResponse = createdCredential.response;
+  if (!credentialResponse?.clientDataJSON || !credentialResponse?.attestationObject) {
+    showNotification('Некорректный ответ WebAuthn');
+    return;
+  }
+  const transports = (typeof credentialResponse.getTransports === 'function')
+    ? credentialResponse.getTransports()
+    : [];
 
   const completeRes = await authFetch('/auth/passkey/register/complete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      device_name: navigator.userAgent || 'WebAuthn device',
       credential: {
-        id: credentialId,
-        type: 'public-key',
-        response: { clientDataJSON, attestationObject },
+        id: createdCredential.id,
+        rawId: _passkeyArrayBufferToBase64Url(createdCredential.rawId),
+        type: createdCredential.type,
+        response: {
+          clientDataJSON: _passkeyArrayBufferToBase64Url(credentialResponse.clientDataJSON),
+          attestationObject: _passkeyArrayBufferToBase64Url(credentialResponse.attestationObject),
+          transports,
+        },
       },
     }),
   });
@@ -17428,7 +19431,7 @@ async function beginPasskeySetup() {
     return;
   }
   await refreshBootstrapAfterAuthChange('passkey_register');
-  showNotification('✅ Быстрый вход включён');
+  showNotification('Passkey сохранен');
 }
 
 async function deleteCurrentPasskey() {
@@ -17436,15 +19439,16 @@ async function deleteCurrentPasskey() {
     showNotification('Passkey пока не настроен');
     return;
   }
-  const firstPasskey = currentAuthState.currentUser?.identities?.passkey?.items?.[0];
-  if (!firstPasskey?.credential_id) {
-    showNotification('Не удалось определить passkey для удаления');
+  const sortedPasskeys = _sortPasskeys(currentAuthState.currentUser?.identities?.passkey?.items || []);
+  const currentPasskey = sortedPasskeys[0];
+  if (!currentPasskey?.credential_id) {
+    showNotification('Не удалось определить текущий passkey для удаления');
     return;
   }
   const response = await authFetch('/auth/passkey/delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ credential_id: firstPasskey.credential_id }),
+    body: JSON.stringify({ credential_id: currentPasskey.credential_id }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -17452,7 +19456,57 @@ async function deleteCurrentPasskey() {
     return;
   }
   await refreshBootstrapAfterAuthChange('passkey_delete');
-  showNotification('Passkey удалён');
+  showNotification('Passkey удален');
+}
+
+function openDeleteOtherPasskeysModal() {
+  const sortedPasskeys = _sortPasskeys(currentAuthState.currentUser?.identities?.passkey?.items || []);
+  if (sortedPasskeys.length <= 1) {
+    showNotification('Других passkey не найдено');
+    return;
+  }
+  const overlay = document.getElementById('passkey-delete-others-overlay');
+  const modal = document.getElementById('passkey-delete-others-modal');
+  const subtitle = document.getElementById('passkey-delete-others-subtitle');
+  if (subtitle) {
+    subtitle.textContent = `Будет удалено passkey: ${sortedPasskeys.length - 1}. Текущий останется.`;
+  }
+  overlay?.classList.add('show');
+  modal?.classList.add('show');
+}
+
+function closeDeleteOtherPasskeysModal() {
+  document.getElementById('passkey-delete-others-overlay')?.classList.remove('show');
+  document.getElementById('passkey-delete-others-modal')?.classList.remove('show');
+}
+
+async function confirmDeleteOtherPasskeys() {
+  const sortedPasskeys = _sortPasskeys(currentAuthState.currentUser?.identities?.passkey?.items || []);
+  if (sortedPasskeys.length <= 1) {
+    closeDeleteOtherPasskeysModal();
+    showNotification('Других passkey не найдено');
+    return;
+  }
+  const keepCredentialId = sortedPasskeys[0]?.credential_id;
+  const itemsToDelete = sortedPasskeys.filter((item) => item?.credential_id && item.credential_id !== keepCredentialId);
+  let failed = 0;
+  for (const item of itemsToDelete) {
+    const response = await authFetch('/auth/passkey/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential_id: item.credential_id }),
+    });
+    if (!response.ok) {
+      failed += 1;
+    }
+  }
+  closeDeleteOtherPasskeysModal();
+  await refreshBootstrapAfterAuthChange('passkey_delete');
+  if (failed) {
+    showNotification(`Не удалось удалить passkey: ${failed}`);
+    return;
+  }
+  showNotification('Другие passkey удалены');
 }
 
 function setMainProfileAvatar(photoUrl = '') {
@@ -17476,12 +19530,15 @@ function setMainProfileAvatar(photoUrl = '') {
 }
 
 const storedAuthSnapshot = getStoredAuthSnapshot();
-if (storedAuthSnapshot?.currentUser) {
-  currentAuthState.currentUser = storedAuthSnapshot.currentUser;
-  currentAuthState.isAuthenticated = true;
+if (storedAuthSnapshot) {
+  currentAuthState.currentUser = null;
+  currentAuthState.isAuthenticated = false;
   currentAuthState.authProvider = storedAuthSnapshot.authProvider || null;
-  currentAuthState.fallbackAuthMethods = storedAuthSnapshot.fallbackAuthMethods || [];
+  currentAuthState.fallbackAuthMethods = Array.isArray(storedAuthSnapshot.fallbackAuthMethods)
+    ? storedAuthSnapshot.fallbackAuthMethods
+    : [];
   currentAuthState.manualMergeRequired = Boolean(storedAuthSnapshot.manualMergeRequired);
+  currentAuthState.vkPermissionRequired = Boolean(storedAuthSnapshot.vkPermissionRequired);
 }
 
 if (user) {
@@ -17491,38 +19548,74 @@ if (user) {
   registerUserIfNeeded(user);
 }
 
-profileLoadedPromise = loadProfileData();
-
-const cachedStaff = getCachedStaffStatus();
-if (cachedStaff) {
-  isStaff = cachedStaff.isStaff;
-  currentStaffPosition = cachedStaff.position || '';
-  updateStaffNavigation();
-}
-
-if (user?.id) {
-  checkStaffStatus(user.id);
+const initialStaffCacheUserId = getSidCookie()
+  ? normalizeStaffCacheUserId(storedAuthSnapshot?.currentUser?.id)
+  : null;
+const cachedStaff = initialStaffCacheUserId
+  ? getCachedStaffStatusForUserId(initialStaffCacheUserId)
+  : null;
+if (cachedStaff && initialStaffCacheUserId) {
+  applyResolvedStaffStatus(cachedStaff, { userId: initialStaffCacheUserId });
 }
 renderAuthStateUI();
 
 /* ====== ЗАГРУЗКА ДАННЫХ ПРОФИЛЯ ====== */
-async function loadProfileData() {
+async function loadProfileData(bootstrapPayloadHint = null) {
   try {
-    await authSessionPromise;
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await ensureTelegramAuthSession();
+    const bootstrapPayload = _isBootstrapContextPayload(bootstrapPayloadHint)
+      ? bootstrapPayloadHint
+      : await loadAuthContext();
+    const vkPermissionRequired = _hasVkNotificationPermissionIssue(bootstrapPayload?.channels);
+    if (!bootstrapPayload?.session?.authenticated) {
+      currentUserData = null;
+      resetEntryTabsPreloadState();
+      isStaff = false;
+      currentStaffPosition = '';
+      clearCachedStaffStatus();
+      updateStaffNavigation();
+      setAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        currentUser: null,
+        authProvider: null,
+        fallbackAuthMethods: bootstrapPayload?.fallback_auth_methods || [],
+        manualMergeRequired: false,
+        verifiedPhoneConflict: false,
+        vkPermissionRequired: false,
+        authError: 'auth_required',
+      });
+      return;
+    }
 
-    const [bootstrapResponse, profileResponse] = await Promise.all([
-      authFetch('/api/app/bootstrap'),
-      authFetch('/users/me')
-    ]);
-
-    const bootstrapPayload = await bootstrapResponse.json().catch(() => ({}));
+    const profileResponse = await authFetch('/users/me');
     const profilePayload = profileResponse.ok ? await profileResponse.json() : null;
 
-    if (!bootstrapResponse.ok || !profileResponse.ok || !profilePayload) {
-      console.error('Ошибка при загрузке профиля:', bootstrapResponse.status, profileResponse.status);
-      applyAuthResponse(bootstrapPayload);
-      showNotification('⚠️ Не удалось загрузить профиль. Попробуйте позже.');
+    if (!profileResponse.ok || !profilePayload) {
+      console.error('Failed to load profile:', profileResponse.status);
+      const unauthorized = profileResponse.status === 401;
+      if (unauthorized) {
+        currentUserData = null;
+        resetEntryTabsPreloadState();
+        isStaff = false;
+        currentStaffPosition = '';
+        clearCachedStaffStatus();
+        updateStaffNavigation();
+        setAuthState({
+          isAuthenticated: false,
+          isLoading: false,
+          currentUser: null,
+          authProvider: null,
+          fallbackAuthMethods: bootstrapPayload?.fallback_auth_methods || [],
+          manualMergeRequired: false,
+          verifiedPhoneConflict: false,
+          vkPermissionRequired: false,
+          authError: 'auth_required',
+        });
+      } else {
+        applyAuthResponse(bootstrapPayload);
+        showNotification('Warning: Failed to load profile. Try again later.');
+      }
       return;
     }
 
@@ -17535,8 +19628,12 @@ async function loadProfileData() {
       fallbackAuthMethods: bootstrapPayload.fallback_auth_methods || [],
       manualMergeRequired: Boolean(currentUser.requires_manual_merge),
       verifiedPhoneConflict: false,
+      vkPermissionRequired,
       authError: null,
     });
+    refreshStaffStatusInBackground();
+    scheduleEntryTabsPreload();
+    applyProfilePayloadToView(profilePayload);
 
     document.getElementById('profile-name').innerText = profilePayload.name || user?.first_name || '—';
     document.getElementById('profile-username').innerText = profilePayload.username ? '@' + profilePayload.username : '—';
@@ -17558,6 +19655,10 @@ async function loadProfileData() {
       displayStaffInfo(profilePayload);
     }
   } catch (error) {
+    isStaff = false;
+    currentStaffPosition = '';
+    clearCachedStaffStatus();
+    updateStaffNavigation();
     console.error('Ошибка при загрузке профиля:', error);
     showNotification('❌ Ошибка при загрузке профиля');
   }
@@ -17574,7 +19675,6 @@ async function saveProfileChanges() {
   
   const updatedData = {
     name: document.getElementById('profile-input-name').value.trim(),
-    phone: document.getElementById('profile-input-phone').value.trim(),
     birth_date: document.getElementById('profile-input-birth-date').value || null
   };
   if (userNotesInput) {
@@ -17586,11 +19686,6 @@ async function saveProfileChanges() {
     showNotification('⚠️ Введите имя');
     return;
   }
-  if (!updatedData.phone) {
-    showNotification('⚠️ Введите номер телефона');
-    return;
-  }
-  
   try {
     console.log('Отправляем данные:', updatedData);
     
@@ -17610,7 +19705,12 @@ async function saveProfileChanges() {
       
       // Обновляем отображение имени
       currentUserData = { ...currentUserData, ...newData };
-      updateProfileHeader(currentUserData);
+      applyProfilePayloadToView(currentUserData);
+      if (currentAuthState?.currentUser?.id) {
+        setAuthState({
+          currentUser: normalizeBootstrapUser(currentAuthState.currentUser, currentUserData),
+        });
+      }
       
       showNotification('? Профиль успешно обновлен!');
     } else {
@@ -17625,10 +19725,24 @@ async function saveProfileChanges() {
 }
 
 function setProfilePhoneRequestStatus(text, isError = false) {
-  const statusEl = document.getElementById('profile-request-phone-status');
-  if (!statusEl) return;
-  statusEl.textContent = text || '';
-  statusEl.style.color = isError ? '#ffb3b3' : 'var(--hint)';
+  const statusEls = Array.from(document.querySelectorAll('.profile-request-phone-status'));
+  if (!statusEls.length) return;
+  statusEls.forEach((statusEl) => {
+    statusEl.textContent = text || '';
+    statusEl.classList.remove('ok', 'warn', 'pending');
+    if (isError) {
+      statusEl.classList.add('warn');
+      return;
+    }
+    statusEl.classList.add('pending');
+  });
+}
+
+function setProfilePhoneRequestButtonsDisabled(disabled) {
+  const buttons = document.querySelectorAll('.profile-request-phone-btn');
+  buttons.forEach((btn) => {
+    btn.disabled = Boolean(disabled);
+  });
 }
 
 function requestPhoneFromPlatform() {
@@ -17641,13 +19755,28 @@ function requestPhoneFromPlatform() {
 }
 
 async function requestPhoneFromTelegram() {
-  const phoneBtn = document.getElementById('profile-request-phone-btn');
   const userId = currentUserData?.id;
-  if (!tg || typeof tg.requestContact !== 'function') {
+  if (window.__tgSdkReady && typeof window.__tgSdkReady.then === 'function') {
+    try {
+      await window.__tgSdkReady;
+    } catch (_) {}
+  }
+  const webApp = getTelegramWebApp();
+  const requestPhone = typeof webApp?.requestContact === 'function'
+    ? webApp.requestContact.bind(webApp)
+    : (typeof webApp?.requestPhoneNumber === 'function'
+      ? webApp.requestPhoneNumber.bind(webApp)
+      : null);
+  if (!webApp || !requestPhone) {
     setProfilePhoneRequestStatus('Эта функция работает только внутри Telegram Mini App', true);
     return;
   }
-  if (phoneBtn) phoneBtn.disabled = true;
+  try {
+    if (typeof webApp.ready === 'function') {
+      webApp.ready();
+    }
+  } catch (_) {}
+  setProfilePhoneRequestButtonsDisabled(true);
   setProfilePhoneRequestStatus('Подтвердите отправку номера');
 
   let settled = false;
@@ -17670,7 +19799,7 @@ async function requestPhoneFromTelegram() {
     } else {
       setProfilePhoneRequestStatus('Вы отменили отправку номера. Можно попробовать снова', true);
     }
-    if (phoneBtn) phoneBtn.disabled = false;
+    setProfilePhoneRequestButtonsDisabled(false);
   };
 
   const onContactRequested = (eventData) => {
@@ -17680,10 +19809,10 @@ async function requestPhoneFromTelegram() {
   };
 
   try {
-    if (typeof tg.onEvent === 'function') {
-      tg.onEvent('contactRequested', onContactRequested);
+    if (typeof webApp.onEvent === 'function') {
+      webApp.onEvent('contactRequested', onContactRequested);
     }
-    tg.requestContact((result) => {
+    requestPhone((result) => {
       if (typeof result === 'boolean') {
         finish(result);
         return;
@@ -17696,30 +19825,41 @@ async function requestPhoneFromTelegram() {
       if (!settled) finish(false);
     }, 15000);
   } catch (err) {
-    if (phoneBtn) phoneBtn.disabled = false;
+    setProfilePhoneRequestButtonsDisabled(false);
     setProfilePhoneRequestStatus('Не получилось запросить номер. Попробуйте еще раз чуть позже', true);
   } finally {
-    if (typeof tg.offEvent === 'function') {
-      setTimeout(() => tg.offEvent('contactRequested', onContactRequested), 0);
+    if (typeof webApp.offEvent === 'function') {
+      setTimeout(() => webApp.offEvent('contactRequested', onContactRequested), 0);
     }
   }
 }
 
+function getVkPhoneRequestErrorMessage(errorCode) {
+  const normalized = String(errorCode || '').trim().toLowerCase();
+  if (!normalized) return 'Не удалось сохранить номер телефона.';
+  if (normalized === 'auth_required') return 'Нужно заново войти в аккаунт.';
+  if (normalized === 'user_not_found') return 'Пользователь не найден.';
+  if (normalized === 'phone_required') return 'VK не передал номер телефона.';
+  if (normalized === 'vk_phone_update_failed') return 'Не удалось сохранить номер телефона.';
+  if (normalized === 'manual_merge_required') return 'Нужна ручная проверка объединения аккаунтов.';
+  if (normalized === 'verified_phone_conflict') return 'Этот номер уже подтвержден в другом аккаунте.';
+  return `Ошибка: ${normalized}`;
+}
+
 async function requestPhoneFromVK() {
-  const phoneBtn = document.getElementById('profile-request-phone-btn');
   if (!window.vkBridge || typeof window.vkBridge.send !== 'function') {
     setProfilePhoneRequestStatus('Эта функция работает только внутри VK Mini App', true);
     return;
   }
-  if (phoneBtn) phoneBtn.disabled = true;
-  setProfilePhoneRequestStatus('Подтвердите отправку номера');
+  setProfilePhoneRequestButtonsDisabled(true);
+  setProfilePhoneRequestStatus('Запрашиваем номер телефона у VK...');
 
   try {
     const response = await window.vkBridge.send('VKWebAppGetPhoneNumber');
     const phone = response?.phone_number || response?.phone || '';
     if (!phone) {
-      setProfilePhoneRequestStatus('Не удалось получить номер. Попробуйте еще раз', true);
-      if (phoneBtn) phoneBtn.disabled = false;
+      setProfilePhoneRequestStatus('Не удалось получить номер телефона. Попробуйте еще раз.', true);
+      setProfilePhoneRequestButtonsDisabled(false);
       return;
     }
 
@@ -17731,22 +19871,97 @@ async function requestPhoneFromVK() {
 
     if (!saveRes.ok) {
       const errPayload = await saveRes.json().catch(() => ({}));
-      setProfilePhoneRequestStatus(errPayload?.error || 'Не удалось сохранить номер', true);
-      if (phoneBtn) phoneBtn.disabled = false;
+      setProfilePhoneRequestStatus(getVkPhoneRequestErrorMessage(errPayload?.error), true);
+      setProfilePhoneRequestButtonsDisabled(false);
       return;
     }
 
     const payload = await saveRes.json().catch(() => ({}));
-    setProfilePhoneRequestStatus(payload?.merge_notice || 'Спасибо! Номер получен, обновляем профиль...');
+    setProfilePhoneRequestStatus('Номер получен. Проверяем уведомления VK...');
+
+    let vkPermissionEnabled = false;
+    let vkPermissionDeferred = false;
+    let vkPermissionError = '';
+    try {
+      if (typeof window.platformAdapter?.requestVkAllowMessagesFromGroup !== 'function') {
+        throw new Error('vk_permission_deferred');
+      }
+
+      const vkChannel = await _loadCurrentVkNotificationChannel();
+      const permissionContext = await _requestVkPermissionKey(vkChannel);
+      await window.platformAdapter.requestVkAllowMessagesFromGroup(permissionContext.permissionKey, { groupId: permissionContext.groupId });
+
+      const verifyResponse = await authFetch('/api/notifications/channels/vk/mark-verified', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ..._getVkChannelLookupPayload(permissionContext.channel || vkChannel),
+          permission_key: permissionContext.permissionKey,
+        }),
+      });
+      const verifyPayload = await verifyResponse.json().catch(() => ({}));
+      if (!verifyResponse.ok || !verifyPayload?.ok) {
+        throw new Error(String(verifyPayload?.error || 'vk_verify_update_failed').trim() || 'vk_verify_update_failed');
+      }
+
+      notificationPriorityState.vkPermissionRequired = false;
+      vkPermissionEnabled = true;
+      try {
+        await loadNotificationPrioritySettings(true);
+      } catch (_) {}
+    } catch (permissionError) {
+      vkPermissionEnabled = false;
+      const permissionMessage = String(permissionError?.message || '').trim();
+      if (_isVkPermissionDeferredError(permissionMessage)) {
+        vkPermissionDeferred = true;
+        vkPermissionError = '';
+      } else {
+        vkPermissionError = _formatVkPermissionFlowError(permissionMessage);
+      }
+    }
+
+    setProfilePhoneRequestStatus(payload?.merge_notice || 'Номер сохранен, обновляем профиль...');
     await loadProfileData();
     const phoneValue = document.getElementById('profile-input-phone')?.value?.trim();
-    if (!payload?.merge_notice) {
-      setProfilePhoneRequestStatus(phoneValue ? 'Готово! Номер в профиле обновлен' : 'Номер получен. Обновим профиль, как только данные обновятся.');
+
+    if (payload?.merge_notice) {
+      if (vkPermissionEnabled) {
+        setProfilePhoneRequestStatus(`${payload.merge_notice} Уведомления VK подключены.`);
+      } else if (vkPermissionDeferred) {
+        setProfilePhoneRequestStatus(`${payload.merge_notice} Уведомления VK можно включить позже внутри VK Mini App.`);
+      } else {
+        setProfilePhoneRequestStatus(`${payload.merge_notice} Разрешение на уведомления VK пока не получено.`, true);
+      }
+      return;
     }
+
+    if (vkPermissionEnabled) {
+      setProfilePhoneRequestStatus(
+        phoneValue
+          ? 'Готово! Номер сохранен, уведомления VK подключены.'
+          : 'Номер сохранен. Уведомления VK подключены.'
+      );
+      return;
+    }
+
+    if (vkPermissionDeferred) {
+      setProfilePhoneRequestStatus('Номер сохранен. Уведомления VK можно включить позже внутри VK Mini App.');
+      return;
+    }
+
+    const suffix = vkPermissionError
+      ? ` Причина: ${vkPermissionError}.`
+      : '';
+    setProfilePhoneRequestStatus(
+      phoneValue
+        ? `Номер сохранен, но разрешение на уведомления VK не получено.${suffix}`
+        : `Номер сохранен. Разрешение на уведомления VK не получено.${suffix}`,
+      true
+    );
   } catch (err) {
-    setProfilePhoneRequestStatus('Не получилось запросить номер. Попробуйте еще раз', true);
+    setProfilePhoneRequestStatus('Не удалось запросить номер телефона. Попробуйте еще раз.', true);
   } finally {
-    if (phoneBtn) phoneBtn.disabled = false;
+    setProfilePhoneRequestButtonsDisabled(false);
   }
 }
 
@@ -17760,131 +19975,121 @@ function getStatusText(status) {
   return statusMap[status] || status;
 }
 
-function loadProfileAbonements() {
+async function loadProfileAbonements(options = {}) {
+  const force = Boolean(options?.force);
   const container = document.getElementById('profile-abonements-container');
   if (!container) return;
   container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>';
 
-  fetch('/api/group-abonements/my', { headers: getAuthHeaders() })
-    .then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Не удалось загрузить абонементы');
-      return data;
-    })
-    .then(items => {
-      if (!items.length) {
-        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Абонементов нет</p>';
-        return;
-      }
-      container.innerHTML = items.map(a => {
-        const status = formatAbonementStatus(a.status);
-        const validTo = a.valid_to ? formatDate(a.valid_to) : '?';
-        return `
-          <div class="card">
-            <div style="font-weight: 600; margin-bottom: 6px;">${a.group_name || 'Группа'}</div>
-            <div class="small" style="margin-bottom: 4px;">${status}</div>
-            <div class="small">Остаток занятий: ${a.balance_credits ?? '—'}</div>
-            <div class="small" style="margin-top: 6px;">Действует до: ${validTo}</div>
-          </div>
-        `;
-      }).join('');
-    })
-    .catch(err => {
-      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">Ошибка: ${err.message}</p>`;
-    });
+  try {
+    const items = await fetchProfileAbonementsData({ force });
+    if (!items.length) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Абонементов нет</p>';
+      return;
+    }
+    container.innerHTML = items.map(a => {
+      const status = formatAbonementStatus(a.status);
+      const validTo = a.valid_to ? formatDate(a.valid_to) : '?';
+      return `
+        <div class="card">
+          <div style="font-weight: 600; margin-bottom: 6px;">${a.group_name || 'Группа'}</div>
+          <div class="small" style="margin-bottom: 4px;">${status}</div>
+          <div class="small">Остаток занятий: ${a.balance_credits ?? '—'}</div>
+          <div class="small" style="margin-top: 6px;">Действует до: ${validTo}</div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">Ошибка: ${err.message}</p>`;
+  }
 }
 
-function loadProfileBookingRequests() {
+async function loadProfileBookingRequests(options = {}) {
+  const force = Boolean(options?.force);
   const container = document.getElementById('profile-booking-requests-container');
   if (!container) return;
   container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>';
 
-  fetch('/api/booking-requests/my', { headers: getAuthHeaders() })
-    .then(async res => {
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Не удалось загрузить заявки');
-      return data;
-    })
-    .then(items => {
-      const visibleItems = (Array.isArray(items) ? items : []).filter(item => {
-        const status = String(item?.status || '').toLowerCase();
-        return !['confirmed', 'attended', 'no_show'].includes(status);
-      });
-
-      if (!visibleItems.length) {
-        container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Заявок пока нет</p>';
-        return;
-      }
-      container.innerHTML = visibleItems.map(item => {
-        const typeLabel = escapeHtml(item.object_type_label || item.object_type || 'Заявка');
-        const statusLabel = escapeHtml(item.status_label || item.status || '—');
-        const createdText = item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '—';
-        const amountText = Number.isFinite(Number(item.requested_amount))
-          ? `${new Intl.NumberFormat('ru-RU').format(Number(item.requested_amount))} ${item.requested_currency || 'RUB'}`
-          : '—';
-        const amountBeforeText = Number.isFinite(Number(item.amount_before_discount))
-          ? `${new Intl.NumberFormat('ru-RU').format(Number(item.amount_before_discount))} ${item.requested_currency || 'RUB'}`
-          : null;
-        const discountAmountText = Number.isFinite(Number(item.applied_discount_amount))
-          ? `${new Intl.NumberFormat('ru-RU').format(Number(item.applied_discount_amount))} ${item.requested_currency || 'RUB'}`
-          : null;
-        const isWaitingPayment = String(item.status || '').toLowerCase() === 'waiting_payment';
-        const reserveDeadlineText = item.reserved_until
-          ? new Date(item.reserved_until).toLocaleString('ru-RU')
-          : null;
-        const paymentDeadlineHintHtml = isWaitingPayment
-          ? `<div class="small" style="margin-top: 4px; color: var(--hint);">${reserveDeadlineText
-              ? `Оплатите в течение 48 часов (до ${escapeHtml(reserveDeadlineText)}).`
-              : 'Оплатите в течение 48 часов с момента бронирования.'}</div>`
-          : '';
-
-        let detailsHtml = '';
-        if (item.object_type === 'group') {
-          const abonementTypeMap = {
-            trial: 'Пробный',
-            single: 'Одноразовый',
-            multi: 'Многоразовый',
-          };
-          const abonementType = escapeHtml(abonementTypeMap[item.abonement_type] || item.abonement_type || '—');
-          const groups = Array.isArray(item.bundle_group_names) ? item.bundle_group_names.filter(Boolean) : [];
-          const groupsText = groups.length ? groups.map(name => escapeHtml(name)).join(' + ') : escapeHtml(item.group_name || 'Группа');
-          const startDate = item.group_start_date ? new Date(item.group_start_date).toLocaleDateString('ru-RU') : '—';
-          const validUntil = item.valid_until ? new Date(item.valid_until).toLocaleDateString('ru-RU') : '—';
-          detailsHtml = `
-            <div class="small" style="margin-top: 4px;">Группы: ${groupsText}</div>
-            <div class="small">Тип абонемента: ${abonementType}</div>
-            <div class="small">Занятий: ${item.lessons_count ?? '—'}</div>
-            <div class="small">Старт: ${startDate}</div>
-            <div class="small">Действует до: ${validUntil}</div>
-          `;
-        } else {
-          const dateText = item.date ? new Date(item.date).toLocaleDateString('ru-RU') : '—';
-          const timeFrom = item.time_from || '—';
-          const timeTo = item.time_to || '—';
-          detailsHtml = `
-            <div class="small" style="margin-top: 4px;">Дата: ${dateText}</div>
-            <div class="small">Время: ${escapeHtml(timeFrom)} - ${escapeHtml(timeTo)}</div>
-          `;
-        }
-
-        return `
-          <div class="card">
-            <div style="font-weight: 700; margin-bottom: 6px;">${typeLabel}</div>
-            <div class="small" style="margin-bottom: 4px;">Статус: ${statusLabel}</div>
-            <div class="small">Создана: ${escapeHtml(createdText)}</div>
-            ${amountBeforeText ? `<div class="small">До скидки: ${escapeHtml(amountBeforeText)}</div>` : ''}
-            ${discountAmountText ? `<div class="small">Скидка: -${escapeHtml(discountAmountText)}</div>` : ''}
-            <div class="small">Сумма: ${escapeHtml(amountText)}</div>
-            ${paymentDeadlineHintHtml}
-            ${detailsHtml}
-            ${item.comment ? `<div class="small" style="margin-top: 6px;">Комментарий: ${escapeHtml(item.comment)}</div>` : ''}
-          </div>
-        `;
-      }).join('');
-    })
-    .catch(err => {
-      container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">Ошибка: ${err.message}</p>`;
+  try {
+    const items = await fetchProfileBookingRequestsData({ force });
+    const visibleItems = (Array.isArray(items) ? items : []).filter(item => {
+      const status = String(item?.status || '').toLowerCase();
+      return !['confirmed', 'attended', 'no_show'].includes(status);
     });
+
+    if (!visibleItems.length) {
+      container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Заявок пока нет</p>';
+      return;
+    }
+    container.innerHTML = visibleItems.map(item => {
+      const typeLabel = escapeHtml(item.object_type_label || item.object_type || 'Заявка');
+      const statusLabel = escapeHtml(item.status_label || item.status || '—');
+      const createdText = item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '—';
+      const amountText = Number.isFinite(Number(item.requested_amount))
+        ? `${new Intl.NumberFormat('ru-RU').format(Number(item.requested_amount))} ${item.requested_currency || 'RUB'}`
+        : '—';
+      const amountBeforeText = Number.isFinite(Number(item.amount_before_discount))
+        ? `${new Intl.NumberFormat('ru-RU').format(Number(item.amount_before_discount))} ${item.requested_currency || 'RUB'}`
+        : null;
+      const discountAmountText = Number.isFinite(Number(item.applied_discount_amount))
+        ? `${new Intl.NumberFormat('ru-RU').format(Number(item.applied_discount_amount))} ${item.requested_currency || 'RUB'}`
+        : null;
+      const isWaitingPayment = String(item.status || '').toLowerCase() === 'waiting_payment';
+      const reserveDeadlineText = item.reserved_until
+        ? new Date(item.reserved_until).toLocaleString('ru-RU')
+        : null;
+      const paymentDeadlineHintHtml = isWaitingPayment
+        ? `<div class="small" style="margin-top: 4px; color: var(--hint);">${reserveDeadlineText
+            ? `Оплатите в течение 48 часов (до ${escapeHtml(reserveDeadlineText)}).`
+            : 'Оплатите в течение 48 часов с момента бронирования.'}</div>`
+        : '';
+
+      let detailsHtml = '';
+      if (item.object_type === 'group') {
+        const abonementTypeMap = {
+          trial: 'Пробный',
+          single: 'Одноразовый',
+          multi: 'Многоразовый',
+        };
+        const abonementType = escapeHtml(abonementTypeMap[item.abonement_type] || item.abonement_type || '—');
+        const groups = Array.isArray(item.bundle_group_names) ? item.bundle_group_names.filter(Boolean) : [];
+        const groupsText = groups.length ? groups.map(name => escapeHtml(name)).join(' + ') : escapeHtml(item.group_name || 'Группа');
+        const startDate = item.group_start_date ? new Date(item.group_start_date).toLocaleDateString('ru-RU') : '—';
+        const validUntil = item.valid_until ? new Date(item.valid_until).toLocaleDateString('ru-RU') : '—';
+        detailsHtml = `
+          <div class="small" style="margin-top: 4px;">Группы: ${groupsText}</div>
+          <div class="small">Тип абонемента: ${abonementType}</div>
+          <div class="small">Занятий: ${item.lessons_count ?? '—'}</div>
+          <div class="small">Старт: ${startDate}</div>
+          <div class="small">Действует до: ${validUntil}</div>
+        `;
+      } else {
+        const dateText = item.date ? new Date(item.date).toLocaleDateString('ru-RU') : '—';
+        const timeFrom = item.time_from || '—';
+        const timeTo = item.time_to || '—';
+        detailsHtml = `
+          <div class="small" style="margin-top: 4px;">Дата: ${dateText}</div>
+          <div class="small">Время: ${escapeHtml(timeFrom)} - ${escapeHtml(timeTo)}</div>
+        `;
+      }
+
+      return `
+        <div class="card">
+          <div style="font-weight: 700; margin-bottom: 6px;">${typeLabel}</div>
+          <div class="small" style="margin-bottom: 4px;">Статус: ${statusLabel}</div>
+          <div class="small">Создана: ${escapeHtml(createdText)}</div>
+          ${amountBeforeText ? `<div class="small">До скидки: ${escapeHtml(amountBeforeText)}</div>` : ''}
+          ${discountAmountText ? `<div class="small">Скидка: -${escapeHtml(discountAmountText)}</div>` : ''}
+          <div class="small">Сумма: ${escapeHtml(amountText)}</div>
+          ${paymentDeadlineHintHtml}
+          ${detailsHtml}
+          ${item.comment ? `<div class="small" style="margin-top: 6px;">Комментарий: ${escapeHtml(item.comment)}</div>` : ''}
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">Ошибка: ${err.message}</p>`;
+  }
 }
 
 const ABONEMENT_PRICE_DIRECTIONS = ['dance', 'sport'];
@@ -18205,6 +20410,7 @@ let allClients = [];
 let selectedClientForActions = null;
 let clientDetailAvatarObjectUrl = null;
 let clientDetailAvatarLoadToken = 0;
+let clientMergeLockedSide = null;
 let clientDiscounts = [];
 let clientExtendAbonements = [];
 let clientExtendSelectedAbonement = null;
@@ -18224,6 +20430,12 @@ let clientSickRangeMode = false;
 let clientSickRangeStart = null;
 let clientSickRangeEnd = null;
 let clientSickDragActive = false;
+let clientMergeState = {
+  lockedPrimary: false,
+  primaryUserId: null,
+  secondaryUserId: null,
+  searchQuery: '',
+};
 
 async function loadAllClients() {
   try {
@@ -18243,7 +20455,10 @@ async function loadAllClients() {
       return;
     }
     
-    allClients = await response.json();
+    const payload = await response.json();
+    allClients = Array.isArray(payload)
+      ? payload.map(normalizeClientUserRecord).filter(Boolean)
+      : [];
     
     if (allClients.length === 0) {
       container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">📭 Клиентов еще нет</p>';
@@ -18471,15 +20686,278 @@ function populateMergeClientSelectors() {
   }
 }
 
-async function openMergeClientsModal() {
+function prefillMergeClientSelectors(client) {
+  const sourceSelect = document.getElementById('client-merge-source-id');
+  const targetSelect = document.getElementById('client-merge-target-id');
+  if (!sourceSelect || !targetSelect) return;
+  sourceSelect.value = '';
+  targetSelect.value = '';
+  clientMergeLockedSide = null;
+
+  if (!client) return;
+
+  const clientId = String(client.id || '');
+  if (!clientId) return;
+
+  const hasSourceOption = Array.from(sourceSelect.options).some((option) => option.value === clientId);
+  const hasTargetOption = Array.from(targetSelect.options).some((option) => option.value === clientId);
+
+  if (client.telegram_id) {
+    if (hasTargetOption) {
+      targetSelect.value = clientId;
+      clientMergeLockedSide = 'target';
+    }
+  } else if (hasSourceOption) {
+    sourceSelect.value = clientId;
+    clientMergeLockedSide = 'source';
+  }
+}
+
+function _clientMergeLabels() {
+  const modalEl = document.getElementById('client-merge-modal');
+  const labels = modalEl ? modalEl.querySelectorAll('.form-group > label') : [];
+  return {
+    primary: labels[0] || null,
+    search: labels[1] || null,
+  };
+}
+
+function _clientMergeRoleTitle(role) {
+  return role === 'target' ? 'Правильный профиль (target)' : 'Неправильный профиль (source)';
+}
+
+function _clientMergeEmptyCardText(role) {
+  return role === 'target'
+    ? 'Выберите правильный профиль с Telegram ID.'
+    : 'Выберите неправильный профиль без Telegram ID.';
+}
+
+function _clientMergeSearchPlaceholder(role) {
+  return role === 'target'
+    ? 'Имя, телефон, @username, tg id, #id'
+    : 'Имя, телефон, @username или #id';
+}
+
+function _clientMergeMetaText(client) {
+  const parts = [`#${Number(client.id)}`];
+  if (client.telegram_id) {
+    parts.push(`tg:${client.telegram_id}`);
+  } else {
+    parts.push('без Telegram ID');
+  }
+  if (client.username) parts.push(`@${client.username}`);
+  if (client.phone) parts.push(client.phone);
+  return parts.join(' • ');
+}
+
+function _renderClientMergeCard(client, role, options = {}) {
+  const clearButton = options.clearSide
+    ? `<button class="save-btn" style="width:auto; margin:0; padding:6px 10px; background:#444;" onclick="clearClientMergeSide('${options.clearSide}')">Изменить</button>`
+    : '';
+  return `
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:10px;">
+      <div style="min-width:0;">
+        <div class="small" style="color:var(--hint);">${escapeHtml(_clientMergeRoleTitle(role))}</div>
+        <div style="font-weight:700; margin-top:4px;">${escapeHtml(String(client?.name || 'Без имени'))}</div>
+        <div class="small" style="color:var(--hint); margin-top:4px;">${escapeHtml(_clientMergeMetaText(client || {}))}</div>
+      </div>
+      ${clearButton}
+    </div>
+  `;
+}
+
+function _clientMergeGetSelectedClients() {
+  const sourceUserId = Number(document.getElementById('client-merge-source-id')?.value || 0);
+  const targetUserId = Number(document.getElementById('client-merge-target-id')?.value || 0);
+  return {
+    sourceClient: allClients.find((client) => Number(client.id) === sourceUserId) || null,
+    targetClient: allClients.find((client) => Number(client.id) === targetUserId) || null,
+  };
+}
+
+function _clientMergeSearchRole(sourceClient, targetClient) {
+  if (!sourceClient) return 'source';
+  if (!targetClient) return 'target';
+  return null;
+}
+
+function _clientMergePrimaryRole(sourceClient, targetClient) {
+  if (clientMergeLockedSide === 'target' && targetClient) return 'target';
+  if (sourceClient) return 'source';
+  if (targetClient) return 'target';
+  return 'source';
+}
+
+function _clientMergeSearchMatches(client, rawQuery) {
+  const query = String(rawQuery || '').trim().toLowerCase();
+  if (!query) return true;
+
+  const textParts = [
+    client.name || '',
+    client.username || '',
+    client.phone || '',
+    client.email || '',
+    client.telegram_id ? String(client.telegram_id) : '',
+    client.id ? `#${client.id}` : '',
+  ];
+  const haystack = textParts.join(' ').toLowerCase();
+  const haystackDigits = haystack.replace(/\D+/g, '');
+  const tokens = query.split(/\s+/).filter(Boolean);
+
+  return tokens.every((token) => {
+    if (haystack.includes(token)) return true;
+    const tokenDigits = token.replace(/\D+/g, '');
+    return tokenDigits ? haystackDigits.includes(tokenDigits) : false;
+  });
+}
+
+function renderClientMergeUi(rawQuery = null) {
+  const searchInput = document.getElementById('client-merge-search');
+  const primaryCard = document.getElementById('client-merge-primary-card');
+  const primaryHint = document.getElementById('client-merge-primary-hint');
+  const searchHint = document.getElementById('client-merge-search-hint');
+  const selectedCard = document.getElementById('client-merge-selected-card');
+  const candidateList = document.getElementById('client-merge-candidate-list');
+  const previewCard = document.getElementById('client-merge-preview-card');
+  const titlePill = document.querySelector('#client-merge-modal .fullscreen-modal-pill');
+  const labels = _clientMergeLabels();
+  if (!searchInput || !primaryCard || !primaryHint || !searchHint || !selectedCard || !candidateList || !previewCard) return;
+
+  const query = rawQuery === null ? String(searchInput.value || '') : String(rawQuery || '');
+  if (rawQuery !== null) searchInput.value = query;
+
+  const { sourceClient, targetClient } = _clientMergeGetSelectedClients();
+  const searchRole = _clientMergeSearchRole(sourceClient, targetClient);
+  const primaryRole = _clientMergePrimaryRole(sourceClient, targetClient);
+  const primaryClient = primaryRole === 'target' ? targetClient : sourceClient;
+  const secondaryRole = primaryRole === 'target' ? 'source' : 'target';
+  const secondaryClient = secondaryRole === 'target' ? targetClient : sourceClient;
+
+  if (titlePill) titlePill.textContent = 'Параметры объединения';
+  if (labels.primary) labels.primary.textContent = _clientMergeRoleTitle(primaryRole);
+  if (labels.search) labels.search.textContent = searchRole ? _clientMergeRoleTitle(searchRole) : 'Пара для объединения';
+
+  searchInput.placeholder = _clientMergeSearchPlaceholder(searchRole || 'target');
+  searchInput.disabled = !searchRole;
+
+  primaryCard.innerHTML = primaryClient
+    ? _renderClientMergeCard(primaryClient, primaryRole)
+    : `<div class="small" style="color:var(--hint);">${escapeHtml(_clientMergeEmptyCardText(primaryRole))}</div>`;
+
+  if (clientMergeLockedSide === primaryRole && primaryClient) {
+    primaryHint.textContent = 'Профиль зафиксирован из карточки клиента.';
+  } else if (primaryClient) {
+    primaryHint.textContent = 'Проверьте, что сверху выбран нужный профиль.';
+  } else if (searchRole === 'source') {
+    primaryHint.textContent = 'Сначала выберите дубль без Telegram ID.';
+  } else {
+    primaryHint.textContent = 'Сначала выберите основной профиль с Telegram ID.';
+  }
+
+  if (secondaryClient) {
+    selectedCard.style.display = 'block';
+    selectedCard.innerHTML = _renderClientMergeCard(
+      secondaryClient,
+      secondaryRole,
+      clientMergeLockedSide === secondaryRole ? {} : { clearSide: secondaryRole }
+    );
+  } else {
+    selectedCard.style.display = 'none';
+    selectedCard.innerHTML = '';
+  }
+
+  if (!searchRole) {
+    searchHint.textContent = 'Пара выбрана. Можно объединять.';
+    candidateList.innerHTML = '';
+  } else {
+    const sortedClients = [...allClients].sort((a, b) => {
+      const nameA = (a.name || '').toLowerCase();
+      const nameB = (b.name || '').toLowerCase();
+      if (nameA === nameB) return Number(a.id) - Number(b.id);
+      return nameA.localeCompare(nameB, 'ru');
+    });
+    const blockedId = searchRole === 'source' ? Number(targetClient?.id || 0) : Number(sourceClient?.id || 0);
+    const candidates = sortedClients.filter((client) => {
+      const id = Number(client.id);
+      if (blockedId && id === blockedId) return false;
+      if (searchRole === 'source' && client.telegram_id) return false;
+      if (searchRole === 'target' && !client.telegram_id) return false;
+      return _clientMergeSearchMatches(client, query);
+    });
+
+    searchHint.textContent = searchRole === 'source'
+      ? 'Найдите неправильный профиль без Telegram ID.'
+      : 'Найдите правильный профиль с Telegram ID.';
+
+    if (candidates.length === 0) {
+      candidateList.innerHTML = `<div class="small" style="color:var(--hint); padding:8px 0;">Ничего не найдено.</div>`;
+    } else {
+      candidateList.innerHTML = candidates.slice(0, 12).map((client) => `
+        <button class="save-btn" style="margin:0; background:#2a2a2a; text-align:left;" onclick="selectClientMergeCandidate(${Number(client.id)})">
+          <div style="font-weight:700;">${escapeHtml(String(client.name || 'Без имени'))}</div>
+          <div class="small" style="color:var(--hint); margin-top:4px;">${escapeHtml(_clientMergeMetaText(client))}</div>
+        </button>
+      `).join('');
+    }
+  }
+
+  if (sourceClient && targetClient) {
+    previewCard.innerHTML = `
+      <div style="font-weight:700;">Готово к объединению</div>
+      <div class="small" style="margin-top:6px; color:var(--hint);">
+        Профиль #${Number(sourceClient.id)} будет объединен в профиль #${Number(targetClient.id)}.
+      </div>
+    `;
+  } else if (searchRole === 'source') {
+    previewCard.innerHTML = `<div class="small" style="color:var(--hint);">Шаг 1: выберите неправильный профиль без Telegram ID.</div>`;
+  } else {
+    previewCard.innerHTML = `<div class="small" style="color:var(--hint);">Шаг 2: выберите правильный профиль с Telegram ID.</div>`;
+  }
+}
+
+function handleClientMergeSearchInput(value) {
+  renderClientMergeUi(value);
+}
+
+function selectClientMergeCandidate(userId) {
+  const sourceSelect = document.getElementById('client-merge-source-id');
+  const targetSelect = document.getElementById('client-merge-target-id');
+  if (!sourceSelect || !targetSelect) return;
+
+  const { sourceClient, targetClient } = _clientMergeGetSelectedClients();
+  const searchRole = _clientMergeSearchRole(sourceClient, targetClient);
+  if (!searchRole) return;
+
+  if (searchRole === 'source') {
+    sourceSelect.value = String(Number(userId) || '');
+  } else {
+    targetSelect.value = String(Number(userId) || '');
+  }
+
+  renderClientMergeUi('');
+}
+
+function clearClientMergeSide(side) {
+  if (clientMergeLockedSide === side) return;
+  const selectEl = document.getElementById(side === 'target' ? 'client-merge-target-id' : 'client-merge-source-id');
+  if (selectEl) selectEl.value = '';
+  renderClientMergeUi('');
+}
+
+async function openMergeClientsModal(preselectedClientId = null) {
   if (!Array.isArray(allClients) || allClients.length === 0) {
     await loadAllClients();
   }
 
   populateMergeClientSelectors();
+  const preselectedClient = Number(preselectedClientId) > 0
+    ? allClients.find((client) => Number(client.id) === Number(preselectedClientId))
+    : null;
+  prefillMergeClientSelectors(preselectedClient || null);
   const noteEl = document.getElementById('client-merge-note');
   if (noteEl) noteEl.value = '';
   setClientMergeStatus('');
+  renderClientMergeUi('');
 
   const overlayEl = document.getElementById('client-merge-overlay');
   const modalEl = document.getElementById('client-merge-modal');
@@ -18487,14 +20965,25 @@ async function openMergeClientsModal() {
   if (modalEl) modalEl.classList.add('show');
   setModalBackHandler(closeMergeClientsModal);
   showActionTitlePopup('Объединение клиентов');
+  return;
+  showActionTitlePopup('Объединение клиентов');
 }
 
 function closeMergeClientsModal() {
   const overlayEl = document.getElementById('client-merge-overlay');
   const modalEl = document.getElementById('client-merge-modal');
+  clientMergeLockedSide = null;
   if (overlayEl) overlayEl.classList.remove('show');
   if (modalEl) modalEl.classList.remove('show');
   setModalBackHandler(null);
+}
+
+function openCurrentClientMerge() {
+  if (!selectedClientForActions) {
+    showNotification('Клиент не выбран');
+    return;
+  }
+  openMergeClientsModal(selectedClientForActions.id);
 }
 
 async function submitMergeClients() {
@@ -18553,6 +21042,10 @@ async function submitMergeClients() {
     }
 
     closeMergeClientsModal();
+    if (selectedClientForActions && [sourceUserId, targetUserId].includes(Number(selectedClientForActions.id))) {
+      closeClientDetailModal();
+      selectedClientForActions = null;
+    }
     showNotification(`Профили объединены: #${sourceUserId} -> #${targetUserId}`);
     await loadAllClients();
   } catch (error) {
@@ -18562,10 +21055,50 @@ async function submitMergeClients() {
 }
 
 /* ====== ОТОБРАЖЕНИЕ ИНФОРМАЦИИ О ПЕРСОНАЛЕ ====== */
+async function deleteCurrentClient() {
+  if (!selectedClientForActions) {
+    showNotification('Клиент не выбран');
+    return;
+  }
+
+  const client = selectedClientForActions;
+  const clientName = (client.name || '').trim() || `#${client.id}`;
+  const confirmed = confirm(`Удалить клиента ${clientName}?\n\nПрофиль исчезнет из списка, но история останется в архиве.`);
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch(`/api/admin/clients/${client.id}/archive`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+
+    let data = {};
+    try {
+      data = await response.json();
+    } catch (e) {
+      data = {};
+    }
+
+    if (!response.ok) {
+      showNotification(data.error || 'Не удалось удалить клиента');
+      return;
+    }
+
+    closeClientDetailModal();
+    closeMergeClientsModal();
+    selectedClientForActions = null;
+    showNotification(`Клиент удален: ${clientName}`);
+    await loadAllClients();
+  } catch (error) {
+    console.error('Ошибка при удалении клиента:', error);
+    showNotification('Ошибка сети');
+  }
+}
+
 async function displayStaffInfo(userData) {
   try {
     // Получаем информацию о персонале
-    await authSessionPromise;
+    await ensureTelegramAuthSession();
     const response = await fetch('/staff/me', { headers: getAuthHeaders() });
     
     if (!response.ok) {
@@ -18650,7 +21183,7 @@ async function openStaffProfileEdit(staffId = null) {
       }
       staff = data;
     } else {
-      await authSessionPromise;
+      await ensureTelegramAuthSession();
       const response = await fetch('/staff/me', { headers: getAuthHeaders() });
       if (!response.ok) {
         showNotification('Не удалось загрузить профиль');
@@ -19157,12 +21690,25 @@ function initClientDetailModalLayout() {
         <div class="client-detail-meta" id="client-detail-meta">—</div>
       </div>
       <div class="card client-detail-actions">
-        <h4 style="margin-top:0;">Действия</h4>
-        <div class="client-detail-actions-list">
+        <h4 class="client-detail-actions-title">Связь</h4>
+        <div class="client-detail-social-row">
           <button class="save-btn client-detail-telegram-btn" id="client-detail-telegram-btn" onclick="openCurrentClientChat()">Telegram</button>
+          <button class="save-btn client-detail-vk-btn" id="client-detail-vk-btn" onclick="openCurrentClientVk()">VK</button>
+        </div>
+      </div>
+      <div class="card client-detail-actions">
+        <h4 class="client-detail-actions-title">Работа с клиентом</h4>
+        <div class="client-detail-actions-list">
           <button class="save-btn" onclick="openClientAttendanceCalendarScreen()">Календарь посещаемости</button>
           <button class="save-btn" onclick="openClientAbonementActionsScreen()">Действия с абонементами</button>
           <button class="save-btn" style="background:#444;" onclick="openClientDiscountsScreen()">Персональные скидки</button>
+        </div>
+      </div>
+      <div class="card client-detail-actions">
+        <h4 class="client-detail-actions-title">Управление</h4>
+        <div class="client-detail-actions-list">
+          <button class="save-btn" id="client-detail-merge-btn" onclick="openCurrentClientMerge()">Объединить</button>
+          <button class="save-btn" id="client-detail-delete-btn" style="background:#c43d3d;" onclick="deleteCurrentClient()">Удалить клиента</button>
         </div>
       </div>
     </div>
@@ -19187,11 +21733,17 @@ function _setClientDetailBackFallbackVisible(isVisible) {
   backBtn.style.pointerEvents = isVisible ? 'auto' : 'none';
 }
 
-function syncClientDetailChatButton(client) {
-  const btn = document.getElementById('client-detail-telegram-btn');
+function _syncClientDetailServiceButton(buttonId, link) {
+  const btn = document.getElementById(buttonId);
   if (!btn) return;
-  const chatLink = buildClientChatLink(client);
-  btn.style.display = chatLink ? 'block' : 'none';
+  const isAvailable = Boolean(link);
+  btn.disabled = !isAvailable;
+  btn.classList.toggle('is-disabled', !isAvailable);
+}
+
+function syncClientDetailSocialButtons(client) {
+  _syncClientDetailServiceButton('client-detail-telegram-btn', buildClientChatLink(client));
+  _syncClientDetailServiceButton('client-detail-vk-btn', buildClientVkLink(client));
 }
 
 function _revokeClientDetailAvatarUrl() {
@@ -19284,7 +21836,9 @@ function _legacyViewClientDetails(userId) {
   ].filter(Boolean);
 
   nameEl.textContent = client.name || 'Без имени';
+  usernameEl.textContent = _clientDetailUsernameText(client);
   metaEl.textContent = metaParts.join(' • ') || '—';
+  syncClientDetailSocialButtons(client);
 
   overlayEl.classList.add('show');
   modalEl.classList.add('show');
@@ -19303,6 +21857,19 @@ function openCurrentClientChat() {
     return;
   }
   openClientChat(buildClientChatLink(selectedClientForActions));
+}
+
+function openCurrentClientVk() {
+  if (!selectedClientForActions) {
+    showNotification('Клиент не выбран');
+    return;
+  }
+  const vkLink = buildClientVkLink(selectedClientForActions);
+  if (!vkLink) {
+    showNotification('VK не привязан');
+    return;
+  }
+  openExternalLink(vkLink);
 }
 
 function viewClientDetails(userId) {
@@ -19335,8 +21902,8 @@ function viewClientDetails(userId) {
   nameEl.textContent = client.name || 'Без имени';
   usernameEl.textContent = _clientDetailUsernameText(client);
   metaEl.textContent = metaParts.join(' • ') || '—';
-  _setClientDetailBackFallbackVisible(!hasTelegramBackButton);
-  syncClientDetailChatButton(client);
+  _setClientDetailBackFallbackVisible(!hasTelegramBackButton());
+  syncClientDetailSocialButtons(client);
 
   overlayEl.classList.add('show');
   modalEl.classList.add('show');
@@ -21022,7 +23589,7 @@ async function deleteProfilePhoto() {
 /* ====== АВТОМАТИЧЕСКАЯ РЕГИСТРАЦИЯ ====== */
 async function registerUserIfNeeded(user) {
   try {
-    await authSessionPromise;
+    await ensureTelegramAuthSession();
     // Проверяем, зарегистрирован ли уже пользователь
     const checkResponse = await authFetch('/users/me');
     
@@ -21053,7 +23620,9 @@ async function registerUserIfNeeded(user) {
       showNotification('Добро пожаловать! Пожалуйста, заполните ваши данные.');
       
       // Даем время на регистрацию и загружаем профиль
-      setTimeout(() => loadProfileData(), 1000);
+      setTimeout(() => {
+        void ensureProfileLoaded({ force: true }).catch(() => null);
+      }, 1000);
     } else {
       const error = await registerResponse.json();
       console.error('Ошибка регистрации:', error);
@@ -22884,7 +25453,7 @@ async function deleteGroup() {
   }
 
   const confirmed = confirm(
-    'Удалить группу?\n\nВ чат группы будет отправлено уведомление, но сама беседа останется.\nУдаление сработает только если у группы нет связанных расписаний, заявок и абонементов.'
+    'Удалить группу?\n\nЕсли у группы есть привязанные участники, им будут отправлены уведомления через подключенные каналы.\nУдаление сработает только если у группы нет связанных расписаний, заявок и абонементов.'
   );
   if (!confirmed) {
     return;
@@ -22901,8 +25470,8 @@ async function deleteGroup() {
 
     window.currentEditGroupId = null;
     window.selectedEditGroupTeacher = null;
-    const successText = data.chat_notified === false && data.chat_notify_error
-      ? '✅ Группа удалена, но чат не удалось уведомить'
+    const successText = data.group_notify_error
+      ? '✅ Группа удалена, но часть уведомлений не отправлена'
       : '✅ Группа удалена';
     setEditGroupMessage(successText, false);
     loadDirectionGroups();
@@ -23263,41 +25832,225 @@ function archiveDirection(directionId) {
 
 
 window.platformAdapter = (function () {
-  function getPlatform() {
-    const hasTelegram = typeof window.Telegram !== 'undefined' && window.Telegram.WebApp;
+  function _normalizeVkLaunchPayload(source) {
+    if (!source || typeof source !== 'object') return null;
+    const launchPayload = {};
+    for (const [key, value] of Object.entries(source)) {
+      if (!String(key || '').startsWith('vk_')) continue;
+      if (value == null) continue;
+      launchPayload[key] = String(value);
+    }
+    const sign = String(source.sign || '').trim();
+    if (sign) launchPayload.sign = sign;
+    const vkUserId = String(launchPayload.vk_user_id || '').trim();
+    if (!vkUserId) return null;
+    return launchPayload;
+  }
+  function _readVkLaunchPayloadFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    const hasVk = params.has('vk_user_id') || params.has('vk_platform') || (window.vkBridge?.isWebView?.() === true);
-    if (hasVk) return 'vk';
-    if (hasTelegram && window.Telegram.WebApp.initData) return 'telegram';
-    return 'web';
+    const launchPayload = {};
+    for (const [key, value] of params.entries()) {
+      if (!key.startsWith('vk_')) continue;
+      if (value == null) continue;
+      launchPayload[key] = value;
+    }
+    const sign = (params.get('sign') || '').trim();
+    if (sign) launchPayload.sign = sign;
+    return _normalizeVkLaunchPayload(launchPayload);
+  }
+  function _readStoredVkLaunchPayload() {
+    try {
+      const raw = localStorage.getItem(VK_LAUNCH_PAYLOAD_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return _normalizeVkLaunchPayload(parsed);
+    } catch (_) {
+      return null;
+    }
+  }
+  function _storeVkLaunchPayload(payload) {
+    try {
+      const vkUserId = String(payload?.vk_user_id || '').trim();
+      if (!vkUserId) return;
+      localStorage.setItem(VK_LAUNCH_PAYLOAD_STORAGE_KEY, JSON.stringify(payload));
+    } catch (_) {}
+  }
+  function _isVkWebView() {
+    try {
+      return window.vkBridge?.isWebView?.() === true;
+    } catch (_) {
+      return false;
+    }
+  }
+  function _isVkEmbedded() {
+    try {
+      return window.vkBridge?.isEmbedded?.() === true;
+    } catch (_) {
+      return false;
+    }
+  }
+  async function _sendVkBridge(method, params) {
+    if (!window.vkBridge?.send) {
+      throw new Error('vk_bridge_unavailable');
+    }
+    return params === undefined
+      ? window.vkBridge.send(method)
+      : window.vkBridge.send(method, params);
+  }
+  async function _sendVkBridgeWithTimeout(method, params, timeoutMs = 1500) {
+    const pending = _sendVkBridge(method, params);
+    let timerId = 0;
+    try {
+      return await Promise.race([
+        pending,
+        new Promise((_, reject) => {
+          timerId = window.setTimeout(() => reject(new Error('vk_bridge_timeout')), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timerId) window.clearTimeout(timerId);
+    }
+  }
+  async function _readVkLaunchPayloadFromBridge() {
+    if ((!_isVkWebView() && !_isVkEmbedded()) || !window.vkBridge?.send) {
+      return null;
+    }
+    try {
+      const payload = await _sendVkBridgeWithTimeout('VKWebAppGetLaunchParams');
+      return _normalizeVkLaunchPayload(payload);
+    } catch (_) {
+      return null;
+    }
+  }
+  function getVkLaunchPayload() {
+    const payloadFromUrl = _readVkLaunchPayloadFromUrl();
+    if (payloadFromUrl) return payloadFromUrl;
+    if (_isVkWebView()) {
+      return _readStoredVkLaunchPayload();
+    }
+    return null;
+  }
+  function getVkGroupId() {
+    const payload = getVkLaunchPayload() || {};
+    const groupId = Number(payload?.vk_group_id || 0);
+    return Number.isFinite(groupId) && groupId > 0 ? groupId : null;
+  }
+  async function requestVkAllowMessagesFromGroup(permissionKey, options = {}) {
+    if ((!_isVkWebView() && !_isVkEmbedded()) || !window.vkBridge?.send) {
+      throw new Error('vk_bridge_unavailable');
+    }
+    const normalizedPermissionKey = String(permissionKey || '').trim();
+    if (!normalizedPermissionKey) {
+      throw new Error('vk_permission_key_required');
+    }
+
+    const launchPayload = getVkLaunchPayload() || await _readVkLaunchPayloadFromBridge();
+    if (launchPayload) {
+      _storeVkLaunchPayload(launchPayload);
+    }
+    let groupId = Number(options?.groupId || 0);
+    if (!Number.isFinite(groupId) || groupId <= 0) {
+      groupId = Number(launchPayload?.vk_group_id || 0);
+    }
+    if (!Number.isFinite(groupId) || groupId <= 0) {
+      groupId = getVkGroupId();
+    }
+    if (!groupId) {
+      try {
+        const groupInfo = await _sendVkBridge('VKWebAppGetGroupInfo');
+        const resolvedGroupId = Number(groupInfo?.id || 0);
+        if (Number.isFinite(resolvedGroupId) && resolvedGroupId > 0) {
+          groupId = resolvedGroupId;
+        }
+      } catch (_) {}
+    }
+    if (!groupId) {
+      throw new Error('vk_group_id_missing');
+    }
+    const result = await _sendVkBridge('VKWebAppAllowMessagesFromGroup', { group_id: groupId, key: normalizedPermissionKey });
+    if (result?.result !== true) {
+      throw new Error('vk_permission_not_granted');
+    }
+    return result;
+  }
+  let resolvedPlatform = null;
+  function hasVkContext() {
+    const params = new URLSearchParams(window.location.search);
+    return params.has('vk_user_id')
+      || params.has('vk_platform')
+      || _isVkWebView()
+      || _isVkEmbedded();
+  }
+  function getPlatform() {
+    if (hasVkContext()) return 'vk';
+    if (resolvedPlatform) return resolvedPlatform;
+    return getTelegramContext().platform;
   }
   function isPWA() {
     return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   }
   async function initPlatform() {
-    const platform = getPlatform();
-    if (platform === 'telegram' && window.Telegram?.WebApp) {
-      window.Telegram.WebApp.ready();
-      window.Telegram.WebApp.expand();
+    if (hasVkContext()) {
+      resolvedPlatform = 'vk';
+    } else {
+      const telegramContext = await resolveTelegramContext({ timeoutMs: TELEGRAM_PLATFORM_RESOLVE_TIMEOUT_MS });
+      resolvedPlatform = telegramContext.platform;
+      const webApp = getTelegramWebApp();
+      if (resolvedPlatform === 'telegram' && webApp) {
+        try { webApp.ready(); } catch (e) { console.warn(e); }
+        try { webApp.expand(); } catch (e) { console.warn(e); }
+      }
     }
+    const platform = resolvedPlatform || 'web';
     if (platform === 'vk' && window.vkBridge?.send) {
       try { await window.vkBridge.send('VKWebAppInit'); } catch (e) { console.warn(e); }
     }
     return platform;
   }
   async function authBootstrap() {
-    const platform = getPlatform();
-    if (platform === 'telegram' && window.Telegram?.WebApp?.initData) {
-      const response = await fetch('/auth/telegram', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ init_data: window.Telegram.WebApp.initData }) });
-      const payload = await response.json().catch(() => ({}));
-      applyAuthResponse(payload, 'telegram');
-      if (response.ok) await refreshBootstrapAfterAuthChange(payload?.linked ? 'telegram_link' : 'telegram_login');
-      return payload;
+    const bootstrapPlatform = hasVkContext() ? 'vk' : (resolvedPlatform || await initPlatform());
+    if (bootstrapPlatform !== 'vk') {
+      const telegramContext = await resolveTelegramContext({
+        timeoutMs: TELEGRAM_INIT_DATA_TIMEOUT_MS,
+        force: bootstrapPlatform !== 'telegram',
+      });
+      if (telegramContext.platform === 'telegram') {
+        resolvedPlatform = 'telegram';
+        document.body.classList.toggle('tg-app', true);
+        document.body.classList.toggle('vk-app', false);
+      }
+    }
+    const platform = resolvedPlatform || bootstrapPlatform;
+    if (platform === 'telegram') {
+      const authResult = await ensureTelegramAuthSession();
+      if (!authResult?.ok && !authResult?.skipped) {
+        const authPayload = authResult?.payload || { ok: false, error: authResult?.error || 'telegram_auth_failed' };
+        applyAuthResponse(authPayload, 'telegram');
+        if (authResult?.error === 'init_data_required' && authResult?.context?.hasUserContext) {
+          await clearStaleTelegramSession();
+        }
+        const message = getTelegramAuthErrorMessage(authResult?.error);
+        if (message) {
+          showNotification(message);
+        }
+        return authPayload;
+      }
+      if (authResult?.payload) {
+        applyAuthResponse(authResult.payload, 'telegram');
+        const refreshed = await refreshBootstrapAfterAuthChange(authResult.payload?.linked ? 'telegram_link' : 'telegram_login');
+        return _isBootstrapContextPayload(refreshed) ? refreshed : authResult.payload;
+      }
+      return loadAuthContext();
     }
     if (platform === 'vk') {
-      const params = new URLSearchParams(window.location.search);
-      const vkUserId = params.get('vk_user_id') || '';
+      const launchPayloadFromUrl = _readVkLaunchPayloadFromUrl();
+      const bridgeLaunchPayload = launchPayloadFromUrl ? null : await _readVkLaunchPayloadFromBridge();
+      // Use stored launch payload only inside real VK WebView context.
+      const storedLaunchPayload = (!launchPayloadFromUrl && !bridgeLaunchPayload && _isVkWebView()) ? _readStoredVkLaunchPayload() : null;
+      const launchPayload = launchPayloadFromUrl || bridgeLaunchPayload || storedLaunchPayload || null;
+      const vkUserId = String(launchPayload?.vk_user_id || '').trim();
       if (vkUserId) {
+        _storeVkLaunchPayload(launchPayload);
         let userInfo = null;
         try {
           if (window.vkBridge?.send) {
@@ -23307,39 +26060,60 @@ window.platformAdapter = (function () {
         } catch (e) {
           console.warn('VKWebAppGetUserInfo failed', e);
         }
-        const payload = {
-          sign: params.get('sign') || '',
-          vk_ts: params.get('vk_ts') || '',
-          vk_user_id: vkUserId,
-          screen_name: userInfo?.screen_name,
-          vk_username: userInfo?.first_name && userInfo?.last_name ? `${userInfo.first_name} ${userInfo.last_name}` : undefined,
-          name: userInfo?.first_name && userInfo?.last_name ? `${userInfo.first_name} ${userInfo.last_name}` : undefined,
-        };
+        const payload = { ...(launchPayload || {}) };
+        if (!payload.sign && storedLaunchPayload?.sign) {
+          payload.sign = storedLaunchPayload.sign;
+        }
+        if (userInfo?.screen_name) payload.screen_name = userInfo.screen_name;
+        const displayName = [userInfo?.first_name, userInfo?.last_name].filter(Boolean).join(' ').trim();
+        if (displayName) {
+          payload.name = displayName;
+        }
         const response = await fetch('/auth/vk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) });
         const authPayload = await response.json().catch(() => ({}));
         applyAuthResponse(authPayload, 'vk');
-        if (response.ok) await refreshBootstrapAfterAuthChange(authPayload?.linked ? 'vk_link' : 'vk_login');
+        if (response.ok) {
+          _storeVkLaunchPayload(payload);
+          const refreshed = await refreshBootstrapAfterAuthChange(authPayload?.linked ? 'vk_link' : 'vk_login');
+          return _isBootstrapContextPayload(refreshed) ? refreshed : authPayload;
+        }
         return authPayload;
       }
     }
     return loadAuthContext();
   }
   function sendHaptic(type = 'impact') {
-    if (getPlatform() === 'telegram' && window.Telegram?.WebApp?.HapticFeedback) {
-      window.Telegram.WebApp.HapticFeedback.impactOccurred(type === 'impact' ? 'medium' : 'light');
+    const webApp = getTelegramWebApp();
+    if (getPlatform() === 'telegram' && webApp?.HapticFeedback) {
+      webApp.HapticFeedback.impactOccurred(type === 'impact' ? 'medium' : 'light');
     }
   }
   function backButtonBind(handler) {
-    if (getPlatform() === 'telegram' && window.Telegram?.WebApp?.BackButton) {
-      window.Telegram.WebApp.BackButton.show();
-      window.Telegram.WebApp.BackButton.onClick(handler);
+    const webApp = getTelegramWebApp();
+    if (getPlatform() === 'telegram' && webApp?.BackButton) {
+      webApp.BackButton.show();
+      webApp.BackButton.onClick(handler);
     }
   }
   async function getUserContext() {
     const r = await fetch('/api/app/bootstrap', { credentials: 'include' });
     return await r.json();
   }
-  return { getPlatform, isTelegram: () => getPlatform() === 'telegram', isVK: () => getPlatform() === 'vk', isPWA, initPlatform, authBootstrap, sendHaptic, backButtonBind, getUserContext };
+  return {
+    getPlatform,
+    isTelegram: () => getPlatform() === 'telegram',
+    isVK: () => getPlatform() === 'vk',
+    isVkWebView: _isVkWebView,
+    getVkLaunchPayload,
+    getVkGroupId,
+    requestVkAllowMessagesFromGroup,
+    isPWA,
+    initPlatform,
+    authBootstrap,
+    sendHaptic,
+    backButtonBind,
+    getUserContext,
+  };
 })();
 
 (async function initPlatformAndPWA() {
@@ -23347,9 +26121,32 @@ window.platformAdapter = (function () {
     const platform = await window.platformAdapter.initPlatform();
     document.body.classList.toggle('vk-app', platform === 'vk');
     document.body.classList.toggle('tg-app', platform === 'telegram');
-    await window.platformAdapter.authBootstrap();
-    await loadAuthContext();
-    try { await loadProfileData(); } catch (e) { console.warn('Profile load failed', e); }
+    const bootstrapPromise = window.platformAdapter.authBootstrap();
+    let bootstrapPayload = null;
+    try {
+      bootstrapPayload = await Promise.race([
+        bootstrapPromise,
+        new Promise((resolve) => setTimeout(() => resolve(null), PLATFORM_BOOTSTRAP_BLOCKING_GRACE_MS)),
+      ]);
+    } catch (e) {
+      console.warn('platform bootstrap failed', e);
+    }
+    try {
+      await ensureProfileLoaded({ bootstrapPayloadHint: bootstrapPayload, force: true });
+    } catch (e) {
+      console.warn('Profile load failed', e);
+    }
+    if (bootstrapPayload == null) {
+      bootstrapPromise.then(async (resolvedPayload) => {
+        try {
+          await ensureProfileLoaded({ bootstrapPayloadHint: resolvedPayload, force: true });
+        } catch (e) {
+          console.warn('Profile load failed after async auth bootstrap', e);
+        }
+      }).catch((e) => {
+        console.warn('platform bootstrap failed', e);
+      });
+    }
   } catch (e) {
     console.warn('platform bootstrap failed', e);
   }
@@ -23380,6 +26177,10 @@ window.platformAdapter = (function () {
 </script>
 </body>
 </html>
+
+
+
+
 
 
 

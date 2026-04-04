@@ -33,3 +33,12 @@ def test_booking_callback_triggers_group_access_notification_after_activation():
 
     assert "activated_abonement = _activate_group_abonement_from_booking(db, booking)" in window
     assert "asyncio.create_task(_notify_group_access_after_booking(booking.id, activated_abonement.id))" in window
+
+
+def test_contact_share_normalizes_phone_and_flushes_before_merge():
+    source = BOT_FILE.read_text(encoding="utf-8")
+    window = _window(source, "async def handle_contact_share(message):", size=2400)
+
+    assert "normalized_phone_number = normalize_phone_e164" in window
+    assert "db.flush()" in window
+    assert "phone=normalized_phone_number" in window

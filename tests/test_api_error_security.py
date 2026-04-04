@@ -4,7 +4,7 @@ from flask import Flask
 
 from dance_studio.web.middleware import errors as errors_middleware
 from dance_studio.web.middleware.errors import register_error_handlers
-from dance_studio.web.routes import admin as admin_routes
+from dance_studio.core import group_notifications
 from dance_studio.web.services.api_errors import safe_client_error_message, token_fingerprint
 
 
@@ -38,18 +38,23 @@ def test_unhandled_exception_response_hides_trace_and_exception(monkeypatch):
     assert response.get_json() == {"error": "internal_server_error"}
 
 
-def test_group_chat_message_error_is_generic(monkeypatch):
-    class FakeResponse:
-        ok = False
-        text = "telegram said BOT_TOKEN=secret"
+def test_group_notification_error_is_generic(monkeypatch):
+    class _FakeService:
+        def send(self, db, *, user_id, event_type, title, body, payload):
+            raise RuntimeError("provider BOT_TOKEN=secret")
 
-    monkeypatch.setattr(admin_routes, "BOT_TOKEN", "bot-token")
-    monkeypatch.setattr(admin_routes.requests, "post", lambda *args, **kwargs: FakeResponse())
+    monkeypatch.setattr(group_notifications, "NotificationService", lambda: _FakeService())
 
-    ok, error = admin_routes._send_group_chat_message(123456, "test")
+    result = group_notifications.send_group_notifications(
+        object(),
+        recipient_user_ids=[123456],
+        event_type="group_deleted",
+        title="T",
+        body="B",
+    )
 
-    assert ok is False
-    assert error == "telegram_send_failed"
+    assert result["sent_count"] == 0
+    assert result["error"] == "group_notification_delivery_failed"
 
 
 def test_requirements_are_version_pinned():

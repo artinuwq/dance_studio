@@ -40,10 +40,25 @@
   }
 
   function shouldShowVerificationBanner(authUser) {
-    return Boolean(authUser) && (!authUser.phone_verified || !authUser.identities.passkey.linked);
+    if (!authUser) return false;
+    const phoneVerified = Boolean(authUser.phone_verified || (authUser.identities && authUser.identities.phone && authUser.identities.phone.verified));
+    return !phoneVerified;
+  }
+
+  function getVerificationBannerTitle(state) {
+    if (state && state.vkPermissionRequired) {
+      return 'Включите сообщения VK';
+    }
+    if (state && (state.manualMergeRequired || state.verifiedPhoneConflict)) {
+      return 'Проверьте вход';
+    }
+    return 'Подтвердите аккаунт';
   }
 
   function getVerificationBannerText(state) {
+    if (state && state.vkPermissionRequired) {
+      return 'Сообщество VK сейчас не может писать вам в личные сообщения. Откройте приложение через VK Mini App и снова разрешите сообщения от сообщества.';
+    }
     if (state && state.manualMergeRequired) {
       return 'Аккаунт требует ручной проверки перед объединением. Используйте другой способ входа или обратитесь в поддержку.';
     }
@@ -64,6 +79,11 @@
       ['Телефон', identities.phone && identities.phone.verified ? 'подтверждён' : 'не подтверждён'],
       ['Passkey', identities.passkey && identities.passkey.linked ? `настроен${identities.passkey.count ? ` (${identities.passkey.count})` : ''}` : 'не настроен'],
     ];
+  }
+
+  function hasCurrentUser(state) {
+    const rawId = state && state.currentUser ? state.currentUser.id : '';
+    return Boolean(String(rawId ?? '').trim());
   }
 
   function getAuthStatusText(state) {
@@ -115,8 +135,10 @@
     requiresVerifiedPhoneForBooking,
     getPhoneVerificationRequiredMessage,
     shouldShowVerificationBanner,
+    getVerificationBannerTitle,
     getVerificationBannerText,
     getIdentityRows,
+    hasCurrentUser,
     getAuthStatusText,
     normalizeAuthResponse,
     shouldRefreshBootstrapAfterAuthAction,

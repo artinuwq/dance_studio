@@ -6,6 +6,7 @@ from datetime import datetime
 from threading import RLock
 
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from dance_studio.db.models import AuthIdentity, User, UserPhone
 
 
@@ -29,6 +30,78 @@ class VerifiedPhoneConflictError(RuntimeError):
     def __init__(self, user_ids: list[int]):
         super().__init__("verified_phone_conflict")
         self.user_ids = user_ids
+
+
+def _is_identity_provider_unique_violation(exc: Exception) -> bool:
+    orig = getattr(exc, "orig", None)
+    constraint_name = getattr(getattr(orig, "diag", None), "constraint_name", None)
+    if constraint_name == "uq_auth_identities_provider_user":
+        return True
+    message = str(orig or exc).lower()
+    return "uq_auth_identities_provider_user" in message
+
+
+def _normalize_telegram_id(value: int | str | None) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    if parsed == 0:
+        return None
+    return parsed
+
+
+def resolve_user_by_telegram(db, telegram_id: int | str | None) -> User | None:
+    resolved_id = _normalize_telegram_id(telegram_id)
+    if resolved_id is None:
+        return None
+
+    user = db.query(User).filter(User.telegram_id == resolved_id).first()
+    if user:
+        return user
+
+    identity = (
+        db.query(AuthIdentity)
+        .filter(
+            AuthIdentity.provider == "telegram",
+            AuthIdentity.provider_user_id == str(resolved_id),
+        )
+        .order_by(AuthIdentity.id.desc())
+        .first()
+    )
+    if not identity:
+        return None
+    return db.query(User).filter(User.id == identity.user_id).first()
+
+
+def resolve_user_id_by_telegram(db, telegram_id: int | str | None) -> int | None:
+    user = resolve_user_by_telegram(db, telegram_id)
+    return user.id if user else None
+
+
+def resolve_telegram_id_by_user(db, user_id: int | str | None) -> int | None:
+    resolved_user_id = _normalize_telegram_id(user_id)
+    if resolved_user_id is None:
+        return None
+
+    user = db.query(User).filter(User.id == resolved_user_id).first()
+    if not user:
+        return None
+    if user.telegram_id:
+        return user.telegram_id
+
+    identity = (
+        db.query(AuthIdentity)
+        .filter(
+            AuthIdentity.user_id == user.id,
+            AuthIdentity.provider == "telegram",
+        )
+        .order_by(AuthIdentity.id.desc())
+        .first()
+    )
+    if not identity or not identity.provider_user_id:
+        return None
+    return _normalize_telegram_id(identity.provider_user_id)
 
 
 @contextmanager
@@ -236,21 +309,47 @@ def get_or_create_identity(
             if target_user and target_user.requires_manual_merge:
                 raise ManualMergeRequiredError("requires_manual_merge")
 
+        created_new_user = target_user is None
         if target_user is None:
             target_user = User(name=fallback_name)
-            db.add(target_user)
-            db.flush()
 
-        target_user.last_login_at = datetime.utcnow()
-        _link_identity_to_user(
-            db,
-            user=target_user,
-            provider=provider,
-            provider_user_id=provider_user_id,
-            username=username,
-            payload_json=payload_json,
-            verified=is_verified,
-        )
+        login_at = datetime.utcnow()
+        target_user.last_login_at = login_at
+        try:
+            with db.begin_nested():
+                if created_new_user:
+                    db.add(target_user)
+                    db.flush()
+                _link_identity_to_user(
+                    db,
+                    user=target_user,
+                    provider=provider,
+                    provider_user_id=provider_user_id,
+                    username=username,
+                    payload_json=payload_json,
+                    verified=is_verified,
+                )
+        except IntegrityError as exc:
+            if not provider_user_id or not _is_identity_provider_unique_violation(exc):
+                raise
+            # Concurrent auth requests can race on the same provider_user_id.
+            # Reuse the already inserted identity instead of failing the login.
+            identity = (
+                db.query(AuthIdentity)
+                .filter(AuthIdentity.provider == provider, AuthIdentity.provider_user_id == provider_user_id)
+                .with_for_update()
+                .first()
+            )
+            if not identity:
+                raise
+            linked_user = db.query(User).filter(User.id == identity.user_id, User.is_archived.is_(False)).first()
+            if not linked_user:
+                raise DuplicateIdentityError(f"identity already linked to user {identity.user_id}")
+            linked_user.last_login_at = datetime.utcnow()
+            identity.provider_username = username
+            identity.provider_payload_json = payload_json
+            identity.last_login_at = linked_user.last_login_at
+            target_user = linked_user
 
         if normalized_phone:
             ensure_user_phone(

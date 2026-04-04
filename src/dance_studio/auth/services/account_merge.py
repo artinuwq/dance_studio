@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 from datetime import datetime
 
-from dance_studio.auth.services.common import normalize_phone_e164, phone_operation_lock, set_primary_phone
+from sqlalchemy import func, or_
+
+from dance_studio.auth.services.common import (
+    ensure_user_phone,
+    normalize_phone_e164,
+    phone_operation_lock,
+    set_primary_phone,
+)
 from dance_studio.db.models import (
     Attendance,
     AttendanceIntention,
@@ -25,6 +32,26 @@ from dance_studio.db.models import (
 
 
 class AccountMergeService:
+    @staticmethod
+    def _sql_phone_digits(column):
+        return func.replace(
+            func.replace(
+                func.replace(
+                    func.replace(
+                        func.replace(func.coalesce(column, ""), " ", ""),
+                        "-",
+                        "",
+                    ),
+                    "(",
+                    "",
+                ),
+                ")",
+                "",
+            ),
+            "+",
+            "",
+        )
+
     def score_user(self, db, user_id: int) -> int:
         return (
             db.query(BookingRequest).filter(BookingRequest.user_id == user_id).count() * 5
@@ -63,6 +90,78 @@ class AccountMergeService:
             db.query(GroupAbonement.id).filter(GroupAbonement.user_id == user_id).first(),
         )
         return any(row is not None for row in critical_rows)
+
+    def _find_legacy_phone_match_user_ids(self, db, *, phone_e164: str, exclude_user_id: int) -> list[int]:
+        digits = "".join(ch for ch in phone_e164 if ch.isdigit())
+        if len(digits) < 10:
+            return []
+        phone_tail = digits[-10:]
+        phone_expr = self._sql_phone_digits(User.phone)
+        primary_phone_expr = self._sql_phone_digits(User.primary_phone)
+        candidates = (
+            db.query(User)
+            .filter(User.is_archived.is_(False), User.id != exclude_user_id)
+            .filter(
+                or_(
+                    phone_expr.like(f"%{phone_tail}"),
+                    primary_phone_expr.like(f"%{phone_tail}"),
+                )
+            )
+            .order_by(User.id.asc())
+            .all()
+        )
+        matched_ids: list[int] = []
+        for candidate in candidates:
+            values = [candidate.primary_phone, candidate.phone]
+            if any(normalize_phone_e164(value) == phone_e164 for value in values if value):
+                matched_ids.append(candidate.id)
+        return sorted(set(matched_ids))
+
+    def _upsert_legacy_phone_row(self, db, *, user: User | None, source: str) -> None:
+        if not user:
+            return
+        normalized = normalize_phone_e164(user.primary_phone or user.phone)
+        if not normalized:
+            return
+
+        existing = (
+            db.query(UserPhone)
+            .filter(UserPhone.user_id == user.id, UserPhone.phone_e164 == normalized)
+            .order_by(UserPhone.id.asc())
+            .first()
+        )
+        if existing:
+            if user.phone_verified_at and existing.verified_at is None:
+                existing.verified_at = user.phone_verified_at
+            if existing.is_primary or user.primary_phone or user.phone:
+                set_primary_phone(db, user_id=user.id, phone_row=existing)
+            return
+
+        ensure_user_phone(
+            db,
+            user_id=user.id,
+            phone_e164=normalized,
+            source=source,
+            verified_at=user.phone_verified_at,
+            is_primary=True,
+        )
+
+    def _merge_legacy_user_fields(self, *, primary: User | None, secondary: User | None) -> None:
+        if not primary or not secondary:
+            return
+
+        if not primary.username and secondary.username:
+            primary.username = secondary.username
+        if not primary.email and secondary.email:
+            primary.email = secondary.email
+        if not primary.birth_date and secondary.birth_date:
+            primary.birth_date = secondary.birth_date
+        if not primary.photo_path and secondary.photo_path:
+            primary.photo_path = secondary.photo_path
+        if not primary.preferred_notification_channel and secondary.preferred_notification_channel:
+            primary.preferred_notification_channel = secondary.preferred_notification_channel
+        if not primary.telegram_id and secondary.telegram_id:
+            primary.telegram_id = secondary.telegram_id
 
     def _reassign_dependencies(self, db, *, source_user_id: int, target_user_id: int) -> None:
         db.query(BookingRequest).filter(BookingRequest.user_id == source_user_id).update({BookingRequest.user_id: target_user_id}, synchronize_session=False)
@@ -140,6 +239,11 @@ class AccountMergeService:
         if primary_id == secondary_id:
             return primary_id, secondary_id
 
+        primary = db.query(User).filter(User.id == primary_id).first()
+        secondary = db.query(User).filter(User.id == secondary_id).first()
+        self._upsert_legacy_phone_row(db, user=primary, source="legacy_primary")
+        self._upsert_legacy_phone_row(db, user=secondary, source="legacy_secondary")
+
         self._merge_identities(db, source_user_id=secondary_id, target_user_id=primary_id)
         self._merge_phones(db, source_user_id=secondary_id, target_user_id=primary_id)
         self._merge_passkeys(db, source_user_id=secondary_id, target_user_id=primary_id)
@@ -147,6 +251,7 @@ class AccountMergeService:
 
         secondary = db.query(User).filter(User.id == secondary_id).first()
         primary = db.query(User).filter(User.id == primary_id).first()
+        self._merge_legacy_user_fields(primary=primary, secondary=secondary)
         if secondary:
             secondary.is_archived = True
             secondary.status = "inactive"
@@ -189,6 +294,12 @@ class AccountMergeService:
             source_phone = next((row for row in all_phone_rows if row.user_id == user_id), None)
             verified_matches = [row for row in all_phone_rows if row.verified_at is not None and row.user_id != user_id]
             match_user_ids = sorted({row.user_id for row in verified_matches})
+            if not match_user_ids:
+                match_user_ids = self._find_legacy_phone_match_user_ids(
+                    db,
+                    phone_e164=normalized_phone,
+                    exclude_user_id=user_id,
+                )
 
             if not match_user_ids:
                 if not source_phone:

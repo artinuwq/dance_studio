@@ -14,7 +14,20 @@ def build_user_auth_contract(db, user: User | None) -> dict | None:
     passkeys = db.query(PasskeyCredential).filter(PasskeyCredential.user_id == user.id).all()
     phones = db.query(UserPhone).filter(UserPhone.user_id == user.id).all()
     phone_verified = user_has_verified_phone(db, user=user)
-    auth_methods = sorted({identity.provider for identity in identities if identity.provider} | ({"passkey"} if passkeys else set()))
+    telegram_linked = any(identity.provider == "telegram" for identity in identities) or bool(user.telegram_id)
+    vk_linked = any(identity.provider == "vk" for identity in identities)
+    phone_linked = any(identity.provider == "phone" for identity in identities) or bool(phones) or bool(user.primary_phone or user.phone)
+
+    auth_methods_set = {identity.provider for identity in identities if identity.provider}
+    if telegram_linked:
+        auth_methods_set.add("telegram")
+    if vk_linked:
+        auth_methods_set.add("vk")
+    if phone_linked:
+        auth_methods_set.add("phone")
+    if passkeys:
+        auth_methods_set.add("passkey")
+    auth_methods = sorted(auth_methods_set)
     return {
         "id": user.id,
         "name": user.name,
@@ -22,9 +35,9 @@ def build_user_auth_contract(db, user: User | None) -> dict | None:
         "requires_manual_merge": bool(user.requires_manual_merge),
         "auth_methods": auth_methods,
         "identities": {
-            "telegram": {"linked": any(identity.provider == "telegram" for identity in identities)},
-            "vk": {"linked": any(identity.provider == "vk" for identity in identities)},
-            "phone": {"linked": any(identity.provider == "phone" for identity in identities), "verified": phone_verified},
+            "telegram": {"linked": telegram_linked},
+            "vk": {"linked": vk_linked},
+            "phone": {"linked": phone_linked, "verified": phone_verified},
             "passkey": {
                 "linked": bool(passkeys),
                 "count": len(passkeys),

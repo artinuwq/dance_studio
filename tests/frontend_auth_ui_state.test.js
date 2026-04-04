@@ -38,6 +38,22 @@ test('identity rows and status text reflect linked providers and merge/conflict 
   assert.match(state.getVerificationBannerText({ currentUser: authUser, verifiedPhoneConflict: true }), /конфликт/);
 });
 
+test('vk permission banner explains that community messages must be allowed again', () => {
+  const authUser = state.normalizeBootstrapUser({
+    id: 4,
+    phone_verified: true,
+    identities: {
+      vk: { linked: true },
+      phone: { linked: true, verified: true },
+      passkey: { linked: false, count: 0, items: [] },
+    },
+  });
+  const bannerState = { currentUser: authUser, vkPermissionRequired: true };
+  assert.equal(state.getVerificationBannerTitle(bannerState), 'Включите сообщения VK');
+  assert.match(state.getVerificationBannerText(bannerState), /VK Mini App/);
+  assert.match(state.getVerificationBannerText(bannerState), /сообщения от сообщества/);
+});
+
 test('normalizes auth responses and refresh policy for link/login/passkey actions', () => {
   assert.deepEqual(
     state.normalizeAuthResponse({ error: 'verified_phone_conflict', fallback_auth_methods: ['telegram'], action: 'contact_support', message: 'Conflict' }, 'vk'),
@@ -55,4 +71,11 @@ test('normalizes auth responses and refresh policy for link/login/passkey action
   assert.equal(state.shouldRefreshBootstrapAfterAuthAction('telegram_link'), true);
   assert.equal(state.shouldRefreshBootstrapAfterAuthAction('passkey_delete'), true);
   assert.equal(state.shouldRefreshBootstrapAfterAuthAction('unknown_action'), false);
+});
+
+test('detects guest/authenticated state by current user id', () => {
+  assert.equal(state.hasCurrentUser({ currentUser: { id: 42 } }), true);
+  assert.equal(state.hasCurrentUser({ currentUser: { id: '  ' } }), false);
+  assert.equal(state.hasCurrentUser({ currentUser: null }), false);
+  assert.equal(state.hasCurrentUser({}), false);
 });

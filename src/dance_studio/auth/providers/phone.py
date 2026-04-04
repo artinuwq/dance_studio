@@ -46,6 +46,35 @@ class PhoneCodeAuthProvider:
         db.add(rec)
         return code
 
+    def set_delivery_metadata(
+        self,
+        db,
+        *,
+        phone: str,
+        code: str,
+        purpose: str = "login",
+        delivery_channel: str,
+        delivery_target: str | None = None,
+    ) -> None:
+        normalized_phone = normalize_phone_e164(phone)
+        if not normalized_phone:
+            return
+        code_hash = _hash_code(normalized_phone, code)
+        rec = (
+            db.query(PhoneVerificationCode)
+            .filter(
+                PhoneVerificationCode.phone == normalized_phone,
+                PhoneVerificationCode.purpose == purpose,
+                PhoneVerificationCode.code_hash == code_hash,
+            )
+            .order_by(PhoneVerificationCode.created_at.desc())
+            .first()
+        )
+        if not rec:
+            return
+        rec.delivery_channel = str(delivery_channel or "").strip() or rec.delivery_channel
+        rec.delivery_target = str(delivery_target).strip() if delivery_target is not None else rec.delivery_target
+
     def verify_code(self, db, phone: str, code: str, *, current_user_id: int | None = None):
         normalized_phone = normalize_phone_e164(phone)
         if not normalized_phone:

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean, UniqueConstraint, text
+from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean, UniqueConstraint, event, text
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
 from dance_studio.core.statuses import (
@@ -7,6 +7,26 @@ from dance_studio.core.statuses import (
 )
 
 Base = declarative_base()
+
+
+def _normalize_phone_storage_value(phone: str | None) -> str | None:
+    raw = (phone or "").strip()
+    if not raw:
+        return None
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        return None
+    if raw.startswith("+"):
+        normalized = f"+{digits}"
+    elif len(digits) == 11 and digits.startswith("8"):
+        normalized = f"+7{digits[1:]}"
+    elif len(digits) == 10:
+        normalized = f"+7{digits}"
+    else:
+        normalized = f"+{digits}"
+    if len(normalized) < 8:
+        return None
+    return normalized
 
 class User(Base):
     __tablename__ = "users"
@@ -166,8 +186,6 @@ class Group(Base):
     max_students = Column(Integer, nullable=False)  # Максимальное кол-во учеников
     duration_minutes = Column(Integer, nullable=False)  # Обычная длительность в минутах
     lessons_per_week = Column(Integer, nullable=True)  # Кол-во занятий в неделю
-    chat_id = Column(BigInteger, nullable=True)  # ID чата Telegram (если создан)
-    chat_invite_link = Column(String, nullable=True)  # Инвайт ссылка на чат
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
     # Отношения
@@ -679,6 +697,35 @@ class PhoneVerificationCode(Base):
         Index("ix_phone_verification_codes_phone", "phone"),
         Index("ix_phone_verification_codes_expires_at", "expires_at"),
     )
+
+
+def _normalize_user_phone_columns(target: User) -> None:
+    normalized_phone = _normalize_phone_storage_value(target.phone)
+    normalized_primary = _normalize_phone_storage_value(target.primary_phone)
+    if normalized_phone is None and normalized_primary is not None:
+        normalized_phone = normalized_primary
+    if normalized_primary is None and normalized_phone is not None:
+        normalized_primary = normalized_phone
+    target.phone = normalized_phone
+    target.primary_phone = normalized_primary
+
+
+@event.listens_for(User, "before_insert")
+@event.listens_for(User, "before_update")
+def _normalize_user_phone_before_write(mapper, connection, target: User) -> None:
+    _normalize_user_phone_columns(target)
+
+
+@event.listens_for(UserPhone, "before_insert")
+@event.listens_for(UserPhone, "before_update")
+def _normalize_user_phone_row_before_write(mapper, connection, target: UserPhone) -> None:
+    target.phone_e164 = _normalize_phone_storage_value(target.phone_e164)
+
+
+@event.listens_for(PhoneVerificationCode, "before_insert")
+@event.listens_for(PhoneVerificationCode, "before_update")
+def _normalize_phone_verification_code_before_write(mapper, connection, target: PhoneVerificationCode) -> None:
+    target.phone = _normalize_phone_storage_value(target.phone)
 
 
 class PasskeyCredential(Base):

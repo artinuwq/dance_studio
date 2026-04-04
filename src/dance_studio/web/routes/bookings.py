@@ -1,7 +1,6 @@
 import json
 from datetime import date, datetime
 
-import requests
 from flask import Blueprint, current_app, g, jsonify, request
 from sqlalchemy import and_, or_
 
@@ -15,7 +14,8 @@ from dance_studio.core.abonement_pricing import (
 )
 from dance_studio.core.booking_utils import BOOKING_STATUS_LABELS, BOOKING_TYPE_LABELS
 from dance_studio.core.booking_amounts import compute_non_group_booking_base_amount
-from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, TECH_ADMIN_ID
+from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID
+from dance_studio.core.group_notifications import collect_group_notification_recipient_ids, send_group_notifications
 from dance_studio.core.personal_discounts import apply_best_discount_for_user
 from dance_studio.core.permissions import has_permission
 from dance_studio.core.statuses import (
@@ -46,10 +46,10 @@ from dance_studio.web.services.bookings import (
     _compute_duration_minutes,
     _find_booking_overlaps,
     _notify_booking_admins,
-    _send_booking_payment_details_via_userbot,
     count_group_free_seats,
     count_group_occupied_seats,
     create_booking_request_with_guards,
+    enqueue_booking_payment_details_delivery,
     get_next_group_date,
     get_group_occupancy_map,
 )
@@ -59,29 +59,6 @@ from dance_studio.web.services.payments import (
 )
 from dance_studio.web.services.studio_rules import interval_overlaps_service_break
 bp = Blueprint('bookings_routes', __name__)
-
-
-def _send_group_chat_message(chat_id: int | None, text: str) -> tuple[bool, str | None]:
-    if not chat_id:
-        return False, "group_chat_not_configured"
-    if not BOT_TOKEN:
-        return False, "bot_token_not_set"
-
-    try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            json={
-                "chat_id": int(chat_id),
-                "text": text,
-            },
-            timeout=10,
-        )
-        if resp.ok:
-            return True, None
-        return False, "telegram_send_failed"
-    except Exception:
-        current_app.logger.exception("Failed to notify group chat")
-        return False, "telegram_send_failed"
 
 
 def _collect_group_delete_dependencies(db, group_id: int) -> dict[str, int]:
@@ -196,11 +173,14 @@ def get_group(group_id):
         return {"error": "Группа не найдена"}, 404
 
     teacher_name = group.teacher.name if group.teacher else None
+    direction = group.direction
     occupied_students = count_group_occupied_seats(db, int(group.id))
     free_seats = count_group_free_seats(db, int(group.id), max_students=group.max_students)
     return jsonify({
         "id": group.id,
         "direction_id": group.direction_id,
+        "direction_title": direction.title if direction else None,
+        "direction_base_price": direction.base_price if direction else None,
         "teacher_id": group.teacher_id,
         "teacher_name": teacher_name,
         "name": group.name,
@@ -355,15 +335,8 @@ def delete_group(group_id):
     if blocker_message:
         return {"error": blocker_message, "dependencies": dependencies}, 409
 
-    chat_notified = False
-    chat_notify_error = None
-    if group.chat_id:
-        chat_notified, chat_notify_error = _send_group_chat_message(
-            group.chat_id,
-            "Данная группа была удалена. Чат остается доступным, но новых уведомлений по этой группе больше не будет.",
-        )
-
     group_name = group.name
+    recipient_user_ids = collect_group_notification_recipient_ids(group=group)
 
     try:
         db.delete(group)
@@ -373,12 +346,41 @@ def delete_group(group_id):
         current_app.logger.exception("Failed to delete group %s", group_id)
         return {"error": "Не удалось удалить группу"}, 500
 
+    group_notified = False
+    group_notification_total = 0
+    group_notification_sent = 0
+    group_notify_error = None
+    if recipient_user_ids:
+        notify_result = send_group_notifications(
+            db,
+            recipient_user_ids=recipient_user_ids,
+            event_type="group_deleted",
+            title="Группа удалена",
+            body=f"Группа «{group_name}» удалена. Актуальные группы и расписание доступны в приложении.",
+            payload={"group_id": group_id},
+        )
+        group_notified = bool(notify_result.get("sent_count"))
+        group_notification_total = int(notify_result.get("recipient_count") or 0)
+        group_notification_sent = int(notify_result.get("sent_count") or 0)
+        group_notify_error = notify_result.get("error")
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            current_app.logger.exception("Failed to commit group deletion notification records")
+            group_notified = False
+            group_notification_total = 0
+            group_notification_sent = 0
+            group_notify_error = "group_notification_commit_failed"
+
     return {
         "id": group_id,
         "name": group_name,
         "message": "Группа удалена",
-        "chat_notified": chat_notified,
-        "chat_notify_error": chat_notify_error,
+        "group_notified": group_notified,
+        "group_notification_total": group_notification_total,
+        "group_notification_sent": group_notification_sent,
+        "group_notify_error": group_notify_error,
     }
 
 
@@ -796,7 +798,7 @@ def create_booking_request():
 
     _notify_booking_admins(booking, user)
     if object_type == "group" and int(booking.requested_amount or 0) > 0:
-        _send_booking_payment_details_via_userbot(db, booking, user)
+        enqueue_booking_payment_details_delivery(booking.id, user.id if user else None)
 
     response_payload = {
         "id": booking.id,
@@ -1199,7 +1201,7 @@ def create_group_abonement():
 
     _notify_booking_admins(booking, user)
     if quote.requires_payment:
-        _send_booking_payment_details_via_userbot(db, booking, user)
+        enqueue_booking_payment_details_delivery(booking.id, user.id if user else None)
 
     return (
         jsonify(

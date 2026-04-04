@@ -83,3 +83,15 @@ def test_update_my_user_rejects_invalid_birth_date(monkeypatch):
     assert status == 400
     assert payload == {"error": "birth_date must be YYYY-MM-DD"}
     assert db.committed is False
+
+
+def test_users_me_route_accepts_put():
+    app = Flask(__name__)
+    app.register_blueprint(admin_routes.bp)
+
+    methods = set()
+    for rule in app.url_map.iter_rules():
+        if rule.rule == "/users/me":
+            methods.update(rule.methods)
+
+    assert "PUT" in methods

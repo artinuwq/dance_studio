@@ -17,6 +17,7 @@ from dance_studio.core.abonement_notifications import (
     resolve_group_ids_for_abonement,
 )
 from dance_studio.core.booking_amounts import compute_non_group_booking_base_amount
+from dance_studio.core.group_notifications import notify_group_participants
 from dance_studio.core.notification_dispatch import (
     notification_dispatch_exists,
     record_notification_dispatch,
@@ -37,7 +38,13 @@ from dance_studio.core.statuses import (
 )
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.personal_discounts import resolve_discount_usage_state
-from dance_studio.auth.services.common import resolve_telegram_id_by_user, resolve_user_by_telegram, resolve_user_id_by_telegram
+from dance_studio.auth.services.common import (
+    normalize_phone_e164,
+    resolve_telegram_id_by_user,
+    resolve_user_by_telegram,
+    resolve_user_id_by_telegram,
+)
+from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.core.config import BOT_TOKEN, OWNER_IDS, PROJECT_NAME_FULL, PROJECT_NAME_SHORT, TECH_ADMIN_ID
 from dance_studio.core.media_manager import delete_user_photo
 from dance_studio.core.system_settings_service import (
@@ -60,13 +67,21 @@ from dance_studio.db.models import (
     HallRental,
     IndividualLesson,
     Mailing,
+    Notification,
+    NotificationChannel,
+    NotificationPreference,
+    PasskeyChallenge,
+    PasskeyCredential,
     PaymentTransaction,
     Schedule,
     ScheduleOverrides,
+    SessionRecord,
     Staff,
     TeacherWorkingHours,
     User,
     UserDiscount,
+    UserPhone,
+    WebPushSubscription,
 )
 from dance_studio.web.constants import (
     ALLOWED_DIRECTION_TYPES,
@@ -560,30 +575,6 @@ def _refund_schedule_attendance_credit(
     )
     return True
 
-
-def _send_group_chat_message(chat_id: int | None, text: str) -> tuple[bool, str | None]:
-    if not chat_id:
-        return False, "group_chat_not_configured"
-    if not BOT_TOKEN:
-        return False, "bot_token_not_set"
-
-    try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            json={
-                "chat_id": int(chat_id),
-                "text": text,
-            },
-            timeout=10,
-        )
-        if resp.ok:
-            return True, None
-        return False, "telegram_send_failed"
-    except Exception:
-        current_app.logger.exception("Failed to notify group chat")
-        return False, "telegram_send_failed"
-
-
 def _has_group_schedule_conflict(
     db,
     *,
@@ -881,7 +872,7 @@ def _notify_abonement_group_access_links(
         notified = send_user_notification_sync(
             user_id=int(user.telegram_id),
             text=message_text,
-            context_note=f"Ссылки на чаты групп по абонементу #{abonement.id}",
+            context_note=f"Доступ к группам по абонементу #{abonement.id}",
         )
         record_notification_dispatch(
             db,
@@ -906,7 +897,13 @@ def _notify_abonement_group_access_links(
     return False, "telegram_send_failed"
 
 
-def _resolve_rental_creator_summary(db, rental: HallRental | None) -> dict:
+def _resolve_rental_creator_summary(
+    db,
+    rental: HallRental | None,
+    *,
+    users_by_id: dict[int, User] | None = None,
+    teachers_by_id: dict[int, Staff] | None = None,
+) -> dict:
     payload = {
         "creator_id": rental.creator_id if rental else None,
         "creator_type": rental.creator_type if rental else None,
@@ -945,13 +942,29 @@ def _resolve_rental_creator_summary(db, rental: HallRental | None) -> dict:
 
     creator_type = str(rental.creator_type or "").strip().lower()
     if creator_type == "user":
-        creator = db.query(User).filter_by(id=rental.creator_id).first()
+        creator = None
+        try:
+            creator_id = int(rental.creator_id) if rental.creator_id is not None else None
+        except (TypeError, ValueError):
+            creator_id = None
+        if creator_id is not None and users_by_id is not None:
+            creator = users_by_id.get(creator_id)
+        if creator is None:
+            creator = db.query(User).filter_by(id=rental.creator_id).first()
         if creator:
             payload["creator_name"] = creator.name
             payload["creator_username"] = creator.username
             payload["creator_telegram_id"] = creator.telegram_id
     elif creator_type == "teacher":
-        creator = db.query(Staff).filter_by(id=rental.creator_id).first()
+        creator = None
+        try:
+            creator_id = int(rental.creator_id) if rental.creator_id is not None else None
+        except (TypeError, ValueError):
+            creator_id = None
+        if creator_id is not None and teachers_by_id is not None:
+            creator = teachers_by_id.get(creator_id)
+        if creator is None:
+            creator = db.query(Staff).filter_by(id=rental.creator_id).first()
         if creator:
             payload["creator_name"] = creator.name
             payload["creator_telegram_id"] = creator.telegram_id
@@ -1034,6 +1047,70 @@ def schedule_public():
 
     items = query.all()
 
+    group_ids: set[int] = set()
+    individual_lesson_ids: set[int] = set()
+    rental_ids: set[int] = set()
+    teacher_ids: set[int] = set()
+
+    for schedule_item in items:
+        if schedule_item.object_type == "group":
+            group_ref_id = schedule_item.group_id or schedule_item.object_id
+            if group_ref_id:
+                group_ids.add(int(group_ref_id))
+        elif schedule_item.object_type == "individual":
+            if schedule_item.object_id:
+                individual_lesson_ids.add(int(schedule_item.object_id))
+            if schedule_item.teacher_id:
+                teacher_ids.add(int(schedule_item.teacher_id))
+        elif schedule_item.object_type == "rental" and schedule_item.object_id:
+            rental_ids.add(int(schedule_item.object_id))
+
+    groups = db.query(Group).filter(Group.id.in_(group_ids)).all() if group_ids else []
+    groups_by_id = {int(group.id): group for group in groups if group and group.id}
+
+    direction_ids = {int(group.direction_id) for group in groups if group and group.direction_id}
+    teacher_ids.update(int(group.teacher_id) for group in groups if group and group.teacher_id)
+
+    directions = (
+        db.query(Direction).filter(Direction.direction_id.in_(direction_ids)).all()
+        if direction_ids else []
+    )
+    directions_by_id = {
+        int(direction.direction_id): direction
+        for direction in directions
+        if direction and direction.direction_id
+    }
+
+    individual_lessons = (
+        db.query(IndividualLesson).filter(IndividualLesson.id.in_(individual_lesson_ids)).all()
+        if individual_lesson_ids else []
+    )
+    individual_lessons_by_id = {
+        int(lesson.id): lesson
+        for lesson in individual_lessons
+        if lesson and lesson.id
+    }
+
+    rentals = (
+        db.query(HallRental).filter(HallRental.id.in_(rental_ids)).all()
+        if rental_ids else []
+    )
+    rentals_by_id = {int(rental.id): rental for rental in rentals if rental and rental.id}
+
+    user_ids: set[int] = set()
+    for rental in rentals:
+        creator_type = str(rental.creator_type or "").strip().lower()
+        if creator_type == "user" and rental.creator_id:
+            user_ids.add(int(rental.creator_id))
+        elif creator_type == "teacher" and rental.creator_id:
+            teacher_ids.add(int(rental.creator_id))
+
+    teachers = db.query(Staff).filter(Staff.id.in_(teacher_ids)).all() if teacher_ids else []
+    teachers_by_id = {int(teacher.id): teacher for teacher in teachers if teacher and teacher.id}
+
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    users_by_id = {int(entry.id): entry for entry in users if entry and entry.id}
+
     result = []
     for s in items:
         time_from = s.time_from or s.start_time
@@ -1048,46 +1125,24 @@ def schedule_public():
         }
 
         if s.object_type == "group":
-            group = None
-            if s.group_id:
-                group = db.query(Group).filter_by(id=s.group_id).first()
-            elif s.object_id:
-                group = db.query(Group).filter_by(id=s.object_id).first()
-
-            direction_title = None
-            direction_description = None
-            direction_image = None
-            direction_id = None
-            teacher_name = None
-            lessons_per_week = None
-            age_group = None
-            if group:
-                if group.direction_id:
-                    direction_id = group.direction_id
-                    direction = db.query(Direction).filter_by(direction_id=group.direction_id).first()
-                    if direction:
-                        direction_title = _sanitize_direction_title(direction.title)
-                        direction_description = _sanitize_direction_description(direction.description)
-                        direction_image = _build_image_url(direction.image_path)
-                if group.teacher_id:
-                    teacher = db.query(Staff).filter_by(id=group.teacher_id).first()
-                    teacher_name = teacher.name if teacher else None
-                lessons_per_week = group.lessons_per_week
-                age_group = group.age_group
+            group_ref_id = int(s.group_id or s.object_id or 0)
+            group = groups_by_id.get(group_ref_id)
+            direction = directions_by_id.get(int(group.direction_id)) if group and group.direction_id else None
+            teacher = teachers_by_id.get(int(group.teacher_id)) if group and group.teacher_id else None
 
             entry.update({
                 "title": group.name if group and group.name else s.title,
-                "direction": direction_title,
-                "direction_description": direction_description,
-                "direction_image": direction_image,
-                "direction_id": direction_id,
-                "teacher_name": teacher_name,
-                "lessons_per_week": lessons_per_week,
-                "age_group": age_group,
+                "direction": _sanitize_direction_title(direction.title) if direction else None,
+                "direction_description": _sanitize_direction_description(direction.description) if direction else None,
+                "direction_image": _build_image_url(direction.image_path) if direction else None,
+                "direction_id": int(group.direction_id) if group and group.direction_id else None,
+                "teacher_name": teacher.name if teacher else None,
+                "lessons_per_week": group.lessons_per_week if group else None,
+                "age_group": group.age_group if group else None,
             })
         elif s.object_type == "individual":
-            lesson = db.query(IndividualLesson).filter_by(id=s.object_id).first() if s.object_id else None
-            teacher = db.query(Staff).filter_by(id=s.teacher_id).first() if s.teacher_id else None
+            lesson = individual_lessons_by_id.get(int(s.object_id)) if s.object_id else None
+            teacher = teachers_by_id.get(int(s.teacher_id)) if s.teacher_id else None
             entry.update({
                 "title": s.title or "Индивидуальное занятие",
                 "teacher_name": teacher.name if teacher else None,
@@ -1095,12 +1150,19 @@ def schedule_public():
                 "status": s.status,
             })
         elif s.object_type == "rental":
-            rental = db.query(HallRental).filter_by(id=s.object_id).first() if s.object_id else None
+            rental = rentals_by_id.get(int(s.object_id)) if s.object_id else None
             entry.update({
                 "title": s.title or "Аренда зала",
                 "status": s.status,
             })
-            entry.update(_resolve_rental_creator_summary(db, rental))
+            entry.update(
+                _resolve_rental_creator_summary(
+                    db,
+                    rental,
+                    users_by_id=users_by_id,
+                    teachers_by_id=teachers_by_id,
+                )
+            )
         else:
             entry["title"] = s.title
 
@@ -1601,17 +1663,41 @@ def cancel_schedule_v2(schedule_id):
     schedule.status = "cancelled"
     schedule.status_comment = (payload.get("status_comment") or f"Отменено: {note}").strip()
 
+    db.commit()
     notify_group_raw = payload.get("notify_group", True)
     notify_group = str(notify_group_raw).strip().lower() not in {"0", "false", "no", "off"}
     group_notified = False
+    group_notification_total = 0
+    group_notification_sent = 0
     group_notify_error = None
     if notify_group:
-        group_notified, group_notify_error = _send_group_chat_message(
-            group.chat_id,
-            f"Извините, занятие на {cancelled_slot} отменилось.",
+        notify_result = notify_group_participants(
+            db,
+            group=group,
+            attendance_rows=attendance_rows,
+            abonement_user_ids=abonements_by_user.keys(),
+            event_type="group_schedule_cancelled",
+            title="Отмена занятия",
+            body=f"Занятие группы «{group.name}» на {cancelled_slot} отменено.",
+            payload={
+                "group_id": group.id,
+                "schedule_id": schedule.id,
+                "reason": "cancel",
+            },
         )
-
-    db.commit()
+        group_notified = bool(notify_result.get("sent_count"))
+        group_notification_total = int(notify_result.get("recipient_count") or 0)
+        group_notification_sent = int(notify_result.get("sent_count") or 0)
+        group_notify_error = notify_result.get("error")
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            current_app.logger.exception("Failed to commit group cancellation notification records")
+            group_notified = False
+            group_notification_total = 0
+            group_notification_sent = 0
+            group_notify_error = "group_notification_commit_failed"
     return jsonify(
         {
             "ok": True,
@@ -1620,6 +1706,8 @@ def cancel_schedule_v2(schedule_id):
             "extended_abonements": extended_abonements,
             "refunded_credits": refunded_credits,
             "group_notified": group_notified,
+            "group_notification_total": group_notification_total,
+            "group_notification_sent": group_notification_sent,
             "group_notify_error": group_notify_error,
         }
     )
@@ -1971,17 +2059,41 @@ def move_schedule_v2(schedule_id):
     schedule.status = "scheduled"
     schedule.status_comment = f"{move_label}: {old_slot} -> {new_slot}"
 
+    db.commit()
     notify_group_raw = payload.get("notify_group", True)
     notify_group = str(notify_group_raw).strip().lower() not in {"0", "false", "no", "off"}
     group_notified = False
+    group_notification_total = 0
+    group_notification_sent = 0
     group_notify_error = None
     if notify_group:
-        group_notified, group_notify_error = _send_group_chat_message(
-            group.chat_id,
-            f"Занятие перенесено ({move_label}). Было: {old_slot}. Теперь: {new_slot}.",
+        notify_result = notify_group_participants(
+            db,
+            group=group,
+            attendance_rows=attendance_rows,
+            abonement_user_ids=abonements_by_user.keys(),
+            event_type="group_schedule_moved",
+            title="Перенос занятия",
+            body=f"Занятие группы «{group.name}» перенесено ({move_label}). Было: {old_slot}. Теперь: {new_slot}.",
+            payload={
+                "group_id": group.id,
+                "schedule_id": schedule.id,
+                "move_type": move_type,
+            },
         )
-
-    db.commit()
+        group_notified = bool(notify_result.get("sent_count"))
+        group_notification_total = int(notify_result.get("recipient_count") or 0)
+        group_notification_sent = int(notify_result.get("sent_count") or 0)
+        group_notify_error = notify_result.get("error")
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            current_app.logger.exception("Failed to commit group move notification records")
+            group_notified = False
+            group_notification_total = 0
+            group_notification_sent = 0
+            group_notify_error = "group_notification_commit_failed"
     return jsonify(
         {
             "ok": True,
@@ -1991,6 +2103,8 @@ def move_schedule_v2(schedule_id):
             "refunded_credits": refunded_credits,
             "present_count": low_attendance_present_count if move_type == "low_attendance" else None,
             "group_notified": group_notified,
+            "group_notification_total": group_notification_total,
+            "group_notification_sent": group_notification_sent,
             "group_notify_error": group_notify_error,
             "attendance_rows_total": len(attendance_rows),
         }
@@ -2209,14 +2323,90 @@ def get_my_user():
     return payload
 
 
+@bp.route("/users/me", methods=["PUT"])
+def update_my_user():
+    db = g.db
+    user = get_current_user_from_request(db)
+    if not user:
+        return {"error": "user not found"}, 404
+
+    data = request.get_json(silent=True) or {}
+
+    if "name" in data:
+        name = sanitize_plain_text(data.get("name"), multiline=False) or ""
+        if not name:
+            return {"error": "name required"}, 400
+        user.name = name
+
+    if "phone" in data:
+        raw_phone = str(data.get("phone") or "").strip()
+        normalized_phone = normalize_phone_e164(raw_phone) if raw_phone else None
+        if raw_phone and not normalized_phone:
+            return {"error": "invalid_phone"}, 400
+        phone_changed = normalized_phone != (getattr(user, "primary_phone", None) or user.phone)
+        user.phone = normalized_phone
+        user.primary_phone = normalized_phone
+        if phone_changed:
+            user.phone_verified_at = None
+
+    if "birth_date" in data:
+        birth_date = data.get("birth_date")
+        if birth_date in (None, ""):
+            user.birth_date = None
+        else:
+            try:
+                user.birth_date = datetime.strptime(str(birth_date), "%Y-%m-%d").date()
+            except (TypeError, ValueError):
+                return {"error": "birth_date must be YYYY-MM-DD"}, 400
+
+    if "user_notes" in data:
+        user.user_notes = sanitize_plain_text(data.get("user_notes"), multiline=True) or None
+
+    db.commit()
+    return _serialize_user_payload(user)
+
+
 @bp.route("/users/list/all")
 def list_all_users():
     perm_error = require_permission("view_all_users")
     if perm_error:
         return perm_error
     db = g.db
-    users = db.query(User).order_by(User.registered_at.desc()).all()
-    
+    users = (
+        db.query(User)
+        .filter(User.is_archived.is_(False))
+        .order_by(User.registered_at.desc())
+        .all()
+    )
+
+    user_ids = [u.id for u in users]
+    provider_map: dict[int, set[str]] = {}
+    provider_identity_map: dict[int, dict[str, dict[str, str | None]]] = {}
+    if user_ids:
+        identity_rows = (
+            db.query(
+                AuthIdentity.user_id,
+                AuthIdentity.provider,
+                AuthIdentity.provider_user_id,
+                AuthIdentity.provider_username,
+            )
+            .filter(AuthIdentity.user_id.in_(user_ids))
+            .order_by(AuthIdentity.id.asc())
+            .all()
+        )
+        for user_id, provider, provider_user_id, provider_username in identity_rows:
+            normalized_provider = str(provider or "").strip().lower()
+            if not normalized_provider:
+                continue
+            provider_map.setdefault(int(user_id), set()).add(normalized_provider)
+            provider_identity_map.setdefault(int(user_id), {})[normalized_provider] = {
+                "id": str(provider_user_id or "").strip() or None,
+                "username": str(provider_username or "").strip() or None,
+            }
+    for user in users:
+        if user.telegram_id:
+            provider_map.setdefault(user.id, set()).add("telegram")
+
     return jsonify([
         {
             "id": u.id,
@@ -2229,7 +2419,10 @@ def list_all_users():
             "registered_at": u.registered_at.isoformat(),
             "status": u.status,
             "user_notes": u.user_notes,
-            "staff_notes": u.staff_notes
+            "staff_notes": u.staff_notes,
+            "auth_providers": sorted(provider_map.get(u.id, set())),
+            "vk_user_id": provider_identity_map.get(u.id, {}).get("vk", {}).get("id"),
+            "vk_username": provider_identity_map.get(u.id, {}).get("vk", {}).get("username"),
         } for u in users
     ])
 
@@ -4053,60 +4246,6 @@ def create_direction_group(direction_id):
     db.add(group)
     db.commit()
 
-    # Создаем чат Telegram через userbot и добавляем преподавателя
-    telegram_identity = None
-    telegram_user_id = None
-    if teacher.user_id:
-        telegram_identity = (
-            db.query(AuthIdentity)
-            .filter(
-                AuthIdentity.user_id == teacher.user_id,
-                AuthIdentity.provider == "telegram",
-            )
-            .order_by(AuthIdentity.id.desc())
-            .first()
-        )
-        if telegram_identity and telegram_identity.provider_user_id:
-            try:
-                telegram_user_id = int(telegram_identity.provider_user_id)
-            except (TypeError, ValueError):
-                telegram_user_id = None
-
-    if telegram_user_id:
-        try:
-            from dance_studio.bot.telegram_userbot import create_group_chat_sync
-
-            chat_info = create_group_chat_sync(
-                name,
-                [{
-                    "id": telegram_user_id,
-                    "username": telegram_identity.provider_username if telegram_identity else None,
-                    "phone": teacher.phone,
-                    "name": teacher.name,
-                }],
-            )
-        except Exception as e:
-            print(f"[create_direction_group] Telegram chat creation failed: {e}")
-            chat_info = None
-        if chat_info:
-            group.chat_id = chat_info.get("chat_id")
-            group.chat_invite_link = chat_info.get("invite_link")
-            failed = chat_info.get("failed_user_ids") or []
-
-            # Всегда шлём ссылку преподавателю, даже если invite сработал — на случай приватности.
-            target_ids = {telegram_user_id} | {uid for uid in failed if uid}
-            for uid in target_ids:
-                try:
-                    msg_text = f"Присоединиться к чату группы \"{name}\" можно по ссылке: {group.chat_invite_link}"
-                    send_user_notification_sync(
-                        user_id=int(uid),
-                        text=msg_text,
-                        context_note="Ссылка на чат группы"
-                    )
-                except Exception as send_err:
-                    print(f"[create_direction_group] Не удалось отправить ссылку пользователю {uid}: {send_err}")
-            db.commit()
-
     return {
         "id": group.id,
         "direction_id": group.direction_id,
@@ -4118,8 +4257,6 @@ def create_direction_group(direction_id):
         "max_students": group.max_students,
         "duration_minutes": group.duration_minutes,
         "lessons_per_week": group.lessons_per_week,
-        "chat_id": group.chat_id,
-        "chat_invite_link": group.chat_invite_link,
         "created_at": group.created_at.isoformat()
     }, 201
 
@@ -4672,44 +4809,95 @@ def admin_merge_clients():
     db = g.db
     payload = request.json or {}
     note = (payload.get("note") or "").strip()
+    legacy_pair_mode = payload.get("user_a_id") is not None or payload.get("user_b_id") is not None
 
     try:
-        source_user_id = _parse_user_id_for_merge(payload, "source_user_id")
-        target_user_id = _parse_user_id_for_merge(payload, "target_user_id")
+        if legacy_pair_mode:
+            merge_pair_payload = {
+                "user_a_id": payload.get("user_a_id"),
+                "user_b_id": payload.get("user_b_id"),
+            }
+            user_a_id = _parse_user_id_for_merge(merge_pair_payload, "user_a_id")
+            user_b_id = _parse_user_id_for_merge(merge_pair_payload, "user_b_id")
+        else:
+            user_a_id = _parse_user_id_for_merge(payload, "source_user_id")
+            user_b_id = _parse_user_id_for_merge(payload, "target_user_id")
     except ValueError as exc:
         return {"error": safe_client_error_message(exc)}, 400
 
-    if source_user_id == target_user_id:
-        return {"error": "source_user_id and target_user_id must be different"}, 400
+    if user_a_id == user_b_id:
+        return {"error": "user ids must be different"}, 400
 
-    source_user = db.query(User).filter_by(id=source_user_id).first()
-    if not source_user:
-        return {"error": "source user not found"}, 404
+    user_a = db.query(User).filter_by(id=user_a_id).first()
+    if not user_a:
+        return {"error": "first user not found"}, 404
 
-    target_user = db.query(User).filter_by(id=target_user_id).first()
-    if not target_user:
-        return {"error": "target user not found"}, 404
+    user_b = db.query(User).filter_by(id=user_b_id).first()
+    if not user_b:
+        return {"error": "second user not found"}, 404
 
-    if source_user.telegram_id:
-        return {"error": "source user must not have telegram_id"}, 409
-    if not target_user.telegram_id:
-        return {"error": "target user must have telegram_id"}, 409
+    if legacy_pair_mode:
+        user_a_key = (user_a.registered_at or datetime.max, int(user_a.id))
+        user_b_key = (user_b.registered_at or datetime.max, int(user_b.id))
+        if user_a_key <= user_b_key:
+            target_user = user_a
+            source_user = user_b
+        else:
+            target_user = user_b
+            source_user = user_a
+    else:
+        source_user = user_a
+        target_user = user_b
+
+    source_user_id = int(source_user.id)
+    target_user_id = int(target_user.id)
+
+    merge_service = AccountMergeService()
+    merge_service._upsert_legacy_phone_row(db, user=source_user, source="admin_manual_merge_source")
+    merge_service._upsert_legacy_phone_row(db, user=target_user, source="admin_manual_merge_target")
+    merge_service._merge_identities(db, source_user_id=source_user_id, target_user_id=target_user_id)
+    merge_service._merge_phones(db, source_user_id=source_user_id, target_user_id=target_user_id)
+    merge_service._merge_passkeys(db, source_user_id=source_user_id, target_user_id=target_user_id)
+    db.flush()
+
+    if not target_user.telegram_id and source_user.telegram_id:
+        transferred_telegram_id = source_user.telegram_id
+        source_user.telegram_id = None
+        db.flush()
+        target_user.telegram_id = transferred_telegram_id
 
     if not target_user.username and source_user.username:
         target_user.username = source_user.username
     if not target_user.phone and source_user.phone:
         target_user.phone = source_user.phone
+    if not target_user.primary_phone and (source_user.primary_phone or source_user.phone):
+        target_user.primary_phone = source_user.primary_phone or source_user.phone
+    if not target_user.phone_verified_at and source_user.phone_verified_at:
+        target_user.phone_verified_at = source_user.phone_verified_at
     if not target_user.email and source_user.email:
         target_user.email = source_user.email
     if not target_user.birth_date and source_user.birth_date:
         target_user.birth_date = source_user.birth_date
     if not target_user.photo_path and source_user.photo_path:
         target_user.photo_path = source_user.photo_path
+    if not target_user.preferred_notification_channel and source_user.preferred_notification_channel:
+        target_user.preferred_notification_channel = source_user.preferred_notification_channel
+    if source_user.last_login_at and (not target_user.last_login_at or source_user.last_login_at > target_user.last_login_at):
+        target_user.last_login_at = source_user.last_login_at
 
     if source_user.user_notes:
         target_user.user_notes = _append_merge_note(target_user.user_notes, source_user.user_notes)
     if source_user.staff_notes:
         target_user.staff_notes = _append_merge_note(target_user.staff_notes, source_user.staff_notes)
+
+    target_phone_rows = db.query(UserPhone).filter(UserPhone.user_id == target_user_id).order_by(UserPhone.id.asc()).all()
+    if target_phone_rows:
+        chosen_phone = next((row for row in target_phone_rows if row.verified_at is not None), target_phone_rows[0])
+        db.query(UserPhone).filter(UserPhone.user_id == target_user_id).update({UserPhone.is_primary: False}, synchronize_session=False)
+        db.query(UserPhone).filter(UserPhone.id == chosen_phone.id).update({UserPhone.is_primary: True}, synchronize_session=False)
+        target_user.primary_phone = chosen_phone.phone_e164
+        target_user.phone = chosen_phone.phone_e164
+        target_user.phone_verified_at = chosen_phone.verified_at
 
     moved_group_abonements = int(
         db.query(GroupAbonement)
@@ -4741,6 +4929,36 @@ def admin_merge_clients():
         .update({ScheduleOverrides.created_by_user_id: target_user_id}, synchronize_session=False)
         or 0
     )
+    moved_notifications = int(
+        db.query(Notification)
+        .filter(Notification.user_id == source_user_id)
+        .update({Notification.user_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
+    moved_notification_channels = int(
+        db.query(NotificationChannel)
+        .filter(NotificationChannel.user_id == source_user_id)
+        .update({NotificationChannel.user_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
+    moved_notification_preferences = int(
+        db.query(NotificationPreference)
+        .filter(NotificationPreference.user_id == source_user_id)
+        .update({NotificationPreference.user_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
+    moved_web_push_subscriptions = int(
+        db.query(WebPushSubscription)
+        .filter(WebPushSubscription.user_id == source_user_id)
+        .update({WebPushSubscription.user_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
+    moved_sessions = int(
+        db.query(SessionRecord)
+        .filter(SessionRecord.user_id == source_user_id)
+        .update({SessionRecord.user_id: target_user_id}, synchronize_session=False)
+        or 0
+    )
 
     attendance_result = _merge_attendance_rows(db, source_user_id, target_user_id)
     intentions_result = _merge_attendance_intentions_rows(db, source_user_id, target_user_id)
@@ -4752,27 +4970,93 @@ def admin_merge_clients():
         merge_marker = f"{merge_marker}. Note: {note}"
     source_user.staff_notes = _append_merge_note(source_user.staff_notes, merge_marker)
     source_user.status = "inactive"
+    source_user.is_archived = True
+    source_user.merged_to_user_id = target_user_id
     source_user.telegram_id = None
+    source_user.requires_manual_merge = False
+    target_user.requires_manual_merge = False
 
     db.commit()
 
     return jsonify(
         {
             "ok": True,
+            "user_a_id": user_a_id,
+            "user_b_id": user_b_id,
             "source_user_id": source_user_id,
             "target_user_id": target_user_id,
+            "merged_user_id": source_user_id,
+            "kept_user_id": target_user_id,
             "moved": {
                 "group_abonements": moved_group_abonements,
                 "payment_transactions": moved_payments,
                 "booking_requests": moved_booking_requests,
                 "individual_lessons": moved_individual_lessons,
                 "schedule_overrides": moved_schedule_overrides,
+                "notifications": moved_notifications,
+                "notification_channels": moved_notification_channels,
+                "notification_preferences": moved_notification_preferences,
+                "web_push_subscriptions": moved_web_push_subscriptions,
+                "sessions": moved_sessions,
                 "attendance": attendance_result,
                 "attendance_intentions": intentions_result,
                 "attendance_reminders": reminders_result,
             },
         }
     )
+
+
+@bp.route("/api/admin/clients/<int:user_id>/archive", methods=["POST"])
+def admin_archive_client(user_id: int):
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    user = db.query(User).filter(User.id == user_id, User.is_archived.is_(False)).first()
+    if not user:
+        return {"error": "client not found"}, 404
+
+    current_user_id = getattr(g, "user_id", None)
+    current_telegram_id = getattr(g, "telegram_id", None)
+    try:
+        current_user_id = int(current_user_id) if current_user_id is not None else None
+    except (TypeError, ValueError):
+        current_user_id = None
+    try:
+        current_telegram_id = int(current_telegram_id) if current_telegram_id is not None else None
+    except (TypeError, ValueError):
+        current_telegram_id = None
+
+    if current_user_id == user.id or (current_telegram_id and user.telegram_id == current_telegram_id):
+        return {"error": "cannot archive current user"}, 409
+
+    staff_profile = db.query(Staff).filter(Staff.user_id == user.id, Staff.status == "active").first()
+    if staff_profile:
+        return {"error": "cannot archive client linked to active staff profile"}, 409
+
+    archived_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    user.staff_notes = _append_merge_note(user.staff_notes, f"Archived by admin at {archived_at}")
+    user.is_archived = True
+    user.status = "inactive"
+    user.telegram_id = None
+    user.phone = None
+    user.primary_phone = None
+    user.phone_verified_at = None
+    user.preferred_notification_channel = None
+    user.requires_manual_merge = False
+
+    db.query(AuthIdentity).filter(AuthIdentity.user_id == user.id).delete(synchronize_session=False)
+    db.query(UserPhone).filter(UserPhone.user_id == user.id).delete(synchronize_session=False)
+    db.query(NotificationChannel).filter(NotificationChannel.user_id == user.id).delete(synchronize_session=False)
+    db.query(NotificationPreference).filter(NotificationPreference.user_id == user.id).delete(synchronize_session=False)
+    db.query(WebPushSubscription).filter(WebPushSubscription.user_id == user.id).delete(synchronize_session=False)
+    db.query(SessionRecord).filter(SessionRecord.user_id == user.id).delete(synchronize_session=False)
+    db.query(PasskeyCredential).filter(PasskeyCredential.user_id == user.id).delete(synchronize_session=False)
+    db.query(PasskeyChallenge).filter(PasskeyChallenge.user_id == user.id).delete(synchronize_session=False)
+
+    db.commit()
+    return {"ok": True, "user_id": user.id, "status": user.status, "is_archived": user.is_archived}
 
 
 @bp.route("/api/admin/clients/<int:user_id>/sick-leave", methods=["POST"])

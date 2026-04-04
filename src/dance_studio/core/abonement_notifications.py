@@ -67,7 +67,6 @@ def collect_group_access_items(db, group_ids: list[int]) -> list[dict]:
             {
                 "group_id": group.id,
                 "group_name": group.name or f"Группа #{group.id}",
-                "chat_invite_link": (group.chat_invite_link or "").strip() or None,
                 "next_session_date": get_next_group_date(db, group.id),
             }
         )
@@ -81,19 +80,21 @@ def build_group_access_message(items: list[dict]) -> str | None:
     lines = [
         "<b>Доступ к занятиям подтвержден.</b>",
         "",
-        "Информация по вашим группам:",
+        "Вы записаны в следующие группы:",
     ]
     for item in items:
         group_name = html.escape(str(item.get("group_name") or "Группа"))
-        lines.append(f"• <b>{group_name}</b>")
+        lines.append(f"- <b>{group_name}</b>")
         next_session_date = item.get("next_session_date")
         if next_session_date:
             lines.append(f"  Ближайшее занятие: {next_session_date.strftime('%d.%m.%Y')}")
-        invite_link = (item.get("chat_invite_link") or "").strip()
-        if invite_link:
-            lines.append(f"  Чат группы: {html.escape(invite_link)}")
-        else:
-            lines.append("  Чат группы: ссылка пока не настроена, при необходимости напишите администратору.")
+    lines.extend(
+        [
+            "",
+            "Расписание и уведомления по группе доступны в приложении.",
+            "Сообщения об отменах и переносах придут в подключенный канал уведомлений.",
+        ]
+    )
     return "\n".join(lines)
 
 

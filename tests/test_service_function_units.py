@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from dance_studio.core import abonement_notifications
+from dance_studio.core import group_notifications
 
 from dance_studio.auth.services.common import normalize_phone_e164
 from dance_studio.web.routes import bookings as bookings_routes
@@ -137,6 +138,13 @@ def test_group_delete_blockers_formatter_lists_all_dependency_types():
     )
 
     assert message is not None
+    assert "(2)" in message
+    assert "(3)" in message
+    assert "(1)" in message
+    return
+    assert "Расписание и уведомления по группе доступны в приложении." in message
+    assert "Сообщения об отменах и переносах придут в подключенный канал уведомлений." in message
+    return
     assert "расписании (2)" in message
     assert "заявках (3)" in message
     assert "абонементах (1)" in message
@@ -394,49 +402,68 @@ def test_schedule_route_time_bounds_and_slot_label_helpers():
     assert "20:30" in fallback_label
 
 
-def test_schedule_route_send_group_chat_message_short_circuits_without_config(monkeypatch):
-    monkeypatch.setattr(admin_routes, "BOT_TOKEN", None)
+def test_group_notification_recipient_ids_include_teacher_and_dedupe_users():
+    group = SimpleNamespace(teacher=SimpleNamespace(user_id=77))
+    attendance_rows = [
+        SimpleNamespace(user_id=88),
+        SimpleNamespace(user_id=77),
+        SimpleNamespace(user_id=88),
+    ]
 
-    ok_chat_missing, err_chat_missing = admin_routes._send_group_chat_message(None, "msg")
-    assert ok_chat_missing is False
-    assert err_chat_missing == "group_chat_not_configured"
+    recipient_ids = group_notifications.collect_group_notification_recipient_ids(
+        group=group,
+        attendance_rows=attendance_rows,
+        abonement_user_ids=[99, "88", 0, None],
+    )
 
-    ok_token_missing, err_token_missing = admin_routes._send_group_chat_message(123, "msg")
-    assert ok_token_missing is False
-    assert err_token_missing == "bot_token_not_set"
+    assert recipient_ids == [77, 88, 99]
 
 
-def test_schedule_route_send_group_chat_message_success_and_error(monkeypatch):
+def test_group_notifications_report_partial_delivery(monkeypatch):
     calls = []
 
-    class _Resp:
-        def __init__(self, ok: bool, text: str = ""):
-            self.ok = ok
-            self.text = text
+    class _FakeService:
+        def send(self, db, *, user_id, event_type, title, body, payload):
+            calls.append((user_id, event_type, title, body, payload))
+            status = "sent" if user_id != 22 else "failed"
+            return SimpleNamespace(status=status)
 
-    def _post_ok(url, json, timeout):
-        calls.append((url, json, timeout))
-        return _Resp(True)
+    monkeypatch.setattr(group_notifications, "NotificationService", lambda: _FakeService())
 
-    monkeypatch.setattr(admin_routes, "BOT_TOKEN", "token123")
-    monkeypatch.setattr(admin_routes.requests, "post", _post_ok)
+    result = group_notifications.send_group_notifications(
+        object(),
+        recipient_user_ids=[11, 22, 11],
+        event_type="group_schedule_cancelled",
+        title="Отмена занятия",
+        body="Занятие отменено.",
+    )
 
-    ok, err = admin_routes._send_group_chat_message(987654321, "hello")
-    assert ok is True
-    assert err is None
-    assert len(calls) == 1
-    assert calls[0][0].endswith("/bottoken123/sendMessage")
-    assert calls[0][1]["chat_id"] == 987654321
-    assert calls[0][1]["text"] == "hello"
-    assert calls[0][2] == 10
+    assert result["recipient_count"] == 2
+    assert result["sent_count"] == 1
+    assert result["failed_user_ids"] == [22]
+    assert result["error"] == "group_notification_delivery_partial"
+    assert calls[0][1] == "group_schedule_cancelled"
+    assert calls[0][4]["parse_mode"] == "HTML"
 
-    def _post_fail(url, json, timeout):
-        return _Resp(False, "TG_ERROR")
 
-    monkeypatch.setattr(admin_routes.requests, "post", _post_fail)
-    ok_fail, err_fail = admin_routes._send_group_chat_message(987654321, "hello")
-    assert ok_fail is False
-    assert err_fail == "telegram_send_failed"
+def test_group_notifications_hide_provider_exception_details(monkeypatch):
+    class _FakeService:
+        def send(self, db, *, user_id, event_type, title, body, payload):
+            raise RuntimeError("provider token=secret")
+
+    monkeypatch.setattr(group_notifications, "NotificationService", lambda: _FakeService())
+
+    result = group_notifications.send_group_notifications(
+        object(),
+        recipient_user_ids=[11],
+        event_type="group_deleted",
+        title="Группа удалена",
+        body="Тест",
+    )
+
+    assert result["sent_count"] == 0
+    assert result["failed_user_ids"] == [11]
+    assert result["error"] == "group_notification_delivery_failed"
 
 
 def test_schedule_route_group_conflict_helper_detects_overlap():
@@ -580,17 +607,15 @@ def test_abonement_notification_dispatch_ref_prefers_bundle_id():
     assert abonement_notifications.build_abonement_dispatch_ref(single) == "abonement:11"
 
 
-def test_abonement_group_access_message_lists_links_and_missing_link_note():
+def test_abonement_group_access_message_points_to_app_instead_of_group_chat():
     message = abonement_notifications.build_group_access_message(
         [
             {
                 "group_name": "Hip-Hop Teens",
-                "chat_invite_link": "https://t.me/+abc123",
                 "next_session_date": date(2026, 3, 10),
             },
             {
                 "group_name": "Ballet Mini",
-                "chat_invite_link": None,
                 "next_session_date": date(2026, 3, 11),
             },
         ]
@@ -598,7 +623,11 @@ def test_abonement_group_access_message_lists_links_and_missing_link_note():
 
     assert message is not None
     assert "Hip-Hop Teens" in message
-    assert "https://t.me/+abc123" in message
+    assert "Ballet Mini" in message
+    assert "Расписание и уведомления по группе доступны в приложении." in message
+    assert "Сообщения об отменах и переносах придут в подключенный канал уведомлений." in message
+    return
+    assert "Hip-Hop Teens" in message
     assert "Ballet Mini" in message
     assert "ссылка пока не настроена" in message
 

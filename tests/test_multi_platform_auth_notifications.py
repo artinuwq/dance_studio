@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
@@ -7,6 +8,7 @@ import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 import pytest
 from sqlalchemy import create_engine, text
@@ -20,9 +22,10 @@ import dance_studio.db as db_module
 import dance_studio.web.middleware.auth as auth_middleware
 from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.auth.services.common import ensure_user_phone, get_or_create_identity
-from dance_studio.db.models import AuthIdentity, Base, PasskeyChallenge, PasskeyCredential, SessionRecord, Staff, User, UserMergeEvent, UserPhone
+from dance_studio.db.models import AuthIdentity, Base, NotificationChannel, PasskeyChallenge, PasskeyCredential, SessionRecord, Staff, User, UserMergeEvent, UserPhone
 from dance_studio.web.app import create_app
 from dance_studio.web.services.auth_session import _sid_hash
+from dance_studio.web.services import bookings as booking_services
 
 
 @pytest.fixture(scope="module")
@@ -69,10 +72,12 @@ def _login_by_session(client, db, user_id: int, telegram_id: int | None = None):
 
 
 def _vk_payload(**overrides):
-    payload = {"vk_ts": "1710000000", "vk_user_id": "12345", "name": "VK User"}
+    payload = {"vk_ts": "1710000000", "vk_user_id": "12345", "vk_access_token_settings": "", "name": "VK User"}
     payload.update(overrides)
-    base = "&".join(f"{key}={payload[key]}" for key in sorted(payload)) + "test-secret"
-    payload["sign"] = hashlib.md5(base.encode("utf-8")).hexdigest()
+    signed_part = {key: value for key, value in payload.items() if str(key).startswith("vk_")}
+    params = urlencode(sorted(signed_part.items()), doseq=True)
+    digest = hmac.new(b"test-secret", params.encode("utf-8"), hashlib.sha256).digest()
+    payload["sign"] = base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
     return payload
 
 
@@ -114,12 +119,64 @@ def test_auth_vk_and_phone_flow(app, session_factory, monkeypatch):
     assert phone.is_primary is True
 
 
+def test_telegram_auth_duplicate_bootstrap_reuses_recent_session(app, session_factory, monkeypatch):
+    replay_calls = {"count": 0}
+
+    def _store_used_init_data(*args, **kwargs):
+        replay_calls["count"] += 1
+        return replay_calls["count"] == 1
+
+    monkeypatch.setattr("dance_studio.web.routes.auth.store_used_init_data", _store_used_init_data)
+
+    headers = {"User-Agent": "telegram-bootstrap-test"}
+    first_client = app.test_client()
+    first = first_client.post("/auth/telegram", json={"init_data": "dummy"}, headers=headers)
+    assert first.status_code == 200
+    first_payload = first.get_json()
+
+    second_client = app.test_client()
+    second = second_client.post("/auth/telegram", json={"init_data": "dummy"}, headers=headers)
+    assert second.status_code == 200
+
+    payload = second.get_json()
+    assert payload["user_id"] == first_payload["user_id"]
+
+    db = session_factory()
+    sessions = db.query(SessionRecord).filter(SessionRecord.user_id == payload["user_id"]).all()
+    assert len(sessions) >= 2
+
+
+def test_phone_request_code_rejects_unknown_phone_for_anonymous_user(app):
+    client = app.test_client()
+    response = client.post("/auth/phone/request-code", json={"phone": "+79995556677"})
+    assert response.status_code == 404
+    payload = response.get_json()
+    assert payload["error"] == "phone_not_linked"
+    assert payload["action"] == "use_mini_app"
+
+
 def test_vk_signature_is_required(app, monkeypatch):
     monkeypatch.setattr("dance_studio.auth.providers.vk.APP_SECRET_KEY", "test-secret")
     client = app.test_client()
     resp = client.post("/auth/vk", json={"vk_user_id": "12345", "name": "VK User", "sign": "bad"})
     assert resp.status_code == 400
     assert resp.get_json()["error"] == "invalid_vk_signature"
+
+
+def test_vk_signature_ignores_non_vk_fields(app, monkeypatch):
+    monkeypatch.setattr("dance_studio.auth.providers.vk.APP_SECRET_KEY", "test-secret")
+    client = app.test_client()
+    resp = client.post("/auth/vk", json=_vk_payload(screen_name="vk_user_profile"))
+    assert resp.status_code == 200
+
+
+def test_vk_signature_ignores_non_launch_vk_fields(app, monkeypatch):
+    monkeypatch.setattr("dance_studio.auth.providers.vk.APP_SECRET_KEY", "test-secret")
+    client = app.test_client()
+    payload = _vk_payload()
+    payload["vk_username"] = "VK Display Name"
+    resp = client.post("/auth/vk", json=payload)
+    assert resp.status_code == 200
 
 
 def test_verified_phone_links_new_vk_identity_to_existing_user(app, session_factory, monkeypatch):
@@ -213,6 +270,33 @@ def test_passkey_register_duplicate_delete_and_login(app, session_factory):
     assert login.status_code == 200
     assert login.get_json()["user_id"] == user.id
 
+    # Synced passkeys may report a zero counter; allow 0 -> 0 progression.
+    db.expire_all()
+    stored_credential = db.query(PasskeyCredential).filter(PasskeyCredential.credential_id == "cred-1").first()
+    assert stored_credential is not None
+    stored_credential.sign_count = 0
+    db.commit()
+
+    zero_login_begin = client.post("/auth/passkey/login/begin", json={})
+    zero_begin_payload = zero_login_begin.get_json()
+    zero_client_data = _b64url_json(
+        {"type": "webauthn.get", "challenge": zero_begin_payload["challenge"], "origin": zero_begin_payload["origin"]}
+    )
+    zero_authenticator_data = _b64url_json({"rpId": zero_begin_payload["rp_id"], "signCount": 0, "userPresent": True})
+    zero_signature = _passkey_signature("pk-1", zero_authenticator_data, zero_client_data)
+    zero_counter_login = client.post(
+        "/auth/passkey/login/complete",
+        json={"credential": {"id": "cred-1", "type": "public-key", "response": {"clientDataJSON": zero_client_data, "authenticatorData": zero_authenticator_data, "signature": zero_signature}}},
+    )
+    assert zero_counter_login.status_code == 200
+    assert zero_counter_login.get_json()["user_id"] == user.id
+
+    db.expire_all()
+    post_zero_credential = db.query(PasskeyCredential).filter(PasskeyCredential.credential_id == "cred-1").first()
+    assert post_zero_credential is not None
+    post_zero_credential.sign_count = 2
+    db.commit()
+
     bad_login_begin = client.post("/auth/passkey/login/begin", json={})
     bad_begin_payload = bad_login_begin.get_json()
     bad_client_data = _b64url_json(
@@ -250,6 +334,31 @@ def test_multiple_phones_switches_primary(session_factory):
     db.refresh(p2)
     assert p1.is_primary is False
     assert p2.is_primary is True
+
+
+def test_try_merge_by_phone_matches_legacy_client_phone(session_factory):
+    db = session_factory()
+    source = User(name="Telegram User", telegram_id=99001)
+    target = User(name="Legacy Client", phone="8 (999) 777-00-00")
+    db.add_all([source, target])
+    db.commit()
+
+    result = AccountMergeService().try_merge_by_phone(db, user_id=source.id, phone="+79997770000", source="telegram_contact")
+    db.commit()
+
+    assert result["status"] == "merged"
+
+    db.expire_all()
+    primary = db.query(User).filter(User.id == result["primary_user_id"]).first()
+    secondary = db.query(User).filter(User.id == result["secondary_user_id"]).first()
+    assert primary is not None
+    assert secondary is not None
+    assert secondary.is_archived is True
+
+    merged_phone = db.query(UserPhone).filter(UserPhone.user_id == primary.id, UserPhone.is_primary.is_(True)).first()
+    assert merged_phone is not None
+    assert merged_phone.phone_e164 == "+79997770000"
+    assert merged_phone.verified_at is not None
 
 
 def test_merge_conflict_and_manual_review_are_logged(session_factory):
@@ -386,6 +495,25 @@ def test_app_bootstrap_returns_user_centric_contract(app, session_factory):
     assert payload['feature_flags']['passkey_scaffold'] is False
     assert payload['feature_flags']['passkey_webauthn'] is True
 
+
+def test_app_bootstrap_includes_staff_snapshot_for_authenticated_staff(app, session_factory):
+    db = session_factory()
+    user = User(name="Bootstrap Staff User", telegram_id=321322)
+    db.add(user)
+    db.commit()
+    db.add(Staff(user_id=user.id, telegram_id=user.telegram_id, name="Bootstrap Staff", position="Администратор", status="active"))
+    db.commit()
+
+    client = app.test_client()
+    _login_by_session(client, db, user.id, telegram_id=user.telegram_id)
+
+    response = client.get('/api/app/bootstrap')
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload['staff']['is_staff'] is True
+    assert payload['staff']['staff']['position'] == 'Администратор'
+    assert payload['staff']['staff']['name'] == 'Bootstrap Staff'
+
 def test_notifications_preferences_and_web_push(app, session_factory):
     db = session_factory()
     user = User(name="Tester", telegram_id=9001)
@@ -403,6 +531,123 @@ def test_notifications_preferences_and_web_push(app, session_factory):
 
     send = client.post("/api/notifications/test-send", json={"event_type": "lesson_reminder", "title": "A", "body": "B"})
     assert send.status_code == 200
+
+
+def test_vk_primary_channel_requires_permission_until_verified(app, session_factory):
+    db = session_factory()
+    user = User(name="VK Channel User", telegram_id=9011)
+    db.add(user)
+    db.commit()
+    vk_channel = NotificationChannel(
+        user_id=user.id,
+        channel_type="vk",
+        target_ref="778899",
+        is_enabled=True,
+        is_primary=False,
+        is_verified=False,
+    )
+    db.add(vk_channel)
+    db.commit()
+
+    client = app.test_client()
+    _login_by_session(client, db, user.id, telegram_id=user.telegram_id)
+
+    channels = client.get("/api/notifications/channels")
+    assert channels.status_code == 200
+    items = channels.get_json()["items"]
+    vk_item = next(item for item in items if item["id"] == vk_channel.id)
+    assert vk_item["is_verified"] is False
+
+    blocked = client.post("/api/notifications/channels/select-primary", json={"channel_id": vk_channel.id})
+    assert blocked.status_code == 409
+    assert blocked.get_json()["error"] == "vk_permission_required"
+
+    mark_verified = client.post("/api/notifications/channels/vk/mark-verified", json={"channel_id": vk_channel.id})
+    assert mark_verified.status_code == 400
+    assert mark_verified.get_json()["error"] == "vk_permission_key_required"
+
+    permission = client.post("/api/notifications/channels/vk/request-permission", json={"channel_id": vk_channel.id})
+    assert permission.status_code == 200
+    permission_payload = permission.get_json()
+    assert permission_payload["ok"] is True
+    assert permission_payload["channel"]["id"] == vk_channel.id
+    assert permission_payload["permission_key"]
+
+    bad_mark = client.post(
+        "/api/notifications/channels/vk/mark-verified",
+        json={"channel_id": vk_channel.id, "permission_key": "invalid"},
+    )
+    assert bad_mark.status_code == 409
+    assert bad_mark.get_json()["error"] == "vk_permission_key_invalid"
+
+    mark_verified = client.post(
+        "/api/notifications/channels/vk/mark-verified",
+        json={"channel_id": vk_channel.id, "permission_key": permission_payload["permission_key"]},
+    )
+    assert mark_verified.status_code == 200
+    assert mark_verified.get_json()["ok"] is True
+    assert mark_verified.get_json()["channel"]["is_verified"] is True
+
+    selected = client.post("/api/notifications/channels/select-primary", json={"channel_id": vk_channel.id})
+    assert selected.status_code == 200
+    assert selected.get_json()["ok"] is True
+
+
+def test_vk_permission_request_exposes_configured_community_id(app, session_factory, monkeypatch):
+    monkeypatch.setattr("dance_studio.web.routes.platform_api.VK_COMMUNITY_ID", "123456789")
+    db = session_factory()
+    user = User(name="VK Community Config User", telegram_id=9012)
+    db.add(user)
+    db.commit()
+    vk_channel = NotificationChannel(
+        user_id=user.id,
+        channel_type="vk",
+        target_ref="998877",
+        is_enabled=True,
+        is_primary=False,
+        is_verified=False,
+    )
+    db.add(vk_channel)
+    db.commit()
+
+    client = app.test_client()
+    _login_by_session(client, db, user.id, telegram_id=user.telegram_id)
+
+    permission = client.post("/api/notifications/channels/vk/request-permission", json={"channel_id": vk_channel.id})
+    assert permission.status_code == 200
+    payload = permission.get_json()
+    assert payload["ok"] is True
+    assert payload["group_id"] == 123456789
+
+
+def test_booking_payment_message_contains_vk_mini_app_link(monkeypatch):
+    monkeypatch.setattr(booking_services, "VK_MINI_APP_APP_ID", "12345")
+    monkeypatch.setattr(
+        booking_services,
+        "_resolve_payment_profile_payload_for_booking",
+        lambda db, booking: {
+            "recipient_bank": "Т-Банк",
+            "recipient_number": "2200123412341234",
+            "recipient_full_name": "Тестовый Получатель",
+        },
+    )
+    monkeypatch.setattr(booking_services, "_compute_group_booking_payment_amount", lambda db, booking: 4500)
+
+    booking = type(
+        "BookingStub",
+        (),
+        {
+            "id": 65,
+            "object_type": "group",
+            "group_id": 14,
+            "group_start_date": datetime(2026, 4, 1).date(),
+        },
+    )()
+
+    message = booking_services._build_booking_payment_request_message(None, booking)
+    assert "https://vk.com/app12345#context=booking_payment&booking_id=65" in message
+    assert "group_id=14" in message
+    assert "group_start_date=2026-04-01" in message
 
 
 def test_account_merge_preview_and_confirm(app, session_factory):

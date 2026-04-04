@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import re
 from datetime import date, datetime, time, timedelta
+from threading import Thread
 from typing import Iterable
+from urllib.parse import urlencode
 
 import requests
 from flask import current_app
@@ -31,8 +32,9 @@ from dance_studio.core.statuses import (
     set_booking_status,
 )
 from dance_studio.core.notification_service import send_user_notification_sync
-from dance_studio.core.config import PROJECT_NAME_FULL
+from dance_studio.core.config import PROJECT_NAME_FULL, VK_MINI_APP_APP_ID
 from dance_studio.core.system_settings_service import get_setting_value
+from dance_studio.db import get_session
 from dance_studio.db.models import BookingRequest, Group, GroupAbonement, HallRental, IndividualLesson, Schedule, User
 from dance_studio.web.constants import INACTIVE_SCHEDULE_STATUSES
 from dance_studio.web.services.payments import _resolve_payment_profile_payload_for_booking
@@ -592,6 +594,23 @@ def _build_booking_payment_request_message(db, booking: BookingRequest) -> str:
 
     amount = _compute_group_booking_payment_amount(db, booking)
     amount_text = f"{amount:,} ₽".replace(",", " ") if amount else "уточните у администратора"
+    launch_url = ""
+    app_id = str(VK_MINI_APP_APP_ID or "").strip()
+    if app_id:
+        launch_params = {
+            "context": "booking_payment",
+            "booking_id": int(getattr(booking, "id", 0) or 0),
+        }
+        object_type = str(getattr(booking, "object_type", "") or "").strip()
+        if object_type:
+            launch_params["booking_type"] = object_type
+        group_id = int(getattr(booking, "group_id", 0) or 0)
+        if group_id > 0:
+            launch_params["group_id"] = group_id
+        group_start_date = getattr(booking, "group_start_date", None)
+        if group_start_date:
+            launch_params["group_start_date"] = group_start_date.isoformat()
+        launch_url = f"\n• Открыть мини-приложение: https://vk.com/app{app_id}#{urlencode(launch_params, doseq=True)}"
 
     return (
         "Здравствуйте!\n"
@@ -600,107 +619,70 @@ def _build_booking_payment_request_message(db, booking: BookingRequest) -> str:
         f"• Банк получателя: {bank}\n"
         f"• Номер: {number}\n"
         f"• ФИО получателя: {full_name}\n"
-        f"• Сумма к оплате: {amount_text}\n\n"
+        f"• Сумма к оплате: {amount_text}{launch_url}\n\n"
         "Пожалуйста, после оплаты отправьте чек для подтверждения в этот чат."
     )
 
-def _humanize_userbot_error(raw_reason: str) -> str:
+def _humanize_delivery_error(raw_reason: str) -> str:
     reason = str(raw_reason or "").strip()
-    if not reason:
-        return "неизвестная ошибка"
-
-    # Unwrap wrappers like "userbot returned: {...}" and keep the most specific error text.
-    wrapped_match = re.search(r"userbot returned:\s*(.+)$", reason, flags=re.IGNORECASE)
-    if wrapped_match:
-        reason = wrapped_match.group(1).strip()
-
-    dict_error_match = re.search(r"'error'\s*:\s*'([^']+)'", reason)
-    if not dict_error_match:
-        dict_error_match = re.search(r'"error"\s*:\s*"([^"]+)"', reason)
-    if dict_error_match:
-        reason = dict_error_match.group(1).strip()
-
-    if reason in {"None", "null", "{}"}:
-        return "userbot не вернул текст ошибки"
-
-    # Specific Telethon/Telegram RPC code translations.
-    allow_payment_match = re.search(r"\bALLOW_PAYMENT_REQUIRED_(\d+)\b", reason, flags=re.IGNORECASE)
-    if allow_payment_match:
-        stars = allow_payment_match.group(1)
-        return f"Требуется {stars} звёзд Telegram для отправки сообщения (ALLOW_PAYMENT_REQUIRED_{stars})"
-
-    known_codes = {
-        "USER_IS_BLOCKED": "Пользователь запретил личные сообщения от аккаунта userbot",
-        "CHAT_WRITE_FORBIDDEN": "Нет прав на отправку сообщения этому пользователю",
-        "PEER_FLOOD": "Ограничение Telegram на частые действия (flood control)",
-        "FLOOD_WAIT": "Telegram временно ограничил отправку сообщений (flood wait)",
-        "PRIVACY_RESTRICTED": "Ограничения приватности пользователя не позволяют написать ему",
-    }
-    upper_reason = reason.upper()
-    for code, text in known_codes.items():
-        if code in upper_reason:
-            return f"{text} ({code})"
-
+    if not reason or reason in {"None", "null", "{}"}:
+        return "неизвестная ошибка доставки"
     return reason
 
 
-def _notify_user_userbot_delivery_failed(telegram_id: int, booking_id: int, reason: str) -> None:
+def _notify_user_delivery_failed(target_user_id: int, booking_id: int, reason: str) -> None:
     fallback_text = (
-        "Не получилось отправить вам реквизиты через userbot.\n"
-        "Пожалуйста, напишите в этот бот, и мы отправим реквизиты здесь."
+        "Не получилось отправить вам реквизиты в выбранный канал уведомлений.\n"
+        "Пожалуйста, напишите нам в поддержку, и мы отправим реквизиты вручную."
     )
     context_note = (
-        f"Ошибка отправки реквизитов через userbot: booking #{booking_id}; "
+        f"Ошибка доставки реквизитов: booking #{booking_id}; "
         f"причина: {reason}"
     )
     try:
         send_user_notification_sync(
-            user_id=int(telegram_id),
+            user_id=int(target_user_id),
             text=fallback_text,
             context_note=context_note,
         )
     except Exception:
         current_app.logger.exception(
-            "booking %s: failed to notify user %s about userbot delivery issue",
+            "booking %s: failed to notify user %s about delivery issue",
             booking_id,
-            telegram_id,
+            target_user_id,
         )
 
 
 def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user: User | None) -> None:
-    telegram_id = user.telegram_id if user else booking.user_telegram_id
-    if not telegram_id:
-        current_app.logger.warning("booking %s: skip payment DM, telegram_id missing", booking.id)
-        return
-
-    try:
-        from dance_studio.bot.telegram_userbot import send_private_message_sync
-    except Exception as exc:
-        current_app.logger.exception("booking %s: userbot import failed", booking.id)
-        reason = _humanize_userbot_error(str(exc))
-        _notify_user_userbot_delivery_failed(int(telegram_id), int(booking.id), reason)
+    telegram_id = int(user.telegram_id) if user and user.telegram_id else int(booking.user_telegram_id or 0)
+    target_user_id = int(user.id) if user and user.id else telegram_id
+    if not target_user_id:
+        current_app.logger.warning("booking %s: skip payment notification, target user id missing", booking.id)
         return
 
     payment_text = _build_booking_payment_request_message(db, booking)
     user_target = {
-        "id": telegram_id,
+        "id": telegram_id or target_user_id,
         "username": user.username if user else booking.user_username,
         "phone": user.phone if user else None,
         "name": user.name if user else booking.user_name,
     }
+
     try:
-        result = send_private_message_sync(user_target, payment_text)
-        if not result:
-            raise RuntimeError("userbot returned: None")
-        if not result.get("ok"):
-            detail = str(result.get("error") or "").strip()
-            if detail:
-                raise RuntimeError(detail)
-            raise RuntimeError(f"userbot returned: {result!r}")
+        sent_ok = send_user_notification_sync(
+            user_id=target_user_id,
+            text=payment_text,
+            context_note=f"Реквизиты оплаты по заявке #{booking.id}",
+        )
+        if not sent_ok:
+            raise RuntimeError("notification service returned failed")
     except Exception as exc:
-        current_app.logger.exception("booking %s: failed to deliver payment details via userbot", booking.id)
-        reason = _humanize_userbot_error(str(exc))
-        _notify_user_userbot_delivery_failed(int(telegram_id), int(booking.id), reason)
+        current_app.logger.exception(
+            "booking %s: failed to deliver payment details via selected channel",
+            booking.id,
+        )
+        reason = _humanize_delivery_error(str(exc))
+        _notify_user_delivery_failed(int(target_user_id), int(booking.id), reason)
         try:
             from dance_studio.core.config import BOT_TOKEN
             admin_chat_id = _resolve_bookings_admin_chat_id(booking)
@@ -708,10 +690,10 @@ def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user:
             if BOT_TOKEN and admin_chat_id:
                 username = f"@{user_target['username']}" if user_target.get("username") else "—"
                 alert_text = (
-                    "⚠️ Не удалось отправить реквизиты через userbot.\n"
+                    "⚠️ Не удалось отправить реквизиты в выбранный канал.\n"
                     f"Заявка: #{booking.id}\n"
                     f"Получатель: {user_target.get('name') or 'пользователь'} "
-                    f"(id={telegram_id}, username={username})\n"
+                    f"(user_id={target_user_id}, tg_id={telegram_id or '—'}, username={username})\n"
                     f"Причина: {reason}"
                 )
                 requests.post(
@@ -721,6 +703,36 @@ def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user:
                 )
         except Exception:
             pass
+
+
+def _deliver_booking_payment_details_in_background(app, booking_id: int, user_id: int | None) -> None:
+    with app.app_context():
+        db = get_session()
+        try:
+            booking = db.query(BookingRequest).filter(BookingRequest.id == int(booking_id)).first()
+            if not booking:
+                app.logger.warning("booking %s: async payment notification skipped, booking not found", booking_id)
+                return
+            user = None
+            if user_id:
+                user = db.query(User).filter(User.id == int(user_id)).first()
+            _send_booking_payment_details_via_userbot(db, booking, user)
+        except Exception:
+            app.logger.exception("booking %s: async payment notification worker failed", booking_id)
+        finally:
+            db.close()
+
+
+def enqueue_booking_payment_details_delivery(booking_id: int, user_id: int | None = None) -> None:
+    app = current_app._get_current_object()
+    worker = Thread(
+        target=_deliver_booking_payment_details_in_background,
+        args=(app, int(booking_id), int(user_id) if user_id else None),
+        name=f"booking-payment-{int(booking_id)}",
+        daemon=True,
+    )
+    worker.start()
+
 
 def get_next_group_date(db, group_id):
     return pricing_get_next_group_date(db, int(group_id))
@@ -733,6 +745,7 @@ __all__ = [
     "BookingReservationExpiredError",
     "_compute_duration_minutes",
     "_find_booking_overlaps",
+    "enqueue_booking_payment_details_delivery",
     "_notify_booking_admins",
     "_send_booking_payment_details_via_userbot",
     "count_group_free_seats",

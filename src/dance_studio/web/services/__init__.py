@@ -58,6 +58,7 @@ from .bookings import (
     _find_booking_overlaps,
     _notify_booking_admins,
     _send_booking_payment_details_via_userbot,
+    enqueue_booking_payment_details_delivery,
     get_next_group_date,
 )
 from .media import _build_image_url, normalize_teaches, try_fetch_telegram_avatar
@@ -111,6 +112,7 @@ __all__ = [
     "_parse_user_id_for_merge",
     "_schedule_group_id",
     "_send_booking_payment_details_via_userbot",
+    "enqueue_booking_payment_details_delivery",
     "_serialize_attendance_intention_with_lock",
     "_serialize_client_abonement_for_admin",
     "_serialize_payment_profile",

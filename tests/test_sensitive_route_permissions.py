@@ -41,7 +41,8 @@ def test_delete_group_requires_permission_and_dependency_checks():
     assert 'require_permission("manage_schedule")' in route_window
     assert "_collect_group_delete_dependencies(db, group_id)" in route_window
     assert "_format_group_delete_blockers(dependencies)" in route_window
-    assert "_send_group_chat_message(" in route_window
+    assert "collect_group_notification_recipient_ids(" in route_window
+    assert "send_group_notifications(" in route_window
     assert "db.delete(group)" in route_window
 
 
@@ -54,7 +55,7 @@ def test_admin_sensitive_routes_have_permission_checks():
     get_staff_window = _window(source, "def get_staff(staff_id):")
     assert 'require_permission("manage_staff", allow_self_staff_id=staff_id)' in get_staff_window
 
-    update_window = _window(source, "def update_staff_from_telegram(telegram_id):")
+    update_window = _window(source, "def update_staff_from_telegram():")
     assert 'require_permission("manage_staff")' in update_window
 
     search_staff_window = _window(source, "def search_staff():")
