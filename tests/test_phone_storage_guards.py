@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from dance_studio.core.time import utcnow
 from dance_studio.db.models import Base, PhoneVerificationCode, User, UserPhone
 
 
@@ -39,7 +40,7 @@ def test_user_phone_row_and_otp_phone_are_normalized_before_commit():
         phone="9992223344",
         code_hash="hash",
         purpose="login",
-        expires_at=datetime.utcnow() + timedelta(minutes=5),
+        expires_at=utcnow() + timedelta(minutes=5),
     )
     db.add_all([phone_row, code])
     db.commit()

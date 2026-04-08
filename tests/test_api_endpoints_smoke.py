@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import create_engine
@@ -13,6 +13,7 @@ import dance_studio.db as db_module
 import dance_studio.web.middleware.auth as auth_middleware
 from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID
 from dance_studio.core.permissions import ROLES
+from dance_studio.core.time import utcnow
 from dance_studio.db.models import Base, SessionRecord, Staff, User
 from dance_studio.web.app import create_app
 from dance_studio.web.services.auth_session import _sid_hash
@@ -69,10 +70,11 @@ def _pick_free_telegram_id(start: int) -> int:
     return current
 
 
-def _seed_staff(db, telegram_id: int, position: str) -> Staff:
+def _seed_staff(db, telegram_id: int, position: str, *, user_id: int | None = None) -> Staff:
     staff = Staff(
         name=f"Staff {telegram_id}",
         telegram_id=telegram_id,
+        user_id=user_id,
         position=position,
         status="active",
     )
@@ -91,12 +93,13 @@ def _seed_user(db, telegram_id: int) -> User:
     return user
 
 
-def _create_session(db, telegram_id: int) -> str:
+def _create_session(db, telegram_id: int, *, user_id: int | None = None) -> str:
     sid = secrets.token_hex(16)
-    now = datetime.utcnow()
+    now = utcnow()
     record = SessionRecord(
         id=secrets.token_hex(32),
         telegram_id=telegram_id,
+        user_id=user_id,
         user_agent_hash=None,
         sid_hash=_sid_hash(sid),
         ip_prefix=None,
@@ -155,14 +158,14 @@ def test_admin_endpoints_require_admin(app, session_factory):
         admin_id = _pick_free_telegram_id(1000)
         non_admin_id = _pick_free_telegram_id(admin_id + 1)
 
-        _seed_staff(db, admin_id, admin_position)
-        _seed_staff(db, non_admin_id, non_admin_position)
-        _seed_user(db, admin_id)
-        _seed_user(db, non_admin_id)
+        admin_user = _seed_user(db, admin_id)
+        non_admin_user = _seed_user(db, non_admin_id)
+        _seed_staff(db, admin_id, admin_position, user_id=admin_user.id)
+        _seed_staff(db, non_admin_id, non_admin_position, user_id=non_admin_user.id)
         db.commit()
 
-        admin_sid = _create_session(db, admin_id)
-        non_admin_sid = _create_session(db, non_admin_id)
+        admin_sid = _create_session(db, admin_id, user_id=admin_user.id)
+        non_admin_sid = _create_session(db, non_admin_id, user_id=non_admin_user.id)
     finally:
         db.close()
 

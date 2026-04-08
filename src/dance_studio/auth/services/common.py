@@ -1,8 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-from collections import defaultdict
-from contextlib import contextmanager
 from datetime import datetime
+from contextlib import contextmanager
+
+from dance_studio.core.time import utcnow
 from threading import RLock
 
 from sqlalchemy import text
@@ -11,7 +12,8 @@ from dance_studio.db.models import AuthIdentity, User, UserPhone
 
 
 PROVIDERS_WITH_PHONE_MERGE = {"telegram", "vk", "phone"}
-_PHONE_LOCKS: dict[str, RLock] = defaultdict(RLock)
+_PHONE_LOCKS: dict[str, RLock] = {}
+_PHONE_LOCKS_GUARD = RLock()
 
 
 class AuthFlowConflictError(RuntimeError):
@@ -104,12 +106,21 @@ def resolve_telegram_id_by_user(db, user_id: int | str | None) -> int | None:
     return _normalize_telegram_id(identity.provider_user_id)
 
 
+def _get_phone_lock(phone_e164: str) -> RLock:
+    with _PHONE_LOCKS_GUARD:
+        lock = _PHONE_LOCKS.get(phone_e164)
+        if lock is None:
+            lock = RLock()
+            _PHONE_LOCKS[phone_e164] = lock
+        return lock
+
+
 @contextmanager
 def phone_operation_lock(db, phone_e164: str | None):
     if not phone_e164:
         yield
         return
-    lock = _PHONE_LOCKS[phone_e164]
+    lock = _get_phone_lock(phone_e164)
     lock.acquire()
     try:
         bind = db.get_bind()
@@ -229,7 +240,7 @@ def _link_identity_to_user(
             .with_for_update()
             .first()
         )
-    now = datetime.utcnow()
+    now = utcnow()
     if identity:
         if identity.user_id not in (None, user.id) and identity.is_verified:
             raise DuplicateIdentityError(f"identity already linked to user {identity.user_id}")
@@ -282,7 +293,7 @@ def get_or_create_identity(
         if identity:
             user = db.query(User).filter(User.id == identity.user_id, User.is_archived.is_(False)).first()
             if user:
-                user.last_login_at = datetime.utcnow()
+                user.last_login_at = utcnow()
                 identity.provider_username = username
                 identity.provider_payload_json = payload_json
                 identity.last_login_at = user.last_login_at
@@ -292,7 +303,7 @@ def get_or_create_identity(
                         user_id=user.id,
                         phone_e164=normalized_phone,
                         source=provider,
-                        verified_at=datetime.utcnow(),
+                        verified_at=utcnow(),
                         is_primary=True,
                     )
                 return user
@@ -313,7 +324,7 @@ def get_or_create_identity(
         if target_user is None:
             target_user = User(name=fallback_name)
 
-        login_at = datetime.utcnow()
+        login_at = utcnow()
         target_user.last_login_at = login_at
         try:
             with db.begin_nested():
@@ -345,7 +356,7 @@ def get_or_create_identity(
             linked_user = db.query(User).filter(User.id == identity.user_id, User.is_archived.is_(False)).first()
             if not linked_user:
                 raise DuplicateIdentityError(f"identity already linked to user {identity.user_id}")
-            linked_user.last_login_at = datetime.utcnow()
+            linked_user.last_login_at = utcnow()
             identity.provider_username = username
             identity.provider_payload_json = payload_json
             identity.last_login_at = linked_user.last_login_at
@@ -357,9 +368,10 @@ def get_or_create_identity(
                 user_id=target_user.id,
                 phone_e164=normalized_phone,
                 source=provider,
-                verified_at=datetime.utcnow(),
+                verified_at=utcnow(),
                 is_primary=True,
             )
 
         target_user._phone_match_user_ids = matched_ids  # type: ignore[attr-defined]
         return target_user
+

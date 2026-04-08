@@ -5,18 +5,28 @@ from flask import g
 from dance_studio.auth.services.common import resolve_user_by_telegram, resolve_user_id_by_telegram
 from dance_studio.core.config import OWNER_IDS, TECH_ADMIN_ID
 from dance_studio.core.permissions import has_permission
+from dance_studio.db import normalize_staff_user_links
 from dance_studio.db.models import Staff, User
 
 
 def _get_staff_by_user_or_telegram(db, user_id=None, telegram_id=None):
-    staff = None
-    if user_id:
-        staff = db.query(Staff).filter_by(user_id=user_id, status="active").first()
-    if not staff and telegram_id:
+    resolved_user_id = user_id
+    if resolved_user_id is None and telegram_id:
         resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
-        if resolved_user_id:
-            staff = db.query(Staff).filter_by(user_id=resolved_user_id, status="active").first()
-    return staff
+
+    if telegram_id:
+        normalize_staff_user_links(
+            db,
+            user_id=resolved_user_id,
+            telegram_id=telegram_id,
+            commit=True,
+        )
+        if resolved_user_id is None:
+            resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
+
+    if not resolved_user_id:
+        return None
+    return db.query(Staff).filter_by(user_id=resolved_user_id, status="active").first()
 
 
 def _get_current_staff(db):

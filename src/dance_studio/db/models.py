@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean, UniqueConstraint, event, text
+﻿from sqlalchemy import Column, Integer, BigInteger, String, Date, Time, DateTime, Text, ForeignKey, Index, CheckConstraint, Boolean, UniqueConstraint, event, text
 from sqlalchemy.orm import declarative_base, relationship
 from datetime import datetime
+from dance_studio.core.time import utcnow
 from dance_studio.core.statuses import (
     ABONEMENT_STATUS_PENDING_PAYMENT,
     BOOKING_STATUS_CREATED,
@@ -65,8 +66,8 @@ class SessionRecord(Base):
     ip_prefix = Column(String(64), nullable=True)
     need_reauth = Column(Boolean, nullable=False, default=False)
     reauth_reason = Column(String(255), nullable=True)
-    last_seen = Column(DateTime, default=datetime.utcnow, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen = Column(DateTime, default=utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     expires_at = Column(DateTime, nullable=False)
 
     __table_args__ = (
@@ -498,6 +499,8 @@ class AttendanceReminder(Base):
     sent_at = Column(DateTime, nullable=True)
     telegram_chat_id = Column(BigInteger, nullable=True)
     telegram_message_id = Column(BigInteger, nullable=True)
+    vk_peer_id = Column(BigInteger, nullable=True)
+    vk_message_id = Column(BigInteger, nullable=True)
     responded_at = Column(DateTime, nullable=True)
     response_action = Column(String, nullable=True)  # will_miss | will_attend
     button_closed_at = Column(DateTime, nullable=True)
@@ -641,12 +644,12 @@ class AuthIdentity(Base):
     provider_user_id = Column(String(255), nullable=True)
     provider_username = Column(String(255), nullable=True)
     provider_payload_json = Column(Text, nullable=True)
-    linked_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    linked_at = Column(DateTime, default=utcnow, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
     is_primary = Column(Boolean, nullable=False, default=False)
     is_verified = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("provider", "provider_user_id", name="uq_auth_identities_provider_user"),
@@ -664,8 +667,8 @@ class UserPhone(Base):
     verified_at = Column(DateTime, nullable=True)
     source = Column(String(32), nullable=False, default="sms")
     is_primary = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     __table_args__ = (
         Index("ix_user_phones_user_id", "user_id"),
@@ -689,7 +692,7 @@ class PhoneVerificationCode(Base):
     purpose = Column(String(32), nullable=False)
     expires_at = Column(DateTime, nullable=False)
     consumed_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     delivery_channel = Column(String(32), nullable=False, default="none")
     delivery_target = Column(String(255), nullable=True)
 
@@ -738,7 +741,7 @@ class PasskeyCredential(Base):
     sign_count = Column(Integer, nullable=False, default=0)
     transports = Column(String(255), nullable=True)
     device_name = Column(String(255), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     last_used_at = Column(DateTime, nullable=True)
 
     __table_args__ = (
@@ -760,7 +763,7 @@ class PasskeyChallenge(Base):
     used_at = Column(DateTime, nullable=True)
     credential_id = Column(String(512), nullable=True)
     payload_json = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     __table_args__ = (
         Index("ix_passkey_challenges_user_id", "user_id"),
@@ -777,7 +780,7 @@ class AuthAuditEvent(Base):
     provider = Column(String(32), nullable=True)
     status = Column(String(32), nullable=False, default="ok")
     payload_json = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     __table_args__ = (
         Index("ix_auth_audit_events_user_id", "user_id"),
@@ -800,7 +803,7 @@ class UserMergeEvent(Base):
     review_result = Column(String(32), nullable=True)
     resolved_at = Column(DateTime, nullable=True)
     payload_json = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     __table_args__ = (
         Index("ix_user_merge_events_source_user_id", "source_user_id"),
@@ -818,8 +821,8 @@ class NotificationChannel(Base):
     is_enabled = Column(Boolean, nullable=False, default=True)
     is_verified = Column(Boolean, nullable=False, default=False)
     is_primary = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("channel_type", "target_ref", name="uq_notification_channels_target"),
@@ -836,8 +839,8 @@ class NotificationPreference(Base):
     channel_type = Column(String(32), nullable=False)
     priority = Column(Integer, nullable=False, default=100)
     is_enabled = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     __table_args__ = (
         Index("ix_notification_preferences_user_id", "user_id"),
@@ -855,7 +858,7 @@ class Notification(Base):
     body = Column(Text, nullable=False)
     payload_json = Column(Text, nullable=True)
     status = Column(String(32), nullable=False, default="pending")
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
     scheduled_at = Column(DateTime, nullable=True)
     processed_at = Column(DateTime, nullable=True)
 
@@ -895,8 +898,8 @@ class WebPushSubscription(Base):
     auth = Column(Text, nullable=False)
     user_agent = Column(String(512), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     __table_args__ = (
         Index("ix_web_push_subscriptions_user_id", "user_id"),
@@ -950,3 +953,5 @@ class UserDiscount(Base):
     __table_args__ = (
         Index("ix_user_discounts_user_active_created", "user_id", "is_active", "created_at"),
     )
+
+

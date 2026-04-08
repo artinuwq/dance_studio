@@ -104,14 +104,6 @@ SETTING_SPECS: dict[str, SettingSpec] = {
         min_value=-10_000_000_000_000,
         max_value=10_000_000_000_000,
     ),
-    "alerts.no_groups_last_notified_at": SettingSpec(
-        key="alerts.no_groups_last_notified_at",
-        value_type="string",
-        default="",
-        description="UTC ISO timestamp of the last startup alert about missing groups.",
-        is_public=False,
-        max_length=64,
-    ),
     "rental.base_hour_price_rub": SettingSpec(
         key="rental.base_hour_price_rub",
         value_type="int",

@@ -1,4 +1,6 @@
-from datetime import datetime
+﻿from datetime import datetime
+
+from dance_studio.core.time import utcnow
 
 from flask import Blueprint, g, request
 
@@ -416,7 +418,7 @@ def set_attendance(schedule_id):
 
     staff = _get_current_staff(db)
     results = []
-    now = datetime.utcnow()
+    now = utcnow()
 
     for item in items:
         user_id = item.get("user_id")
@@ -873,3 +875,4 @@ def delete_my_attendance_intention(schedule_id):
         db.delete(row)
         db.commit()
     return _serialize_attendance_intention_with_lock(None, lock_info), 200
+

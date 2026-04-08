@@ -1,6 +1,5 @@
 import html
 import json
-from datetime import datetime
 
 from sqlalchemy.orm import object_session
 
@@ -188,8 +187,8 @@ def format_booking_message(booking, user=None) -> str:
         time_section = (
             "🗓 Время:\n"
             f"• Дата: {_format_date(booking.date)}\n"
-        f"• С {_format_time(booking.time_from)} до {_format_time(booking.time_to)}{duration_suffix}\n\n"
-    )
+            f"• С {_format_time(booking.time_from)} до {_format_time(booking.time_to)}{duration_suffix}\n\n"
+        )
 
     comment_section = ""
     if booking.comment:
@@ -352,5 +351,3 @@ def build_booking_keyboard_data(
     if normalized_status == "waiting_payment":
         return [[{"text": "✅ Подтвердить оплату", "callback_data": f"booking:{booking_id}:confirm_payment"}]]
     return []
-
-

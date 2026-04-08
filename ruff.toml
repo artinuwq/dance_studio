@@ -1,0 +1,15 @@
+target-version = "py313"
+line-length = 180
+extend-exclude = [
+  "frontend",
+  "alembic",
+]
+
+[lint]
+select = ["F401", "F841"]
+ignore = []
+
+[lint.per-file-ignores]
+"scripts/*.py" = ["F841"]
+"src/dance_studio/bot/*.py" = ["F401", "F841"]
+"src/dance_studio/web/routes/admin.py" = ["F401"]

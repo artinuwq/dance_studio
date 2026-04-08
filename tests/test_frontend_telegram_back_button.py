@@ -10,4 +10,5 @@ def test_telegram_back_button_uses_live_webapp_instance():
     assert "bindTelegramBackButton();" in source
     assert "window.__tgSdkReady && typeof window.__tgSdkReady.then === 'function'" in source
     assert "_setClientDetailBackFallbackVisible(!hasTelegramBackButton());" in source
+    assert "_setAdminBookingRequestBackFallbackVisible(!hasTelegramBackButton());" in source
     assert "const hasTelegramBackButton = Boolean(tg && typeof tg.BackButton !== 'undefined');" not in source

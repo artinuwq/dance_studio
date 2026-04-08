@@ -1,5 +1,6 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+from datetime import datetime, timedelta
 import base64
 import hashlib
 import hmac
@@ -7,11 +8,14 @@ import json
 import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timedelta
+from time import sleep
+
+from dance_studio.core.time import utcnow
 from urllib.parse import urlencode
 
 import pytest
 from sqlalchemy import create_engine, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -22,6 +26,7 @@ import dance_studio.db as db_module
 import dance_studio.web.middleware.auth as auth_middleware
 from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.auth.services.common import ensure_user_phone, get_or_create_identity
+from dance_studio.core.permissions import ROLES
 from dance_studio.db.models import AuthIdentity, Base, NotificationChannel, PasskeyChallenge, PasskeyCredential, SessionRecord, Staff, User, UserMergeEvent, UserPhone
 from dance_studio.web.app import create_app
 from dance_studio.web.services.auth_session import _sid_hash
@@ -55,7 +60,7 @@ def app(session_factory, monkeypatch):
 
 def _login_by_session(client, db, user_id: int, telegram_id: int | None = None):
     sid = secrets.token_hex(16)
-    now = datetime.utcnow()
+    now = utcnow()
     db.add(
         SessionRecord(
             id=secrets.token_hex(32),
@@ -146,6 +151,65 @@ def test_telegram_auth_duplicate_bootstrap_reuses_recent_session(app, session_fa
     assert len(sessions) >= 2
 
 
+def test_telegram_auth_uses_telegram_profile_name_for_new_user(app, session_factory, monkeypatch):
+    monkeypatch.setattr(
+        "dance_studio.auth.providers.telegram.validate_init_data",
+        lambda _: type(
+            "V",
+            (),
+            {
+                "user_id": 778,
+                "replay_key": "rk-name",
+                "first_name": "Анна",
+                "last_name": "Иванова",
+                "username": "anna_ivanova",
+            },
+        )(),
+    )
+    client = app.test_client()
+
+    response = client.post("/auth/telegram", json={"init_data": "dummy"})
+    assert response.status_code == 200
+
+    db = session_factory()
+    user = db.query(User).filter(User.telegram_id == 778).first()
+    assert user is not None
+    assert user.name == "Анна Иванова"
+    assert user.username == "anna_ivanova"
+
+
+def test_telegram_auth_upgrades_generated_name_from_telegram_profile(app, session_factory, monkeypatch):
+    db = session_factory()
+    user = User(name="Telegram 779", telegram_id=779)
+    db.add(user)
+    db.commit()
+
+    monkeypatch.setattr(
+        "dance_studio.auth.providers.telegram.validate_init_data",
+        lambda _: type(
+            "V",
+            (),
+            {
+                "user_id": 779,
+                "replay_key": "rk-upgrade",
+                "first_name": "Мария",
+                "last_name": "Петрова",
+                "username": "maria_pet",
+            },
+        )(),
+    )
+    client = app.test_client()
+
+    response = client.post("/auth/telegram", json={"init_data": "dummy"})
+    assert response.status_code == 200
+
+    db.expire_all()
+    refreshed = db.query(User).filter(User.id == user.id).first()
+    assert refreshed is not None
+    assert refreshed.name == "Мария Петрова"
+    assert refreshed.username == "maria_pet"
+
+
 def test_phone_request_code_rejects_unknown_phone_for_anonymous_user(app):
     client = app.test_client()
     response = client.post("/auth/phone/request-code", json={"phone": "+79995556677"})
@@ -185,7 +249,7 @@ def test_verified_phone_links_new_vk_identity_to_existing_user(app, session_fact
     user = User(name="Existing")
     db.add(user)
     db.commit()
-    db.add(UserPhone(user_id=user.id, phone_e164="+79991112233", verified_at=datetime.utcnow(), source="sms", is_primary=True))
+    db.add(UserPhone(user_id=user.id, phone_e164="+79991112233", verified_at=utcnow(), source="sms", is_primary=True))
     db.commit()
 
     client = app.test_client()
@@ -195,6 +259,38 @@ def test_verified_phone_links_new_vk_identity_to_existing_user(app, session_fact
     )
     assert resp.status_code == 200
     assert resp.get_json()["user_id"] == user.id
+
+
+def test_auth_vk_phone_merges_into_existing_verified_phone_without_duplicate_rows(app, session_factory):
+    db = session_factory()
+    source = User(name="Source", telegram_id=70001)
+    target = User(name="Target")
+    db.add_all([source, target])
+    db.commit()
+    db.add(UserPhone(user_id=target.id, phone_e164="+79995558394", verified_at=utcnow(), source="sms", is_primary=True))
+    db.commit()
+
+    client = app.test_client()
+    _login_by_session(client, db, source.id, telegram_id=source.telegram_id)
+
+    response = client.post("/auth/vk/phone", json={"phone": "+7 (999) 555-83-94"})
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["ok"] is True
+    assert payload["merge_status"] == "merged"
+    assert payload["merge_notice"] == "Аккаунты объединены. Проверьте, что все данные на месте."
+    assert payload["phone"] == "+79995558394"
+
+    db.expire_all()
+    merged_source = db.query(User).filter(User.id == source.id).first()
+    merged_target = db.query(User).filter(User.id == target.id).first()
+    assert merged_source is not None
+    assert merged_target is not None
+    assert merged_source.is_archived is False
+    assert merged_target.is_archived is True
+    verified_rows = db.query(UserPhone).filter(UserPhone.phone_e164 == "+79995558394", UserPhone.verified_at.isnot(None)).all()
+    assert len(verified_rows) == 1
+    assert verified_rows[0].user_id == source.id
 
 
 def test_passkey_register_duplicate_delete_and_login(app, session_factory):
@@ -326,8 +422,8 @@ def test_multiple_phones_switches_primary(session_factory):
     db.add(user)
     db.commit()
 
-    p1 = ensure_user_phone(db, user_id=user.id, phone_e164="+79990000001", source="sms", verified_at=datetime.utcnow(), is_primary=True)
-    p2 = ensure_user_phone(db, user_id=user.id, phone_e164="+79990000002", source="telegram", verified_at=datetime.utcnow(), is_primary=True)
+    p1 = ensure_user_phone(db, user_id=user.id, phone_e164="+79990000001", source="sms", verified_at=utcnow(), is_primary=True)
+    p2 = ensure_user_phone(db, user_id=user.id, phone_e164="+79990000002", source="telegram", verified_at=utcnow(), is_primary=True)
     db.commit()
 
     db.refresh(p1)
@@ -369,7 +465,7 @@ def test_merge_conflict_and_manual_review_are_logged(session_factory):
     target2 = User(name="T2")
     db.add_all([source, target1, target2])
     db.commit()
-    now = datetime.utcnow()
+    now = utcnow()
     db.add_all(
         [
             UserPhone(user_id=target1.id, phone_e164="+79990000003", verified_at=now, source="sms", is_primary=True),
@@ -396,7 +492,7 @@ def test_manual_merge_flag_blocks_auto_merge(session_factory):
     target = User(name="Target", requires_manual_merge=True)
     db.add_all([source, target])
     db.commit()
-    db.add(UserPhone(user_id=target.id, phone_e164="+79990000004", verified_at=datetime.utcnow(), source="sms", is_primary=True))
+    db.add(UserPhone(user_id=target.id, phone_e164="+79990000004", verified_at=utcnow(), source="sms", is_primary=True))
     db.commit()
 
     result = AccountMergeService().try_merge_by_phone(db, user_id=source.id, phone="+79990000004", source="test")
@@ -405,25 +501,37 @@ def test_manual_merge_flag_blocks_auto_merge(session_factory):
     assert result["status"] == "manual_review_required"
 
 
-def test_parallel_login_with_same_verified_phone_does_not_duplicate_identity(session_factory, tmp_path):
-    race_db_url = f"sqlite:///{tmp_path / 'auth_race.db'}"
-    race_engine = create_engine(race_db_url, connect_args={"check_same_thread": False})
+def test_parallel_login_with_same_verified_phone_does_not_duplicate_identity():
+    race_db_url = f"sqlite:///file:auth_race_{secrets.token_hex(8)}?mode=memory&cache=shared&uri=true"
+    race_engine = create_engine(
+        race_db_url,
+        connect_args={"check_same_thread": False, "timeout": 30},
+    )
     Base.metadata.create_all(race_engine)
     race_session_factory = sessionmaker(bind=race_engine, autoflush=False, autocommit=False)
 
     def worker(provider_user_id: str):
-        db = race_session_factory()
-        user = get_or_create_identity(
-            db,
-            provider="vk",
-            provider_user_id=provider_user_id,
-            username=None,
-            payload_json="{}",
-            fallback_name="Concurrent",
-            verified_phone="+79990000005",
-        )
-        db.commit()
-        return user.id
+        for attempt in range(5):
+            db = race_session_factory()
+            try:
+                user = get_or_create_identity(
+                    db,
+                    provider="vk",
+                    provider_user_id=provider_user_id,
+                    username=None,
+                    payload_json="{}",
+                    fallback_name="Concurrent",
+                    verified_phone="+79990000005",
+                )
+                db.commit()
+                return user.id
+            except OperationalError as exc:
+                db.rollback()
+                if "locked" not in str(exc).lower() or attempt == 4:
+                    raise
+                sleep(0.05 * (attempt + 1))
+            finally:
+                db.close()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(worker, ["parallel-1", "parallel-2"]))
@@ -431,13 +539,16 @@ def test_parallel_login_with_same_verified_phone_does_not_duplicate_identity(ses
     assert len(set(results)) == 1
 
     db = race_session_factory()
-    users = db.query(User).filter(User.name == "Concurrent", User.is_archived.is_(False)).all()
-    identities = db.query(AuthIdentity).filter(AuthIdentity.provider == "vk", AuthIdentity.provider_user_id.in_(["parallel-1", "parallel-2"])).all()
-    verified_phones = db.query(UserPhone).filter(UserPhone.phone_e164 == "+79990000005", UserPhone.verified_at.isnot(None)).all()
-    assert len(users) == 1
-    assert len(identities) == 2
-    assert len({row.user_id for row in identities}) == 1
-    assert len(verified_phones) == 1
+    try:
+        users = db.query(User).filter(User.name == "Concurrent", User.is_archived.is_(False)).all()
+        identities = db.query(AuthIdentity).filter(AuthIdentity.provider == "vk", AuthIdentity.provider_user_id.in_(["parallel-1", "parallel-2"])).all()
+        verified_phones = db.query(UserPhone).filter(UserPhone.phone_e164 == "+79990000005", UserPhone.verified_at.isnot(None)).all()
+        assert len(users) == 1
+        assert len(identities) == 2
+        assert len({row.user_id for row in identities}) == 1
+        assert len(verified_phones) == 1
+    finally:
+        db.close()
 
 
 def test_race_condition_on_identity_link_keeps_single_target_user(session_factory):
@@ -445,7 +556,7 @@ def test_race_condition_on_identity_link_keeps_single_target_user(session_factor
     user = User(name="Existing Link")
     db.add(user)
     db.commit()
-    db.add(UserPhone(user_id=user.id, phone_e164="+79990000006", verified_at=datetime.utcnow(), source="sms", is_primary=True))
+    db.add(UserPhone(user_id=user.id, phone_e164="+79990000006", verified_at=utcnow(), source="sms", is_primary=True))
     db.commit()
 
     def worker(provider_user_id: str):
@@ -474,7 +585,7 @@ def test_app_bootstrap_returns_user_centric_contract(app, session_factory):
     user = User(name="Bootstrap User", telegram_id=321321)
     db.add(user)
     db.commit()
-    db.add(UserPhone(user_id=user.id, phone_e164="+79990000007", verified_at=datetime.utcnow(), source="sms", is_primary=True))
+    db.add(UserPhone(user_id=user.id, phone_e164="+79990000007", verified_at=utcnow(), source="sms", is_primary=True))
     db.add(AuthIdentity(user_id=user.id, provider="telegram", provider_user_id="321321", is_verified=True))
     db.add(PasskeyCredential(user_id=user.id, credential_id="bootstrap-passkey", public_key="pk", sign_count=1))
     db.commit()
@@ -676,7 +787,7 @@ def test_vk_link_flow_returns_link_contract_and_bootstrap_updates(app, session_f
     client = app.test_client()
     _login_by_session(client, db, user.id, telegram_id=user.telegram_id)
 
-    response = client.post("/auth/vk", json=_vk_payload(vk_user_id="link-55", name="VK Link User"))
+    response = client.post("/auth/vk", json=_vk_payload(vk_user_id="link-55", name="VK Link User", link_mode=True))
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["linked"] is True
@@ -692,20 +803,26 @@ def test_vk_link_flow_returns_link_contract_and_bootstrap_updates(app, session_f
 def test_manual_merge_queue_admin_review_flow(app, session_factory):
     db = session_factory()
     staff = Staff(name="Manager", telegram_id=50001, position="владелец", status="active")
+    admin_position = next(role for role, spec in ROLES.items() if "manage_staff" in spec.get("permissions", []))
+    staff_user = User(name="Manager", telegram_id=50001)
+    staff.position = admin_position
     source = User(name="Merge Source")
     target = User(name="Merge Target", requires_manual_merge=True)
-    db.add_all([staff, source, target])
+    db.add_all([staff_user, source, target])
+    db.flush()
+    staff.user_id = staff_user.id
+    db.add(staff)
     db.commit()
-    db.add(UserPhone(user_id=target.id, phone_e164="+79997770000", verified_at=datetime.utcnow(), source="sms", is_primary=True))
+    db.add(UserPhone(user_id=target.id, phone_e164="+79997779991", verified_at=utcnow(), source="sms", is_primary=True))
     db.commit()
 
-    AccountMergeService().try_merge_by_phone(db, user_id=source.id, phone="+79997770000", source="review_test")
+    AccountMergeService().try_merge_by_phone(db, user_id=source.id, phone="+79997779991", source="review_test")
     db.commit()
     event = db.query(UserMergeEvent).order_by(UserMergeEvent.id.desc()).first()
     assert event.case_status == "pending_review"
 
     client = app.test_client()
-    _login_by_session(client, db, source.id, telegram_id=staff.telegram_id)
+    _login_by_session(client, db, staff_user.id, telegram_id=staff.telegram_id)
 
     listing = client.get("/api/admin/manual-merge-cases")
     assert listing.status_code == 200
@@ -721,3 +838,4 @@ def test_manual_merge_queue_admin_review_flow(app, session_factory):
     reviewed_case = review.get_json()["case"]
     assert reviewed_case["review_result"] == "ignored"
     assert reviewed_case["case_status"] == "ignored"
+

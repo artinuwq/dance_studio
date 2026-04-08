@@ -1,11 +1,12 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
+
+from dance_studio.core.time import utcnow
 from threading import Thread
 from typing import Iterable
 from urllib.parse import urlencode
 
-import requests
 from flask import current_app
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import object_session
@@ -18,12 +19,18 @@ from dance_studio.core.abonement_pricing import (
     parse_booking_bundle_group_ids,
     quote_group_booking,
 )
+from dance_studio.core.abonement_activation import activate_group_abonement_from_booking
 from dance_studio.core.booking_utils import build_booking_keyboard_data, format_booking_message
+from dance_studio.core.personal_discounts import (
+    DiscountConsumptionConflictError,
+    consume_one_time_discount_for_booking,
+)
 from dance_studio.core.statuses import (
     ABONEMENT_STATUS_CANCELLED,
     ABONEMENT_STATUS_EXPIRED,
     BOOKING_ACTIVE_STATUSES,
     BOOKING_PAYMENT_CONFIRMED_STATUSES,
+    BOOKING_STATUS_CONFIRMED,
     BOOKING_STATUS_CREATED,
     BOOKING_STATUS_CANCELLED,
     BOOKING_STATUS_WAITING_PAYMENT,
@@ -34,6 +41,7 @@ from dance_studio.core.statuses import (
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.config import PROJECT_NAME_FULL, VK_MINI_APP_APP_ID
 from dance_studio.core.system_settings_service import get_setting_value
+from dance_studio.core.telegram_http import telegram_api_post
 from dance_studio.db import get_session
 from dance_studio.db.models import BookingRequest, Group, GroupAbonement, HallRental, IndividualLesson, Schedule, User
 from dance_studio.web.constants import INACTIVE_SCHEDULE_STATUSES
@@ -91,7 +99,7 @@ def is_booking_reservation_expired(booking: BookingRequest, *, now: datetime | N
         return False
     if not getattr(booking, "reserved_until", None):
         return False
-    current_time = now or datetime.utcnow()
+    current_time = now or utcnow()
     return bool(booking.reserved_until <= current_time)
 
 
@@ -102,7 +110,7 @@ def expire_stale_booking_reservations(
     group_id: int | None = None,
     booking_id: int | None = None,
 ) -> set[int]:
-    current_time = now or datetime.utcnow()
+    current_time = now or utcnow()
     query = db.query(BookingRequest).filter(
         BookingRequest.status.in_(tuple(BOOKING_RESERVATION_EXPIRABLE_STATUSES)),
         BookingRequest.reserved_until.isnot(None),
@@ -377,7 +385,7 @@ def create_booking_request_with_guards(
     now: datetime | None = None,
     reserve_minutes: int = DEFAULT_GROUP_BOOKING_RESERVE_MINUTES,
 ) -> BookingRequest:
-    current_time = now or datetime.utcnow()
+    current_time = now or utcnow()
     if not booking.user_id:
         raise ValueError("user_id is required")
 
@@ -439,6 +447,192 @@ def create_booking_request_with_guards(
             raise BookingAlreadyExistsError("Клиент уже записан") from exc
         raise
     return booking
+
+
+def _map_booking_status_to_rental_states(status: str) -> tuple[str, str, str]:
+    normalized_status = normalize_booking_status(status)
+    if normalized_status in BOOKING_PAYMENT_CONFIRMED_STATUSES:
+        return "approved", "paid", "active"
+    if normalized_status == BOOKING_STATUS_WAITING_PAYMENT:
+        return "approved", "pending", "active"
+    if normalized_status == BOOKING_STATUS_CANCELLED:
+        return "approved", "rejected", "cancelled"
+    return "pending", "pending", "pending"
+
+
+def _find_rental_for_booking(db, booking: BookingRequest) -> HallRental | None:
+    if not booking.user_id or not booking.date or not booking.time_from or not booking.time_to:
+        return None
+    return (
+        db.query(HallRental)
+        .filter(
+            HallRental.creator_type == "user",
+            HallRental.creator_id == booking.user_id,
+            HallRental.date == booking.date,
+            HallRental.time_from == booking.time_from,
+            HallRental.time_to == booking.time_to,
+        )
+        .order_by(HallRental.id.desc())
+        .first()
+    )
+
+
+def _sync_rental_booking_status(db, booking: BookingRequest, status: str) -> None:
+    if not booking.date or not booking.time_from or not booking.time_to:
+        return
+
+    rental = _find_rental_for_booking(db, booking)
+    review_status, payment_status, activity_status = _map_booking_status_to_rental_states(status)
+    if rental:
+        if booking.comment and not rental.comment:
+            rental.comment = booking.comment
+        if booking.comment and not rental.purpose:
+            rental.purpose = booking.comment
+        if booking.duration_minutes and not rental.duration_minutes:
+            rental.duration_minutes = booking.duration_minutes
+        rental.review_status = review_status
+        rental.payment_status = payment_status
+        rental.activity_status = activity_status
+        rental.status = status
+
+    schedule = None
+    if rental and rental.id:
+        schedule = (
+            db.query(Schedule)
+            .filter(
+                Schedule.object_type == "rental",
+                Schedule.object_id == rental.id,
+            )
+            .order_by(Schedule.id.desc())
+            .first()
+        )
+
+    if not schedule and booking.id:
+        booking_tag = f"#{booking.id}"
+        schedule = (
+            db.query(Schedule)
+            .filter(
+                Schedule.object_type == "rental",
+                Schedule.status_comment.isnot(None),
+                Schedule.status_comment.contains(booking_tag),
+            )
+            .order_by(Schedule.id.desc())
+            .first()
+        )
+
+    if not schedule:
+        schedule = (
+            db.query(Schedule)
+            .filter(
+                Schedule.object_type == "rental",
+                Schedule.date == booking.date,
+                Schedule.time_from == booking.time_from,
+                Schedule.time_to == booking.time_to,
+            )
+            .order_by(Schedule.id.desc())
+            .first()
+        )
+
+    if not schedule:
+        return
+
+    if rental and not schedule.object_id:
+        schedule.object_id = rental.id
+    schedule.status = status
+    schedule.status_comment = f"Synced with booking #{booking.id}"
+
+
+def _sync_individual_booking_status(db, booking: BookingRequest, status: str) -> None:
+    lesson = (
+        db.query(IndividualLesson)
+        .filter(IndividualLesson.booking_id == booking.id)
+        .order_by(IndividualLesson.id.desc())
+        .first()
+    )
+    if lesson:
+        lesson.status = status
+
+    schedule = None
+    if lesson and lesson.id:
+        schedule = (
+            db.query(Schedule)
+            .filter(
+                Schedule.object_type == "individual",
+                Schedule.object_id == lesson.id,
+            )
+            .order_by(Schedule.id.desc())
+            .first()
+        )
+
+    if not schedule and booking.date and booking.time_from and booking.time_to:
+        query = db.query(Schedule).filter(
+            Schedule.object_type == "individual",
+            Schedule.date == booking.date,
+            Schedule.time_from == booking.time_from,
+            Schedule.time_to == booking.time_to,
+        )
+        if booking.teacher_id:
+            query = query.filter(Schedule.teacher_id == booking.teacher_id)
+        schedule = query.order_by(Schedule.id.desc()).first()
+
+    if not schedule:
+        return
+
+    schedule.status = status
+    schedule.status_comment = f"Synced with booking #{booking.id}"
+
+
+def sync_booking_status_related_records(db, booking: BookingRequest, status: str) -> None:
+    object_type = str(getattr(booking, "object_type", "") or "").strip().lower()
+    if object_type == "rental":
+        _sync_rental_booking_status(db, booking, status)
+        return
+    if object_type == "individual":
+        _sync_individual_booking_status(db, booking, status)
+
+
+def apply_booking_status_update(
+    db,
+    booking: BookingRequest,
+    next_status: str,
+    *,
+    actor_staff_id: int | None = None,
+    actor_username: str | None = None,
+    actor_name: str | None = None,
+    changed_at: datetime | None = None,
+    allow_same: bool = False,
+    reserve_minutes: int = DEFAULT_GROUP_BOOKING_RESERVE_MINUTES,
+) -> str:
+    changed_at = changed_at or utcnow()
+    resolved_status = set_booking_status(
+        booking,
+        next_status,
+        actor_staff_id=actor_staff_id,
+        actor_username=actor_username,
+        actor_name=actor_name,
+        changed_at=changed_at,
+        allow_same=allow_same,
+    )
+
+    if hasattr(booking, "reserved_until"):
+        if resolved_status == BOOKING_STATUS_WAITING_PAYMENT:
+            booking.reserved_until = _reservation_deadline(changed_at, reserve_minutes)
+            if hasattr(booking, "payment_deadline_alert_sent_at"):
+                booking.payment_deadline_alert_sent_at = None
+        else:
+            booking.reserved_until = None
+
+    if resolved_status == BOOKING_STATUS_CONFIRMED:
+        consume_one_time_discount_for_booking(
+            db,
+            booking=booking,
+            consumed_at=changed_at,
+        )
+        if getattr(booking, "object_type", None) == "group":
+            activate_group_abonement_from_booking(db, booking)
+
+    sync_booking_status_related_records(db, booking, resolved_status)
+    return resolved_status
 
 
 def _time_overlaps(start_a, end_a, start_b, end_b) -> bool:
@@ -526,13 +720,8 @@ def _find_booking_overlaps(db, date_val, time_from, time_to) -> list[dict]:
     return overlaps
 
 def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
-    try:
-        from dance_studio.core.config import BOT_TOKEN
-    except Exception:
-        return
-
     admin_chat_id = _resolve_bookings_admin_chat_id(booking)
-    if not BOT_TOKEN or not admin_chat_id:
+    if not admin_chat_id:
         return
 
     text = format_booking_message(booking, user)
@@ -556,11 +745,14 @@ def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
     if keyboard_data:
         payload["reply_markup"] = {"inline_keyboard": keyboard_data}
 
-    telegram_api_url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    try:
-        requests.post(telegram_api_url, json=payload, timeout=5)
-    except Exception:
-        pass
+    ok, _, error = telegram_api_post("sendMessage", payload, timeout=15)
+    if not ok:
+        current_app.logger.warning(
+            "booking %s: failed to notify admin chat %s: %s",
+            getattr(booking, "id", None),
+            admin_chat_id,
+            error or "unknown error",
+        )
 
 def _compute_group_booking_payment_amount(db, booking: BookingRequest) -> int | None:
     if booking.object_type != "group":
@@ -684,10 +876,9 @@ def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user:
         reason = _humanize_delivery_error(str(exc))
         _notify_user_delivery_failed(int(target_user_id), int(booking.id), reason)
         try:
-            from dance_studio.core.config import BOT_TOKEN
             admin_chat_id = _resolve_bookings_admin_chat_id(booking)
 
-            if BOT_TOKEN and admin_chat_id:
+            if admin_chat_id:
                 username = f"@{user_target['username']}" if user_target.get("username") else "—"
                 alert_text = (
                     "⚠️ Не удалось отправить реквизиты в выбранный канал.\n"
@@ -696,13 +887,23 @@ def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user:
                     f"(user_id={target_user_id}, tg_id={telegram_id or '—'}, username={username})\n"
                     f"Причина: {reason}"
                 )
-                requests.post(
-                    f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                    json={"chat_id": admin_chat_id, "text": alert_text},
-                    timeout=5,
+                ok, _, alert_error = telegram_api_post(
+                    "sendMessage",
+                    {"chat_id": admin_chat_id, "text": alert_text},
+                    timeout=15,
                 )
+                if not ok:
+                    current_app.logger.warning(
+                        "booking %s: failed to send admin delivery-failure alert to %s: %s",
+                        booking.id,
+                        admin_chat_id,
+                        alert_error or "unknown error",
+                    )
         except Exception:
-            pass
+            current_app.logger.exception(
+                "booking %s: failed to prepare admin alert about payment delivery issue",
+                booking.id,
+            )
 
 
 def _deliver_booking_payment_details_in_background(app, booking_id: int, user_id: int | None) -> None:
@@ -739,12 +940,14 @@ def get_next_group_date(db, group_id):
 
 
 __all__ = [
+    "DiscountConsumptionConflictError",
     "BookingAlreadyExistsError",
     "BookingCapacityExceededError",
     "BookingConstraintError",
     "BookingReservationExpiredError",
     "_compute_duration_minutes",
     "_find_booking_overlaps",
+    "apply_booking_status_update",
     "enqueue_booking_payment_details_delivery",
     "_notify_booking_admins",
     "_send_booking_payment_details_via_userbot",
@@ -755,4 +958,6 @@ __all__ = [
     "get_next_group_date",
     "get_group_occupancy_map",
     "is_booking_reservation_expired",
+    "sync_booking_status_related_records",
 ]
+

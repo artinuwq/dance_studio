@@ -1,8 +1,10 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+from datetime import datetime, timedelta
 import os
 import secrets
-from datetime import datetime, timedelta
+
+from dance_studio.core.time import utcnow
 
 import pytest
 from sqlalchemy import create_engine
@@ -52,7 +54,7 @@ def app(session_factory, monkeypatch):
 
 def _login_by_session(client, db, user_id: int, telegram_id: int | None = None):
     sid = secrets.token_hex(16)
-    now = datetime.utcnow()
+    now = utcnow()
     db.add(
         SessionRecord(
             id=secrets.token_hex(32),
@@ -77,7 +79,7 @@ def test_admin_can_archive_client_and_archived_clients_leave_listing(app, sessio
         telegram_id=710003,
         phone="+79990000041",
         primary_phone="+79990000041",
-        phone_verified_at=datetime.utcnow(),
+        phone_verified_at=utcnow(),
     )
     db.add_all([admin_user, active_client, archived_client])
     db.commit()
@@ -85,7 +87,7 @@ def test_admin_can_archive_client_and_archived_clients_leave_listing(app, sessio
     db.add(Staff(name="Admin Staff", telegram_id=admin_user.telegram_id, user_id=admin_user.id, position=_pick_role_with("verify_certificate"), status="active"))
     db.commit()
     db.add(AuthIdentity(user_id=archived_client.id, provider="telegram", provider_user_id=str(archived_client.telegram_id), is_verified=True))
-    db.add(UserPhone(user_id=archived_client.id, phone_e164="+79990000041", verified_at=datetime.utcnow(), source="telegram", is_primary=True))
+    db.add(UserPhone(user_id=archived_client.id, phone_e164="+79990000041", verified_at=utcnow(), source="telegram", is_primary=True))
     db.add(PasskeyCredential(user_id=archived_client.id, credential_id="archive-passkey", public_key="pk", sign_count=1))
     db.commit()
 
@@ -168,7 +170,7 @@ def test_admin_manual_merge_moves_auth_and_phone_entities_and_archives_source(ap
         name="Merge Source",
         phone="+79990000051",
         primary_phone="+79990000051",
-        phone_verified_at=datetime.utcnow(),
+        phone_verified_at=utcnow(),
         registered_at=datetime(2024, 2, 1, 12, 0, 0),
     )
     target = User(name="Merge Target", telegram_id=720002, registered_at=datetime(2024, 1, 1, 12, 0, 0))
@@ -178,7 +180,7 @@ def test_admin_manual_merge_moves_auth_and_phone_entities_and_archives_source(ap
     db.add(Staff(name="Merge Admin Staff", telegram_id=admin_user.telegram_id, user_id=admin_user.id, position=_pick_role_with("verify_certificate"), status="active"))
     db.commit()
     db.add(AuthIdentity(user_id=source.id, provider="vk", provider_user_id="vk-merge-1", is_verified=True))
-    db.add(UserPhone(user_id=source.id, phone_e164="+79990000051", verified_at=datetime.utcnow(), source="vk", is_primary=True))
+    db.add(UserPhone(user_id=source.id, phone_e164="+79990000051", verified_at=utcnow(), source="vk", is_primary=True))
     db.add(PasskeyCredential(user_id=source.id, credential_id="merge-passkey", public_key="pk", sign_count=2))
     db.commit()
 
@@ -189,9 +191,9 @@ def test_admin_manual_merge_moves_auth_and_phone_entities_and_archives_source(ap
             telegram_id=None,
             user_id=source.id,
             sid_hash=_sid_hash(sid),
-            last_seen=datetime.utcnow(),
-            created_at=datetime.utcnow(),
-            expires_at=datetime.utcnow() + timedelta(days=1),
+            last_seen=utcnow(),
+            created_at=utcnow(),
+            expires_at=utcnow() + timedelta(days=1),
         )
     )
     db.commit()
@@ -323,3 +325,4 @@ def test_admin_manual_merge_respects_explicit_target_direction(app, session_fact
     assert target_after.telegram_id == 720202
 
     db.close()
+

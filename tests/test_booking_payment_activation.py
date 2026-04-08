@@ -1,10 +1,11 @@
 import json
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from dance_studio.core.statuses import ABONEMENT_STATUS_ACTIVE, BOOKING_STATUS_CONFIRMED, BOOKING_STATUS_WAITING_PAYMENT
+from dance_studio.core.time import utcnow
 from dance_studio.db.models import Base, BookingRequest, Direction, Group, GroupAbonement, Staff, User
 from dance_studio.web.routes import payments as payments_routes
 
@@ -66,7 +67,7 @@ def test_confirmed_booking_payment_activates_bundle_abonements(monkeypatch):
             group_start_date=date(2026, 3, 14),
             valid_until=date(2026, 4, 11),
             status=BOOKING_STATUS_WAITING_PAYMENT,
-            reserved_until=datetime.utcnow() + timedelta(days=1),
+            reserved_until=utcnow() + timedelta(days=1),
         )
         db.add(booking)
         db.commit()

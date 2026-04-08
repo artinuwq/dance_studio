@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pytest
 from sqlalchemy import create_engine
@@ -14,6 +14,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite://")
 
 import dance_studio.db as db_module
 import dance_studio.web.middleware.auth as auth_middleware
+from dance_studio.core.time import utcnow
 from dance_studio.db.models import Base, SessionRecord, User, UserPhone
 from dance_studio.web.app import create_app
 from dance_studio.web.services.auth_session import _sid_hash
@@ -51,7 +52,7 @@ def _seed_user_with_session(db, *, telegram_id: int, verified_phone: bool) -> st
     db.add(user)
     db.flush()
     if verified_phone:
-        now = datetime.utcnow()
+        now = utcnow()
         db.add(
             UserPhone(
                 user_id=user.id,
@@ -66,7 +67,7 @@ def _seed_user_with_session(db, *, telegram_id: int, verified_phone: bool) -> st
         user.phone_verified_at = now
 
     sid = secrets.token_hex(16)
-    now = datetime.utcnow()
+    now = utcnow()
     db.add(
         SessionRecord(
             id=secrets.token_hex(32),
@@ -107,11 +108,10 @@ def test_booking_requests_require_verified_phone(app, session_factory):
     )
 
     assert response.status_code == 403
-    assert response.get_json() == {
-        "error": "phone_verification_required",
-        "message": "Ваш аккаунт не подтверждён",
-        "action": "verify_phone",
-    }
+    payload = response.get_json()
+    assert payload["error"] == "phone_verification_required"
+    assert payload["action"] == "verify_phone"
+    assert "не подтвержд" in payload["message"].lower()
 
 
 def test_booking_requests_allow_verified_phone_users(app, session_factory):

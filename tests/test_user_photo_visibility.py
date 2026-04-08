@@ -10,20 +10,33 @@ class _FakeQuery:
     def __init__(self, result):
         self._result = result
 
+    def filter(self, *args, **kwargs):
+        return self
+
     def filter_by(self, **kwargs):
         return self
 
     def first(self):
         return self._result
 
+    def all(self):
+        if self._result is None:
+            return []
+        if isinstance(self._result, list):
+            return self._result
+        return [self._result]
+
 
 class _FakeDb:
-    def __init__(self, *, staff=None):
+    def __init__(self, *, staff=None, auth_identities=None):
         self._staff = staff
+        self._auth_identities = auth_identities or []
 
     def query(self, model):
         if model is admin_routes.Staff:
             return _FakeQuery(self._staff)
+        if model is admin_routes.AuthIdentity:
+            return _FakeQuery(self._auth_identities)
         return _FakeQuery(None)
 
 

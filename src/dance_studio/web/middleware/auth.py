@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from flask import Flask, current_app, g, request
 
@@ -11,6 +11,7 @@ from dance_studio.core.config import (
 )
 from dance_studio.core.tg_auth import validate_init_data
 from dance_studio.core.tg_replay import store_used_init_data
+from dance_studio.core.time import utcnow
 from dance_studio.db import get_session
 from dance_studio.db.models import SessionRecord, User
 from dance_studio.web.services.auth_session import (
@@ -30,6 +31,33 @@ from dance_studio.web.services.auth_session import (
     _set_sid_cookie,
     _sid_hash,
 )
+
+
+def _should_clear_invalid_sid_cookie() -> bool:
+    requested_with = request.headers.get("X-Requested-With", "").strip().lower()
+    if requested_with == "xmlhttprequest":
+        return False
+
+    if request.is_json:
+        return False
+
+    sec_fetch_dest = request.headers.get("Sec-Fetch-Dest", "").strip().lower()
+    if sec_fetch_dest:
+        return sec_fetch_dest == "document"
+
+    accept = request.headers.get("Accept", "").strip().lower()
+    return request.method == "GET" and "text/html" in accept
+
+
+def _response_sets_live_sid_cookie(response) -> bool:
+    for header in response.headers.getlist("Set-Cookie"):
+        normalized = header.strip()
+        if not normalized.lower().startswith("sid="):
+            continue
+        cookie_value = normalized.split(";", 1)[0][len("sid="):]
+        if cookie_value and "max-age=0" not in normalized.lower():
+            return True
+    return False
 
 
 def before_request():
@@ -58,14 +86,14 @@ def before_request():
         db = g.db
         session = db.query(SessionRecord).filter_by(sid_hash=_sid_hash(sid)).first()
         if not session:
-            g.clear_sid_cookie = True
+            g.clear_sid_cookie = _should_clear_invalid_sid_cookie()
             return
 
-        now = datetime.utcnow()
+        now = utcnow()
         if session.expires_at <= now:
             db.delete(session)
             db.commit()
-            g.clear_sid_cookie = True
+            g.clear_sid_cookie = _should_clear_invalid_sid_cookie()
             return
 
         ip_prefix = _extract_ip_prefix()
@@ -159,25 +187,26 @@ def before_request():
     except Exception:
         g.db.rollback()
         current_app.logger.exception("Session validation failed")
-        g.clear_sid_cookie = True
+        g.clear_sid_cookie = _should_clear_invalid_sid_cookie()
         return
 
 
 def teardown_request(exception):
-    db = getattr(g, 'db', None)
+    db = getattr(g, "db", None)
     if db is not None:
         db.close()
 
 
 def refresh_sid_cookie(response):
-    if getattr(g, "clear_sid_cookie", False):
-        _clear_sid_cookie(response)
-        _clear_csrf_cookie(response)
     rotate_sid = getattr(g, "rotate_sid", None)
     if rotate_sid:
         _set_sid_cookie(response, rotate_sid)
         _set_csrf_cookie(response)
         return response
+
+    if getattr(g, "clear_sid_cookie", False) and not _response_sets_live_sid_cookie(response):
+        _clear_sid_cookie(response)
+        _clear_csrf_cookie(response)
 
     sid_cookie = request.cookies.get("sid", "")
     csrf_cookie = request.cookies.get(CSRF_COOKIE_NAME, "")
@@ -190,4 +219,3 @@ def register_auth_middleware(app: Flask) -> None:
     app.before_request(before_request)
     app.teardown_request(teardown_request)
     app.after_request(refresh_sid_cookie)
-

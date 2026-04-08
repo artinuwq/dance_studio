@@ -1,4 +1,4 @@
-import importlib
+﻿import importlib
 import json
 import os
 from pathlib import Path
@@ -116,7 +116,8 @@ def test_bootstrap_data_creates_initial_staff_from_assignments_and_is_idempotent
         admin = next(row for row in rows if row.telegram_id == 444444444)
 
         assert tech_admin.position == "тех. админ"
-        assert tech_admin.user_id is None
+        assert tech_admin.user is not None
+        assert tech_admin.user.telegram_id == 111111111
         assert tech_admin.name == "Технический админ"
 
         assert owner.position == "владелец"
@@ -126,7 +127,13 @@ def test_bootstrap_data_creates_initial_staff_from_assignments_and_is_idempotent
 
         assert senior_admin.position == "старший админ"
         assert senior_admin.status == "active"
+        assert senior_admin.user is not None
+        assert senior_admin.user.telegram_id == 333333333
         assert senior_admin.name == "Старший админ"
 
         assert admin.position == "администратор"
+        assert admin.user is not None
+        assert admin.user.telegram_id == 444444444
         assert admin.name == "Администратор"
+
+

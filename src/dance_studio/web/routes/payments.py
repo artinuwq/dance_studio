@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
+from dance_studio.core.time import utcnow
 
 from flask import Blueprint, g, jsonify, request
 from sqlalchemy import func
@@ -6,17 +7,16 @@ from sqlalchemy import func
 from dance_studio.core.statuses import (
     ABONEMENT_STATUS_ACTIVE,
     BOOKING_STATUS_CANCELLED,
-    BOOKING_STATUS_CONFIRMED,
     BOOKING_STATUS_WAITING_PAYMENT,
     normalize_booking_status,
     set_abonement_status,
-    set_booking_status,
 )
-from dance_studio.core.abonement_activation import activate_group_abonement_from_booking
 from dance_studio.db.models import BookingRequest, GroupAbonement, PaymentTransaction, Staff, User
 from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
 from dance_studio.web.services.bookings import (
     BookingReservationExpiredError,
+    DiscountConsumptionConflictError,
+    apply_booking_status_update,
     expire_stale_booking_reservations,
     is_booking_reservation_expired,
 )
@@ -110,16 +110,14 @@ def _apply_payment_effects(
         return
 
     if payment_type == "booking":
-        set_booking_status(
+        apply_booking_status_update(
+            db,
             target,
-            BOOKING_STATUS_CONFIRMED,
+            "confirmed",
             actor_staff_id=(actor_staff.id if actor_staff else None),
             actor_name=(actor_staff.name if actor_staff else None),
             changed_at=confirmed_at,
         )
-        target.reserved_until = None
-        if getattr(target, "object_type", None) == "group":
-            activate_group_abonement_from_booking(db, target)
         return
 
     set_abonement_status(target, ABONEMENT_STATUS_ACTIVE)
@@ -143,7 +141,7 @@ def _create_manual_payment(
     if not user_id:
         raise ValueError("У целевого объекта не найден user_id")
 
-    now = datetime.utcnow()
+    now = utcnow()
     if payment_type == "booking" and status == "confirmed":
         expired_booking_ids = expire_stale_booking_reservations(
             db,
@@ -397,6 +395,9 @@ def admin_confirm_booking_payment(booking_id: int):
     except BookingReservationExpiredError as exc:
         db.rollback()
         return {"error": str(exc)}, 409
+    except DiscountConsumptionConflictError as exc:
+        db.rollback()
+        return {"error": str(exc)}, 409
     except ValueError as exc:
         db.rollback()
         return {"error": str(exc)}, 400
@@ -451,3 +452,4 @@ def admin_confirm_abonement_payment(abonement_id: int):
             "abonement_status": abonement.status,
         }
     )
+

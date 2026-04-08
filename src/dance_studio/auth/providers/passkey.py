@@ -1,11 +1,13 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
+from datetime import datetime, timedelta
 import base64
 import hashlib
 import hmac
 import json
 import secrets
-from datetime import datetime, timedelta
+
+from dance_studio.core.time import utcnow
 from typing import Any
 from urllib.parse import urlparse
 
@@ -77,7 +79,7 @@ def _resolve_rp_id(origin: str | None, rp_id: str | None = None) -> str | None:
 
 
 def _cleanup_expired_challenges(db) -> None:
-    now = datetime.utcnow()
+    now = utcnow()
     db.query(PasskeyChallenge).filter(PasskeyChallenge.expires_at < now).delete(synchronize_session=False)
 
 
@@ -316,7 +318,7 @@ class PasskeyAuthProvider:
             session_user_id=session_user_id,
             origin=origin,
             rp_id=rp_id,
-            expires_at=datetime.utcnow() + PASSKEY_CHALLENGE_TTL,
+            expires_at=utcnow() + PASSKEY_CHALLENGE_TTL,
             payload_json=(json.dumps(payload, ensure_ascii=False) if payload is not None else None),
         )
         db.add(challenge)
@@ -336,7 +338,7 @@ class PasskeyAuthProvider:
             PasskeyChallenge.flow_type == flow_type,
             PasskeyChallenge.challenge == challenge_value,
             PasskeyChallenge.used_at.is_(None),
-            PasskeyChallenge.expires_at >= datetime.utcnow(),
+            PasskeyChallenge.expires_at >= utcnow(),
         )
         if user_id is not None:
             query = query.filter(PasskeyChallenge.user_id == user_id)
@@ -497,7 +499,7 @@ class PasskeyAuthProvider:
         else:
             transports_list = []
         sign_count = int(getattr(auth_data, "counter", 0) or 0)
-        challenge.used_at = datetime.utcnow()
+        challenge.used_at = utcnow()
         registered = PasskeyCredential(
             user_id=user_id,
             credential_id=credential_id,
@@ -505,7 +507,7 @@ class PasskeyAuthProvider:
             sign_count=max(sign_count, 0),
             transports=",".join(transports_list),
             device_name=str(payload.get("device_name") or "Passkey").strip() or "Passkey",
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
         db.add(registered)
         log_auth_event(
@@ -548,7 +550,7 @@ class PasskeyAuthProvider:
                 return None, "credential_already_registered"
             return None, "duplicate_passkey"
 
-        challenge.used_at = datetime.utcnow()
+        challenge.used_at = utcnow()
         registered = PasskeyCredential(
             user_id=user_id,
             credential_id=credential_id,
@@ -556,7 +558,7 @@ class PasskeyAuthProvider:
             sign_count=int(attestation.get("signCount") or 0),
             transports=",".join(attestation.get("transports") or payload.get("transports") or []),
             device_name=str(attestation.get("deviceName") or payload.get("device_name") or "Passkey").strip() or "Passkey",
-            created_at=datetime.utcnow(),
+            created_at=utcnow(),
         )
         db.add(registered)
         log_auth_event(
@@ -753,8 +755,8 @@ class PasskeyAuthProvider:
             return None, "invalid_sign_count"
 
         stored.sign_count = next_sign_count
-        stored.last_used_at = datetime.utcnow()
-        challenge.used_at = datetime.utcnow()
+        stored.last_used_at = utcnow()
+        challenge.used_at = utcnow()
         log_auth_event(
             db,
             event_type="passkey_login",
@@ -802,8 +804,8 @@ class PasskeyAuthProvider:
             return None, "invalid_sign_count"
 
         stored.sign_count = next_sign_count
-        stored.last_used_at = datetime.utcnow()
-        challenge.used_at = datetime.utcnow()
+        stored.last_used_at = utcnow()
+        challenge.used_at = utcnow()
         log_auth_event(
             db,
             event_type="passkey_login",
@@ -881,3 +883,4 @@ class PasskeyAuthProvider:
     def resolve_origin_and_rp_id(*, origin: str | None, rp_id: str | None = None) -> tuple[str | None, str | None]:
         normalized_origin = _normalize_origin(origin)
         return normalized_origin, _resolve_rp_id(normalized_origin, rp_id)
+

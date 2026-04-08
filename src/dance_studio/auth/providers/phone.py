@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from dance_studio.auth.services.common import get_or_create_identity, normalize_phone_e164
 from dance_studio.core.config import SESSION_PEPPER
+from dance_studio.core.time import utcnow
 from dance_studio.db.models import PhoneVerificationCode
 
 
@@ -32,14 +33,14 @@ class PhoneCodeAuthProvider:
             .order_by(PhoneVerificationCode.created_at.desc())
             .first()
         )
-        if latest and (datetime.utcnow() - latest.created_at).total_seconds() < OTP_RATE_LIMIT_SECONDS:
+        if latest and (utcnow() - latest.created_at).total_seconds() < OTP_RATE_LIMIT_SECONDS:
             raise ValueError("rate_limited")
         code = f"{secrets.randbelow(899999) + 100000}"
         rec = PhoneVerificationCode(
             phone=normalized_phone,
             code_hash=_hash_code(normalized_phone, code),
             purpose=purpose,
-            expires_at=datetime.utcnow() + timedelta(minutes=10),
+            expires_at=utcnow() + timedelta(minutes=10),
             delivery_channel="internal",
             delivery_target=normalized_phone,
         )
@@ -92,9 +93,9 @@ class PhoneCodeAuthProvider:
         )
         if not rec:
             return None, "invalid_code"
-        if rec.expires_at < datetime.utcnow():
+        if rec.expires_at < utcnow():
             return None, "code_expired"
-        rec.consumed_at = datetime.utcnow()
+        rec.consumed_at = utcnow()
         user = get_or_create_identity(
             db,
             provider=self.provider_name,

@@ -101,7 +101,7 @@ def test_format_group_booking_message_uses_new_multibundle_layout():
     assert "• Группа 2: РАСТЯЖКА" in text
     assert "• Цена занятия:" not in text
     assert "• Возраст:" not in text
-    assert "занятий в неделю" not in text
+    assert "занятие в неделю" not in text
     assert "• Кол-во занятий:" not in text
     assert "• Username:" not in text
     assert "• Написать:" not in text

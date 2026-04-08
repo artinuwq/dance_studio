@@ -43,9 +43,11 @@ from dance_studio.web.services.api_errors import safe_client_error_message
 from dance_studio.web.services.bookings import (
     BookingAlreadyExistsError,
     BookingCapacityExceededError,
+    DiscountConsumptionConflictError,
     _compute_duration_minutes,
     _find_booking_overlaps,
     _notify_booking_admins,
+    apply_booking_status_update,
     count_group_free_seats,
     count_group_occupied_seats,
     create_booking_request_with_guards,
@@ -497,6 +499,218 @@ def list_booking_requests():
         })
 
     return jsonify(result)
+
+
+def _serialize_admin_booking_request(
+    booking: BookingRequest,
+    *,
+    users_by_id: dict[int, User],
+    groups_by_id: dict[int, Group],
+    teachers_by_id: dict[int, Staff],
+) -> dict:
+    normalized_status = normalize_booking_status(booking.status)
+
+    user = users_by_id.get(int(booking.user_id)) if booking.user_id else None
+    bundle_group_ids = parse_booking_bundle_group_ids(booking)
+    if booking.group_id and int(booking.group_id) not in bundle_group_ids:
+        bundle_group_ids.insert(0, int(booking.group_id))
+
+    bundle_group_names: list[str] = []
+    for group_id in bundle_group_ids:
+        group = groups_by_id.get(int(group_id))
+        bundle_group_names.append(group.name if group and group.name else f"Group #{group_id}")
+
+    main_group = groups_by_id.get(int(booking.group_id)) if booking.group_id else None
+    teacher_id = int(booking.teacher_id) if booking.teacher_id else None
+    if teacher_id is None and main_group and main_group.teacher_id:
+        teacher_id = int(main_group.teacher_id)
+    teacher = teachers_by_id.get(teacher_id) if teacher_id else None
+
+    requested_amount = None
+    try:
+        requested_amount = int(booking.requested_amount) if booking.requested_amount is not None else None
+    except (TypeError, ValueError):
+        requested_amount = None
+
+    approval_status = BOOKING_STATUS_WAITING_PAYMENT if (requested_amount or 0) > 0 else "confirmed"
+    can_approve = normalized_status == BOOKING_STATUS_CREATED
+    can_confirm_payment = normalized_status == BOOKING_STATUS_WAITING_PAYMENT and (requested_amount or 0) > 0
+    can_cancel = normalized_status in {BOOKING_STATUS_CREATED, BOOKING_STATUS_WAITING_PAYMENT}
+
+    return {
+        "id": booking.id,
+        "user_id": booking.user_id,
+        "user_name": (user.name if user and user.name else None) or booking.user_name,
+        "user_username": (user.username if user and user.username else None) or booking.user_username,
+        "user_phone": (user.primary_phone if user and user.primary_phone else None) or (user.phone if user else None),
+        "user_email": user.email if user else None,
+        "object_type": booking.object_type,
+        "object_type_label": BOOKING_TYPE_LABELS.get(booking.object_type, booking.object_type),
+        "status": normalized_status,
+        "status_label": BOOKING_STATUS_LABELS.get(normalized_status, normalized_status),
+        "comment": booking.comment,
+        "created_at": booking.created_at.isoformat() if booking.created_at else None,
+        "status_updated_at": booking.status_updated_at.isoformat() if booking.status_updated_at else None,
+        "status_updated_by_name": booking.status_updated_by_name,
+        "status_updated_by_username": booking.status_updated_by_username,
+        "date": booking.date.isoformat() if booking.date else None,
+        "time_from": booking.time_from.strftime("%H:%M") if booking.time_from else None,
+        "time_to": booking.time_to.strftime("%H:%M") if booking.time_to else None,
+        "duration_minutes": booking.duration_minutes,
+        "teacher_id": teacher_id,
+        "teacher_name": teacher.name if teacher else None,
+        "group_id": booking.group_id,
+        "group_name": main_group.name if main_group else None,
+        "bundle_group_ids": bundle_group_ids,
+        "bundle_group_names": bundle_group_names,
+        "abonement_type": booking.abonement_type,
+        "lessons_count": booking.lessons_count,
+        "amount_before_discount": booking.amount_before_discount,
+        "applied_discount_amount": booking.applied_discount_amount,
+        "applied_discount_id": booking.applied_discount_id,
+        "requested_amount": booking.requested_amount,
+        "requested_currency": booking.requested_currency,
+        "group_start_date": booking.group_start_date.isoformat() if booking.group_start_date else None,
+        "valid_until": booking.valid_until.isoformat() if booking.valid_until else None,
+        "reserved_until": booking.reserved_until.isoformat() if booking.reserved_until else None,
+        "requires_payment": (requested_amount or 0) > 0,
+        "can_approve": can_approve,
+        "can_confirm_payment": can_confirm_payment,
+        "can_cancel": can_cancel,
+        "approval_status": approval_status,
+    }
+
+
+@bp.route("/api/admin/booking-requests", methods=["GET"])
+def admin_list_booking_requests():
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    rows = (
+        db.query(BookingRequest)
+        .order_by(BookingRequest.created_at.desc(), BookingRequest.id.desc())
+        .all()
+    )
+
+    user_ids = sorted({int(row.user_id) for row in rows if row and row.user_id})
+    users_by_id: dict[int, User] = {}
+    if user_ids:
+        users = db.query(User).filter(User.id.in_(user_ids)).all()
+        users_by_id = {int(user.id): user for user in users if user and user.id}
+
+    group_ids: set[int] = set()
+    for row in rows:
+        if row.group_id:
+            group_ids.add(int(row.group_id))
+        for group_id in parse_booking_bundle_group_ids(row):
+            group_ids.add(int(group_id))
+    groups_by_id: dict[int, Group] = {}
+    if group_ids:
+        groups = db.query(Group).filter(Group.id.in_(sorted(group_ids))).all()
+        groups_by_id = {int(group.id): group for group in groups if group and group.id}
+
+    teacher_ids: set[int] = set()
+    for row in rows:
+        if row.teacher_id:
+            teacher_ids.add(int(row.teacher_id))
+        if row.group_id:
+            group = groups_by_id.get(int(row.group_id))
+            if group and group.teacher_id:
+                teacher_ids.add(int(group.teacher_id))
+    teachers_by_id: dict[int, Staff] = {}
+    if teacher_ids:
+        teachers = db.query(Staff).filter(Staff.id.in_(sorted(teacher_ids))).all()
+        teachers_by_id = {int(teacher.id): teacher for teacher in teachers if teacher and teacher.id}
+
+    items = [
+        _serialize_admin_booking_request(
+            row,
+            users_by_id=users_by_id,
+            groups_by_id=groups_by_id,
+            teachers_by_id=teachers_by_id,
+        )
+        for row in rows
+    ]
+    return jsonify({"items": items})
+
+
+@bp.route("/api/admin/booking-requests/<int:booking_id>/approve", methods=["POST"])
+def admin_approve_booking_request(booking_id: int):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    booking = db.query(BookingRequest).filter_by(id=booking_id).with_for_update().first()
+    if not booking:
+        return {"error": "Booking request not found"}, 404
+
+    normalized_status = normalize_booking_status(booking.status)
+    if normalized_status != BOOKING_STATUS_CREATED:
+        return {"error": "Only created booking requests can be approved"}, 409
+
+    staff = _get_current_staff(db)
+    next_status = BOOKING_STATUS_WAITING_PAYMENT
+    try:
+        if int(booking.requested_amount or 0) <= 0:
+            next_status = "confirmed"
+    except (TypeError, ValueError):
+        next_status = "confirmed"
+
+    try:
+        apply_booking_status_update(
+            db,
+            booking,
+            next_status,
+            actor_staff_id=(staff.id if staff else None),
+            actor_name=(staff.name if staff else None),
+        )
+        db.commit()
+    except DiscountConsumptionConflictError as exc:
+        db.rollback()
+        return {"error": str(exc)}, 409
+    except ValueError as exc:
+        db.rollback()
+        return {"error": str(exc)}, 400
+
+    if booking.status == BOOKING_STATUS_WAITING_PAYMENT and int(booking.requested_amount or 0) > 0:
+        enqueue_booking_payment_details_delivery(booking.id, booking.user_id if booking.user_id else None)
+
+    return jsonify({"ok": True, "id": booking.id, "status": booking.status})
+
+
+@bp.route("/api/admin/booking-requests/<int:booking_id>/cancel", methods=["POST"])
+def admin_cancel_booking_request(booking_id: int):
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    booking = db.query(BookingRequest).filter_by(id=booking_id).with_for_update().first()
+    if not booking:
+        return {"error": "Booking request not found"}, 404
+
+    normalized_status = normalize_booking_status(booking.status)
+    if normalized_status not in {BOOKING_STATUS_CREATED, BOOKING_STATUS_WAITING_PAYMENT}:
+        return {"error": "Only pending booking requests can be cancelled"}, 409
+
+    staff = _get_current_staff(db)
+    try:
+        apply_booking_status_update(
+            db,
+            booking,
+            BOOKING_STATUS_CANCELLED,
+            actor_staff_id=(staff.id if staff else None),
+            actor_name=(staff.name if staff else None),
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        return {"error": str(exc)}, 400
+
+    return jsonify({"ok": True, "id": booking.id, "status": booking.status})
 
 
 @bp.route("/api/booking-requests/my", methods=["GET"])

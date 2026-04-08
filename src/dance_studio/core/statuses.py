@@ -1,6 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
+
+from dance_studio.core.time import utcnow
 from typing import Any
 
 
@@ -30,7 +32,11 @@ BOOKING_NEGATIVE_STATUSES = {
 BOOKING_ACTIVE_STATUSES = BOOKING_ALLOWED_STATUSES - BOOKING_NEGATIVE_STATUSES
 
 BOOKING_STATUS_TRANSITIONS: dict[str, set[str]] = {
-    BOOKING_STATUS_CREATED: {BOOKING_STATUS_WAITING_PAYMENT},
+    BOOKING_STATUS_CREATED: {
+        BOOKING_STATUS_WAITING_PAYMENT,
+        BOOKING_STATUS_CONFIRMED,
+        BOOKING_STATUS_CANCELLED,
+    },
     BOOKING_STATUS_WAITING_PAYMENT: {
         BOOKING_STATUS_CONFIRMED,
         BOOKING_STATUS_CANCELLED,
@@ -176,7 +182,7 @@ def set_booking_status(
         next_status,
         allow_same=allow_same,
     )
-    now = changed_at or datetime.utcnow()
+    now = changed_at or utcnow()
     booking.status = resolved_status
     if hasattr(booking, "status_updated_at"):
         booking.status_updated_at = now
@@ -202,3 +208,4 @@ def set_abonement_status(
     )
     abonement.status = resolved_status
     return resolved_status
+

@@ -1,7 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from collections import defaultdict, deque
 from datetime import datetime, timedelta
+from dance_studio.core.time import utcnow
 from threading import Lock
 
 
@@ -23,7 +24,7 @@ class RateLimitExceededError(RuntimeError):
 
 def hit_rate_limit(action: str, subject: str) -> None:
     limit, period = _LIMITS[action]
-    now = datetime.utcnow()
+    now = utcnow()
     bucket_key = f"{action}:{subject}"
     with _LOCK:
         bucket = _BUCKETS[bucket_key]
@@ -32,3 +33,4 @@ def hit_rate_limit(action: str, subject: str) -> None:
         if len(bucket) >= limit:
             raise RateLimitExceededError(action)
         bucket.append(now)
+

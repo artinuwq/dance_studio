@@ -3,11 +3,13 @@ import os
 import re
 import uuid
 from datetime import date, datetime, time as dt_time, timedelta
+from dance_studio.core.time import utcnow
 
 import requests
 from flask import Blueprint, current_app, g, jsonify, make_response, request, send_from_directory
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.exc import IntegrityError
+from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
 
 from dance_studio.core.abonement_notifications import (
@@ -38,6 +40,7 @@ from dance_studio.core.statuses import (
 )
 from dance_studio.core.notification_service import send_user_notification_sync
 from dance_studio.core.personal_discounts import resolve_discount_usage_state
+from dance_studio.core.telegram_http import telegram_api_download_file, telegram_api_get
 from dance_studio.auth.services.common import (
     normalize_phone_e164,
     resolve_telegram_id_by_user,
@@ -55,6 +58,7 @@ from dance_studio.core.system_settings_service import (
     list_settings,
     update_setting,
 )
+from dance_studio.db import ensure_staff_user_link, normalize_staff_user_links
 from dance_studio.db.models import (
     Attendance,
     AuthIdentity,
@@ -139,6 +143,35 @@ RENTAL_SCHEDULE_MOVE_TYPE_LABELS = {
 }
 
 
+def _serve_stored_user_photo(photo_path: str | None):
+    normalized = str(photo_path or "").strip().replace("\\", "/").lstrip("/")
+    if not normalized:
+        return None
+
+    candidates: list[tuple[str, str]] = []
+    if normalized.startswith("var/media/"):
+        candidates.append((str(MEDIA_ROOT), normalized[len("var/media/"):]))
+    elif normalized.startswith("media/"):
+        candidates.append((str(MEDIA_ROOT), normalized[len("media/"):]))
+    elif normalized.startswith("database/media/"):
+        candidates.append((str(PROJECT_ROOT / "database" / "media"), normalized[len("database/media/"):]))
+    else:
+        return None
+
+    for root, filename in candidates:
+        try:
+            return send_from_directory(root, filename)
+        except NotFound:
+            continue
+    return None
+
+
+def _apply_private_image_headers(response):
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 def _sanitize_direction_title(value):
     return sanitize_plain_text(value, multiline=False) or ""
 
@@ -165,6 +198,99 @@ def _serialize_direction_payload(direction, *, groups_count=None, include_status
     if include_updated_at:
         payload["updated_at"] = direction.updated_at.isoformat()
     return payload
+
+
+GROUP_WEEKDAY_LABELS = [
+    "Понедельник",
+    "Вторник",
+    "Среда",
+    "Четверг",
+    "Пятница",
+    "Суббота",
+    "Воскресенье",
+]
+
+
+def _format_group_schedule_time_label(time_from, time_to) -> str:
+    start = time_from or None
+    end = time_to or None
+    if start and end:
+        return f"{start.strftime('%H:%M')}-{end.strftime('%H:%M')}"
+    if start:
+        return start.strftime("%H:%M")
+    if end:
+        return end.strftime("%H:%M")
+    return "Время не указано"
+
+
+def _build_group_schedule_map(db, group_ids):
+    normalized_group_ids = sorted({int(group_id) for group_id in group_ids if group_id})
+    if not normalized_group_ids:
+        return {}
+
+    def _query_rows(target_group_ids, *, upcoming_only: bool):
+        if not target_group_ids:
+            return []
+        query = db.query(Schedule).filter(
+            Schedule.status.notin_(list(INACTIVE_SCHEDULE_STATUSES)),
+            Schedule.date.isnot(None),
+            or_(
+                Schedule.group_id.in_(target_group_ids),
+                and_(Schedule.object_type == "group", Schedule.object_id.in_(target_group_ids)),
+            ),
+        )
+        if upcoming_only:
+            query = query.filter(Schedule.date >= date.today()).order_by(
+                Schedule.date.asc(),
+                Schedule.time_from.asc(),
+                Schedule.start_time.asc(),
+                Schedule.id.asc(),
+            )
+        else:
+            query = query.filter(Schedule.date < date.today()).order_by(
+                Schedule.date.desc(),
+                Schedule.time_from.asc(),
+                Schedule.start_time.asc(),
+                Schedule.id.asc(),
+            )
+        return query.all()
+
+    slots_by_group = {group_id: [] for group_id in normalized_group_ids}
+
+    def _append_slots(rows):
+        for row in rows:
+            group_id = int(row.group_id or row.object_id or 0)
+            if group_id not in slots_by_group or not row.date:
+                continue
+            weekday_index = row.date.weekday()
+            weekday_label = (
+                GROUP_WEEKDAY_LABELS[weekday_index]
+                if 0 <= weekday_index < len(GROUP_WEEKDAY_LABELS)
+                else row.date.strftime("%A")
+            )
+            time_label = _format_group_schedule_time_label(
+                row.time_from or row.start_time,
+                row.time_to or row.end_time,
+            )
+            label = f"{weekday_label} • {time_label}"
+            if label in slots_by_group[group_id]:
+                continue
+            slots_by_group[group_id].append(label)
+
+    _append_slots(_query_rows(normalized_group_ids, upcoming_only=True))
+    missing_group_ids = [group_id for group_id, slots in slots_by_group.items() if not slots]
+    _append_slots(_query_rows(missing_group_ids, upcoming_only=False))
+
+    result = {}
+    for group_id, slots in slots_by_group.items():
+        visible_slots = slots[:3]
+        result[group_id] = {
+            "schedule_slots": visible_slots,
+            "schedule_summary": ", ".join(visible_slots) if visible_slots else None,
+        }
+    return result
+
+
 SCHEDULE_PRESENT_STATUSES = {"present", "late"}
 NEGATIVE_BOOKING_STATUSES = set(BOOKING_NEGATIVE_STATUSES)
 ACTIVE_NON_GROUP_BOOKING_STATUSES = {
@@ -503,7 +629,7 @@ def _extend_abonement_by_week(
     if duplicate:
         return False
 
-    now = datetime.utcnow()
+    now = utcnow()
     if abonement.valid_to:
         base = abonement.valid_to if abonement.valid_to > now else now
     elif abonement.valid_from:
@@ -2153,6 +2279,16 @@ def _build_staff_check_payload(db, telegram_id: int | None = None, user_id: int 
     if resolved_user_id is None and telegram_id is not None:
         resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
 
+    if telegram_id is not None or resolved_user_id is not None:
+        normalize_staff_user_links(
+            db,
+            telegram_id=telegram_id,
+            user_id=resolved_user_id,
+            commit=True,
+        )
+        if resolved_user_id is None and telegram_id is not None:
+            resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
+
     if resolved_user_id is not None:
         try:
             user = db.query(User).filter_by(id=resolved_user_id).first()
@@ -2162,13 +2298,6 @@ def _build_staff_check_payload(db, telegram_id: int | None = None, user_id: int 
     staff = None
     if user:
         staff = db.query(Staff).filter_by(user_id=user.id, status="active").first()
-        if not staff and user.telegram_id is not None:
-            legacy_staff = db.query(Staff).filter_by(telegram_id=user.telegram_id, status="active").first()
-            if legacy_staff:
-                if not legacy_staff.user_id:
-                    legacy_staff.user_id = user.id
-                    db.commit()
-                staff = legacy_staff
     if not staff:
         return {"is_staff": False, "staff": None}
 
@@ -2581,6 +2710,10 @@ def create_staff():
     data = request.json or {}
 
     telegram_id = data.get("telegram_id")
+    try:
+        telegram_id = int(telegram_id) if telegram_id not in (None, "") else None
+    except (TypeError, ValueError):
+        return {"error": "telegram_id должен быть числом"}, 400
     user_id = data.get("user_id")
     staff_user = None
     if user_id is not None:
@@ -2615,6 +2748,11 @@ def create_staff():
         return role_assign_error
     data["position"] = normalized_position
 
+    if telegram_id is not None and not staff_user:
+        staff_user = User(name=staff_name, telegram_id=telegram_id)
+        db.add(staff_user)
+        db.flush()
+
     notify_flag = data.get("notify", True)
     notify_user = str(notify_flag).strip().lower() in ["1", "true", "yes", "y", "on"]
 
@@ -2630,10 +2768,6 @@ def create_staff():
     existing_staff = None
     if staff_user:
         existing_staff = db.query(Staff).filter_by(user_id=staff_user.id).first()
-    if not existing_staff and telegram_id is not None:
-        resolved_user_id = resolve_user_id_by_telegram(db, telegram_id)
-        if resolved_user_id:
-            existing_staff = db.query(Staff).filter_by(user_id=resolved_user_id).first()
     if existing_staff:
         if existing_staff.status == "dismissed":
             existing_staff.name = staff_name
@@ -2884,7 +3018,25 @@ def update_staff(staff_id):
     if "email" in data:
         staff.email = data["email"]
     if "telegram_id" in data:
-        staff.telegram_id = data["telegram_id"]
+        new_telegram_id = data["telegram_id"]
+        try:
+            new_telegram_id = int(new_telegram_id) if new_telegram_id not in (None, "") else None
+        except (TypeError, ValueError):
+            return {"error": "telegram_id должен быть числом"}, 400
+        staff.telegram_id = new_telegram_id
+        if new_telegram_id is not None:
+            linked_user = db.query(User).filter_by(id=staff.user_id).first() if staff.user_id else None
+            existing_user = db.query(User).filter_by(telegram_id=new_telegram_id).first()
+            if existing_user:
+                staff.user_id = existing_user.id
+            elif linked_user:
+                linked_user.telegram_id = new_telegram_id
+            else:
+                linked_user = User(name=staff.name or f"Staff {new_telegram_id}", telegram_id=new_telegram_id)
+                db.add(linked_user)
+                db.flush()
+                staff.user_id = linked_user.id
+            ensure_staff_user_link(db, staff)
     if "position" in data:
         position_perm_error = require_permission("manage_staff")
         if position_perm_error:
@@ -3489,10 +3641,12 @@ def get_public_teacher(teacher_id):
         .all()
     )
     occupancy_map = get_group_occupancy_map(db, [group.id for group in groups if group and group.id])
+    schedule_map = _build_group_schedule_map(db, [group.id for group in groups if group and group.id])
     group_items = []
     for group in groups:
         direction = db.query(Direction).filter(Direction.direction_id == group.direction_id).first()
         occupied_students = int(occupancy_map.get(int(group.id), 0))
+        schedule_info = schedule_map.get(int(group.id), {})
         try:
             max_students = int(group.max_students or 0)
         except (TypeError, ValueError):
@@ -3508,6 +3662,8 @@ def get_public_teacher(teacher_id):
             "max_students": group.max_students,
             "occupied_students": occupied_students,
             "free_seats": free_seats,
+            "schedule_summary": schedule_info.get("schedule_summary"),
+            "schedule_slots": schedule_info.get("schedule_slots", []),
             "direction_id": direction.direction_id if direction else group.direction_id,
             "direction_title": direction.title if direction else None,
             "direction_type": direction.direction_type if direction else None,
@@ -4158,6 +4314,7 @@ def get_direction_groups(direction_id):
 
     groups = db.query(Group).filter_by(direction_id=direction_id).order_by(Group.created_at.desc()).all()
     occupancy_map = get_group_occupancy_map(db, [group.id for group in groups if group and group.id])
+    schedule_map = _build_group_schedule_map(db, [group.id for group in groups if group and group.id])
     result = []
     for gr in groups:
         teacher_name = gr.teacher.name if gr.teacher else None
@@ -4165,6 +4322,7 @@ def get_direction_groups(direction_id):
         if gr.teacher and gr.teacher.photo_path:
             teacher_photo = "/" + gr.teacher.photo_path.replace("\\", "/")
         occupied_students = int(occupancy_map.get(int(gr.id), 0))
+        schedule_info = schedule_map.get(int(gr.id), {})
         try:
             max_students = int(gr.max_students or 0)
         except (TypeError, ValueError):
@@ -4186,6 +4344,8 @@ def get_direction_groups(direction_id):
             "free_seats": free_seats,
             "duration_minutes": gr.duration_minutes,
             "lessons_per_week": gr.lessons_per_week,
+            "schedule_summary": schedule_info.get("schedule_summary"),
+            "schedule_slots": schedule_info.get("schedule_slots", []),
             "created_at": gr.created_at.isoformat()
         })
 
@@ -4708,7 +4868,7 @@ def admin_activate_abonement(abonement_id):
         payment_query = payment_query.filter(PaymentTransaction.object_id == abonement.id)
     payment = payment_query.order_by(PaymentTransaction.created_at.desc()).first()
 
-    confirmed_at = datetime.utcnow()
+    confirmed_at = utcnow()
     if payment:
         payment.status = "confirmed"
         payment.confirmed_at = confirmed_at
@@ -4964,7 +5124,7 @@ def admin_merge_clients():
     intentions_result = _merge_attendance_intentions_rows(db, source_user_id, target_user_id)
     reminders_result = _merge_attendance_reminders_rows(db, source_user_id, target_user_id)
 
-    merged_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    merged_at = utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     merge_marker = f"Merged into user #{target_user_id} at {merged_at}"
     if note:
         merge_marker = f"{merge_marker}. Note: {note}"
@@ -5035,7 +5195,7 @@ def admin_archive_client(user_id: int):
     if staff_profile:
         return {"error": "cannot archive client linked to active staff profile"}, 409
 
-    archived_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    archived_at = utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     user.staff_notes = _append_merge_note(user.staff_notes, f"Archived by admin at {archived_at}")
     user.is_archived = True
     user.status = "inactive"
@@ -5083,7 +5243,7 @@ def admin_apply_client_sick_leave(user_id: int):
         return {"error": "Клиент не найден"}, 404
 
     staff = _get_current_staff(db)
-    now = datetime.utcnow()
+    now = utcnow()
     range_key = f"{date_from.isoformat()}:{date_to.isoformat()}"
     sick_default_comment = f"Болел: {date_from.isoformat()} - {date_to.isoformat()}"
     extension_days = (date_to - date_from).days + 1
@@ -5423,7 +5583,7 @@ def admin_create_client_abonement(user_id: int):
         weeks = weeks if weeks is not None else 1
         lessons = lessons if lessons is not None else 1
 
-    valid_from = datetime.utcnow()
+    valid_from = utcnow()
     valid_from_raw = (payload.get("valid_from") or "").strip()
     if valid_from_raw:
         try:
@@ -5544,65 +5704,72 @@ def admin_get_client_telegram_photo(user_id: int):
         return {"error": "Клиент не найден"}, 404
     if not user.telegram_id:
         return {"error": "У клиента нет telegram_id"}, 404
+
+    stored_photo_response = _serve_stored_user_photo(getattr(user, "photo_path", None))
+    if stored_photo_response is not None:
+        return _apply_private_image_headers(stored_photo_response)
+
     if not BOT_TOKEN:
         return {"error": "Telegram Bot API не настроен"}, 503
 
-    try:
-        profile_resp = requests.get(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/getUserProfilePhotos",
-            params={"user_id": user.telegram_id, "limit": 1},
-            timeout=5,
-        )
-        profile_resp.raise_for_status()
-        profile_data = profile_resp.json()
-        photos = profile_data.get("result", {}).get("photos") or []
-        if not profile_data.get("ok") or not photos or not photos[0]:
-            return {"error": "Фото профиля Telegram не найдено"}, 404
-
-        file_id = (photos[0][-1] or {}).get("file_id")
-        if not file_id:
-            return {"error": "Фото профиля Telegram не найдено"}, 404
-
-        file_resp = requests.get(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/getFile",
-            params={"file_id": file_id},
-            timeout=5,
-        )
-        file_resp.raise_for_status()
-        file_data = file_resp.json()
-        file_path = ((file_data.get("result") or {}).get("file_path") or "").strip()
-        if not file_data.get("ok") or not file_path:
-            return {"error": "Не удалось получить файл фото из Telegram"}, 404
-
-        image_resp = requests.get(
-            f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}",
-            timeout=10,
-        )
-        image_resp.raise_for_status()
-        if not image_resp.content:
-            return {"error": "Пустой ответ от Telegram"}, 404
-    except requests.RequestException:
-        current_app.logger.exception(
-            "Failed to proxy client telegram photo user_id=%s telegram_id=%s",
+    profile_ok, profile_data, profile_error = telegram_api_get(
+        "getUserProfilePhotos",
+        {"user_id": user.telegram_id, "limit": 1},
+        timeout=15,
+    )
+    if not profile_ok:
+        current_app.logger.warning(
+            "Telegram photo proxy failed user_id=%s telegram_id=%s: %s",
             user_id,
             user.telegram_id,
+            profile_error,
         )
-        return {"error": "Не удалось получить фото из Telegram"}, 502
-    except ValueError:
-        current_app.logger.exception(
-            "Failed to decode telegram photo response user_id=%s telegram_id=%s",
+        return {"error": "Не удалось получить фото из Telegram"}, 424
+
+    photos = (profile_data.get("result") or {}).get("photos") or []
+    if not photos or not photos[0]:
+        return {"error": "Фото профиля Telegram не найдено"}, 404
+
+    file_id = (photos[0][-1] or {}).get("file_id")
+    if not file_id:
+        return {"error": "Фото профиля Telegram не найдено"}, 404
+
+    file_ok, file_data, file_error = telegram_api_get(
+        "getFile",
+        {"file_id": file_id},
+        timeout=15,
+    )
+    if not file_ok:
+        current_app.logger.warning(
+            "Telegram photo file lookup failed user_id=%s telegram_id=%s: %s",
             user_id,
             user.telegram_id,
+            file_error,
         )
-        return {"error": "Некорректный ответ Telegram"}, 502
+        return {"error": "Не удалось получить фото из Telegram"}, 424
+
+    file_path = str(((file_data.get("result") or {}).get("file_path") or "")).strip()
+    if not file_path:
+        return {"error": "Не удалось получить файл фото из Telegram"}, 404
+
+    image_ok, image_bytes, image_content_type, image_error = telegram_api_download_file(
+        file_path,
+        timeout=15,
+    )
+    if not image_ok:
+        current_app.logger.warning(
+            "Telegram photo download failed user_id=%s telegram_id=%s: %s",
+            user_id,
+            user.telegram_id,
+            image_error,
+        )
+        return {"error": "Не удалось получить фото из Telegram"}, 424
 
     response = current_app.response_class(
-        image_resp.content,
-        mimetype=(image_resp.headers.get("Content-Type") or "image/jpeg"),
+        image_bytes,
+        mimetype=(image_content_type or "image/jpeg"),
     )
-    response.headers["Cache-Control"] = "private, no-store, max-age=0"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    return _apply_private_image_headers(response)
 
 
 @bp.route("/api/admin/clients/<int:user_id>/attendance-calendar", methods=["GET"])
@@ -5796,7 +5963,7 @@ def admin_extend_group_abonement(abonement_id: int):
 
     note = (payload.get("note") or "").strip()
     staff = _get_current_staff(db)
-    now = datetime.utcnow()
+    now = utcnow()
     for target in target_rows:
         target.balance_credits = int(target.balance_credits or 0) + lessons
         valid_to_base = target.valid_to if (target.valid_to and target.valid_to > now) else now
@@ -6119,4 +6286,5 @@ def admin_deactivate_discount(discount_id):
         discount.is_active = False
     db.commit()
     return {"ok": True}
+
 

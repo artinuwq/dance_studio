@@ -1,6 +1,7 @@
-import asyncio
+﻿import asyncio
 import html
 import aiohttp
+import json
 import time
 import zipfile
 import logging
@@ -59,6 +60,7 @@ from dance_studio.db.models import (
     GroupAbonementActionLog,
     AttendanceIntention,
     AttendanceReminder,
+    NotificationChannel,
     PaymentTransaction,
 )
 from dance_studio.core.booking_utils import format_booking_message, build_booking_keyboard_data
@@ -100,7 +102,20 @@ from dance_studio.core.statuses import (
     set_booking_status,
 )
 from dance_studio.bot.upload_sessions import direction_upload_session_validation_error
+from dance_studio.bot.startup_status import build_startup_status_text, describe_userbot_runtime_status
+from dance_studio.bot.telegram_userbot import (
+    UserbotPasswordInvalidError,
+    UserbotPasswordRequiredError,
+    UserbotPhoneCodeExpiredError,
+    UserbotPhoneCodeInvalidError,
+    UserbotPhoneNumberInvalidError,
+    complete_login_code,
+    complete_login_password,
+    request_login_code,
+)
 from dance_studio.core.notification_service_async import send_user_notification_async
+from dance_studio.notifications.providers.vk import VkNotificationProvider, edit_vk_message
+from dance_studio.notifications.services.notification_service import NotificationService
 from dance_studio.web.services.attendance import _auto_finalize_attendance_from_intentions
 from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.auth.services.common import normalize_phone_e164, resolve_user_by_telegram, resolve_user_id_by_telegram
@@ -109,6 +124,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.engine import make_url
 from datetime import datetime, time as dt_time, timedelta
+from dance_studio.core.time import utcnow
 import os
 import tempfile
 import base64
@@ -143,6 +159,8 @@ ATTENDANCE_WILL_MISS_STATUS = "will_miss"
 ATTENDANCE_WILL_ATTEND_STATUS = "will_attend"
 ATTENDANCE_WILL_ATTEND_AUTO_STATUS = "will_attend_auto"
 ATTENDANCE_LOCK_DELTA = timedelta(hours=2, minutes=30)
+ATTENDANCE_REMINDER_COMMAND = "attendance_reminder"
+ATTENDANCE_INTERACTIVE_CHANNEL_TYPES = {"telegram", "vk"}
 ATTENDANCE_LOCKED_MESSAGE = "Отметка закрыта. Напишите админу в случае чего-либо."
 GROUP_ACCESS_NOTIFICATION_KEY = "group_access_links"
 ABONEMENT_ONE_LEFT_NOTIFICATION_KEY = "abonement_one_left"
@@ -197,8 +215,6 @@ TECH_STATUS_TOPIC_ID_SETTING_KEY = "tech.status_topic_id"
 TECH_CRITICAL_TOPIC_ID_SETTING_KEY = "tech.critical_topic_id"
 TECH_STATUS_MESSAGE_ID_SETTING_KEY = "tech.status_message_id"
 BOOKINGS_ADMIN_CHAT_ID_SETTING_KEY = "bookings.admin_chat_id"
-NO_GROUPS_LAST_NOTIFIED_SETTING_KEY = "alerts.no_groups_last_notified_at"
-NO_GROUPS_ALERT_COOLDOWN = timedelta(hours=6)
 
 
 def _to_int_or_none(value) -> int | None:
@@ -325,13 +341,14 @@ def _is_tech_admin_position(value: str | None) -> bool:
 
 
 async def _alert_if_groups_missing() -> None:
+    return
     db = get_session()
     try:
         groups_count = db.query(Group).count()
         if groups_count > 0:
             return
 
-        now_utc = datetime.utcnow()
+        now_utc = utcnow()
         last_sent_raw = ""
         try:
             last_sent_raw = str(get_setting_value(db, NO_GROUPS_LAST_NOTIFIED_SETTING_KEY) or "").strip()
@@ -1005,6 +1022,56 @@ async def _can_run_backup(user_id: int) -> bool:
     finally:
         db.close()
 
+
+async def _can_manage_userbot_session(user_id: int) -> bool:
+    return await _can_run_backup(user_id)
+
+
+async def _can_manage_bookings_admin_chat(user_id: int) -> bool:
+    if user_id in OWNER_IDS or (TECH_ADMIN_ID and user_id == TECH_ADMIN_ID):
+        return True
+    db = get_session()
+    try:
+        resolved_user_id = resolve_user_id_by_telegram(db, user_id)
+        staff = None
+        if resolved_user_id:
+            staff = db.query(Staff).filter_by(user_id=resolved_user_id, status="active").first()
+        if not staff or not staff.position:
+            return False
+        position = staff.position.strip().lower()
+        return has_permission(position, "manage_schedule")
+    finally:
+        db.close()
+
+
+def _chat_type_value(message) -> str:
+    chat_type = getattr(getattr(message, "chat", None), "type", None)
+    normalized = getattr(chat_type, "value", chat_type)
+    return str(normalized or "").strip().lower()
+
+
+def _is_private_chat_message(message) -> bool:
+    return _chat_type_value(message) == "private"
+
+
+def _is_group_chat_message(message) -> bool:
+    return _chat_type_value(message) in {"group", "supergroup"}
+
+
+def _mask_phone(phone: str | None) -> str:
+    raw = str(phone or "").strip()
+    if len(raw) <= 6:
+        return raw or "номер"
+    return f"{raw[:2]}***{raw[-2:]}"
+
+
+async def _try_delete_sensitive_message(message) -> None:
+    try:
+        await message.delete()
+    except Exception:
+        return None
+
+
 class CreateNewsStates(StatesGroup):
     waiting_for_title = State()
     waiting_for_description = State()
@@ -1020,6 +1087,12 @@ class DirectionUploadStates(StatesGroup):
 class StaffPhotoStates(StatesGroup):
     waiting_for_photo = State()
     uploading_photo = State()
+
+
+class UserbotLoginStates(StatesGroup):
+    waiting_for_phone = State()
+    waiting_for_code = State()
+    waiting_for_password = State()
 
 
 @dp.message(CommandStart())
@@ -1188,7 +1261,7 @@ async def handle_contact_share(message):
         db.flush()
 
         user.primary_phone = normalize_phone_e164(user.primary_phone) or normalized_phone_number
-        user.phone_verified_at = datetime.utcnow()
+        user.phone_verified_at = utcnow()
 
         try:
             AccountMergeService().try_merge_by_phone(
@@ -1217,6 +1290,193 @@ async def handle_backup_command(message, state: FSMContext):
         return
     await message.answer("⏳ Делаю бэкап и отправляю в тех. группу...")
     await create_and_send_backup("manual", notify_user_id=user_id)
+
+
+@dp.message(Command("set_bookings_admin_chat"))
+async def handle_set_bookings_admin_chat_command(message, state: FSMContext):
+    global BOOKINGS_ADMIN_CHAT_ID_RUNTIME
+
+    user_id = message.from_user.id
+    if not _is_group_chat_message(message):
+        await message.answer("❌ Эту команду нужно запускать в группе или супергруппе, которую вы хотите назначить для заявок.")
+        return
+    if not await _can_manage_bookings_admin_chat(user_id):
+        await message.answer("❌ Нет доступа к настройке чата заявок.")
+        return
+
+    db = get_session()
+    try:
+        changed_by_staff_id = None
+        resolved_user_id = resolve_user_id_by_telegram(db, user_id)
+        if resolved_user_id:
+            staff = db.query(Staff).filter_by(user_id=resolved_user_id, status="active").first()
+            if staff:
+                changed_by_staff_id = staff.id
+
+        chat_id = int(message.chat.id)
+        update_setting(
+            db,
+            key=BOOKINGS_ADMIN_CHAT_ID_SETTING_KEY,
+            raw_value=chat_id,
+            changed_by_staff_id=changed_by_staff_id,
+            reason=f"Telegram command /set_bookings_admin_chat in chat {chat_id}",
+            source="telegram_bot",
+        )
+        db.commit()
+        BOOKINGS_ADMIN_CHAT_ID_RUNTIME = chat_id
+    except Exception as exc:
+        db.rollback()
+        _logger.exception("Failed to set bookings admin chat via Telegram command")
+        await message.answer(f"❌ Не удалось сохранить чат для заявок: {html.escape(str(exc) or 'unknown error')}")
+        return
+    finally:
+        db.close()
+
+    chat_title = str(getattr(message.chat, "title", "") or getattr(message.chat, "full_name", "") or "Этот чат").strip()
+    topic_note = ""
+    if getattr(message, "message_thread_id", None):
+        topic_note = "\nℹ️ Команда была вызвана в теме, но использоваться будет весь чат, не отдельная тема."
+    await message.answer(
+        f"✅ Чат для уведомлений по заявкам обновлен.\n"
+        f"Чат: {chat_title}\n"
+        f"chat_id: {int(message.chat.id)}"
+        f"{topic_note}"
+    )
+
+
+@dp.message(Command("userbot_login"))
+async def handle_userbot_login_command(message, state: FSMContext):
+    user_id = message.from_user.id
+    if not _is_private_chat_message(message):
+        await message.answer("❌ Эту команду запускайте только в личке с ботом.")
+        return
+    if not await _can_manage_userbot_session(user_id):
+        await message.answer("❌ Нет доступа к управлению user-bot.")
+        return
+    await state.clear()
+    await state.set_state(UserbotLoginStates.waiting_for_phone)
+    await message.answer(
+        "📱 Отправьте номер телефона для входа в user-bot.\n"
+        "Формат: +79991234567\n\n"
+        "Для отмены используйте /cancel."
+    )
+
+
+@dp.message(
+    Command("cancel"),
+    StateFilter(
+        UserbotLoginStates.waiting_for_phone,
+        UserbotLoginStates.waiting_for_code,
+        UserbotLoginStates.waiting_for_password,
+    ),
+)
+async def cancel_userbot_login_flow(message, state: FSMContext):
+    await state.clear()
+    await message.answer("Операция входа в user-bot отменена.")
+
+
+@dp.message(UserbotLoginStates.waiting_for_phone)
+async def handle_userbot_login_phone(message, state: FSMContext):
+    if not _is_private_chat_message(message):
+        await message.answer("❌ Продолжайте вход только в личке с ботом.")
+        return
+    phone = (message.text or "").strip()
+    if not phone:
+        await message.answer("Введите номер телефона текстом, например: +79991234567")
+        return
+    try:
+        result = await request_login_code(phone)
+    except UserbotPhoneNumberInvalidError:
+        await message.answer("❌ Номер телефона не распознан. Используйте формат +79991234567")
+        return
+    except Exception as exc:
+        await state.clear()
+        await message.answer(f"❌ Не удалось запросить код для user-bot: {html.escape(str(exc) or 'unknown error')}")
+        return
+
+    if result.get("already_authorized"):
+        await state.clear()
+        await message.answer(f"✅ User-bot уже авторизован: {html.escape(str(result.get('identity') or 'аккаунт'))}")
+        return
+
+    await state.update_data(
+        userbot_login_phone=result.get("phone"),
+        userbot_login_phone_code_hash=result.get("phone_code_hash"),
+    )
+    await state.set_state(UserbotLoginStates.waiting_for_code)
+    await message.answer(
+        f"✅ Код отправлен на {_mask_phone(result.get('phone'))}.\n"
+        "Пришлите код из Telegram одним сообщением.\n"
+        "Можно вводить с пробелами."
+    )
+
+
+@dp.message(UserbotLoginStates.waiting_for_code)
+async def handle_userbot_login_code(message, state: FSMContext):
+    if not _is_private_chat_message(message):
+        await message.answer("❌ Продолжайте вход только в личке с ботом.")
+        return
+    code = "".join(ch for ch in str(message.text or "").strip() if ch.isdigit())
+    if not code:
+        await message.answer("Введите код из Telegram цифрами.")
+        return
+
+    data = await state.get_data()
+    phone = data.get("userbot_login_phone")
+    phone_code_hash = data.get("userbot_login_phone_code_hash")
+    if not phone or not phone_code_hash:
+        await state.clear()
+        await message.answer("❌ Сессия входа потеряна. Запустите /userbot_login заново.")
+        return
+
+    await _try_delete_sensitive_message(message)
+
+    try:
+        result = await complete_login_code(str(phone), code, str(phone_code_hash))
+    except UserbotPhoneCodeInvalidError:
+        await message.answer("❌ Код неверный. Попробуйте еще раз.")
+        return
+    except UserbotPhoneCodeExpiredError:
+        await state.clear()
+        await message.answer("❌ Срок действия кода истек. Запустите /userbot_login заново.")
+        return
+    except UserbotPasswordRequiredError:
+        await state.set_state(UserbotLoginStates.waiting_for_password)
+        await message.answer("🔐 Для этого аккаунта включен пароль 2FA. Пришлите пароль одним сообщением.")
+        return
+    except Exception as exc:
+        await state.clear()
+        await message.answer(f"❌ Не удалось завершить вход в user-bot: {html.escape(str(exc) or 'unknown error')}")
+        return
+
+    await state.clear()
+    await message.answer(f"✅ User-bot авторизован: {html.escape(str(result.get('identity') or 'аккаунт'))}")
+
+
+@dp.message(UserbotLoginStates.waiting_for_password)
+async def handle_userbot_login_password(message, state: FSMContext):
+    if not _is_private_chat_message(message):
+        await message.answer("❌ Продолжайте вход только в личке с ботом.")
+        return
+    password = str(message.text or "")
+    if not password:
+        await message.answer("Введите пароль 2FA одним сообщением.")
+        return
+
+    await _try_delete_sensitive_message(message)
+
+    try:
+        result = await complete_login_password(password)
+    except UserbotPasswordInvalidError:
+        await message.answer("❌ Пароль 2FA неверный. Попробуйте еще раз.")
+        return
+    except Exception as exc:
+        await state.clear()
+        await message.answer(f"❌ Не удалось завершить вход по паролю: {html.escape(str(exc) or 'unknown error')}")
+        return
+
+    await state.clear()
+    await message.answer(f"✅ User-bot авторизован: {html.escape(str(result.get('identity') or 'аккаунт'))}")
 
 async def register_user_in_db(telegram_id, name, from_user=None):
     """Регистрирует пользователя в БД если его еще нет"""
@@ -1680,6 +1940,81 @@ def _reminder_markup(schedule_id: int) -> InlineKeyboardMarkup:
     )
 
 
+def _vk_reminder_keyboard(schedule_id: int) -> dict:
+    def _payload(action: str) -> str:
+        return json.dumps(
+            {
+                "command": ATTENDANCE_REMINDER_COMMAND,
+                "action": action,
+                "schedule_id": int(schedule_id),
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+    return {
+        "inline": True,
+        "one_time": False,
+        "buttons": [
+            [
+                {
+                    "action": {
+                        "type": "callback",
+                        "label": "Приду",
+                        "payload": _payload(ATTENDANCE_WILL_ATTEND_STATUS),
+                    },
+                    "color": "positive",
+                },
+                {
+                    "action": {
+                        "type": "callback",
+                        "label": "Не приду",
+                        "payload": _payload(ATTENDANCE_WILL_MISS_STATUS),
+                    },
+                    "color": "negative",
+                },
+            ]
+        ],
+    }
+
+
+def _vk_remove_keyboard_payload() -> dict:
+    return {
+        "keyboard": {
+            "inline": True,
+            "buttons": [],
+        }
+    }
+
+
+def _vk_reminder_response_text(schedule: Schedule, action: str) -> str:
+    status_text = "Отметили: приду" if action == ATTENDANCE_WILL_ATTEND_STATUS else "Отметили: не приду"
+    return _reminder_message_text(schedule) + f"\n\n{status_text}."
+
+
+def _resolve_attendance_reminder_channels(db, user_id: int) -> list[NotificationChannel]:
+    service = NotificationService()
+    channels = [
+        channel
+        for channel in service._resolve_channels(db, user_id, "attendance_reminder")
+        if str(channel.channel_type or "").strip() in ATTENDANCE_INTERACTIVE_CHANNEL_TYPES
+    ]
+    if channels:
+        return channels
+
+    fallback_rows = (
+        db.query(NotificationChannel)
+        .filter(
+            NotificationChannel.user_id == user_id,
+            NotificationChannel.channel_type.in_(list(ATTENDANCE_INTERACTIVE_CHANNEL_TYPES)),
+            NotificationChannel.is_enabled.is_(True),
+        )
+        .order_by(NotificationChannel.is_primary.desc(), NotificationChannel.id.asc())
+        .all()
+    )
+    return [channel for channel in fallback_rows if NotificationService._is_vk_channel_allowed(channel)]
+
+
 def _load_group_participants(db, schedule: Schedule) -> list[User]:
     group_id = _schedule_group_id(schedule)
     if not group_id:
@@ -1944,26 +2279,66 @@ async def _send_attendance_reminder_to_user(db, schedule: Schedule, user: User) 
     row.attempted_at = now
     row.send_error = None
 
-    if not user.telegram_id:
+    channels = _resolve_attendance_reminder_channels(db, user.id)
+    if not channels:
         row.send_status = "failed"
-        row.send_error = "missing_telegram_id"
+        row.send_error = "missing_interactive_notification_channel"
         db.commit()
         return
 
-    try:
-        msg = await bot.send_message(
-            chat_id=user.telegram_id,
-            text=_reminder_message_text(schedule),
-            reply_markup=_reminder_markup(schedule.id),
-        )
-        row.send_status = "sent"
-        row.sent_at = now
-        row.telegram_chat_id = user.telegram_id
-        row.telegram_message_id = msg.message_id
-        row.send_error = None
-    except Exception as e:
-        row.send_status = "failed"
-        row.send_error = str(e)[:1000]
+    reminder_text = _reminder_message_text(schedule)
+    vk_provider = VkNotificationProvider()
+    errors: list[str] = []
+
+    for channel in channels:
+        channel_type = str(channel.channel_type or "").strip()
+        try:
+            if channel_type == "telegram":
+                chat_id = int(str(channel.target_ref or "").strip())
+                msg = await bot.send_message(
+                    chat_id=chat_id,
+                    text=reminder_text,
+                    reply_markup=_reminder_markup(schedule.id),
+                )
+                row.send_status = "sent"
+                row.sent_at = now
+                row.telegram_chat_id = chat_id
+                row.telegram_message_id = msg.message_id
+                row.vk_peer_id = None
+                row.vk_message_id = None
+                row.send_error = None
+                db.commit()
+                return
+
+            if channel_type == "vk":
+                result = await asyncio.to_thread(
+                    vk_provider.send,
+                    channel.target_ref,
+                    "",
+                    reminder_text,
+                    {"keyboard": _vk_reminder_keyboard(schedule.id)},
+                )
+                if result.get("ok"):
+                    vk_peer_id = _to_int_or_none(channel.target_ref)
+                    vk_message_id = _to_int_or_none(result.get("message_id"))
+                    row.send_status = "sent"
+                    row.sent_at = now
+                    row.telegram_chat_id = None
+                    row.telegram_message_id = None
+                    row.vk_peer_id = vk_peer_id
+                    row.vk_message_id = vk_message_id
+                    row.send_error = None
+                    db.commit()
+                    return
+                errors.append(f"vk:{str(result.get('error') or 'send_failed')[:300]}")
+                continue
+
+            errors.append(f"{channel_type}:unsupported_channel")
+        except Exception as e:
+            errors.append(f"{channel_type}:{str(e)[:300]}")
+
+    row.send_status = "failed"
+    row.send_error = "; ".join(errors)[:1000] if errors else "attendance_reminder_delivery_failed"
     db.commit()
 
 
@@ -2035,6 +2410,16 @@ async def close_locked_attendance_reminders() -> None:
                         row.send_error = str(e2)[:1000]
                     else:
                         row.send_error = str(e)[:1000]
+            elif row.vk_peer_id and row.vk_message_id:
+                result = await asyncio.to_thread(
+                    edit_vk_message,
+                    peer_id=int(row.vk_peer_id),
+                    message_id=int(row.vk_message_id),
+                    message=_reminder_closed_message_text(schedule),
+                    payload=_vk_remove_keyboard_payload(),
+                )
+                if not result.get("ok"):
+                    row.send_error = str(result.get("error") or "vk_edit_failed")[:1000]
 
             row.button_closed_at = now
             if not row.responded_at and not row.response_action:
@@ -2338,7 +2723,7 @@ async def send_due_booking_payment_deadline_alerts() -> None:
 
     db = get_session()
     try:
-        now = datetime.utcnow()
+        now = utcnow()
         deadline_threshold = now + timedelta(hours=PAYMENT_DEADLINE_ALERT_WINDOW_HOURS)
         rows = (
             db.query(BookingRequest)
@@ -2453,9 +2838,17 @@ async def run_bot():
     backup_task = None
     queue_task = None
     reminder_task = None
-    await _alert_if_groups_missing()
     await ensure_tech_topics()
     await update_bot_status(f"✅ Бот запущен {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")
+    await update_bot_status(
+        build_startup_status_text(
+            started_at=datetime.now(),
+            bot_username=BOT_USERNAME_GLOBAL,
+            tech_chat_id=TECH_LOGS_CHAT_ID_RUNTIME,
+            tech_status_topic_id=TECH_STATUS_TOPIC_ID_RUNTIME,
+            userbot_status_line=await describe_userbot_runtime_status(),
+        )
+    )
     await create_and_send_backup("startup")
     backup_task = asyncio.create_task(_backup_scheduler())
     queue_task = asyncio.create_task(process_mailing_queue())
@@ -3026,7 +3419,7 @@ async def handle_booking_action(callback: CallbackQuery):
                             payment_type="booking",
                             object_id=booking.id,
                             confirmed_by_admin=(staff.id if staff else None),
-                            confirmed_at=datetime.utcnow(),
+                            confirmed_at=utcnow(),
                             comment="Confirmed via Telegram bot",
                         )
                     )
@@ -3038,7 +3431,7 @@ async def handle_booking_action(callback: CallbackQuery):
                 actor_staff_id=(staff.id if staff else None),
                 actor_username=(f"@{admin_user.username}" if admin_user.username else None),
                 actor_name=(staff.name if staff else admin_user.full_name),
-                changed_at=datetime.utcnow(),
+                changed_at=utcnow(),
                 allow_same=False,
             )
         except ValueError as exc:
@@ -3047,7 +3440,7 @@ async def handle_booking_action(callback: CallbackQuery):
 
         if hasattr(booking, "reserved_until"):
             if next_status == BOOKING_STATUS_WAITING_PAYMENT:
-                booking.reserved_until = datetime.utcnow() + timedelta(minutes=BOOKING_RESERVE_MINUTES)
+                booking.reserved_until = utcnow() + timedelta(minutes=BOOKING_RESERVE_MINUTES)
                 if hasattr(booking, "payment_deadline_alert_sent_at"):
                     booking.payment_deadline_alert_sent_at = None
             else:
@@ -3466,4 +3859,5 @@ async def process_staff_photo(message, state: FSMContext):
             f"Попробуйте отправить фото еще раз."
         )
         await state.set_state(StaffPhotoStates.waiting_for_photo)
+
 

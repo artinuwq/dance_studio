@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
+from dance_studio.core.time import utcnow
 from dance_studio.db.models import AuthAuditEvent
 
 
@@ -21,7 +21,7 @@ def log_auth_event(
         provider=provider,
         status=status,
         payload_json=(json.dumps(payload, ensure_ascii=False) if payload is not None else None),
-        created_at=datetime.utcnow(),
+        created_at=utcnow(),
     )
     db.add(event)
     return event

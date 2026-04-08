@@ -5,8 +5,6 @@ import json
 import logging
 from typing import Any
 
-import requests
-
 from dance_studio.auth.services.common import resolve_telegram_id_by_user, resolve_user_by_telegram
 from dance_studio.core.config import BOT_TOKEN
 from dance_studio.core.tech_notifier import (
@@ -15,6 +13,7 @@ from dance_studio.core.tech_notifier import (
     resolve_tech_logs_chat_id,
     resolve_tech_notifications_topic_id,
 )
+from dance_studio.core.telegram_http import telegram_api_post
 from dance_studio.db import get_session
 from dance_studio.db.models import User
 from dance_studio.notifications.providers.telegram import TelegramNotificationProvider
@@ -28,24 +27,10 @@ def _post_telegram_sync(payload: dict, timeout: int = 5) -> tuple[bool, str]:
     """Send Telegram Bot API request and return (ok, description)."""
     if not BOT_TOKEN:
         return False, "BOT_TOKEN not set"
-    try:
-        response = requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            json=payload,
-            timeout=timeout,
-        )
-    except Exception as exc:
-        return False, str(exc)
-
-    if response.ok:
+    ok, _, error = telegram_api_post("sendMessage", payload, timeout=timeout)
+    if ok:
         return True, ""
-    description = ""
-    try:
-        data = response.json() if response.content else {}
-        description = str((data or {}).get("description", ""))
-    except Exception:
-        description = response.text or ""
-    return False, description
+    return False, str(error or "")
 
 
 def _send_to_tech_chat_sync(text: str, topic_id: int | None, tech_chat_id: int | None = None) -> bool:

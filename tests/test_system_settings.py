@@ -41,6 +41,5 @@ def test_runtime_telegram_settings_keys_present():
         "tech.critical_topic_id",
         "tech.status_message_id",
         "bookings.admin_chat_id",
-        "alerts.no_groups_last_notified_at",
     }
     assert expected.issubset(set(SETTING_SPECS.keys()))

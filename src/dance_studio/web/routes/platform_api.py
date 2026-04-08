@@ -5,35 +5,61 @@ import hashlib
 import hmac
 import json
 import secrets
-from datetime import datetime
+from datetime import datetime, time as dt_time, timedelta
 
-from flask import Blueprint, g, request
+from flask import Blueprint, current_app, g, request
+from sqlalchemy import or_
 
 from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.auth.services.bootstrap import AVAILABLE_AUTH_METHODS, auth_feature_flags, build_user_auth_contract
-from dance_studio.core.config import APP_SECRET_KEY, VK_COMMUNITY_ID
-from dance_studio.web.services.access import _get_current_staff, require_permission
+from dance_studio.core.config import (
+    APP_SECRET_KEY,
+    VK_CALLBACK_CONFIRMATION_TOKEN,
+    VK_CALLBACK_SECRET,
+    VK_COMMUNITY_ID,
+)
+from dance_studio.core.statuses import ABONEMENT_STATUS_ACTIVE
+from dance_studio.core.time import utcnow
+from dance_studio.db import normalize_staff_user_links
 from dance_studio.db.models import (
+    AuthIdentity,
+    AttendanceIntention,
+    AttendanceReminder,
+    GroupAbonement,
+    IndividualLesson,
     NotificationChannel,
     NotificationPreference,
+    Schedule,
     Staff,
     User,
     UserMergeEvent,
     WebPushSubscription,
 )
+from dance_studio.notifications.providers.vk import edit_vk_message, send_vk_message_event_answer
 from dance_studio.notifications.services.notification_service import NotificationService
+from dance_studio.web.constants import INACTIVE_SCHEDULE_STATUSES
+from dance_studio.web.services.access import _get_current_staff, require_permission
 
 bp = Blueprint("platform_api_routes", __name__, url_prefix="/api")
 VK_PERMISSION_KEY_TTL_SECONDS = 15 * 60
+VK_ATTENDANCE_COMMAND = "attendance_reminder"
+VK_ATTENDANCE_WILL_ATTEND_STATUS = "will_attend"
+VK_ATTENDANCE_WILL_MISS_STATUS = "will_miss"
+VK_ATTENDANCE_LOCK_DELTA = timedelta(hours=2, minutes=30)
+VK_ATTENDANCE_LOCKED_MESSAGE = "Отметка закрыта. Напишите админу в случае чего-либо."
 
 
 def _build_bootstrap_staff_payload(db, user: User | None) -> dict:
     if not user:
         return {"is_staff": False, "staff": None}
 
+    normalize_staff_user_links(
+        db,
+        user_id=user.id,
+        telegram_id=user.telegram_id,
+        commit=False,
+    )
     staff = db.query(Staff).filter(Staff.user_id == user.id, Staff.status == "active").first()
-    if not staff and user.telegram_id is not None:
-        staff = db.query(Staff).filter(Staff.telegram_id == user.telegram_id, Staff.status == "active").first()
     if not staff:
         return {"is_staff": False, "staff": None}
 
@@ -96,6 +122,54 @@ def _find_vk_channel_for_user(db, *, user_id: int, channel_id: int = 0, target_r
     return query.order_by(NotificationChannel.is_primary.desc(), NotificationChannel.id.asc()).first()
 
 
+def _sync_vk_channel_permission_state(db, *, vk_user_id: int, is_verified: bool) -> list[NotificationChannel]:
+    try:
+        normalized_vk_user_id = int(vk_user_id)
+    except (TypeError, ValueError):
+        return []
+    if normalized_vk_user_id <= 0:
+        return []
+
+    target_ref = str(normalized_vk_user_id)
+    channels = (
+        db.query(NotificationChannel)
+        .filter(
+            NotificationChannel.channel_type == "vk",
+            NotificationChannel.target_ref == target_ref,
+        )
+        .order_by(NotificationChannel.id.asc())
+        .all()
+    )
+    if not channels and is_verified:
+        identity = (
+            db.query(AuthIdentity)
+            .filter(
+                AuthIdentity.provider == "vk",
+                AuthIdentity.provider_user_id == target_ref,
+            )
+            .order_by(AuthIdentity.is_primary.desc(), AuthIdentity.id.asc())
+            .first()
+        )
+        if identity:
+            channel = NotificationChannel(
+                user_id=int(identity.user_id),
+                channel_type="vk",
+                target_ref=target_ref,
+                is_enabled=True,
+                is_verified=True,
+                is_primary=False,
+            )
+            db.add(channel)
+            db.flush()
+            channels = [channel]
+
+    for channel in channels:
+        channel.is_verified = bool(is_verified)
+        if is_verified:
+            channel.is_enabled = True
+    return channels
+
+
 def _urlsafe_b64encode(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
 
@@ -117,7 +191,7 @@ def _issue_vk_permission_key(user_id: int, channel: NotificationChannel) -> str:
         "user_id": int(user_id),
         "channel_id": int(channel.id),
         "target_ref": str(channel.target_ref or ""),
-        "issued_at": int(datetime.utcnow().timestamp()),
+        "issued_at": int(utcnow().timestamp()),
         "nonce": secrets.token_urlsafe(12),
     }
     payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
@@ -158,7 +232,7 @@ def _is_vk_permission_key_valid(permission_key: str, *, user_id: int, channel: N
         return False
     if issued_at <= 0:
         return False
-    age_seconds = int(datetime.utcnow().timestamp()) - issued_at
+    age_seconds = int(utcnow().timestamp()) - issued_at
     if age_seconds < 0 or age_seconds > VK_PERMISSION_KEY_TTL_SECONDS:
         return False
     if int(payload.get("user_id") or 0) != int(user_id):
@@ -168,6 +242,204 @@ def _is_vk_permission_key_valid(permission_key: str, *, user_id: int, channel: N
     if str(payload.get("target_ref") or "").strip() != str(channel.target_ref or "").strip():
         return False
     return bool(str(payload.get("nonce") or "").strip())
+
+
+def _vk_callback_group_matches(payload: dict) -> bool:
+    expected_group_id = _resolve_vk_permission_group_id()
+    if expected_group_id is None:
+        return True
+    try:
+        actual_group_id = int(payload.get("group_id") or 0)
+    except (TypeError, ValueError):
+        return False
+    return actual_group_id == expected_group_id
+
+
+def _vk_callback_secret_matches(payload: dict) -> bool:
+    configured_secret = str(VK_CALLBACK_SECRET or "").strip()
+    if not configured_secret:
+        return True
+    return str(payload.get("secret") or "").strip() == configured_secret
+
+
+def _parse_vk_callback_payload(raw_value) -> dict:
+    if isinstance(raw_value, dict):
+        return raw_value
+    if isinstance(raw_value, str):
+        normalized = raw_value.strip()
+        if not normalized:
+            return {}
+        try:
+            data = json.loads(normalized)
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+    return {}
+
+
+def _vk_schedule_group_id(schedule: Schedule) -> int | None:
+    if getattr(schedule, "group_id", None):
+        return int(schedule.group_id)
+    if str(getattr(schedule, "object_type", "") or "").strip() == "group" and getattr(schedule, "object_id", None):
+        return int(schedule.object_id)
+    return None
+
+
+def _vk_schedule_start_dt(schedule: Schedule) -> datetime | None:
+    if not schedule.date:
+        return None
+    start_time = schedule.time_from or schedule.start_time
+    if start_time is None:
+        start_time = dt_time(hour=12, minute=0)
+    return datetime.combine(schedule.date, start_time)
+
+
+def _vk_is_attendance_locked(schedule: Schedule) -> bool:
+    start_at = _vk_schedule_start_dt(schedule)
+    if not start_at:
+        return False
+    return datetime.now() >= start_at - VK_ATTENDANCE_LOCK_DELTA
+
+
+def _vk_is_user_participant_of_schedule(db, schedule: Schedule, user_id: int) -> bool:
+    if int(user_id or 0) <= 0:
+        return False
+
+    object_type = str(getattr(schedule, "object_type", "") or "").strip()
+    if object_type == "group":
+        group_id = _vk_schedule_group_id(schedule)
+        if not group_id:
+            return False
+        query = db.query(GroupAbonement.id).filter(
+            GroupAbonement.group_id == group_id,
+            GroupAbonement.user_id == int(user_id),
+            GroupAbonement.status == ABONEMENT_STATUS_ACTIVE,
+        )
+        if schedule.date:
+            schedule_day_start = datetime.combine(schedule.date, dt_time.min)
+            schedule_day_end = datetime.combine(schedule.date, dt_time.max)
+            query = query.filter(
+                or_(GroupAbonement.valid_from == None, GroupAbonement.valid_from <= schedule_day_end),
+                or_(GroupAbonement.valid_to == None, GroupAbonement.valid_to >= schedule_day_start),
+            )
+        return query.first() is not None
+
+    if object_type == "individual" and schedule.object_id:
+        lesson = db.query(IndividualLesson).filter(IndividualLesson.id == int(schedule.object_id)).first()
+        return bool(lesson and int(lesson.student_id or 0) == int(user_id))
+
+    return False
+
+
+def _store_vk_attendance_callback_response(
+    db,
+    *,
+    schedule_id: int,
+    user_id: int,
+    action: str,
+) -> None:
+    now = datetime.now()
+    intention = db.query(AttendanceIntention).filter_by(schedule_id=schedule_id, user_id=user_id).first()
+    if action == VK_ATTENDANCE_WILL_MISS_STATUS:
+        if not intention:
+            intention = AttendanceIntention(
+                schedule_id=schedule_id,
+                user_id=user_id,
+                status=VK_ATTENDANCE_WILL_MISS_STATUS,
+                source="vk_callback",
+            )
+            db.add(intention)
+        else:
+            intention.status = VK_ATTENDANCE_WILL_MISS_STATUS
+            intention.source = "vk_callback"
+    elif intention:
+        db.delete(intention)
+
+    reminder = db.query(AttendanceReminder).filter_by(schedule_id=schedule_id, user_id=user_id).first()
+    if not reminder:
+        reminder = AttendanceReminder(
+            schedule_id=schedule_id,
+            user_id=user_id,
+            send_status="sent",
+        )
+        db.add(reminder)
+
+    reminder.responded_at = now
+    reminder.response_action = action
+    reminder.button_closed_at = now
+
+
+def _vk_event_snackbar(text: str) -> dict:
+    return {
+        "type": "show_snackbar",
+        "text": str(text or "").strip()[:90] or "Готово",
+    }
+
+
+def _vk_remove_keyboard_payload() -> dict:
+    return {
+        "keyboard": {
+            "inline": True,
+            "buttons": [],
+        }
+    }
+
+
+def _vk_reminder_message_text(schedule: Schedule) -> str:
+    date_str = schedule.date.strftime("%d.%m.%Y") if schedule.date else "—"
+    tf = schedule.time_from or schedule.start_time
+    tt = schedule.time_to or schedule.end_time
+    time_str = "—"
+    if tf and tt:
+        time_str = f"{tf.strftime('%H:%M')}–{tt.strftime('%H:%M')}"
+    elif tf:
+        time_str = tf.strftime("%H:%M")
+    title = schedule.title or "Занятие"
+    return (
+        "Напоминание о занятии\n\n"
+        f"{title}\n"
+        f"Дата: {date_str}\n"
+        f"Время: {time_str}\n\n"
+        "Если не сможете прийти, нажмите кнопку ниже."
+    )
+
+
+def _vk_reminder_response_text(schedule: Schedule, action: str) -> str:
+    status_text = "Отметили: приду" if action == VK_ATTENDANCE_WILL_ATTEND_STATUS else "Отметили: не приду"
+    return _vk_reminder_message_text(schedule) + f"\n\n{status_text}."
+
+
+def _edit_vk_attendance_message(reminder: AttendanceReminder | None, schedule: Schedule, *, action: str) -> dict | None:
+    if not reminder or not reminder.vk_peer_id or not reminder.vk_message_id:
+        return None
+    return edit_vk_message(
+        peer_id=int(reminder.vk_peer_id),
+        message_id=int(reminder.vk_message_id),
+        message=_vk_reminder_response_text(schedule, action),
+        payload=_vk_remove_keyboard_payload(),
+    )
+
+
+def _answer_vk_message_event(obj: dict, text: str) -> dict | None:
+    if not isinstance(obj, dict):
+        return None
+
+    event_id = str(obj.get("event_id") or "").strip()
+    try:
+        user_id = int(obj.get("user_id") or 0)
+        peer_id = int(obj.get("peer_id") or user_id or 0)
+    except (TypeError, ValueError):
+        return None
+
+    if not event_id or user_id <= 0 or peer_id <= 0:
+        return None
+
+    return send_vk_message_event_answer(
+        event_id=event_id,
+        user_id=user_id,
+        peer_id=peer_id,
+        event_data=_vk_event_snackbar(text),
+    )
 
 
 @bp.route("/app/bootstrap", methods=["GET"])
@@ -476,6 +748,138 @@ def account_link_confirm():
     return {"ok": True, "message": "Link flow scaffolded"}
 
 
+@bp.route("/vk/callback", methods=["POST"])
+def vk_callback():
+    payload = request.get_json(silent=True) or {}
+    event_type = str(payload.get("type") or "").strip().lower()
+
+    if event_type == "confirmation":
+        if not _vk_callback_group_matches(payload):
+            return {"error": "vk_callback_group_mismatch"}, 403
+        confirmation_token = str(VK_CALLBACK_CONFIRMATION_TOKEN or "").strip()
+        if not confirmation_token:
+            return {"error": "vk_callback_confirmation_not_configured"}, 503
+        return confirmation_token
+
+    if not _vk_callback_group_matches(payload):
+        return {"error": "vk_callback_group_mismatch"}, 403
+    if not _vk_callback_secret_matches(payload):
+        return {"error": "vk_callback_secret_mismatch"}, 403
+
+    obj = payload.get("object") or {}
+    if not isinstance(obj, dict):
+        return "ok"
+
+    if event_type in {"message_allow", "message_deny"}:
+        try:
+            vk_user_id = int(obj.get("user_id") or 0)
+        except (TypeError, ValueError):
+            return "ok"
+        channels = _sync_vk_channel_permission_state(
+            g.db,
+            vk_user_id=vk_user_id,
+            is_verified=event_type == "message_allow",
+        )
+        if channels:
+            g.db.commit()
+            current_app.logger.info(
+                "VK callback synced permission state target_ref=%s verified=%s channels=%s",
+                vk_user_id,
+                event_type == "message_allow",
+                len(channels),
+            )
+        return "ok"
+
+    if event_type != "message_event":
+        return "ok"
+
+    action_block = obj.get("action") or {}
+    if not isinstance(action_block, dict):
+        action_block = {}
+    callback_payload = _parse_vk_callback_payload(obj.get("payload") or action_block.get("payload"))
+    if str(callback_payload.get("command") or "").strip() != VK_ATTENDANCE_COMMAND:
+        return "ok"
+
+    action = str(callback_payload.get("action") or "").strip().lower()
+    if action not in {VK_ATTENDANCE_WILL_ATTEND_STATUS, VK_ATTENDANCE_WILL_MISS_STATUS}:
+        _answer_vk_message_event(obj, "Кнопка больше неактуальна")
+        return "ok"
+
+    try:
+        schedule_id = int(callback_payload.get("schedule_id") or 0)
+        vk_user_id = int(obj.get("user_id") or 0)
+    except (TypeError, ValueError):
+        _answer_vk_message_event(obj, "Не удалось обработать отметку")
+        return "ok"
+
+    if schedule_id <= 0 or vk_user_id <= 0:
+        _answer_vk_message_event(obj, "Не удалось обработать отметку")
+        return "ok"
+
+    channel = (
+        g.db.query(NotificationChannel)
+        .filter(
+            NotificationChannel.channel_type == "vk",
+            NotificationChannel.target_ref == str(vk_user_id),
+            NotificationChannel.is_enabled.is_(True),
+            NotificationChannel.is_verified.is_(True),
+        )
+        .first()
+    )
+    if not channel:
+        current_app.logger.info("VK attendance callback ignored for unbound target_ref=%s", vk_user_id)
+        return "ok"
+
+    schedule = g.db.query(Schedule).filter(Schedule.id == schedule_id).first()
+    if not schedule:
+        _answer_vk_message_event(obj, "Занятие не найдено")
+        return "ok"
+
+    schedule_status = str(getattr(schedule, "status", "") or "").strip().lower()
+    if schedule_status in INACTIVE_SCHEDULE_STATUSES:
+        _answer_vk_message_event(obj, "Занятие отменено")
+        return "ok"
+    if _vk_is_attendance_locked(schedule):
+        _answer_vk_message_event(obj, VK_ATTENDANCE_LOCKED_MESSAGE)
+        return "ok"
+    if not _vk_is_user_participant_of_schedule(g.db, schedule, int(channel.user_id)):
+        _answer_vk_message_event(obj, "Вы не записаны на это занятие")
+        return "ok"
+
+    _store_vk_attendance_callback_response(
+        g.db,
+        schedule_id=schedule_id,
+        user_id=int(channel.user_id),
+        action=action,
+    )
+    g.db.commit()
+
+    reminder = g.db.query(AttendanceReminder).filter_by(schedule_id=schedule_id, user_id=int(channel.user_id)).first()
+    edit_result = _edit_vk_attendance_message(reminder, schedule, action=action)
+    if isinstance(edit_result, dict) and not edit_result.get("ok"):
+        current_app.logger.warning(
+            "VK attendance message edit failed schedule_id=%s user_id=%s vk_user_id=%s error=%s",
+            schedule_id,
+            channel.user_id,
+            vk_user_id,
+            edit_result.get("error"),
+        )
+
+    answer_result = _answer_vk_message_event(
+        obj,
+        "Отметили: приду" if action == VK_ATTENDANCE_WILL_ATTEND_STATUS else "Отметили: не приду",
+    )
+    if isinstance(answer_result, dict) and not answer_result.get("ok"):
+        current_app.logger.warning(
+            "VK attendance callback acknowledged without snackbar schedule_id=%s user_id=%s vk_user_id=%s error=%s",
+            schedule_id,
+            channel.user_id,
+            vk_user_id,
+            answer_result.get("error"),
+        )
+    return "ok"
+
+
 @bp.route("/notifications/test-send", methods=["POST"])
 def test_send_notification():
     user_id = getattr(g, "user_id", None)
@@ -487,8 +891,8 @@ def test_send_notification():
         g.db,
         user_id=user_id,
         event_type=str(payload.get("event_type") or "news_published"),
-        title=str(payload.get("title") or "Тест"),
-        body=str(payload.get("body") or "Тестовое уведомление"),
+        title=str(payload.get("title") or "Ð¢ÐµÑÑ‚"),
+        body=str(payload.get("body") or "Ð¢ÐµÑÑ‚Ð¾Ð²Ð¾Ðµ ÑƒÐ²ÐµÐ´Ð¾Ð¼Ð»ÐµÐ½Ð¸Ðµ"),
         payload=payload.get("payload") or {},
     )
     g.db.commit()

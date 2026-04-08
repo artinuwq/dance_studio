@@ -262,6 +262,8 @@ def _merge_attendance_reminders_rows(db, source_user_id: int, target_user_id: in
             target_row.sent_at = source_row.sent_at
             target_row.telegram_chat_id = source_row.telegram_chat_id
             target_row.telegram_message_id = source_row.telegram_message_id
+            target_row.vk_peer_id = source_row.vk_peer_id
+            target_row.vk_message_id = source_row.vk_message_id
             target_row.responded_at = source_row.responded_at
             target_row.response_action = source_row.response_action
             target_row.button_closed_at = source_row.button_closed_at

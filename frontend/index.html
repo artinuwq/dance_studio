@@ -641,6 +641,285 @@ body.tg-mobile .header-back {
   line-height: 1.3;
 }
 
+.profile-booking-request-card {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-booking-request-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profile-booking-request-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+.profile-booking-request-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.2;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.profile-booking-request-status.is-pending {
+  background: rgba(255, 184, 77, 0.16);
+  color: #ffd08a;
+}
+
+.profile-booking-request-status.is-active {
+  background: rgba(102, 187, 106, 0.16);
+  color: #b9f6ca;
+}
+
+.profile-booking-request-status.is-cancelled {
+  background: rgba(239, 83, 80, 0.16);
+  color: #ffb4b1;
+}
+
+.profile-booking-request-primary {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.profile-booking-request-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  color: var(--hint);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.profile-booking-request-meta-dot {
+  color: rgba(255, 255, 255, 0.24);
+}
+
+.profile-booking-request-details {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-booking-request-details summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--hint);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.profile-booking-request-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-booking-request-details summary::after {
+  content: '▼';
+  font-size: 11px;
+  transition: transform 0.2s ease;
+}
+
+.profile-booking-request-details[open] summary::after {
+  transform: rotate(180deg);
+}
+
+.profile-booking-request-details-body {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-booking-request-detail-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.admin-booking-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-booking-filter-btn {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.admin-booking-filter-btn.is-active {
+  background: rgba(255, 184, 77, 0.16);
+  border-color: rgba(255, 184, 77, 0.3);
+  color: #ffd08a;
+}
+
+.admin-booking-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.admin-booking-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-booking-section-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.admin-booking-section-count {
+  color: var(--hint);
+  font-size: 12px;
+}
+
+.admin-booking-request-card {
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.admin-booking-request-user {
+  font-size: 12px;
+  color: var(--hint);
+  margin-bottom: 4px;
+}
+
+.admin-booking-request-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.admin-booking-request-type {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.admin-booking-request-target {
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.admin-booking-request-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-booking-request-actions .save-btn {
+  margin: 0;
+}
+
+.admin-booking-request-modal-shell {
+  padding: 18px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-booking-request-modal-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-booking-request-modal-title {
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 800;
+}
+
+.admin-booking-request-modal-subtitle {
+  color: var(--hint);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.admin-booking-request-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.admin-booking-request-info-card {
+  padding: 14px;
+}
+
+.admin-booking-request-info-card h4 {
+  margin: 0 0 10px;
+}
+
+.admin-booking-request-empty {
+  text-align: center;
+  color: var(--hint);
+  padding: 18px 12px;
+}
+
+.profile-booking-request-detail-row span:first-child {
+  color: var(--hint);
+  flex: 0 0 auto;
+}
+
+.profile-booking-request-detail-row span:last-child {
+  color: #fff;
+  text-align: right;
+}
+
+.profile-booking-request-comment {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
+}
+
+.profile-booking-request-comment-label {
+  color: var(--hint);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.profile-booking-request-comment-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #fff;
+  white-space: pre-wrap;
+}
+
 .avatar {
   width: 90px;
   height: 90px;
@@ -787,6 +1066,16 @@ body.tg-mobile .header-back {
 .group-detail-row div {
   font-weight: 600;
   color: var(--text);
+}
+
+.group-detail-row.group-detail-row-stack {
+  display: block;
+}
+
+.group-detail-row.group-detail-row-stack span {
+  display: block;
+  margin-bottom: 2px;
+  white-space: normal;
 }
 
 /* ====== НАЗАД ====== */
@@ -5176,7 +5465,7 @@ textarea.form-input {
 </div>
 <span class="contact-action">Написать</span>
 </div>
-<div class="contact-btn" onclick="openExternalLink('https://vk.ru/shebasport_lissadance')">
+<div class="contact-btn" onclick="openExternalLink('https://vk.com/shebasport_lissadnc')">
 <div class="contact-btn-content">
 <span aria-hidden="true" class="contact-icon contact-icon--vk">VK</span>
 <div>
@@ -5270,6 +5559,7 @@ textarea.form-input {
 <h4 style="margin-bottom: 10px;">Работа с людьми</h4>
 <button class="save-btn" id="staff-manage-btn-work" onclick="showPage('staff-manage')" style="width: 100%; margin-bottom: 8px; display: none; text-align: center;">Персонал</button>
 <button class="save-btn" id="clients-btn-work" onclick="showPage('clients-list')" style="width: 100%; margin-bottom: 8px;">Клиенты</button>
+<button class="save-btn" id="booking-requests-btn-work" onclick="showPage('admin-booking-requests')" style="width: 100%; margin-bottom: 8px; display: none;">Заявки</button>
 </div>
 <div class="card work-section" id="work-section-personal" style="margin-bottom: 12px;">
 <h4 style="margin-bottom: 10px;">Персональное</h4>
@@ -5289,6 +5579,7 @@ textarea.form-input {
 <div class="card work-section" id="work-section-stats-payment" style="margin-bottom: 12px;">
 <h4 style="margin-bottom: 10px;">Статистика и настройки</h4>
 <button class="save-btn" id="stats-btn" onclick="showPage('stats')" style="width: 100%; margin-bottom: 8px; display: none;">Статистика</button>
+<button class="save-btn" id="payments-btn-work" onclick="showPage('payments-admin')" style="width: 100%; margin-bottom: 8px; display: none;">Платежи</button>
 <button class="save-btn" id="work-settings-btn-work" onclick="showPage('work-settings')" style="width: 100%; margin-bottom: 8px; display: none;">Параметры настройки</button>
 </div>
 </div>
@@ -5394,6 +5685,110 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== ПАРАМЕТРЫ НАСТРОЙКИ (РАБОТА) ====== -->
+<!-- ====== ПЛАТЕЖИ И РЕКВИЗИТЫ ====== -->
+<div class="page" data-title="💳 Платежи" id="payments-admin">
+  <div class="card" style="margin-bottom: 12px;">
+    <h4 style="margin: 0 0 8px;">Реквизиты оплаты</h4>
+    <div id="payments-admin-secondary-switch" style="margin-bottom: 10px;"></div>
+    <div id="payments-admin-profiles">
+      <p class="small" style="color: var(--hint); margin: 0;">Загрузка...</p>
+    </div>
+  </div>
+
+  <div class="card" id="payments-admin-filters-card" style="margin-bottom: 12px; display: none;">
+    <h4 style="margin: 0 0 8px;">Фильтры платежей</h4>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:140px;">
+        <label class="label">User ID</label>
+        <input class="form-input" id="payments-filter-user-id" type="number" min="1" placeholder="Например, 15"/>
+      </div>
+      <div style="flex:1; min-width:160px;">
+        <label class="label">С даты</label>
+        <input class="form-input" id="payments-filter-date-from" type="date"/>
+      </div>
+      <div style="flex:1; min-width:160px;">
+        <label class="label">По дату</label>
+        <input class="form-input" id="payments-filter-date-to" type="date"/>
+      </div>
+      <div style="flex:1; min-width:160px;">
+        <label class="label">Тип</label>
+        <select class="form-input" id="payments-filter-type">
+          <option value="">Все</option>
+          <option value="booking">Booking</option>
+          <option value="abonement">Abonement</option>
+        </select>
+      </div>
+      <div style="flex:1; min-width:160px;">
+        <label class="label">Статус</label>
+        <select class="form-input" id="payments-filter-status">
+          <option value="">Все</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+    </div>
+    <button class="save-btn" style="width:100%; margin-top:12px;" onclick="loadAdminPayments()">Показать платежи</button>
+  </div>
+
+  <div class="card" id="payments-admin-booking-confirm-card" style="margin-bottom: 12px; display: none;">
+    <h4 style="margin: 0 0 8px;">Ручное подтверждение брони</h4>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:160px;">
+        <label class="label">Booking ID</label>
+        <input class="form-input" id="payments-booking-id" type="number" min="1" placeholder="ID брони"/>
+      </div>
+      <div style="flex:1; min-width:160px;">
+        <label class="label">Сумма</label>
+        <input class="form-input" id="payments-booking-amount" type="number" min="1" placeholder="Авто, если пусто"/>
+      </div>
+      <div style="flex:1; min-width:160px;">
+        <label class="label">Статус</label>
+        <select class="form-input" id="payments-booking-status">
+          <option value="confirmed">Confirmed</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <label class="label">Комментарий</label>
+      <textarea class="form-input" id="payments-booking-comment" rows="2" placeholder="Опционально"></textarea>
+    </div>
+    <button class="save-btn" style="width:100%; margin-top:12px;" onclick="confirmBookingManualPayment()">Подтвердить бронь</button>
+  </div>
+
+  <div class="card" id="payments-admin-abonement-confirm-card" style="margin-bottom: 12px; display: none;">
+    <h4 style="margin: 0 0 8px;">Ручное подтверждение абонемента</h4>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:160px;">
+        <label class="label">Abonement ID</label>
+        <input class="form-input" id="payments-abonement-id" type="number" min="1" placeholder="ID абонемента"/>
+      </div>
+      <div style="flex:1; min-width:160px;">
+        <label class="label">Сумма</label>
+        <input class="form-input" id="payments-abonement-amount" type="number" min="1" placeholder="Сумма"/>
+      </div>
+      <div style="flex:1; min-width:160px;">
+        <label class="label">Статус</label>
+        <select class="form-input" id="payments-abonement-status">
+          <option value="confirmed">Confirmed</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <label class="label">Комментарий</label>
+      <textarea class="form-input" id="payments-abonement-comment" rows="2" placeholder="Опционально"></textarea>
+    </div>
+    <button class="save-btn" style="width:100%; margin-top:12px;" onclick="confirmAbonementManualPayment()">Подтвердить абонемент</button>
+  </div>
+
+  <div class="card" id="payments-admin-list-card" style="display: none;">
+    <h4 style="margin: 0 0 8px;">Список платежей</h4>
+    <div id="payments-admin-list">
+      <p class="small" style="color: var(--hint); margin: 0;">Выберите фильтры и загрузите список.</p>
+    </div>
+  </div>
+</div>
 <div class="page" data-title="⚙️ Параметры настройки" id="work-settings">
   <p class="work-settings-menu-hint">Разделы для финансовых и организационных параметров.</p>
   <div class="menu-item" id="work-settings-prices-item" onclick="showPage('work-settings-prices')">💰 Ценники</div>
@@ -6979,6 +7374,17 @@ textarea.form-input {
       </div>
   </div>
 </div>
+<div class="page" data-title="Admin booking requests" id="admin-booking-requests">
+<div class="card">
+<h4>Заявки клиентов</h4>
+<p class="small" style="margin: 0; color: var(--hint);">Все запросы на группы, индивидуальные занятия и аренду. Сначала заявки на рассмотрении, ниже архив.</p>
+</div>
+<div id="admin-booking-requests-container">
+<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>
+</div>
+</div>
+<div class="schedule-detail-overlay" id="admin-booking-request-overlay" onclick="closeAdminBookingRequestModal()"></div>
+<div class="schedule-detail-modal modal-fullscreen" id="admin-booking-request-modal"></div>
 <script>
 /* ====== TELEGRAM ====== */
 let tg = window.Telegram?.WebApp || null;
@@ -7776,6 +8182,11 @@ function showPage(id) {
     loadStatsTeachers();
   }
 
+  if (id === 'payments-admin') {
+    setHeaderTitle('Платежи');
+    loadAdminPayments();
+  }
+
   if (id === 'attendance-screen') {
     const list = document.getElementById('attendance-screen-list');
     if (list) list.innerHTML = '<div class="small">Загрузка...</div>';
@@ -7788,6 +8199,10 @@ function showPage(id) {
   }
   
   // Загружаем клиентов в одноименной странице
+  if (id === 'admin-booking-requests') {
+    setHeaderTitle('Заявки');
+    loadAdminBookingRequests();
+  }
   if (id === 'clients-list') {
     loadAllClients();
   }
@@ -9694,6 +10109,28 @@ function proceedTeacherContactAction() {
   openClientChat(link);
 }
 
+function getGroupScheduleLines(groupData) {
+  if (!groupData || typeof groupData !== 'object') return [];
+  if (Array.isArray(groupData.schedule_slots)) {
+    return groupData.schedule_slots
+      .map(item => String(item || '').trim())
+      .filter(Boolean);
+  }
+  const summary = String(groupData.schedule_summary || '').trim();
+  return summary ? [summary] : [];
+}
+
+function renderGroupScheduleHtml(groupData) {
+  const lines = getGroupScheduleLines(groupData);
+  if (!lines.length) return '—';
+  return lines.map(line => `<div>${escapeHtml(line)}</div>`).join('');
+}
+
+function getGroupScheduleSummaryText(groupData) {
+  const lines = getGroupScheduleLines(groupData);
+  return lines.length ? lines.join(', ') : '';
+}
+
 function renderTeacherGroups(groups) {
   if (!Array.isArray(groups) || !groups.length) {
     return '<p class="small">У этого преподавателя пока нет групп</p>';
@@ -9707,6 +10144,7 @@ function renderTeacherGroups(groups) {
     }
     const directionTitle = escapeHtml(group.direction_title || '—');
     const lessonsText = group.lessons_per_week ? `${group.lessons_per_week} в неделю` : '—';
+    const scheduleHtml = renderGroupScheduleHtml(group);
     return `
       <div class="card" style="margin-bottom: 8px; border: 1px solid var(--border);">
         <div style="font-weight: 700; font-size: 15px; margin-bottom: 4px;">${escapeHtml(group.name || 'Группа')}</div>
@@ -9716,6 +10154,7 @@ function renderTeacherGroups(groups) {
           <span>⏱️ ${group.duration_minutes ? `${group.duration_minutes} мин` : '—'}</span>
           <span>📆 ${lessonsText}</span>
         </div>
+        <div class="small" style="margin-bottom: 8px; color: var(--hint);">${scheduleHtml}</div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button
             class="save-btn"
@@ -9825,6 +10264,7 @@ function renderDirectionGroupDetails(groupData, options = {}) {
   const age = escapeHtml(data.age_group || '—');
   const duration = data.duration_minutes ? `${data.duration_minutes} мин` : '—';
   const lessons = data.lessons_per_week ? `${data.lessons_per_week} в неделю` : '—';
+  const scheduleHtml = renderGroupScheduleHtml(data);
   const maxStudents = data.max_students ? `${data.max_students}` : '—';
   const freeSeatsRaw = Number(data.free_seats);
   const freeSeats = Number.isFinite(freeSeatsRaw) && freeSeatsRaw >= 0 ? `${freeSeatsRaw}` : '—';
@@ -9868,6 +10308,7 @@ function renderDirectionGroupDetails(groupData, options = {}) {
       <div class="group-detail-row"><span>Возраст:</span><div>${age}</div></div>
       <div class="group-detail-row"><span>Длительность:</span><div>${duration}</div></div>
       <div class="group-detail-row"><span>Занятий в неделю:</span><div>${lessons}</div></div>
+      <div class="group-detail-row group-detail-row-stack"><span>Когда занятия:</span><div>${scheduleHtml}</div></div>
       <div class="group-detail-row"><span>Макс. учеников:</span><div>${maxStudents}</div></div>
       <div class="group-detail-row"><span>Свободных мест:</span><div>${freeSeats}</div></div>
     </div>
@@ -9990,7 +10431,9 @@ function setGroupBookingInfoText(group) {
   const lessonsPerWeek = Number.parseInt(group.lessons_per_week, 10);
   const lessonsText = Number.isFinite(lessonsPerWeek) && lessonsPerWeek > 0 ? `${lessonsPerWeek} в неделю` : '—';
   const directionText = group.direction_title ? `, направление: ${group.direction_title}` : '';
-  node.textContent = `${group.name || 'Группа'}${directionText}, занятий: ${lessonsText}`;
+  const scheduleText = getGroupScheduleSummaryText(group);
+  const scheduleSuffix = scheduleText ? `, расписание: ${scheduleText}` : '';
+  node.textContent = `${group.name || 'Группа'}${directionText}, занятий: ${lessonsText}${scheduleSuffix}`;
 }
 
 function getGroupBookingCapsuleText(group) {
@@ -9999,6 +10442,8 @@ function getGroupBookingCapsuleText(group) {
   const lessonsText = Number.isFinite(lessonsPerWeek) && lessonsPerWeek > 0 ? `${lessonsPerWeek} в неделю` : null;
   const parts = [group.name || 'Группа'];
   if (lessonsText) parts.push(lessonsText);
+  const scheduleText = getGroupScheduleSummaryText(group);
+  if (scheduleText) parts.push(scheduleText);
   return parts.join(' • ');
 }
 
@@ -17752,11 +18197,13 @@ function updateStaffNavigation() {
   const staffNavBtn = document.getElementById('staff-nav-btn');
   const staffManageBtn = document.getElementById('staff-manage-btn-work');
   const clientsBtn = document.getElementById('clients-btn-work');
+  const bookingRequestsBtn = document.getElementById('booking-requests-btn-work');
   const scheduleControlBtn = document.getElementById('schedule-control-btn-work');
   const directionsGroupsBtn = document.getElementById('directions-groups-btn-work');
   const mailingsBtn = document.getElementById('mailings-btn-work');
   const newsManageBtn = document.getElementById('news-manage-btn-work');
   const statsBtn = document.getElementById('stats-btn');
+  const paymentsBtn = document.getElementById('payments-btn-work');
   const workSettingsBtn = document.getElementById('work-settings-btn-work');
   const workSettingsPricesItem = document.getElementById('work-settings-prices-item');
   const workSettingsOtherItem = document.getElementById('work-settings-other-item');
@@ -17807,11 +18254,13 @@ function updateStaffNavigation() {
 
     setBtnVisible(staffManageBtn, hasPerm('manage_staff'));
     setBtnVisible(clientsBtn, hasPerm('view_all_users'));
+    setBtnVisible(bookingRequestsBtn, hasPerm('manage_schedule'));
     setBtnVisible(scheduleControlBtn, hasPerm('manage_schedule'));
     setBtnVisible(directionsGroupsBtn, hasPerm('create_direction'));
     setBtnVisible(mailingsBtn, hasPerm('manage_mailings'));
     setBtnVisible(newsManageBtn, hasPerm('create_news'));
     setBtnVisible(statsBtn, hasPerm('view_stats'));
+    setBtnVisible(paymentsBtn, hasPerm('manage_schedule'));
     setBtnVisible(workSettingsBtn, hasPerm('manage_schedule') || hasPerm('create_direction'));
 
     if (workSettingsPricesItem) {
@@ -17830,11 +18279,13 @@ function updateStaffNavigation() {
 
     setBtnVisible(staffManageBtn, false);
     setBtnVisible(clientsBtn, false);
+    setBtnVisible(bookingRequestsBtn, false);
     setBtnVisible(scheduleControlBtn, false);
     setBtnVisible(directionsGroupsBtn, false);
     setBtnVisible(mailingsBtn, false);
     setBtnVisible(newsManageBtn, false);
     setBtnVisible(statsBtn, false);
+    setBtnVisible(paymentsBtn, false);
     setBtnVisible(workSettingsBtn, false);
 
     if (workSettingsPricesItem) {
@@ -19211,6 +19662,13 @@ async function fetchPersonalGroupsData(staffId, options = {}) {
       headers: getAuthHeaders ? getAuthHeaders() : {}
     });
     const payload = await response.json().catch(() => ({}));
+    if (response.status === 404) {
+      personalGroupsDataCache.set(cacheKey, {
+        updatedAt: Date.now(),
+        items: []
+      });
+      return [];
+    }
     if (!response.ok) {
       throw new Error(payload?.error || 'Не удалось загрузить группы');
     }
@@ -19336,7 +19794,29 @@ function handleConnectTelegram() {
 }
 
 function handleConnectVK() {
-  showNotification('Откройте приложение через VK Mini App, чтобы привязать этот способ входа к currentUser.id.');
+  const currentUserId = getCurrentUserId();
+  if (!currentUserId) {
+    showNotification('Сначала войдите в аккаунт');
+    return;
+  }
+  const platform = window.platformAdapter?.getPlatform?.() || 'web';
+  if (platform !== 'vk' || typeof window.platformAdapter?.authenticateVk !== 'function') {
+    showNotification('Откройте приложение через VK Mini App, чтобы подключить VK.');
+    return;
+  }
+
+  window.platformAdapter.authenticateVk({ linkMode: true })
+    .then((result) => {
+      if (!result?.ok) {
+        const payload = result?.payload || {};
+        showNotification(payload?.message || payload?.error || 'Не удалось подключить VK');
+        return;
+      }
+      showNotification('VK подключен');
+    })
+    .catch((error) => {
+      showNotification(error?.message || 'Не удалось подключить VK');
+    });
 }
 
 async function beginPasskeySetup() {
@@ -20021,69 +20501,141 @@ async function loadProfileBookingRequests(options = {}) {
       container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Заявок пока нет</p>';
       return;
     }
-    container.innerHTML = visibleItems.map(item => {
-      const typeLabel = escapeHtml(item.object_type_label || item.object_type || 'Заявка');
-      const statusLabel = escapeHtml(item.status_label || item.status || '—');
-      const createdText = item.created_at ? new Date(item.created_at).toLocaleString('ru-RU') : '—';
-      const amountText = Number.isFinite(Number(item.requested_amount))
-        ? `${new Intl.NumberFormat('ru-RU').format(Number(item.requested_amount))} ${item.requested_currency || 'RUB'}`
-        : '—';
-      const amountBeforeText = Number.isFinite(Number(item.amount_before_discount))
-        ? `${new Intl.NumberFormat('ru-RU').format(Number(item.amount_before_discount))} ${item.requested_currency || 'RUB'}`
-        : null;
-      const discountAmountText = Number.isFinite(Number(item.applied_discount_amount))
-        ? `${new Intl.NumberFormat('ru-RU').format(Number(item.applied_discount_amount))} ${item.requested_currency || 'RUB'}`
-        : null;
-      const isWaitingPayment = String(item.status || '').toLowerCase() === 'waiting_payment';
-      const reserveDeadlineText = item.reserved_until
-        ? new Date(item.reserved_until).toLocaleString('ru-RU')
-        : null;
-      const paymentDeadlineHintHtml = isWaitingPayment
-        ? `<div class="small" style="margin-top: 4px; color: var(--hint);">${reserveDeadlineText
-            ? `Оплатите в течение 48 часов (до ${escapeHtml(reserveDeadlineText)}).`
-            : 'Оплатите в течение 48 часов с момента бронирования.'}</div>`
-        : '';
 
-      let detailsHtml = '';
+    const formatMoney = (value, currency) => {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return null;
+      const normalizedCurrency = String(currency || 'RUB').trim() || 'RUB';
+      return `${new Intl.NumberFormat('ru-RU').format(numeric)} ${normalizedCurrency}`;
+    };
+    const formatDateOnly = value => (value ? new Date(value).toLocaleDateString('ru-RU') : '—');
+    const formatDateTime = value => (value ? new Date(value).toLocaleString('ru-RU') : '—');
+    const formatDeadline = value => {
+      if (!value) return null;
+      return new Date(value).toLocaleString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    };
+    const renderMeta = parts => (Array.isArray(parts) ? parts : [])
+      .map(part => String(part || '').trim())
+      .filter(Boolean)
+      .map(part => `<span>${escapeHtml(part)}</span>`)
+      .join('<span class="profile-booking-request-meta-dot">•</span>');
+    const renderDetailRow = (label, value) => {
+      const normalizedValue = String(value || '').trim();
+      if (!normalizedValue || normalizedValue === '—') return '';
+      return `
+        <div class="profile-booking-request-detail-row">
+          <span>${escapeHtml(label)}</span>
+          <span>${escapeHtml(normalizedValue)}</span>
+        </div>
+      `;
+    };
+    const getStatusBadgeClass = status => {
+      const normalized = String(status || '').toLowerCase();
+      if (['waiting_payment', 'approved', 'awaiting_payment', 'pending_payment', 'pending_activation'].includes(normalized)) {
+        return 'profile-booking-request-status is-pending';
+      }
+      if (['active', 'confirmed'].includes(normalized)) {
+        return 'profile-booking-request-status is-active';
+      }
+      if (['cancelled', 'rejected', 'expired'].includes(normalized)) {
+        return 'profile-booking-request-status is-cancelled';
+      }
+      return 'profile-booking-request-status';
+    };
+
+    container.innerHTML = visibleItems.map(item => {
+      const typeLabel = String(item.object_type_label || item.object_type || 'Заявка');
+      const statusLabel = String(item.status_label || item.status || '—');
+      const normalizedStatus = String(item.status || '').toLowerCase();
+      const createdText = formatDateTime(item.created_at);
+      const amountText = formatMoney(item.requested_amount, item.requested_currency);
+      const requestedAmountValue = Number(item.requested_amount);
+      const amountBeforeValue = Number(item.amount_before_discount);
+      const amountBeforeText = formatMoney(item.amount_before_discount, item.requested_currency);
+      const discountValue = Number(item.applied_discount_amount);
+      const discountAmountText = formatMoney(item.applied_discount_amount, item.requested_currency);
+      const showDiscount = Number.isFinite(discountValue) && discountValue > 0;
+      const showAmountBefore = Number.isFinite(amountBeforeValue) && Number.isFinite(requestedAmountValue) && amountBeforeValue > requestedAmountValue;
+      const isWaitingPayment = ['waiting_payment', 'approved', 'awaiting_payment', 'pending_payment', 'pending_activation'].includes(normalizedStatus);
+      const deadlineShort = formatDeadline(item.reserved_until);
+
+      let title = typeLabel;
+      let summaryMetaParts = [];
+      let detailRows = [renderDetailRow('Создана', createdText)];
       if (item.object_type === 'group') {
         const abonementTypeMap = {
           trial: 'Пробный',
           single: 'Одноразовый',
           multi: 'Многоразовый',
         };
-        const abonementType = escapeHtml(abonementTypeMap[item.abonement_type] || item.abonement_type || '—');
+        const abonementType = abonementTypeMap[item.abonement_type] || item.abonement_type || '—';
         const groups = Array.isArray(item.bundle_group_names) ? item.bundle_group_names.filter(Boolean) : [];
-        const groupsText = groups.length ? groups.map(name => escapeHtml(name)).join(' + ') : escapeHtml(item.group_name || 'Группа');
-        const startDate = item.group_start_date ? new Date(item.group_start_date).toLocaleDateString('ru-RU') : '—';
-        const validUntil = item.valid_until ? new Date(item.valid_until).toLocaleDateString('ru-RU') : '—';
-        detailsHtml = `
-          <div class="small" style="margin-top: 4px;">Группы: ${groupsText}</div>
-          <div class="small">Тип абонемента: ${abonementType}</div>
-          <div class="small">Занятий: ${item.lessons_count ?? '—'}</div>
-          <div class="small">Старт: ${startDate}</div>
-          <div class="small">Действует до: ${validUntil}</div>
-        `;
+        const groupsText = groups.length ? groups.join(' + ') : (item.group_name || 'Группа');
+        const startDate = formatDateOnly(item.group_start_date);
+        const validUntil = formatDateOnly(item.valid_until);
+        title = groupsText;
+        summaryMetaParts = [
+          item.lessons_count ? `${item.lessons_count} занятий` : null,
+          abonementType !== '—' ? abonementType : null,
+          validUntil !== '—' ? `до ${validUntil}` : null,
+        ];
+        if (groups.length > 1) {
+          detailRows.push(renderDetailRow('Группы', groupsText));
+        }
+        detailRows.push(renderDetailRow('Тип абонемента', abonementType));
+        detailRows.push(renderDetailRow('Занятий', item.lessons_count != null ? String(item.lessons_count) : ''));
+        detailRows.push(renderDetailRow('Старт', startDate));
       } else {
-        const dateText = item.date ? new Date(item.date).toLocaleDateString('ru-RU') : '—';
+        const dateText = formatDateOnly(item.date);
         const timeFrom = item.time_from || '—';
         const timeTo = item.time_to || '—';
-        detailsHtml = `
-          <div class="small" style="margin-top: 4px;">Дата: ${dateText}</div>
-          <div class="small">Время: ${escapeHtml(timeFrom)} - ${escapeHtml(timeTo)}</div>
-        `;
+        summaryMetaParts = [
+          dateText !== '—' ? dateText : null,
+          timeFrom !== '—' || timeTo !== '—' ? `${timeFrom} - ${timeTo}` : null,
+        ];
+      }
+      if (showAmountBefore) {
+        detailRows.push(renderDetailRow('Цена без скидки', amountBeforeText));
+      }
+      if (showDiscount) {
+        detailRows.push(renderDetailRow('Скидка', `-${discountAmountText}`));
+      }
+      const detailRowsHtml = detailRows.filter(Boolean).join('');
+      const commentHtml = item.comment
+        ? `
+          <div class="profile-booking-request-comment">
+            <div class="profile-booking-request-comment-label">Комментарий</div>
+            <div class="profile-booking-request-comment-text">${escapeHtml(item.comment)}</div>
+          </div>
+        `
+        : '';
+      let primaryText = amountText || 'Без оплаты';
+      if (isWaitingPayment) {
+        primaryText = amountText && deadlineShort
+          ? `${amountText} • оплатить до ${deadlineShort}`
+          : (amountText || 'Ожидается оплата');
       }
 
       return `
-        <div class="card">
-          <div style="font-weight: 700; margin-bottom: 6px;">${typeLabel}</div>
-          <div class="small" style="margin-bottom: 4px;">Статус: ${statusLabel}</div>
-          <div class="small">Создана: ${escapeHtml(createdText)}</div>
-          ${amountBeforeText ? `<div class="small">До скидки: ${escapeHtml(amountBeforeText)}</div>` : ''}
-          ${discountAmountText ? `<div class="small">Скидка: -${escapeHtml(discountAmountText)}</div>` : ''}
-          <div class="small">Сумма: ${escapeHtml(amountText)}</div>
-          ${paymentDeadlineHintHtml}
-          ${detailsHtml}
-          ${item.comment ? `<div class="small" style="margin-top: 6px;">Комментарий: ${escapeHtml(item.comment)}</div>` : ''}
+        <div class="card profile-booking-request-card">
+          <div class="profile-booking-request-head">
+            <div class="profile-booking-request-title">${escapeHtml(title)}</div>
+            <div class="${getStatusBadgeClass(normalizedStatus)}">${escapeHtml(statusLabel)}</div>
+          </div>
+          <div class="profile-booking-request-primary">${escapeHtml(primaryText)}</div>
+          ${summaryMetaParts.filter(Boolean).length ? `<div class="profile-booking-request-meta">${renderMeta(summaryMetaParts)}</div>` : ''}
+          <details class="profile-booking-request-details">
+            <summary>Подробнее</summary>
+            <div class="profile-booking-request-details-body">
+              ${detailRowsHtml}
+              ${commentHtml}
+            </div>
+          </details>
         </div>
       `;
     }).join('');
@@ -20377,6 +20929,8 @@ function formatPaymentStatus(status) {
   const map = {
     pending: 'Ожидание оплаты',
     paid: 'Оплачено',
+    confirmed: 'Подтверждено',
+    rejected: 'Отклонено',
     failed: 'Ошибка',
     refunded: 'Возврат',
     cancelled: 'Отменено'
@@ -20405,7 +20959,821 @@ function formatDate(dateString) {
   });
 }
 
+let paymentsAdminLoadPromise = null;
+
+function _paymentProfileFieldId(slot, field) {
+  return `payments-profile-${slot}-${field}`;
+}
+
+function _formatAdminPaymentDate(value) {
+  if (!value) return '—';
+  try {
+    return formatDate(value);
+  } catch (_) {
+    return String(value || '—');
+  }
+}
+
+function _renderAdminPaymentProfiles(profiles, activeSlot) {
+  const container = document.getElementById('payments-admin-profiles');
+  const switchContainer = document.getElementById('payments-admin-secondary-switch');
+  if (!container) return;
+  const normalizedProfiles = Array.isArray(profiles) ? profiles : [];
+  const secondaryProfiles = normalizedProfiles.filter((profile) => Number(profile?.slot || 0) > 1);
+  if (!normalizedProfiles.length) {
+    if (switchContainer) switchContainer.innerHTML = '';
+    container.innerHTML = '<p class="small" style="color: var(--hint); margin: 0;">Профили оплаты не найдены.</p>';
+    return;
+  }
+
+  if (switchContainer) {
+    if (secondaryProfiles.length >= 2) {
+      switchContainer.innerHTML = `
+        <div class="card" style="margin-bottom: 10px;">
+          <div class="label" style="margin-bottom: 8px;">Активный дополнительный профиль</div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            ${secondaryProfiles.map((profile) => {
+              const slot = Number(profile?.slot || 0);
+              const isChecked = Number(activeSlot || 0) === slot;
+              const title = escapeHtml(profile?.title || `Слот ${slot}`);
+              return `
+                <label style="display:flex; align-items:center; gap:8px; padding:10px 12px; border:1px solid rgba(255,255,255,0.12); border-radius:12px; cursor:pointer;">
+                  <input type="radio" name="payments-admin-secondary-switch" value="${slot}" ${isChecked ? 'checked' : ''} onchange="switchAdminSecondaryPaymentProfile(${slot})">
+                  <span>${title}</span>
+                </label>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    } else {
+      switchContainer.innerHTML = '';
+    }
+  }
+
+  container.innerHTML = normalizedProfiles.map((profile) => {
+    const slot = Number(profile?.slot || 0);
+    return `
+      <div class="card" style="margin-bottom: 10px;">
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; flex-wrap:wrap;">
+          <div>
+            <h4 style="margin: 0 0 6px;">${escapeHtml(profile?.title || `Реквизиты ${slot}`)}</h4>
+            <p class="small" style="margin: 0; color: var(--hint);">Обновлено: ${escapeHtml(_formatAdminPaymentDate(profile?.updated_at))}</p>
+          </div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+          <div style="flex:1; min-width:180px;">
+            <label class="label">Банк</label>
+            <input class="form-input" id="${_paymentProfileFieldId(slot, 'bank')}" type="text" value="${escapeHtml(profile?.recipient_bank || '')}" />
+          </div>
+          <div style="flex:1; min-width:180px;">
+            <label class="label">Номер</label>
+            <input class="form-input" id="${_paymentProfileFieldId(slot, 'number')}" type="text" value="${escapeHtml(profile?.recipient_number || '')}" />
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <label class="label">Получатель</label>
+            <input class="form-input" id="${_paymentProfileFieldId(slot, 'full-name')}" type="text" value="${escapeHtml(profile?.recipient_full_name || '')}" />
+          </div>
+        </div>
+        <button class="save-btn" type="button" style="width:100%; margin-top:10px;" onclick="saveAdminPaymentProfile(${slot})">Сохранить слот ${slot}</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function _renderAdminPaymentsList(items) {
+  const container = document.getElementById('payments-admin-list');
+  if (!container) return;
+  const rows = Array.isArray(items) ? items : [];
+  if (!rows.length) {
+    container.innerHTML = '<p class="small" style="color: var(--hint); margin: 0;">Платежи по текущим фильтрам не найдены.</p>';
+    return;
+  }
+
+  const body = rows.map((item) => `
+    <tr>
+      <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(String(item?.id ?? '—'))}</td>
+      <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">#${escapeHtml(String(item?.user_id ?? '—'))} ${escapeHtml(item?.user_name || '')}</td>
+      <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(item?.payment_type || '—')}</td>
+      <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(String(item?.object_id ?? '—'))}</td>
+      <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(String(item?.amount ?? '—'))}</td>
+      <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(formatPaymentStatus(String(item?.status || '').toLowerCase()))}</td>
+      <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(item?.confirmed_by_admin_name || '—')}</td>
+      <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(_formatAdminPaymentDate(item?.confirmed_at || item?.created_at))}</td>
+      <td style="padding:8px; border-bottom:1px solid rgba(255,255,255,0.08);">${escapeHtml(item?.comment || '—')}</td>
+    </tr>
+  `).join('');
+
+  container.innerHTML = `
+    <div style="overflow-x:auto;">
+      <table style="width:100%; border-collapse:collapse; font-size:14px;">
+        <thead>
+          <tr>
+            <th style="text-align:left; padding:8px;">ID</th>
+            <th style="text-align:left; padding:8px;">Клиент</th>
+            <th style="text-align:left; padding:8px;">Тип</th>
+            <th style="text-align:left; padding:8px;">Object ID</th>
+            <th style="text-align:left; padding:8px;">Сумма</th>
+            <th style="text-align:left; padding:8px;">Статус</th>
+            <th style="text-align:left; padding:8px;">Подтвердил</th>
+            <th style="text-align:left; padding:8px;">Дата</th>
+            <th style="text-align:left; padding:8px;">Комментарий</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function _readAdminPaymentProfilePayload(slot) {
+  const bankEl = document.getElementById(_paymentProfileFieldId(slot, 'bank'));
+  const numberEl = document.getElementById(_paymentProfileFieldId(slot, 'number'));
+  const fullNameEl = document.getElementById(_paymentProfileFieldId(slot, 'full-name'));
+  return {
+    recipient_bank: String(bankEl?.value || '').trim(),
+    recipient_number: String(numberEl?.value || '').trim(),
+    recipient_full_name: String(fullNameEl?.value || '').trim(),
+  };
+}
+
+function _buildAdminPaymentsQuery() {
+  const params = new URLSearchParams();
+  const mapping = [
+    ['payments-filter-user-id', 'user_id'],
+    ['payments-filter-date-from', 'date_from'],
+    ['payments-filter-date-to', 'date_to'],
+    ['payments-filter-type', 'payment_type'],
+    ['payments-filter-status', 'status'],
+  ];
+  mapping.forEach(([elementId, paramName]) => {
+    const rawValue = document.getElementById(elementId)?.value;
+    const value = String(rawValue || '').trim();
+    if (value) {
+      params.set(paramName, value);
+    }
+  });
+  return params;
+}
+
+async function loadAdminPaymentProfiles() {
+  const response = await authFetch('/api/admin/payment-profiles');
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Не удалось загрузить реквизиты оплаты');
+  }
+  _renderAdminPaymentProfiles(payload?.profiles || [], payload?.active_slot);
+  return payload;
+}
+
+async function loadAdminPaymentsList() {
+  const listEl = document.getElementById('payments-admin-list');
+  if (listEl) {
+    listEl.innerHTML = '<p class="small" style="color: var(--hint); margin: 0;">Загрузка платежей...</p>';
+  }
+  const params = _buildAdminPaymentsQuery();
+  const url = params.toString() ? `/api/admin/payments?${params.toString()}` : '/api/admin/payments';
+  const response = await authFetch(url);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload?.error || 'Не удалось загрузить список платежей');
+  }
+  _renderAdminPaymentsList(payload?.items || []);
+  return payload;
+}
+
+async function loadAdminPayments() {
+  if (paymentsAdminLoadPromise) {
+    return paymentsAdminLoadPromise;
+  }
+  paymentsAdminLoadPromise = (async () => {
+    try {
+      await loadAdminPaymentProfiles();
+    } catch (error) {
+      showNotification(error.message || 'Не удалось загрузить раздел платежей');
+    } finally {
+      paymentsAdminLoadPromise = null;
+    }
+  })();
+  return paymentsAdminLoadPromise;
+}
+
+async function saveAdminPaymentProfile(slot) {
+  const payload = _readAdminPaymentProfilePayload(slot);
+  const response = await authFetch(`/api/admin/payment-profiles/${slot}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showNotification(data?.error || `Не удалось сохранить слот ${slot}`);
+    return;
+  }
+  showNotification(`Слот ${slot} сохранен`);
+  await loadAdminPaymentProfiles();
+}
+
+async function switchAdminSecondaryPaymentProfile(slot) {
+  const response = await authFetch('/api/admin/payment-profiles/active', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ active_slot: slot }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showNotification(data?.error || 'Не удалось переключить дополнительный профиль');
+    return;
+  }
+  showNotification(`Выбран дополнительный профиль: слот ${slot}`);
+  await loadAdminPaymentProfiles();
+}
+
+async function confirmBookingManualPayment() {
+  const bookingId = Number(document.getElementById('payments-booking-id')?.value || 0);
+  const amountRaw = String(document.getElementById('payments-booking-amount')?.value || '').trim();
+  const status = String(document.getElementById('payments-booking-status')?.value || 'confirmed').trim().toLowerCase();
+  const comment = String(document.getElementById('payments-booking-comment')?.value || '').trim();
+  if (!bookingId) {
+    showNotification('Укажите booking ID');
+    return;
+  }
+  const payload = { status };
+  if (amountRaw) payload.amount = Number(amountRaw);
+  if (comment) payload.comment = comment;
+  const response = await authFetch(`/api/admin/booking-requests/${bookingId}/confirm-payment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showNotification(data?.error || 'Не удалось подтвердить оплату брони');
+    return;
+  }
+  showNotification(`Оплата брони #${bookingId} обновлена`);
+  await loadAdminPaymentsList();
+}
+
+async function confirmAbonementManualPayment() {
+  const abonementId = Number(document.getElementById('payments-abonement-id')?.value || 0);
+  const amount = Number(document.getElementById('payments-abonement-amount')?.value || 0);
+  const status = String(document.getElementById('payments-abonement-status')?.value || 'confirmed').trim().toLowerCase();
+  const comment = String(document.getElementById('payments-abonement-comment')?.value || '').trim();
+  if (!abonementId) {
+    showNotification('Укажите abonement ID');
+    return;
+  }
+  if (!amount) {
+    showNotification('Укажите сумму для абонемента');
+    return;
+  }
+  const payload = { amount, status };
+  if (comment) payload.comment = comment;
+  const response = await authFetch(`/api/admin/group-abonements/${abonementId}/confirm-payment`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    showNotification(data?.error || 'Не удалось подтвердить оплату абонемента');
+    return;
+  }
+  showNotification(`Оплата абонемента #${abonementId} обновлена`);
+  await loadAdminPaymentsList();
+}
+
 /* ====== УПРАВЛЕНИЕ КЛИЕНТАМИ (ПЕРСОНАЛ) ====== */
+let adminBookingRequests = [];
+let adminBookingRequestTypeFilter = 'all';
+let selectedAdminBookingRequest = null;
+let adminBookingRequestActionBusy = false;
+let adminBookingArchiveVisible = false;
+
+const ADMIN_BOOKING_WAITING_PAYMENT_STATUSES = new Set(['waiting_payment', 'approved', 'awaiting_payment', 'pending_payment', 'pending_activation']);
+const ADMIN_BOOKING_REVIEW_STATUSES = new Set(['created']);
+const ADMIN_BOOKING_PROCESSED_STATUSES = new Set(['confirmed', 'cancelled', 'rejected', 'attended', 'no_show']);
+const ADMIN_BOOKING_ARCHIVE_ELIGIBLE_STATUSES = new Set(['confirmed', 'cancelled', 'rejected']);
+const ADMIN_BOOKING_ARCHIVE_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+const ADMIN_BOOKING_TYPE_FILTERS = [
+  { value: 'all', label: 'Все' },
+  { value: 'group', label: 'Группы' },
+  { value: 'individual', label: 'Индивидуальные' },
+  { value: 'rental', label: 'Аренда' },
+];
+
+function _adminBookingItemsFromPayload(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.items)) return payload.items;
+  return [];
+}
+
+function _adminBookingNormalizedStatus(item) {
+  return String(item?.status || '').trim().toLowerCase();
+}
+
+function _adminBookingTimestampMs(value) {
+  const timestamp = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function _adminBookingCreatedMs(item) {
+  return _adminBookingTimestampMs(item?.created_at)
+    ?? _adminBookingTimestampMs(item?.status_updated_at)
+    ?? _adminBookingTimestampMs(item?.reserved_until);
+}
+
+function _adminBookingActivityMs(item) {
+  return _adminBookingTimestampMs(item?.status_updated_at)
+    ?? _adminBookingTimestampMs(item?.created_at)
+    ?? _adminBookingTimestampMs(item?.reserved_until);
+}
+
+function _adminBookingPaymentDeadlineMs(item) {
+  return _adminBookingTimestampMs(item?.reserved_until);
+}
+
+function _isAdminBookingArchived(item, nowMs = Date.now()) {
+  if (!ADMIN_BOOKING_ARCHIVE_ELIGIBLE_STATUSES.has(_adminBookingNormalizedStatus(item))) return false;
+  const activityMs = _adminBookingActivityMs(item);
+  return activityMs != null && (nowMs - activityMs) > ADMIN_BOOKING_ARCHIVE_AGE_MS;
+}
+
+function _sortAdminBookingWaitingPayment(items) {
+  return [...items].sort((left, right) => {
+    const leftDeadline = _adminBookingPaymentDeadlineMs(left);
+    const rightDeadline = _adminBookingPaymentDeadlineMs(right);
+    if (leftDeadline != null && rightDeadline != null && leftDeadline !== rightDeadline) {
+      return leftDeadline - rightDeadline;
+    }
+    if (leftDeadline != null) return -1;
+    if (rightDeadline != null) return 1;
+    return (_adminBookingCreatedMs(left) || 0) - (_adminBookingCreatedMs(right) || 0);
+  });
+}
+
+function _sortAdminBookingReview(items) {
+  return [...items].sort((left, right) => ((_adminBookingCreatedMs(left) || 0) - (_adminBookingCreatedMs(right) || 0)));
+}
+
+function _sortAdminBookingProcessed(items) {
+  return [...items].sort((left, right) => ((_adminBookingActivityMs(right) || 0) - (_adminBookingActivityMs(left) || 0)));
+}
+
+function _formatAdminBookingMoney(value, currency = 'RUB') {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return null;
+  return `${new Intl.NumberFormat('ru-RU').format(numeric)} ${String(currency || 'RUB').trim() || 'RUB'}`;
+}
+
+function _formatAdminBookingDate(value) {
+  return value ? new Date(value).toLocaleDateString('ru-RU') : '—';
+}
+
+function _formatAdminBookingDateTime(value) {
+  return value ? new Date(value).toLocaleString('ru-RU') : '—';
+}
+
+function _formatAdminBookingDuration(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return '—';
+  return `${Math.round(numeric)} мин`;
+}
+
+function _adminBookingStatusClass(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (['waiting_payment', 'approved', 'awaiting_payment', 'pending_payment', 'pending_activation'].includes(normalized)) {
+    return 'profile-booking-request-status is-pending';
+  }
+  if (['active', 'confirmed', 'attended', 'no_show'].includes(normalized)) {
+    return 'profile-booking-request-status is-active';
+  }
+  if (['cancelled', 'rejected', 'expired'].includes(normalized)) {
+    return 'profile-booking-request-status is-cancelled';
+  }
+  return 'profile-booking-request-status';
+}
+
+function _adminBookingTypeLabel(item) {
+  return String(item?.object_type_label || item?.object_type || 'Заявка');
+}
+
+function _adminBookingUserLabel(item) {
+  return String(item?.user_name || item?.user_username || `ID ${Number(item?.user_id || 0) || '—'}`);
+}
+
+function _adminBookingTargetLabel(item) {
+  if (item?.object_type === 'group') {
+    const groups = Array.isArray(item?.bundle_group_names) ? item.bundle_group_names.filter(Boolean) : [];
+    return groups.length ? groups.join(' + ') : (item?.group_name || 'Группа');
+  }
+  if (item?.object_type === 'individual') {
+    return item?.teacher_name ? `К тренеру ${item.teacher_name}` : 'Индивидуальное занятие';
+  }
+  if (item?.object_type === 'rental') {
+    return 'Аренда зала';
+  }
+  return 'Заявка';
+}
+
+function _adminBookingCardMeta(item) {
+  if (!item || typeof item !== 'object') return [];
+  if (item.object_type === 'group') {
+    return [
+      item.group_start_date ? `Старт ${_formatAdminBookingDate(item.group_start_date)}` : null,
+      Number.isFinite(Number(item.lessons_count)) && Number(item.lessons_count) > 0 ? `${Number(item.lessons_count)} занятий` : null,
+      Array.isArray(item.bundle_group_names) && item.bundle_group_names.length > 1 ? `${item.bundle_group_names.length} группы` : null,
+    ].filter(Boolean);
+  }
+  return [
+    item.date ? _formatAdminBookingDate(item.date) : null,
+    item.time_from || item.time_to ? `${item.time_from || '—'} - ${item.time_to || '—'}` : null,
+    _formatAdminBookingDuration(item.duration_minutes) !== '—' ? _formatAdminBookingDuration(item.duration_minutes) : null,
+    item.object_type === 'individual' && item.teacher_name ? `Тренер ${item.teacher_name}` : null,
+  ].filter(Boolean);
+}
+
+function _adminBookingQuantityLabel(item) {
+  if (item?.object_type === 'group') {
+    const lessons = Number(item?.lessons_count);
+    return Number.isFinite(lessons) && lessons > 0 ? `${lessons} занятий` : '—';
+  }
+  return _formatAdminBookingDuration(item?.duration_minutes);
+}
+
+function _renderAdminBookingMeta(parts) {
+  return (Array.isArray(parts) ? parts : [])
+    .map(part => String(part || '').trim())
+    .filter(Boolean)
+    .map(part => `<span>${escapeHtml(part)}</span>`)
+    .join('<span class="profile-booking-request-meta-dot">•</span>');
+}
+
+function _renderAdminBookingSection(title, items, emptyText) {
+  const list = Array.isArray(items) ? items : [];
+  return `
+    <div class="admin-booking-section">
+      <div class="admin-booking-section-head">
+        <div class="admin-booking-section-title">${escapeHtml(title)}</div>
+        <div class="admin-booking-section-count">${list.length}</div>
+      </div>
+      ${list.length ? list.map(_renderAdminBookingCard).join('') : `<div class="card admin-booking-request-empty">${escapeHtml(emptyText)}</div>`}
+    </div>
+  `;
+}
+
+function renderAdminBookingRequests() {
+  const container = document.getElementById('admin-booking-requests-container');
+  if (!container) return;
+
+  const filteredItems = adminBookingRequests.filter(item => (
+    adminBookingRequestTypeFilter === 'all'
+    || String(item?.object_type || '').toLowerCase() === adminBookingRequestTypeFilter
+  ));
+  const nowMs = Date.now();
+
+  const waitingPaymentItems = _sortAdminBookingWaitingPayment(
+    filteredItems.filter(item => ADMIN_BOOKING_WAITING_PAYMENT_STATUSES.has(_adminBookingNormalizedStatus(item)))
+  );
+  const reviewItems = _sortAdminBookingReview(
+    filteredItems.filter(item => ADMIN_BOOKING_REVIEW_STATUSES.has(_adminBookingNormalizedStatus(item)))
+  );
+  const archiveItems = _sortAdminBookingProcessed(
+    filteredItems.filter(item => _isAdminBookingArchived(item, nowMs))
+  );
+  const processedItems = _sortAdminBookingProcessed(
+    filteredItems.filter(item => (
+      ADMIN_BOOKING_PROCESSED_STATUSES.has(_adminBookingNormalizedStatus(item))
+      && !_isAdminBookingArchived(item, nowMs)
+    ))
+  );
+  const archiveButtonLabel = archiveItems.length ? `Архив (${archiveItems.length})` : 'Архив';
+
+  container.innerHTML = `
+    <div class="card" style="margin-bottom: 12px;">
+      <div class="admin-booking-filter-row">
+        ${ADMIN_BOOKING_TYPE_FILTERS.map(filter => `
+          <button
+            type="button"
+            class="admin-booking-filter-btn ${adminBookingRequestTypeFilter === filter.value ? 'is-active' : ''}"
+            onclick="setAdminBookingRequestTypeFilter('${escapeHtml(filter.value)}')"
+          >${escapeHtml(filter.label)}</button>
+        `).join('')}
+        <button
+          type="button"
+          class="admin-booking-filter-btn ${adminBookingArchiveVisible ? 'is-active' : ''}"
+          onclick="toggleAdminBookingArchiveVisibility()"
+        >${escapeHtml(archiveButtonLabel)}</button>
+      </div>
+    </div>
+    ${_renderAdminBookingSection('Ожидают оплаты', waitingPaymentItems, 'Сейчас нет заявок, ожидающих оплату')}
+    ${_renderAdminBookingSection('Надо подтвердить', reviewItems, 'Сейчас нет заявок на рассмотрении')}
+    ${_renderAdminBookingSection('Оплаченные и рассмотренные', processedItems, 'Пока нет обработанных заявок')}
+    ${adminBookingArchiveVisible ? _renderAdminBookingSection('Архив', archiveItems, 'Архив пока пуст') : ''}
+  `;
+}
+
+function setAdminBookingRequestTypeFilter(filterValue) {
+  adminBookingRequestTypeFilter = String(filterValue || 'all').toLowerCase() || 'all';
+  renderAdminBookingRequests();
+}
+
+function toggleAdminBookingArchiveVisibility() {
+  adminBookingArchiveVisible = !adminBookingArchiveVisible;
+  renderAdminBookingRequests();
+}
+
+async function loadAdminBookingRequests() {
+  const container = document.getElementById('admin-booking-requests-container');
+  if (!container) return;
+  container.innerHTML = '<p class="small" style="text-align: center; color: var(--hint); padding: 20px;">Загрузка...</p>';
+
+  try {
+    const response = await authFetch('/api/admin/booking-requests');
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Не удалось загрузить заявки');
+    }
+    adminBookingRequests = _adminBookingItemsFromPayload(payload);
+    renderAdminBookingRequests();
+  } catch (error) {
+    container.innerHTML = `<p class="small" style="text-align: center; color: #ffb3b3; padding: 20px;">Ошибка: ${escapeHtml(String(error.message || 'Не удалось загрузить заявки'))}</p>`;
+  }
+}
+
+function _renderAdminBookingDetailRow(label, value) {
+  const normalizedValue = String(value || '').trim();
+  if (!normalizedValue || normalizedValue === '—') return '';
+  return `
+    <div class="profile-booking-request-detail-row">
+      <span>${escapeHtml(label)}</span>
+      <span>${escapeHtml(normalizedValue)}</span>
+    </div>
+  `;
+}
+
+function _renderAdminBookingModalActions(item) {
+  if (!item || typeof item !== 'object') return '';
+  const buttons = [];
+  if (item.can_approve) {
+    buttons.push(`<button class="save-btn" type="button" onclick="approveAdminBookingRequest(${Number(item.id)})">Подтвердить заявку</button>`);
+  }
+  if (item.can_confirm_payment) {
+    buttons.push(`<button class="save-btn" type="button" onclick="confirmAdminBookingRequestPayment(${Number(item.id)})">Подтвердить оплату</button>`);
+  }
+  if (item.can_cancel) {
+    buttons.push(`<button class="save-btn" type="button" style="background:#933;" onclick="cancelAdminBookingRequest(${Number(item.id)})">Отменить</button>`);
+  }
+  if (!buttons.length) {
+    return '<div class="small" style="color: var(--hint);">Для этой заявки действий больше нет.</div>';
+  }
+  return `<div class="admin-booking-request-actions" id="admin-booking-request-modal-actions">${buttons.join('')}</div>`;
+}
+
+function initAdminBookingRequestModalLayout() {
+  const modalEl = document.getElementById('admin-booking-request-modal');
+  if (!modalEl) return;
+  modalEl.classList.add('modal-fullscreen');
+  modalEl.innerHTML = `
+    <div class="fullscreen-modal-topbar">
+      <button aria-label="Назад" class="fullscreen-modal-icon-btn" id="admin-booking-request-local-back" onclick="closeAdminBookingRequestModal()">&#8592;</button>
+      <div class="fullscreen-modal-title-wrap">
+        <div class="fullscreen-modal-pill">Заявка</div>
+      </div>
+      <div aria-hidden="true" class="fullscreen-modal-icon-btn is-hidden"></div>
+    </div>
+    <div class="admin-booking-request-modal-shell" id="admin-booking-request-modal-shell"></div>
+  `;
+}
+
+function _setAdminBookingRequestBackFallbackVisible(isVisible) {
+  const backBtn = document.getElementById('admin-booking-request-local-back');
+  if (!backBtn) return;
+  backBtn.style.visibility = isVisible ? 'visible' : 'hidden';
+  backBtn.style.pointerEvents = isVisible ? 'auto' : 'none';
+}
+
+function _renderAdminBookingUserProfileButton(item) {
+  const userId = Number(item?.user_id);
+  if (!Number.isFinite(userId) || userId <= 0) return '';
+  return `
+    <button
+      class="save-btn"
+      type="button"
+      style="width: 100%; margin-top: 10px;"
+      onclick="openAdminBookingRequestUserProfile(${userId})"
+    >Открыть профиль пользователя</button>
+  `;
+}
+
+function _renderAdminBookingCard(item) {
+  const amountText = _formatAdminBookingMoney(item?.requested_amount, item?.requested_currency);
+  const quantityText = _adminBookingQuantityLabel(item);
+  const userLabel = _adminBookingUserLabel(item);
+  const typeLabel = _adminBookingTypeLabel(item);
+  const targetLabel = _adminBookingTargetLabel(item);
+  const summaryParts = [
+    quantityText !== '—' ? `Сколько: ${quantityText}` : null,
+    amountText ? `Сумма: ${amountText}` : 'Сумма: без оплаты',
+  ].filter(Boolean);
+
+  return `
+    <div class="card admin-booking-request-card" onclick="openAdminBookingRequestModal(${Number(item?.id || 0)})">
+      <div class="profile-booking-request-head">
+        <div class="profile-booking-request-title">${escapeHtml(userLabel)}</div>
+        <div class="${_adminBookingStatusClass(item?.status)}">${escapeHtml(String(item?.status_label || item?.status || '—'))}</div>
+      </div>
+      <div class="admin-booking-request-summary">
+        <div class="admin-booking-request-type">${escapeHtml(typeLabel)}</div>
+        <div class="admin-booking-request-target">${escapeHtml(targetLabel)}</div>
+        ${_adminBookingCardMeta(item).length ? `<div class="profile-booking-request-meta">${_renderAdminBookingMeta(_adminBookingCardMeta(item))}</div>` : ''}
+        <div class="profile-booking-request-primary">${escapeHtml(summaryParts.join(' • '))}</div>
+      </div>
+    </div>
+  `;
+}
+
+function openAdminBookingRequestModal(bookingId) {
+  const item = adminBookingRequests.find(entry => Number(entry?.id) === Number(bookingId));
+  if (!item) {
+    showNotification('Заявка не найдена');
+    return;
+  }
+
+  selectedAdminBookingRequest = item;
+  const overlayEl = document.getElementById('admin-booking-request-overlay');
+  const modalEl = document.getElementById('admin-booking-request-modal');
+  const shellEl = document.getElementById('admin-booking-request-modal-shell');
+  if (!overlayEl || !modalEl || !shellEl) {
+    showNotification('Окно заявки недоступно');
+    return;
+  }
+
+  const typeLabel = _adminBookingTypeLabel(item);
+  const userLabel = _adminBookingUserLabel(item);
+  const targetLabel = _adminBookingTargetLabel(item);
+  const amountText = _formatAdminBookingMoney(item.requested_amount, item.requested_currency) || 'Без оплаты';
+  const quantityText = _adminBookingQuantityLabel(item);
+  const userUsername = item.user_username ? (String(item.user_username).startsWith('@') ? item.user_username : `@${item.user_username}`) : '—';
+  const detailRows = [
+    _renderAdminBookingDetailRow('Тип заявки', typeLabel),
+    _renderAdminBookingDetailRow('Куда заявка', targetLabel),
+    _renderAdminBookingDetailRow('Сколько', quantityText),
+    _renderAdminBookingDetailRow('Сумма', amountText),
+    _renderAdminBookingDetailRow('Дата', _formatAdminBookingDate(item.date)),
+    _renderAdminBookingDetailRow('Время', item.time_from || item.time_to ? `${item.time_from || '—'} - ${item.time_to || '—'}` : ''),
+    _renderAdminBookingDetailRow('Тренер', item.teacher_name || ''),
+    _renderAdminBookingDetailRow('Старт абонемента', _formatAdminBookingDate(item.group_start_date)),
+    _renderAdminBookingDetailRow('Действует до', _formatAdminBookingDate(item.valid_until)),
+    _renderAdminBookingDetailRow('Создана', _formatAdminBookingDateTime(item.created_at)),
+    _renderAdminBookingDetailRow('Обновлена', _formatAdminBookingDateTime(item.status_updated_at)),
+  ].filter(Boolean).join('');
+
+  const financialRows = [
+    _renderAdminBookingDetailRow('Сумма к оплате', amountText),
+    _renderAdminBookingDetailRow('До скидки', _formatAdminBookingMoney(item.amount_before_discount, item.requested_currency)),
+    _renderAdminBookingDetailRow('Скидка', item.applied_discount_amount ? `-${_formatAdminBookingMoney(item.applied_discount_amount, item.requested_currency)}` : ''),
+    _renderAdminBookingDetailRow('Резерв до', _formatAdminBookingDateTime(item.reserved_until)),
+  ].filter(Boolean).join('');
+
+  shellEl.innerHTML = `
+    <div class="admin-booking-request-modal-hero">
+      <div class="${_adminBookingStatusClass(item.status)}">${escapeHtml(String(item.status_label || item.status || '—'))}</div>
+      <div class="admin-booking-request-modal-title">${escapeHtml(userLabel)}</div>
+      <div class="admin-booking-request-modal-subtitle">${escapeHtml(typeLabel)}</div>
+      <div class="admin-booking-request-target">${escapeHtml(targetLabel)}</div>
+      ${_adminBookingCardMeta(item).length ? `<div class="profile-booking-request-meta">${_renderAdminBookingMeta(_adminBookingCardMeta(item))}</div>` : ''}
+    </div>
+    <div class="admin-booking-request-grid">
+      <div class="card admin-booking-request-info-card">
+        <h4>Пользователь</h4>
+        ${_renderAdminBookingDetailRow('Имя', userLabel)}
+        ${_renderAdminBookingDetailRow('Username', userUsername)}
+        ${_renderAdminBookingDetailRow('Телефон', item.user_phone || '')}
+        ${_renderAdminBookingDetailRow('Email', item.user_email || '')}
+        ${_renderAdminBookingUserProfileButton(item)}
+      </div>
+      <div class="card admin-booking-request-info-card">
+        <h4>Детали заявки</h4>
+        ${detailRows || '<div class="small" style="color: var(--hint);">Дополнительных данных нет.</div>'}
+      </div>
+      <div class="card admin-booking-request-info-card">
+        <h4>Финансы</h4>
+        ${financialRows || '<div class="small" style="color: var(--hint);">Финансовых данных нет.</div>'}
+      </div>
+      <div class="card admin-booking-request-info-card">
+        <h4>Действия</h4>
+        ${_renderAdminBookingModalActions(item)}
+      </div>
+      ${item.comment ? `
+        <div class="card admin-booking-request-info-card">
+          <h4>Комментарий</h4>
+          <div class="small" style="white-space: pre-wrap; line-height: 1.45;">${escapeHtml(String(item.comment))}</div>
+        </div>
+      ` : ''}
+    </div>
+  `;
+
+  overlayEl.classList.add('show');
+  modalEl.classList.add('show');
+  _setAdminBookingRequestBackFallbackVisible(!hasTelegramBackButton());
+  setModalBackHandler(closeAdminBookingRequestModal);
+}
+
+function closeAdminBookingRequestModal() {
+  const overlayEl = document.getElementById('admin-booking-request-overlay');
+  const modalEl = document.getElementById('admin-booking-request-modal');
+  if (overlayEl) overlayEl.classList.remove('show');
+  if (modalEl) modalEl.classList.remove('show');
+  selectedAdminBookingRequest = null;
+  adminBookingRequestActionBusy = false;
+  setModalBackHandler(null);
+}
+
+function _setAdminBookingRequestActionBusy(isBusy) {
+  adminBookingRequestActionBusy = Boolean(isBusy);
+  const root = document.getElementById('admin-booking-request-modal-actions');
+  if (!root) return;
+  root.querySelectorAll('button').forEach(button => {
+    button.disabled = adminBookingRequestActionBusy;
+  });
+}
+
+async function _refreshAdminBookingRequestsModalState(bookingId) {
+  await loadAdminBookingRequests();
+  const refreshed = adminBookingRequests.find(item => Number(item?.id) === Number(bookingId));
+  if (refreshed) {
+    openAdminBookingRequestModal(bookingId);
+    return;
+  }
+  closeAdminBookingRequestModal();
+}
+
+async function approveAdminBookingRequest(bookingId) {
+  if (adminBookingRequestActionBusy) return;
+  _setAdminBookingRequestActionBusy(true);
+  try {
+    const response = await authFetch(`/api/admin/booking-requests/${Number(bookingId)}/approve`, {
+      method: 'POST',
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Не удалось подтвердить заявку');
+    }
+    showNotification(`Заявка #${Number(bookingId)} обновлена`);
+    await _refreshAdminBookingRequestsModalState(bookingId);
+  } catch (error) {
+    showNotification(error.message || 'Не удалось подтвердить заявку');
+  } finally {
+    _setAdminBookingRequestActionBusy(false);
+  }
+}
+
+async function confirmAdminBookingRequestPayment(bookingId) {
+  if (adminBookingRequestActionBusy) return;
+  _setAdminBookingRequestActionBusy(true);
+  try {
+    const response = await authFetch(`/api/admin/booking-requests/${Number(bookingId)}/confirm-payment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Не удалось подтвердить оплату');
+    }
+    showNotification(`Оплата по заявке #${Number(bookingId)} подтверждена`);
+    await _refreshAdminBookingRequestsModalState(bookingId);
+  } catch (error) {
+    showNotification(error.message || 'Не удалось подтвердить оплату');
+  } finally {
+    _setAdminBookingRequestActionBusy(false);
+  }
+}
+
+async function cancelAdminBookingRequest(bookingId) {
+  if (adminBookingRequestActionBusy) return;
+  _setAdminBookingRequestActionBusy(true);
+  try {
+    const response = await authFetch(`/api/admin/booking-requests/${Number(bookingId)}/cancel`, {
+      method: 'POST',
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Не удалось отменить заявку');
+    }
+    showNotification(`Заявка #${Number(bookingId)} отменена`);
+    await _refreshAdminBookingRequestsModalState(bookingId);
+  } catch (error) {
+    showNotification(error.message || 'Не удалось отменить заявку');
+  } finally {
+    _setAdminBookingRequestActionBusy(false);
+  }
+}
+
+initAdminBookingRequestModalLayout();
+
 let allClients = [];
 let selectedClientForActions = null;
 let clientDetailAvatarObjectUrl = null;
@@ -20436,6 +21804,42 @@ let clientMergeState = {
   secondaryUserId: null,
   searchQuery: '',
 };
+
+function upsertClientRecord(rawUser) {
+  const normalized = normalizeClientUserRecord(rawUser);
+  if (!normalized) return null;
+  const existingIndex = allClients.findIndex((item) => Number(item?.id) === normalized.id);
+  if (existingIndex >= 0) {
+    allClients[existingIndex] = { ...allClients[existingIndex], ...normalized };
+  } else {
+    allClients.unshift(normalized);
+  }
+  return normalized;
+}
+
+async function openAdminBookingRequestUserProfile(userId) {
+  const normalizedUserId = Number(userId);
+  if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) {
+    showNotification('Не удалось определить пользователя');
+    return;
+  }
+
+  try {
+    const response = await authFetch(`/users/${normalizedUserId}`);
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || 'Не удалось загрузить профиль пользователя');
+    }
+    const client = upsertClientRecord(payload);
+    if (!client) {
+      throw new Error('Не удалось открыть профиль пользователя');
+    }
+    closeAdminBookingRequestModal();
+    viewClientDetails(client.id);
+  } catch (error) {
+    showNotification(error?.message || 'Не удалось открыть профиль пользователя');
+  }
+}
 
 async function loadAllClients() {
   try {
@@ -26007,6 +27411,64 @@ window.platformAdapter = (function () {
     }
     return platform;
   }
+  async function authenticateVk(options = {}) {
+    const launchPayloadFromUrl = _readVkLaunchPayloadFromUrl();
+    const bridgeLaunchPayload = launchPayloadFromUrl ? null : await _readVkLaunchPayloadFromBridge();
+    const storedLaunchPayload = (!launchPayloadFromUrl && !bridgeLaunchPayload && (_isVkWebView() || _isVkEmbedded()))
+      ? _readStoredVkLaunchPayload()
+      : null;
+    const launchPayload = launchPayloadFromUrl || bridgeLaunchPayload || storedLaunchPayload || null;
+    const vkUserId = String(launchPayload?.vk_user_id || '').trim();
+    if (!vkUserId) {
+      return { ok: false, error: 'vk_context_required', payload: { error: 'vk_context_required' } };
+    }
+
+    _storeVkLaunchPayload(launchPayload);
+    let userInfo = null;
+    try {
+      if (window.vkBridge?.send) {
+        userInfo = await window.vkBridge.send('VKWebAppGetUserInfo');
+        window.__vkUserInfo = userInfo || null;
+      }
+    } catch (e) {
+      console.warn('VKWebAppGetUserInfo failed', e);
+    }
+
+    const payload = { ...(launchPayload || {}) };
+    if (!payload.sign && storedLaunchPayload?.sign) {
+      payload.sign = storedLaunchPayload.sign;
+    }
+    if (userInfo?.screen_name) payload.screen_name = userInfo.screen_name;
+    const displayName = [userInfo?.first_name, userInfo?.last_name].filter(Boolean).join(' ').trim();
+    if (displayName) {
+      payload.name = displayName;
+    }
+    if (options?.linkMode) {
+      payload.link_mode = true;
+    }
+
+    const response = await fetch('/auth/vk', {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    const authPayload = await response.json().catch(() => ({}));
+    applyAuthResponse(authPayload, 'vk');
+    if (!response.ok) {
+      return {
+        ok: false,
+        error: authPayload?.error || 'vk_auth_failed',
+        payload: authPayload,
+      };
+    }
+
+    const refreshed = await refreshBootstrapAfterAuthChange(options?.linkMode ? 'vk_link' : 'vk_login');
+    return {
+      ok: true,
+      payload: _isBootstrapContextPayload(refreshed) ? refreshed : authPayload,
+    };
+  }
   async function authBootstrap() {
     const bootstrapPlatform = hasVkContext() ? 'vk' : (resolvedPlatform || await initPlatform());
     if (bootstrapPlatform !== 'vk') {
@@ -26043,41 +27505,12 @@ window.platformAdapter = (function () {
       return loadAuthContext();
     }
     if (platform === 'vk') {
-      const launchPayloadFromUrl = _readVkLaunchPayloadFromUrl();
-      const bridgeLaunchPayload = launchPayloadFromUrl ? null : await _readVkLaunchPayloadFromBridge();
-      // Use stored launch payload only inside real VK WebView context.
-      const storedLaunchPayload = (!launchPayloadFromUrl && !bridgeLaunchPayload && _isVkWebView()) ? _readStoredVkLaunchPayload() : null;
-      const launchPayload = launchPayloadFromUrl || bridgeLaunchPayload || storedLaunchPayload || null;
-      const vkUserId = String(launchPayload?.vk_user_id || '').trim();
-      if (vkUserId) {
-        _storeVkLaunchPayload(launchPayload);
-        let userInfo = null;
-        try {
-          if (window.vkBridge?.send) {
-            userInfo = await window.vkBridge.send('VKWebAppGetUserInfo');
-            window.__vkUserInfo = userInfo || null;
-          }
-        } catch (e) {
-          console.warn('VKWebAppGetUserInfo failed', e);
-        }
-        const payload = { ...(launchPayload || {}) };
-        if (!payload.sign && storedLaunchPayload?.sign) {
-          payload.sign = storedLaunchPayload.sign;
-        }
-        if (userInfo?.screen_name) payload.screen_name = userInfo.screen_name;
-        const displayName = [userInfo?.first_name, userInfo?.last_name].filter(Boolean).join(' ').trim();
-        if (displayName) {
-          payload.name = displayName;
-        }
-        const response = await fetch('/auth/vk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(payload) });
-        const authPayload = await response.json().catch(() => ({}));
-        applyAuthResponse(authPayload, 'vk');
-        if (response.ok) {
-          _storeVkLaunchPayload(payload);
-          const refreshed = await refreshBootstrapAfterAuthChange(authPayload?.linked ? 'vk_link' : 'vk_login');
-          return _isBootstrapContextPayload(refreshed) ? refreshed : authPayload;
-        }
-        return authPayload;
+      const authResult = await authenticateVk();
+      if (authResult?.ok) {
+        return authResult.payload;
+      }
+      if (authResult?.payload) {
+        return authResult.payload;
       }
     }
     return loadAuthContext();
@@ -26106,6 +27539,7 @@ window.platformAdapter = (function () {
     isVkWebView: _isVkWebView,
     getVkLaunchPayload,
     getVkGroupId,
+    authenticateVk,
     requestVkAllowMessagesFromGroup,
     isPWA,
     initPlatform,
@@ -26177,6 +27611,7 @@ window.platformAdapter = (function () {
 </script>
 </body>
 </html>
+
 
 
 

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import requests
-
 from dance_studio.core.config import BOT_TOKEN
+from dance_studio.core.telegram_http import telegram_api_post
 
 
 class TelegramNotificationProvider:
@@ -34,47 +33,17 @@ class TelegramNotificationProvider:
         if payload.get("disable_web_page_preview") is not None:
             request_payload["disable_web_page_preview"] = bool(payload.get("disable_web_page_preview"))
 
-        try:
-            response = requests.post(
-                f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-                json=request_payload,
-                timeout=10,
-            )
-        except Exception as exc:
-            return {"ok": False, "error": f"telegram_exception:{exc}"}
-
-        if not response.ok:
-            description = ""
-            try:
-                data = response.json() if response.content else {}
-                description = str((data or {}).get("description") or "").strip()
-            except Exception:
-                description = str(response.text or "").strip()
+        ok, data, error = telegram_api_post(
+            "sendMessage",
+            request_payload,
+            timeout=15,
+        )
+        if not ok:
+            description = str(error or "").strip()
             lowered = description.lower()
             return {
                 "ok": False,
-                "error": f"telegram_http_{response.status_code}:{description or 'send_failed'}",
-                "is_permanent": any(
-                    marker in lowered
-                    for marker in (
-                        "chat not found",
-                        "forbidden",
-                        "bot was blocked by the user",
-                        "user is deactivated",
-                    )
-                ),
-            }
-
-        try:
-            data = response.json() if response.content else {}
-        except Exception:
-            data = {}
-        if not bool((data or {}).get("ok")):
-            description = str((data or {}).get("description") or "send_failed").strip()
-            lowered = description.lower()
-            return {
-                "ok": False,
-                "error": f"telegram_api:{description}",
+                "error": description or "telegram_send_failed",
                 "is_permanent": any(
                     marker in lowered
                     for marker in (

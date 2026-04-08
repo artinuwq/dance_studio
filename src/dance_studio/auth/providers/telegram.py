@@ -8,6 +8,26 @@ from dance_studio.core.tg_auth import validate_init_data
 from dance_studio.db.models import AuthIdentity, User
 
 
+def _normalize_profile_value(value: str | None) -> str | None:
+    normalized = str(value or "").strip()
+    return normalized or None
+
+
+def _build_telegram_display_name(verified) -> str | None:
+    first_name = _normalize_profile_value(getattr(verified, "first_name", None))
+    last_name = _normalize_profile_value(getattr(verified, "last_name", None))
+    if first_name or last_name:
+        return " ".join(part for part in [first_name, last_name] if part)
+    return None
+
+
+def _is_generated_telegram_name(name: str | None, telegram_user_id: int) -> bool:
+    normalized = _normalize_profile_value(name)
+    if not normalized:
+        return True
+    return normalized == f"Telegram {telegram_user_id}"
+
+
 class TelegramAuthProvider:
     provider_name = "telegram"
 
@@ -15,6 +35,9 @@ class TelegramAuthProvider:
         verified = validate_init_data(init_data)
         if not verified:
             return None, "invalid_init_data"
+        telegram_name = _build_telegram_display_name(verified)
+        telegram_username = _normalize_profile_value(getattr(verified, "username", None))
+        fallback_name = telegram_name or f"Telegram {verified.user_id}"
 
         # Legacy users can still have telegram_id without auth_identities row.
         # Reuse that user as a target to avoid creating a parallel duplicate account.
@@ -25,6 +48,10 @@ class TelegramAuthProvider:
             .first()
         )
         if existing_user:
+            if telegram_username:
+                existing_user.username = telegram_username
+            if telegram_name and _is_generated_telegram_name(existing_user.name, verified.user_id):
+                existing_user.name = telegram_name
             identity = (
                 db.query(AuthIdentity)
                 .filter(
@@ -84,8 +111,9 @@ class TelegramAuthProvider:
                 )
                 if identity_user and identity_user.telegram_id not in (None, verified.user_id):
                     existing_user = User(
-                        name=f"Telegram {verified.user_id}",
+                        name=fallback_name,
                         telegram_id=verified.user_id,
+                        username=telegram_username,
                     )
                     db.add(existing_user)
                     db.flush()
@@ -97,12 +125,16 @@ class TelegramAuthProvider:
             db,
             provider=self.provider_name,
             provider_user_id=str(verified.user_id),
-            username=None,
+            username=telegram_username,
             payload_json=json.dumps({"replay_key": verified.replay_key}, ensure_ascii=False),
-            fallback_name=f"Telegram {verified.user_id}",
+            fallback_name=fallback_name,
             verified_phone=normalized_phone,
             current_user_id=target_user_id,
         )
         if user.telegram_id is None:
             user.telegram_id = verified.user_id
+        if telegram_username:
+            user.username = telegram_username
+        if telegram_name and _is_generated_telegram_name(user.name, verified.user_id):
+            user.name = telegram_name
         return user, None

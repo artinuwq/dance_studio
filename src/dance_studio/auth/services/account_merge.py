@@ -1,7 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-import json
 from datetime import datetime
+import json
+
+from dance_studio.core.time import utcnow
 
 from sqlalchemy import func, or_
 
@@ -268,8 +270,8 @@ class AccountMergeService:
                 case_status="resolved",
                 conflict_source=reason,
                 review_result="approved" if reason.startswith("manual_") else None,
-                resolved_at=datetime.utcnow(),
-                payload_json=json.dumps({"merged_at": datetime.utcnow().isoformat()}, ensure_ascii=False),
+                resolved_at=utcnow(),
+                payload_json=json.dumps({"merged_at": utcnow().isoformat()}, ensure_ascii=False),
             )
         )
 
@@ -294,6 +296,7 @@ class AccountMergeService:
             source_phone = next((row for row in all_phone_rows if row.user_id == user_id), None)
             verified_matches = [row for row in all_phone_rows if row.verified_at is not None and row.user_id != user_id]
             match_user_ids = sorted({row.user_id for row in verified_matches})
+            matched_via_verified_phone = bool(match_user_ids)
             if not match_user_ids:
                 match_user_ids = self._find_legacy_phone_match_user_ids(
                     db,
@@ -307,13 +310,13 @@ class AccountMergeService:
                         user_id=user_id,
                         phone_e164=normalized_phone,
                         source=source,
-                        verified_at=datetime.utcnow(),
+                        verified_at=utcnow(),
                         is_primary=False,
                     )
                     db.add(source_phone)
                     db.flush()
                 else:
-                    source_phone.verified_at = source_phone.verified_at or datetime.utcnow()
+                    source_phone.verified_at = source_phone.verified_at or utcnow()
                     source_phone.source = source or source_phone.source
                 set_primary_phone(db, user_id=user_id, phone_row=source_phone)
                 return {"status": "no_match"}
@@ -332,7 +335,7 @@ class AccountMergeService:
                                 "phone": normalized_phone,
                                 "conflict_user_ids": match_user_ids,
                                 "source": source,
-                                "conflict_at": datetime.utcnow().isoformat(),
+                                "conflict_at": utcnow().isoformat(),
                             },
                             ensure_ascii=False,
                         ),
@@ -344,8 +347,8 @@ class AccountMergeService:
             if not other:
                 return {"status": "no_match"}
             if source_user.requires_manual_merge or other.requires_manual_merge or self._needs_manual_merge(db, user_id) or self._needs_manual_merge(db, other.id):
-                if source_phone:
-                    source_phone.verified_at = source_phone.verified_at or datetime.utcnow()
+                if source_phone and not matched_via_verified_phone:
+                    source_phone.verified_at = source_phone.verified_at or utcnow()
                     set_primary_phone(db, user_id=user_id, phone_row=source_phone)
                 source_user.requires_manual_merge = True
                 other.requires_manual_merge = True
@@ -362,19 +365,20 @@ class AccountMergeService:
                 )
                 return {"status": "manual_review_required", "conflict_user_ids": [user_id, other.id]}
 
-            if not source_phone:
-                source_phone = UserPhone(
-                    user_id=user_id,
-                    phone_e164=normalized_phone,
-                    source=source,
-                    verified_at=datetime.utcnow(),
-                    is_primary=False,
-                )
-                db.add(source_phone)
-                db.flush()
-            else:
-                source_phone.verified_at = source_phone.verified_at or datetime.utcnow()
-            set_primary_phone(db, user_id=user_id, phone_row=source_phone)
+            if not matched_via_verified_phone:
+                if not source_phone:
+                    source_phone = UserPhone(
+                        user_id=user_id,
+                        phone_e164=normalized_phone,
+                        source=source,
+                        verified_at=utcnow(),
+                        is_primary=False,
+                    )
+                    db.add(source_phone)
+                    db.flush()
+                else:
+                    source_phone.verified_at = source_phone.verified_at or utcnow()
+                set_primary_phone(db, user_id=user_id, phone_row=source_phone)
 
             primary_id, secondary_id = self.merge_users(
                 db,
@@ -413,7 +417,7 @@ class AccountMergeService:
         if not event:
             return None
 
-        now = datetime.utcnow()
+        now = utcnow()
         event.reviewed_by = reviewed_by
         event.reviewed_at = now
 
@@ -460,3 +464,4 @@ class AccountMergeService:
             return event
 
         raise ValueError("unsupported_merge_review_decision")
+

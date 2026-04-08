@@ -1,6 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, time as dt_time, timedelta
+
+from dance_studio.core.time import utcnow
 import uuid
 
 from dance_studio.core.abonement_pricing import (
@@ -150,7 +152,7 @@ def activate_group_abonement_from_booking(db, booking: BookingRequest) -> GroupA
     if booking.group_start_date:
         valid_from = datetime.combine(booking.group_start_date, dt_time.min)
     else:
-        valid_from = datetime.utcnow()
+        valid_from = utcnow()
 
     if booking.valid_until:
         valid_to = datetime.combine(booking.valid_until, dt_time.max)
@@ -222,3 +224,4 @@ def activate_group_abonement_from_booking(db, booking: BookingRequest) -> GroupA
 
 
 __all__ = ["activate_group_abonement_from_booking"]
+

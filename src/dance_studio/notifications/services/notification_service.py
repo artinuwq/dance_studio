@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 
+from dance_studio.core.time import utcnow
 from dance_studio.db.models import (
     AuthIdentity,
     Notification,
@@ -54,8 +54,6 @@ class NotificationService:
                 .first()
             )
             if channel and int(channel.user_id) != int(user.id):
-                # Target is already attached to another user (usually stale data).
-                # Do not rebind automatically during notification send.
                 return
             if not channel:
                 channel = NotificationChannel(
@@ -105,9 +103,6 @@ class NotificationService:
                 _ensure_channel(
                     "vk",
                     provider_user_id,
-                    # VK auth identity does not mean the user allowed messages
-                    # from the community. This flag is granted explicitly via
-                    # VK Mini App permission flow and stored on the channel.
                     is_verified=False,
                     is_primary=False,
                     promote_existing_verification=False,
@@ -200,7 +195,7 @@ class NotificationService:
             body=body,
             payload_json=json.dumps(payload, ensure_ascii=False),
             status="processing",
-            processed_at=datetime.utcnow(),
+            processed_at=utcnow(),
         )
         db.add(notification)
         db.flush()
@@ -223,8 +218,8 @@ class NotificationService:
                     status="sent" if ok else "failed",
                     provider_message_id=result.get("provider_message_id"),
                     error_message=result.get("error"),
-                    attempted_at=datetime.utcnow(),
-                    delivered_at=datetime.utcnow() if ok else None,
+                    attempted_at=utcnow(),
+                    delivered_at=utcnow() if ok else None,
                     payload_json=json.dumps(result, ensure_ascii=False),
                 )
             )

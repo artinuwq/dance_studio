@@ -1,8 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import secrets
 from datetime import datetime
+from dance_studio.core.time import utcnow
 from urllib.parse import urlparse
 
 from flask import request
@@ -20,7 +21,7 @@ from dance_studio.db.models import SessionRecord
 
 SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 3600
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/vk", "/auth/phone/request-code", "/auth/phone/verify-code", "/auth/passkey/register/begin", "/auth/passkey/register/complete", "/auth/passkey/login/begin", "/auth/passkey/login/complete", "/auth/logout", "/health"}
+CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/vk", "/auth/phone/request-code", "/auth/phone/verify-code", "/auth/passkey/register/begin", "/auth/passkey/register/complete", "/auth/passkey/login/begin", "/auth/passkey/login/complete", "/auth/logout", "/health", "/api/vk/callback"}
 CSRF_EXEMPT_PREFIXES = ("/api/directions/photo/",)
 SENSITIVE_PATH_PREFIXES = ("/schedule", "/api/bookings", "/api/payments", "/mailings", "/news")
 CSRF_COOKIE_NAME = "csrf_token"
@@ -192,7 +193,7 @@ def _delete_expired_sessions_for_user(db, telegram_id: int | None = None, user_i
     else:
         return
     q.filter(
-        SessionRecord.expires_at < datetime.utcnow(),
+        SessionRecord.expires_at < utcnow(),
     ).delete(synchronize_session=False)
 
 
@@ -287,3 +288,4 @@ __all__ = [
     "_set_sid_cookie",
     "_sid_hash",
 ]
+

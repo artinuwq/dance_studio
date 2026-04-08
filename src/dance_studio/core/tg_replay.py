@@ -1,6 +1,7 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime, timedelta
+from dance_studio.core.time import utcnow
 import hashlib
 import logging
 
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def cleanup_expired_init_data(db, *, now: datetime | None = None) -> int:
-    current_time = now or datetime.utcnow()
+    current_time = now or utcnow()
     deleted = db.query(UsedInitData).filter(UsedInitData.expires_at < current_time).delete(synchronize_session=False)
     return int(deleted or 0)
 
@@ -20,7 +21,7 @@ def cleanup_expired_init_data(db, *, now: datetime | None = None) -> int:
 def store_used_init_data(db, replay_key: str, ttl_seconds: int) -> bool:
     record = UsedInitData(
         key_hash=hashlib.sha256(replay_key.encode("utf-8")).hexdigest(),
-        expires_at=datetime.utcnow() + timedelta(seconds=ttl_seconds),
+        expires_at=utcnow() + timedelta(seconds=ttl_seconds),
     )
 
     try:
@@ -31,3 +32,4 @@ def store_used_init_data(db, replay_key: str, ttl_seconds: int) -> bool:
     except IntegrityError:
         logger.info("Telegram initData replay detected")
         return False
+

@@ -1,6 +1,6 @@
-import secrets
 import json
-from datetime import datetime, timedelta
+import secrets
+from datetime import timedelta
 
 from flask import Blueprint, current_app, g, jsonify, request
 
@@ -9,7 +9,6 @@ from dance_studio.auth.providers.phone import PhoneCodeAuthProvider
 from dance_studio.auth.providers.telegram import TelegramAuthProvider
 from dance_studio.auth.providers.vk import VkMiniAppAuthProvider
 from dance_studio.auth.services.account_merge import AccountMergeService
-from dance_studio.auth.services.otp_delivery import send_phone_otp
 from dance_studio.auth.services.audit import log_auth_event
 from dance_studio.auth.services.bootstrap import build_user_auth_contract
 from dance_studio.auth.services.common import (
@@ -23,9 +22,11 @@ from dance_studio.auth.services.contracts import (
     auth_error_payload,
     link_success_payload,
 )
+from dance_studio.auth.services.otp_delivery import send_phone_otp
 from dance_studio.auth.services.rate_limit import RateLimitExceededError, hit_rate_limit
 from dance_studio.core.config import ENV, SESSION_TTL_DAYS, TG_INIT_DATA_MAX_AGE_SECONDS
 from dance_studio.core.tg_replay import store_used_init_data
+from dance_studio.core.time import utcnow
 from dance_studio.db.models import AuthIdentity, NotificationChannel, SessionRecord, User
 from dance_studio.web.services.auth_session import (
     _clear_csrf_cookie,
@@ -41,11 +42,11 @@ from dance_studio.web.services.auth_session import (
     _sid_hash,
 )
 
-bp = Blueprint('auth_routes', __name__)
+bp = Blueprint("auth_routes", __name__)
 TELEGRAM_REPLAY_IDEMPOTENT_WINDOW_SECONDS = 15
 
-MERGE_CONFLICT_NOTICE = "Мы нашли несколько аккаунтов с этим номером. Напишите в поддержку, чтобы объединить их."
-MANUAL_MERGE_NOTICE = "Мы нашли данные, которые требуют ручной проверки перед объединением аккаунтов. Напишите в поддержку."
+MERGE_CONFLICT_NOTICE = "ÐœÑ‹ Ð½Ð°ÑˆÐ»Ð¸ Ð½ÐµÑÐºÐ¾Ð»ÑŒÐºÐ¾ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚Ð¾Ð² Ñ ÑÑ‚Ð¸Ð¼ Ð½Ð¾Ð¼ÐµÑ€Ð¾Ð¼. ÐÐ°Ð¿Ð¸ÑˆÐ¸Ñ‚Ðµ Ð² Ð¿Ð¾Ð´Ð´ÐµÑ€Ð¶ÐºÑƒ, Ñ‡Ñ‚Ð¾Ð±Ñ‹ Ð¾Ð±ÑŠÐµÐ´Ð¸Ð½Ð¸Ñ‚ÑŒ Ð¸Ñ…."
+MANUAL_MERGE_NOTICE = "ÐœÑ‹ Ð½Ð°ÑˆÐ»Ð¸ Ð´Ð°Ð½Ð½Ñ‹Ðµ, ÐºÐ¾Ñ‚Ð¾Ñ€Ñ‹Ðµ Ñ‚Ñ€ÐµÐ±ÑƒÑŽÑ‚ Ñ€ÑƒÑ‡Ð½Ð¾Ð¹ Ð¿Ñ€Ð¾Ð²ÐµÑ€ÐºÐ¸ Ð¿ÐµÑ€ÐµÐ´ Ð¾Ð±ÑŠÐµÐ´Ð¸Ð½ÐµÐ½Ð¸ÐµÐ¼ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚Ð¾Ð². ÐÐ°Ð¿Ð¸ÑˆÐ¸Ñ‚Ðµ Ð² Ð¿Ð¾Ð´Ð´ÐµÑ€Ð¶ÐºÑƒ."
 
 
 def _as_bool(value) -> bool:
@@ -79,7 +80,7 @@ def _auth_error_response(error: str, status: int, **extra):
 
 def _handle_auth_provider_error(error: Exception):
     if isinstance(error, RateLimitExceededError):
-        return _auth_error_response("rate_limited", 429, message="Слишком много попыток. Попробуйте позже.")
+        return _auth_error_response("rate_limited", 429, message="Ð¡Ð»Ð¸ÑˆÐºÐ¾Ð¼ Ð¼Ð½Ð¾Ð³Ð¾ Ð¿Ð¾Ð¿Ñ‹Ñ‚Ð¾Ðº. ÐŸÐ¾Ð¿Ñ€Ð¾Ð±ÑƒÐ¹Ñ‚Ðµ Ð¿Ð¾Ð·Ð¶Ðµ.")
     if isinstance(error, VerifiedPhoneConflictError):
         return _auth_error_response(
             "verified_phone_conflict",
@@ -101,7 +102,7 @@ def _handle_auth_provider_error(error: Exception):
         return _auth_error_response(
             "identity_already_linked",
             409,
-            message="Этот способ входа уже привязан к другому аккаунту.",
+            message="Ð­Ñ‚Ð¾Ñ‚ ÑÐ¿Ð¾ÑÐ¾Ð± Ð²Ñ…Ð¾Ð´Ð° ÑƒÐ¶Ðµ Ð¿Ñ€Ð¸Ð²ÑÐ·Ð°Ð½ Ðº Ð´Ñ€ÑƒÐ³Ð¾Ð¼Ñƒ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚Ñƒ.",
             action="switch_account",
             fallback_auth_methods=DEFAULT_FALLBACK_AUTH_METHODS,
         )
@@ -132,7 +133,7 @@ def _has_recent_session_for_same_client(
     ip_prefix: str | None,
     window_seconds: int = TELEGRAM_REPLAY_IDEMPOTENT_WINDOW_SECONDS,
 ) -> bool:
-    now = datetime.utcnow()
+    now = utcnow()
     threshold = now - timedelta(seconds=window_seconds)
     query = db.query(SessionRecord).filter(
         SessionRecord.user_id == user_id,
@@ -148,7 +149,7 @@ def _has_recent_session_for_same_client(
 
 def _login_user(db, *, user_id: int, telegram_id: int | None, extra_payload: dict | None = None):
     sid = secrets.token_hex(32)
-    now = datetime.utcnow()
+    now = utcnow()
     expires_at = now + timedelta(days=SESSION_TTL_DAYS)
     user_agent_hash = _hash_user_agent(request.headers.get("User-Agent"))
     ip_prefix = _extract_ip_prefix()
@@ -185,6 +186,8 @@ def _merge_payload_from_result(merge_result: dict | None) -> dict:
     merge_status = merge_result.get("status")
     payload: dict = {}
     if merge_status == "merged":
+        payload["merge_notice"] = "Аккаунты объединены. Проверьте, что все данные на месте."
+        payload["merge_notice"] = "ÐÐºÐºÐ°ÑƒÐ½Ñ‚Ñ‹ Ð¾Ð±ÑŠÐµÐ´Ð¸Ð½ÐµÐ½Ñ‹. ÐŸÑ€Ð¾Ð²ÐµÑ€ÑŒÑ‚Ðµ, Ñ‡Ñ‚Ð¾ Ð²ÑÐµ Ð´Ð°Ð½Ð½Ñ‹Ðµ Ð½Ð° Ð¼ÐµÑÑ‚Ðµ."
         payload["merge_notice"] = "Аккаунты объединены. Проверьте, что все данные на месте."
     elif merge_status == "conflict":
         payload["merge_notice"] = MERGE_CONFLICT_NOTICE
@@ -255,7 +258,7 @@ def auth_telegram():
                 return _auth_error_response("replay_detected", 401)
 
         if verified_identity:
-            verified_identity.last_login_at = datetime.utcnow()
+            verified_identity.last_login_at = utcnow()
         if user.telegram_id:
             channel = db.query(NotificationChannel).filter(
                 NotificationChannel.channel_type == "telegram",
@@ -301,7 +304,7 @@ def auth_vk():
         vk_user_id = str(payload.get("vk_user_id") or payload.get("user_id"))
         identity = db.query(AuthIdentity).filter(AuthIdentity.user_id == user.id, AuthIdentity.provider == "vk", AuthIdentity.provider_user_id == vk_user_id).first()
         if identity:
-            identity.last_login_at = datetime.utcnow()
+            identity.last_login_at = utcnow()
         channel = db.query(NotificationChannel).filter(
             NotificationChannel.channel_type == "vk",
             NotificationChannel.target_ref == vk_user_id,
@@ -637,7 +640,7 @@ def auth_logout():
         except Exception:
             db.rollback()
             current_app.logger.exception("Failed to logout session")
-            return {"error": "Не удалось завершить сессию"}, 500
+            return {"error": "ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ Ð·Ð°Ð²ÐµÑ€ÑˆÐ¸Ñ‚ÑŒ ÑÐµÑÑÐ¸ÑŽ"}, 500
 
     response = jsonify({"ok": True})
     _clear_sid_cookie(response)

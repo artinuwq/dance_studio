@@ -13,6 +13,7 @@ class InitDataValidationResult:
     user_id: int
     username: str | None
     first_name: str | None
+    last_name: str | None
     replay_key: str
 
 
@@ -77,5 +78,6 @@ def validate_init_data(init_data: str) -> InitDataValidationResult | None:
         user_id=user_id,
         username=user.get("username"),
         first_name=user.get("first_name"),
+        last_name=user.get("last_name"),
         replay_key=replay_key,
     )

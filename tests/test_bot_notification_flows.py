@@ -19,6 +19,36 @@ def test_attendance_reminder_markup_has_will_attend_and_will_miss_buttons():
     assert 'callback_data=f"attmiss:{schedule_id}"' in window
 
 
+def test_vk_attendance_reminder_keyboard_has_callback_buttons():
+    source = BOT_FILE.read_text(encoding="utf-8")
+    window = _window(source, "def _vk_reminder_keyboard(schedule_id: int) -> dict:", size=1500)
+
+    assert '"command": ATTENDANCE_REMINDER_COMMAND' in window
+    assert '"type": "callback"' in window
+    assert '_payload(ATTENDANCE_WILL_ATTEND_STATUS)' in window
+    assert '_payload(ATTENDANCE_WILL_MISS_STATUS)' in window
+
+
+def test_attendance_reminder_delivery_resolves_interactive_channels_and_sends_vk_keyboard():
+    source = BOT_FILE.read_text(encoding="utf-8")
+    window = _window(source, "async def _send_attendance_reminder_to_user(db, schedule: Schedule, user: User) -> None:", size=3200)
+
+    assert "channels = _resolve_attendance_reminder_channels(db, user.id)" in window
+    assert "vk_provider = VkNotificationProvider()" in window
+    assert '{"keyboard": _vk_reminder_keyboard(schedule.id)}' in window
+    assert "row.vk_peer_id = vk_peer_id" in window
+    assert "row.vk_message_id = vk_message_id" in window
+
+
+def test_locked_attendance_reminders_edit_vk_messages_and_remove_keyboard():
+    source = BOT_FILE.read_text(encoding="utf-8")
+    window = _window(source, "async def close_locked_attendance_reminders() -> None:", size=2200)
+
+    assert "edit_vk_message" in window
+    assert "_reminder_closed_message_text(schedule)" in window
+    assert "_vk_remove_keyboard_payload()" in window
+
+
 def test_reminder_background_loop_runs_teacher_summaries_and_abonement_notifications():
     source = BOT_FILE.read_text(encoding="utf-8")
     window = _window(source, "async def process_attendance_reminders() -> None:", size=500)

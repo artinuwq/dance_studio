@@ -1,6 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
+
+from dance_studio.core.time import utcnow
 
 from sqlalchemy import or_
 
@@ -226,7 +228,7 @@ def _auto_finalize_attendance_from_intentions(db, schedule: Schedule, now_utc: d
     if window.get("phase") != "marking_closed":
         return 0
 
-    now = now_utc or datetime.utcnow()
+    now = now_utc or utcnow()
     intentions = {
         row.user_id: row
         for row in db.query(AttendanceIntention).filter_by(schedule_id=schedule.id).all()
@@ -331,3 +333,4 @@ __all__ = [
     "_load_group_roster",
     "_serialize_attendance_intention_with_lock",
 ]
+
