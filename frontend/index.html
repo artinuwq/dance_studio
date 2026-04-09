@@ -210,6 +210,93 @@ body.tg-mobile .header-back {
   margin: 0 0 8px 0;
 }
 
+.home-status-card {
+  display: none;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+
+.home-status-card.show {
+  display: block;
+}
+
+.home-status-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.home-status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.home-status-title {
+  font-size: 11px;
+  color: var(--hint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.home-status-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.home-status-name {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.home-status-meta {
+  font-size: 12px;
+  color: var(--hint);
+}
+
+.home-status-arrow {
+  font-size: 18px;
+  color: var(--hint);
+  margin-left: auto;
+}
+
+.schedule-intention-row {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.schedule-intention-pill {
+  border: 1px solid var(--border);
+  background: #222;
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.schedule-intention-pill.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.schedule-intention-pill.disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.schedule-intention-note {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--hint);
+}
+
 .home-logo-wrap {
   margin: 0 0 8px;
 }
@@ -5371,9 +5458,18 @@ textarea.form-input {
 <div class="home-logo-wrap home-logo-standalone">
 <img alt="Sheba x Lissa logo" class="home-logo" onerror="this.parentElement.style.display='none'" src="/assets/logo.png"/>
 </div>
-<div class="card home-welcome-card">
+<div class="card home-welcome-card" id="home-welcome-card">
 <h3>Добро пожаловать!</h3>
 <p class="small">Мы рады видеть вас в нашей студии</p>
+</div>
+<div class="card home-status-card" id="home-status-card" onclick="handleHomeStatusClick()" role="button" tabindex="0">
+  <div class="home-status-header">
+    <div class="home-status-title">Ближайшее занятие</div>
+    <div class="home-status-time" id="home-status-time">—</div>
+    <div class="home-status-arrow">›</div>
+  </div>
+  <div class="home-status-name" id="home-status-name">—</div>
+  <div class="home-status-meta" id="home-status-meta"></div>
 </div>
 <div class="card home-news-card">
 <h4>Новости</h4>
@@ -8229,6 +8325,10 @@ function showPage(id) {
     loadPersonalSchedule();
   } else {
     hidePersonalScheduleRefreshCapsule();
+  }
+
+  if (id === 'home') {
+    loadHomeStatusCard();
   }
 
   if (id === 'personal-groups') {
@@ -17598,6 +17698,9 @@ async function loadPublicSchedule(force = false) {
     const normalized = Array.isArray(schedules) ? schedules : [];
     window.publicScheduleCache[mode] = normalized;
     window.publicScheduleItems = normalized;
+    if (mode === 'mine') {
+      updateHomeStatusFromItems(normalized);
+    }
 
     const today = new Date();
     if (!window.publicScheduleDate) {
@@ -17775,6 +17878,7 @@ function renderPublicScheduleList() {
     const endTime = formatTimeShort(s.end);
     const duration = getDurationMinutes(startTime, endTime);
     const color = getPublicScheduleColor(s.title || '');
+    const intentionHtml = renderScheduleIntentionControls(s);
     return `
       <div class="public-schedule-item" onclick="openPublicScheduleDetail(${s.id})">
         <div class="public-schedule-time">
@@ -17787,11 +17891,196 @@ function renderPublicScheduleList() {
           ${directionTitle ? `<div class="public-info-sub">${directionTitle}</div>` : ''}
           <div class="public-info-sub">${isRental ? 'Аренда зала' : isIndividual ? 'Индивидуальное занятие' : 'Групповое занятие'}</div>
           <div class="public-info-teacher">${teacherName}</div>
+          ${intentionHtml}
         </div>
         <div class="public-chevron">›</div>
       </div>
     `;
   }).join('');
+}
+
+let attendanceIntentionBusy = {};
+let homeStatusState = {
+  schedule: null,
+  within24: false,
+  loading: false,
+  lastLoadedAt: 0,
+};
+
+function findPublicScheduleItemById(scheduleId) {
+  const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
+  return items.find(i => i.id === scheduleId);
+}
+
+function refreshPublicScheduleDetailIfOpen(scheduleId) {
+  const detailPage = document.getElementById('public-schedule-detail');
+  if (!detailPage || !detailPage.classList.contains('active')) return;
+  if (window.currentPublicScheduleDetailId !== scheduleId) return;
+  openPublicScheduleDetail(scheduleId);
+}
+
+async function handleAttendanceIntentionClick(scheduleId, willMiss, event) {
+  if (event) {
+    event.stopPropagation();
+    event.preventDefault();
+  }
+  if (!scheduleId) return;
+  const item = findPublicScheduleItemById(scheduleId);
+  if (!item || !item.attendance_intention_allowed) return;
+  const state = getScheduleIntentionState(item);
+  if (state.isLocked) {
+    showNotification(state.banner || 'Отметка уже закрыта');
+    return;
+  }
+  if (attendanceIntentionBusy[scheduleId]) return;
+  attendanceIntentionBusy[scheduleId] = true;
+  try {
+    const response = await fetch(`/api/attendance-intentions/${scheduleId}/my`, {
+      method: 'POST',
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ will_miss: Boolean(willMiss) }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось сохранить');
+    }
+    item.attendance_intention = data;
+    item.attendance_intention_allowed = true;
+    if (homeStatusState?.schedule?.id === scheduleId) {
+      updateHomeStatusCard(item);
+    }
+    if (document.getElementById('schedule')?.classList.contains('active')) {
+      renderPublicScheduleList();
+    }
+    refreshPublicScheduleDetailIfOpen(scheduleId);
+  } catch (error) {
+    showNotification(error.message || 'Ошибка сети');
+  } finally {
+    attendanceIntentionBusy[scheduleId] = false;
+  }
+}
+
+function updateHomeStatusCard(item, options = {}) {
+  const card = document.getElementById('home-status-card');
+  const welcomeCard = document.getElementById('home-welcome-card');
+  if (!card) return;
+  if (!item) {
+    card.classList.remove('show');
+    if (welcomeCard) welcomeCard.style.display = '';
+    homeStatusState.schedule = null;
+    return;
+  }
+  const startAt = parseScheduleStartAt(item);
+  const now = Date.now();
+  const within24 = Boolean(options.within24 || (startAt && (startAt.getTime() - now) <= 24 * 60 * 60 * 1000));
+  homeStatusState.schedule = item;
+  homeStatusState.within24 = within24;
+  card.classList.add('show');
+  if (welcomeCard) welcomeCard.style.display = 'none';
+
+  const timeEl = document.getElementById('home-status-time');
+  const nameEl = document.getElementById('home-status-name');
+  const metaEl = document.getElementById('home-status-meta');
+
+  const timeLabel = formatTimeShort(item.start || item.time_from || item.start_time);
+  if (timeEl) timeEl.textContent = timeLabel || '—';
+  if (nameEl) nameEl.textContent = item.title || 'Занятие';
+
+  const objectType = (item.object_type || '').toString().toLowerCase();
+  const typeLabel = objectType === 'individual'
+    ? 'Индивидуальное занятие'
+    : objectType === 'rental'
+      ? 'Аренда зала'
+      : 'Групповое занятие';
+  const teacherName = item.teacher_name || (item.teacher && item.teacher.name ? item.teacher.name : '');
+  const dateLabel = item.date
+    ? new Date(item.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
+    : '';
+
+  const intentionState = getScheduleIntentionState(item);
+  const statusText = intentionState.allowed
+    ? `Статус: ${intentionState.willMiss ? 'Не приду' : 'Приду'}${intentionState.isLocked ? ' (закрыто)' : ''}`
+    : '';
+
+  const metaParts = [dateLabel, typeLabel, teacherName, statusText].filter(Boolean);
+  if (metaEl) metaEl.textContent = metaParts.join(' • ');
+}
+
+function updateHomeStatusFromItems(items) {
+  if (!Array.isArray(items) || !items.length) {
+    updateHomeStatusCard(null);
+    return;
+  }
+  const now = Date.now();
+  let nearest = null;
+  items.forEach((item) => {
+    const startAt = parseScheduleStartAt(item);
+    if (!startAt) return;
+    const ts = startAt.getTime();
+    if (ts < now) return;
+    if (!nearest || ts < nearest.ts) {
+      nearest = { item, ts };
+    }
+  });
+  if (!nearest) {
+    updateHomeStatusCard(null);
+    return;
+  }
+  updateHomeStatusCard(nearest.item, { within24: (nearest.ts - now) <= 24 * 60 * 60 * 1000 });
+}
+
+async function fetchMineScheduleItems(force = false) {
+  if (!force && Array.isArray(window.publicScheduleCache?.mine)) {
+    return window.publicScheduleCache.mine;
+  }
+  const response = await fetch('/schedule/public?mine=1', { headers: getAuthHeaders() });
+  if (!response.ok) return [];
+  const data = await response.json().catch(() => []);
+  const normalized = Array.isArray(data) ? data : [];
+  if (!window.publicScheduleCache) window.publicScheduleCache = {};
+  window.publicScheduleCache.mine = normalized;
+  return normalized;
+}
+
+async function loadHomeStatusCard(options = {}) {
+  const card = document.getElementById('home-status-card');
+  if (!card) return;
+  if (homeStatusState.loading) return;
+  homeStatusState.loading = true;
+  try {
+    await ensureProfileLoaded();
+    if (!_hasAuthenticatedCurrentUser()) {
+      updateHomeStatusCard(null);
+      return;
+    }
+    const items = await fetchMineScheduleItems(Boolean(options.force));
+    updateHomeStatusFromItems(items);
+  } catch (_) {
+    updateHomeStatusCard(null);
+  } finally {
+    homeStatusState.loading = false;
+  }
+}
+
+async function handleHomeStatusClick() {
+  const item = homeStatusState.schedule;
+  if (!item) return;
+  const items = await fetchMineScheduleItems(false);
+  if (Array.isArray(items)) {
+    window.publicScheduleItems = items;
+  }
+  window.publicScheduleType = 'mine';
+  if (homeStatusState.within24) {
+    openPublicScheduleDetail(item.id);
+    return;
+  }
+  if (item.date) {
+    const dateObj = new Date(item.date + 'T00:00:00');
+    window.publicScheduleDate = formatDateLocal(dateObj);
+    window.publicScheduleWeekStart = getPublicWeekStart(dateObj);
+    window.publicScheduleMonthDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
+  }
+  showPage('schedule');
 }
 
 function renderPublicScheduleCalendar(container, items) {
@@ -17937,6 +18226,40 @@ function formatTimeShort(timeStr) {
   return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
 }
 
+function parseScheduleStartAt(item) {
+  if (!item || !item.date) return null;
+  const rawTime = item.start || item.time_from || item.start_time || '';
+  if (!rawTime) return null;
+  const timePart = rawTime.split('+')[0];
+  const iso = `${item.date}T${timePart}`;
+  const dt = new Date(iso);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function getScheduleIntentionState(item) {
+  if (!item || !item.attendance_intention_allowed) {
+    return { allowed: false, willMiss: false, isLocked: false, banner: '' };
+  }
+  const intention = item.attendance_intention || {};
+  const willMiss = Boolean(intention.has_intention && intention.status === 'will_miss');
+  const isLocked = Boolean(intention.is_locked);
+  const banner = intention.banner || intention.lock_message || '';
+  return { allowed: true, willMiss, isLocked, banner };
+}
+
+function renderScheduleIntentionControls(item) {
+  const state = getScheduleIntentionState(item);
+  if (!state.allowed) return '';
+  const disabledClass = state.isLocked ? 'disabled' : '';
+  return `
+    <div class="schedule-intention-row">
+      <div class="schedule-intention-pill ${!state.willMiss ? 'active' : ''} ${disabledClass}" onclick="handleAttendanceIntentionClick(${item.id}, false, event)">Приду</div>
+      <div class="schedule-intention-pill ${state.willMiss ? 'active' : ''} ${disabledClass}" onclick="handleAttendanceIntentionClick(${item.id}, true, event)">Не приду</div>
+    </div>
+    ${state.isLocked && state.banner ? `<div class="schedule-intention-note">${state.banner}</div>` : ''}
+  `;
+}
+
 function getPublicScheduleColor(key) {
   const hue = (hashString(key || '') + 180) % 360;
   return `hsl(${hue}, 70%, 55%)`;
@@ -17946,6 +18269,7 @@ function openPublicScheduleDetail(id) {
   const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
   const item = items.find(i => i.id === id);
   if (!item) return;
+  window.currentPublicScheduleDetailId = id;
 
   const content = document.getElementById('public-schedule-detail-content');
   if (!content) return;
@@ -17957,6 +18281,15 @@ function openPublicScheduleDetail(id) {
   const directionImage = item.direction_image || '';
   const directionId = Number(item.direction_id);
   const hasDirectionId = Number.isFinite(directionId) && directionId > 0;
+  const intentionControls = renderScheduleIntentionControls(item);
+  const intentionSection = intentionControls
+    ? `
+      <div class="schedule-detail-card">
+        <div class="attendance-section-title">Ваше участие</div>
+        ${intentionControls}
+      </div>
+    `
+    : '';
 
   content.innerHTML = `
     ${directionImage ? `<div class="card" style="padding:0; overflow:hidden; margin-bottom:8px;"><img src="${directionImage}" alt="Направление" style="width:100%; height:180px; object-fit:cover; display:block;"></div>` : ''}
@@ -17971,6 +18304,7 @@ function openPublicScheduleDetail(id) {
       <div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${lessons}</div>
       <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${item.age_group || '—'}</div>
     </div>
+    ${intentionSection}
     <div class="schedule-detail-card">
       <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${item.direction || '—'}</div>
       <div class="schedule-detail-row">📝 <strong>Описание направления:</strong> ${item.direction_description || '—'}</div>
@@ -25543,7 +25877,10 @@ style.innerText = `
 document.head.appendChild(style);
 
 // Загружаем новости как можно раньше
-document.addEventListener('DOMContentLoaded', loadNews);
+document.addEventListener('DOMContentLoaded', () => {
+  loadNews();
+  loadHomeStatusCard();
+});
 
 // ======================== СИСТЕМА РАССЫЛОК ========================
 
