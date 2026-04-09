@@ -17881,8 +17881,6 @@ function renderPublicScheduleList() {
     const endTime = formatTimeShort(s.end);
     const duration = getDurationMinutes(startTime, endTime);
     const color = getPublicScheduleColor(s.title || '');
-    const showIntention = (window.publicScheduleType || 'all') === 'mine';
-    const intentionHtml = showIntention ? renderScheduleIntentionControls(s) : '';
     return `
       <div class="public-schedule-item" onclick="openPublicScheduleDetail(${s.id})">
         <div class="public-schedule-time">
@@ -17895,7 +17893,6 @@ function renderPublicScheduleList() {
           ${directionTitle ? `<div class="public-info-sub">${directionTitle}</div>` : ''}
           <div class="public-info-sub">${isRental ? 'Аренда зала' : isIndividual ? 'Индивидуальное занятие' : 'Групповое занятие'}</div>
           <div class="public-info-teacher">${teacherName}</div>
-          ${intentionHtml}
         </div>
         <div class="public-chevron">›</div>
       </div>
@@ -18281,6 +18278,8 @@ function openPublicScheduleDetail(id) {
   const directionImage = item.direction_image || '';
   const directionId = Number(item.direction_id);
   const hasDirectionId = Number.isFinite(directionId) && directionId > 0;
+  const showIntention = (window.publicScheduleType || 'all') === 'mine';
+  const intentionHtml = showIntention ? renderScheduleIntentionControls(item) : '';
   content.innerHTML = `
     ${directionImage ? `<div class="card" style="padding:0; overflow:hidden; margin-bottom:8px;"><img src="${directionImage}" alt="Направление" style="width:100%; height:180px; object-fit:cover; display:block;"></div>` : ''}
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
@@ -18293,6 +18292,7 @@ function openPublicScheduleDetail(id) {
       <div class="schedule-detail-row">👩‍🏫 <strong>Преподаватель:</strong> ${item.teacher_name || '—'}</div>
       <div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${lessons}</div>
       <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${item.age_group || '—'}</div>
+      ${intentionHtml ? `<div style="margin-top:8px;">${intentionHtml}</div>` : ''}
     </div>
     <div class="schedule-detail-card">
       <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${item.direction || '—'}</div>
@@ -27526,6 +27526,8 @@ function openPublicScheduleDetail(id) {
   const safeDirectionTitle = toSafeText(item.direction, '—');
   const safeDirectionDescription = toSafeText(item.direction_description, '—');
   const safeLessons = toSafeText(lessons, '—');
+  const showIntention = (window.publicScheduleType || 'all') === 'mine';
+  const intentionHtml = showIntention ? renderScheduleIntentionControls(item) : '';
 
   content.innerHTML = `
     ${directionImage ? `<div class="card" style="padding:0; overflow:hidden; margin-bottom:8px;"><img src="${safeDirectionImage}" alt="Направление" style="width:100%; height:180px; object-fit:cover; display:block;"></div>` : ''}
@@ -27539,6 +27541,7 @@ function openPublicScheduleDetail(id) {
       <div class="schedule-detail-row">👩‍🏫 <strong>Преподаватель:</strong> ${safeTeacherName}</div>
       <div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${safeLessons}</div>
       <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${safeAgeGroup}</div>
+      ${intentionHtml ? `<div style="margin-top:8px;">${intentionHtml}</div>` : ''}
     </div>
     <div class="schedule-detail-card">
       <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${safeDirectionTitle}</div>
