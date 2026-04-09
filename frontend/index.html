@@ -27508,6 +27508,7 @@ function openPublicScheduleDetail(id) {
   const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
   const item = items.find((entry) => entry.id === id);
   if (!item) return;
+  window.currentPublicScheduleDetailId = id;
 
   const content = document.getElementById('public-schedule-detail-content');
   if (!content) return;
