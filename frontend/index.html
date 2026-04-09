@@ -212,7 +212,10 @@ body.tg-mobile .header-back {
 
 .home-status-card {
   display: none;
-  padding: 12px 14px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  text-align: left;
   cursor: pointer;
 }
 
@@ -221,7 +224,7 @@ body.tg-mobile .header-back {
 }
 
 .home-status-card:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  opacity: 0.85;
 }
 
 .home-status-header {
@@ -5459,17 +5462,17 @@ textarea.form-input {
 <img alt="Sheba x Lissa logo" class="home-logo" onerror="this.parentElement.style.display='none'" src="/assets/logo.png"/>
 </div>
 <div class="card home-welcome-card" id="home-welcome-card">
-<h3>Добро пожаловать!</h3>
-<p class="small">Мы рады видеть вас в нашей студии</p>
-</div>
-<div class="card home-status-card" id="home-status-card" onclick="handleHomeStatusClick()" role="button" tabindex="0">
-  <div class="home-status-header">
-    <div class="home-status-title">Ближайшее занятие</div>
-    <div class="home-status-time" id="home-status-time">—</div>
-    <div class="home-status-arrow">›</div>
+  <h3>Добро пожаловать!</h3>
+  <div class="home-status-card" id="home-status-card" onclick="handleHomeStatusClick()" role="button" tabindex="0">
+    <div class="home-status-header">
+      <div class="home-status-title">Ближайшее занятие</div>
+      <div class="home-status-time" id="home-status-time">—</div>
+      <div class="home-status-arrow">›</div>
+    </div>
+    <div class="home-status-name" id="home-status-name">—</div>
+    <div class="home-status-meta" id="home-status-meta"></div>
+    <div id="home-status-intention"></div>
   </div>
-  <div class="home-status-name" id="home-status-name">—</div>
-  <div class="home-status-meta" id="home-status-meta"></div>
 </div>
 <div class="card home-news-card">
 <h4>Новости</h4>
@@ -17878,7 +17881,8 @@ function renderPublicScheduleList() {
     const endTime = formatTimeShort(s.end);
     const duration = getDurationMinutes(startTime, endTime);
     const color = getPublicScheduleColor(s.title || '');
-    const intentionHtml = renderScheduleIntentionControls(s);
+    const showIntention = (window.publicScheduleType || 'all') === 'mine';
+    const intentionHtml = showIntention ? renderScheduleIntentionControls(s) : '';
     return `
       <div class="public-schedule-item" onclick="openPublicScheduleDetail(${s.id})">
         <div class="public-schedule-time">
@@ -17962,11 +17966,11 @@ async function handleAttendanceIntentionClick(scheduleId, willMiss, event) {
 
 function updateHomeStatusCard(item, options = {}) {
   const card = document.getElementById('home-status-card');
-  const welcomeCard = document.getElementById('home-welcome-card');
   if (!card) return;
   if (!item) {
     card.classList.remove('show');
-    if (welcomeCard) welcomeCard.style.display = '';
+    const intentionEl = document.getElementById('home-status-intention');
+    if (intentionEl) intentionEl.innerHTML = '';
     homeStatusState.schedule = null;
     return;
   }
@@ -17976,11 +17980,11 @@ function updateHomeStatusCard(item, options = {}) {
   homeStatusState.schedule = item;
   homeStatusState.within24 = within24;
   card.classList.add('show');
-  if (welcomeCard) welcomeCard.style.display = 'none';
 
   const timeEl = document.getElementById('home-status-time');
   const nameEl = document.getElementById('home-status-name');
   const metaEl = document.getElementById('home-status-meta');
+  const intentionEl = document.getElementById('home-status-intention');
 
   const timeLabel = formatTimeShort(item.start || item.time_from || item.start_time);
   if (timeEl) timeEl.textContent = timeLabel || '—';
@@ -17997,13 +18001,9 @@ function updateHomeStatusCard(item, options = {}) {
     ? new Date(item.date + 'T00:00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })
     : '';
 
-  const intentionState = getScheduleIntentionState(item);
-  const statusText = intentionState.allowed
-    ? `Статус: ${intentionState.willMiss ? 'Не приду' : 'Приду'}${intentionState.isLocked ? ' (закрыто)' : ''}`
-    : '';
-
-  const metaParts = [dateLabel, typeLabel, teacherName, statusText].filter(Boolean);
+  const metaParts = [dateLabel, typeLabel, teacherName].filter(Boolean);
   if (metaEl) metaEl.textContent = metaParts.join(' • ');
+  if (intentionEl) intentionEl.innerHTML = '';
 }
 
 function updateHomeStatusFromItems(items) {
@@ -18281,16 +18281,6 @@ function openPublicScheduleDetail(id) {
   const directionImage = item.direction_image || '';
   const directionId = Number(item.direction_id);
   const hasDirectionId = Number.isFinite(directionId) && directionId > 0;
-  const intentionControls = renderScheduleIntentionControls(item);
-  const intentionSection = intentionControls
-    ? `
-      <div class="schedule-detail-card">
-        <div class="attendance-section-title">Ваше участие</div>
-        ${intentionControls}
-      </div>
-    `
-    : '';
-
   content.innerHTML = `
     ${directionImage ? `<div class="card" style="padding:0; overflow:hidden; margin-bottom:8px;"><img src="${directionImage}" alt="Направление" style="width:100%; height:180px; object-fit:cover; display:block;"></div>` : ''}
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
@@ -18304,7 +18294,6 @@ function openPublicScheduleDetail(id) {
       <div class="schedule-detail-row">📆 <strong>Занятий в неделю:</strong> ${lessons}</div>
       <div class="schedule-detail-row">🎈 <strong>Возраст:</strong> ${item.age_group || '—'}</div>
     </div>
-    ${intentionSection}
     <div class="schedule-detail-card">
       <div class="schedule-detail-row">🎯 <strong>Направление:</strong> ${item.direction || '—'}</div>
       <div class="schedule-detail-row">📝 <strong>Описание направления:</strong> ${item.direction_description || '—'}</div>
@@ -18743,9 +18732,16 @@ function _hasVkNotificationPermissionIssue(channels) {
 }
 
 function setAuthState(patch = {}) {
-  currentAuthState = { ...currentAuthState, ...patch };
+  const wasAuthenticated = Boolean(currentAuthState?.isAuthenticated);
+  const nextState = { ...currentAuthState, ...patch };
+  currentAuthState = nextState;
   persistAuthSnapshot();
   renderAuthStateUI();
+
+  const isAuthenticated = Boolean(nextState?.isAuthenticated);
+  if (!wasAuthenticated && isAuthenticated) {
+    loadHomeStatusCard({ force: true });
+  }
 }
 
 function syncVkPermissionRequiredState(required) {
