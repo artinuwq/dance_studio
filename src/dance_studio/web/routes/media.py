@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from flask import Blueprint, g, request, send_from_directory
@@ -11,6 +12,10 @@ from dance_studio.web.services.api_errors import internal_server_error_response,
 from dance_studio.web.services.upload_validation import validate_image_upload
 
 bp = Blueprint("media_routes", __name__)
+
+_HASHED_ASSET_RE = re.compile(r"[.-][0-9a-fA-F]{8,}(?=\.)")
+_ASSET_CACHE_LONG = "public, max-age=31536000, immutable"
+_ASSET_CACHE_SHORT = "public, max-age=3600, must-revalidate"
 
 
 def _photo_permission_error(db, target_user: User):
@@ -36,11 +41,19 @@ def _serve_from_root_if_exists(root: Path, filename: str):
     return send_from_directory(str(root), filename)
 
 
+def _is_hashed_asset(filename: str) -> bool:
+    return bool(_HASHED_ASSET_RE.search(Path(filename).name))
+
+
 @bp.route("/assets/<path:filename>")
 def serve_frontend_asset(filename):
     asset_path = Path(FRONTEND_DIR) / filename
     if asset_path.exists() and asset_path.is_file():
-        return send_from_directory(FRONTEND_DIR, filename)
+        response = send_from_directory(FRONTEND_DIR, filename)
+        response.headers["Cache-Control"] = (
+            _ASSET_CACHE_LONG if _is_hashed_asset(filename) else _ASSET_CACHE_SHORT
+        )
+        return response
     return {"error": "file not found"}, 404
 
 

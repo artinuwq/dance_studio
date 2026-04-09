@@ -6,6 +6,7 @@ from .media import bp as media_bp
 from .news import bp as news_bp
 from .payments import bp as payments_bp
 from .platform_api import bp as platform_api_bp
+from .security import bp as security_bp
 
 __all__ = [
     "admin_bp",
@@ -16,4 +17,5 @@ __all__ = [
     "news_bp",
     "payments_bp",
     "platform_api_bp",
+    "security_bp",
 ]

@@ -13,6 +13,7 @@ MEDIA_ROOT = VAR_ROOT / "media"
 
 # Keep upload ceiling conservative to reduce memory/disk abuse surface.
 MAX_UPLOAD_MB = 15
+DIRECTION_PHOTO_MAX_MB = 5
 
 ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
 INACTIVE_SCHEDULE_STATUSES = {

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from flask import Flask, request
 
+from dance_studio.core.config import CSP_ENFORCE, CSP_REPORT_ONLY, CSP_REPORT_URI
 
-_CSP_POLICY = "; ".join(
-    [
+
+_CSP_BASE_POLICY = [
         "default-src 'self'",
         "base-uri 'self'",
         "object-src 'none'",
@@ -39,12 +40,20 @@ _CSP_POLICY = "; ".join(
         ),
         "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org https://*.vk.com https://vk.com https://*.vk.ru https://vk.ru",
     ]
-)
+
+
+def _build_csp_policy() -> str:
+    directives = list(_CSP_BASE_POLICY)
+    if CSP_REPORT_URI:
+        directives.append(f"report-uri {CSP_REPORT_URI}")
+    return "; ".join(directives)
 
 
 def _set_security_headers(response):
     # Keep compatibility with current frontend (inline script/style and third-party scripts).
-    response.headers.setdefault("Content-Security-Policy", _CSP_POLICY)
+    if CSP_ENFORCE or CSP_REPORT_ONLY:
+        header_name = "Content-Security-Policy" if CSP_ENFORCE else "Content-Security-Policy-Report-Only"
+        response.headers.setdefault(header_name, _build_csp_policy())
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")

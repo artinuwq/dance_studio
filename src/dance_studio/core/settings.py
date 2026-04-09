@@ -202,6 +202,9 @@ SESSION_PEPPER = os.getenv('SESSION_PEPPER') or APP_SECRET_KEY
 COOKIE_SECURE = _parse_bool(os.getenv('COOKIE_SECURE', '1' if ENV != 'dev' else '0'), ENV != 'dev')
 COOKIE_SAMESITE = os.getenv('COOKIE_SAMESITE', 'None' if COOKIE_SECURE else 'Lax')
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+CSP_REPORT_ONLY = _parse_bool(os.getenv('CSP_REPORT_ONLY', '1'), True)
+CSP_ENFORCE = _parse_bool(os.getenv('CSP_ENFORCE', '0'), False)
+CSP_REPORT_URI = (os.getenv('CSP_REPORT_URI', '/csp-report') or '').strip()
 
 INITIAL_STAFF_CONFIG_PATH = (os.getenv('INITIAL_STAFF_CONFIG_PATH', '') or '').strip()
 INITIAL_STAFF_ASSIGNMENTS = _load_initial_staff_assignments(INITIAL_STAFF_CONFIG_PATH)

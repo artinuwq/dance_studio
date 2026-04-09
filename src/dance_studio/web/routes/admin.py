@@ -90,6 +90,7 @@ from dance_studio.db.models import (
 from dance_studio.web.constants import (
     ALLOWED_DIRECTION_TYPES,
     BASE_DIR,
+    DIRECTION_PHOTO_MAX_MB,
     FRONTEND_DIR,
     INACTIVE_SCHEDULE_STATUSES,
     MEDIA_ROOT,
@@ -100,6 +101,7 @@ from dance_studio.web.services.api_errors import (
     safe_client_error_message,
     token_fingerprint,
 )
+from dance_studio.web.services.upload_validation import validate_image_upload
 from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
 from dance_studio.web.services.admin import (
     _append_merge_note,
@@ -502,9 +504,7 @@ def _staff_editability_payload(db, staff: Staff) -> tuple[bool, str | None]:
 @bp.route("/")
 def index():
     response = make_response(send_from_directory(FRONTEND_DIR, "index.html"))
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    response.headers["Pragma"] = "no-cache"
-    response.headers["Expires"] = "0"
+    response.headers["Cache-Control"] = "public, max-age=300, must-revalidate"
     return response
 
 
@@ -4677,30 +4677,19 @@ def upload_direction_photo(token):
         return {"error": "Файл не выбран"}, 400
 
     try:
+        max_bytes = DIRECTION_PHOTO_MAX_MB * 1024 * 1024
+        file_data, detected_ext = validate_image_upload(file, max_bytes=max_bytes)
+    except ValueError as exc:
+        return {"error": safe_client_error_message(exc)}, 400
+
+    try:
         # Сохраняем в var/media/directions/<session_id>/photo_xxx.ext
         directions_dir = MEDIA_ROOT / "directions" / str(session.session_id)
         os.makedirs(directions_dir, exist_ok=True)
 
-        # Сохраняем файл (расширение берем из mimetype/имени файла)
-        mime = (getattr(file, "mimetype", "") or "").lower()
-        orig_ext = os.path.splitext(file.filename or "")[1].lower()
-        ext = orig_ext
-        if mime in ("image/jpeg", "image/jpg"):
-            ext = ".jpg"
-        elif mime == "image/png":
-            ext = ".png"
-        elif mime == "image/webp":
-            ext = ".webp"
-        if not ext:
-            return {"error": "Не удалось определить тип файла"}, 400
-        if ext == ".jpeg":
-            ext = ".jpg"
-        if ext not in {".jpg", ".png", ".webp"}:
-            return {"error": "Поддерживаются только JPG/PNG/WEBP"}, 400
-
-        filename = secure_filename(f"photo_{session.session_id}{ext}")
+        filename = secure_filename(f"photo_{session.session_id}{detected_ext}")
         filepath = directions_dir / filename
-        file.save(filepath)
+        filepath.write_bytes(file_data)
 
         # Сохраняем путь в БД относительно корня проекта
         relative_path = os.path.relpath(filepath, PROJECT_ROOT)

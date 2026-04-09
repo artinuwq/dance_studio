@@ -18,6 +18,7 @@ from dance_studio.web.routes import (
     news_bp,
     payments_bp,
     platform_api_bp,
+    security_bp,
 )
 
 
@@ -41,6 +42,7 @@ def create_app() -> Flask:
     app.register_blueprint(media_bp)
     app.register_blueprint(admin_bp)
     app.register_blueprint(platform_api_bp)
+    app.register_blueprint(security_bp)
 
     return app
 

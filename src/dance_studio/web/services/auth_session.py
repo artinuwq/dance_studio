@@ -21,7 +21,7 @@ from dance_studio.db.models import SessionRecord
 
 SESSION_TTL_SECONDS = SESSION_TTL_DAYS * 24 * 3600
 STATE_CHANGING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/vk", "/auth/phone/request-code", "/auth/phone/verify-code", "/auth/passkey/register/begin", "/auth/passkey/register/complete", "/auth/passkey/login/begin", "/auth/passkey/login/complete", "/auth/logout", "/health", "/api/vk/callback"}
+CSRF_EXEMPT_PATHS = {"/auth/telegram", "/auth/vk", "/auth/phone/request-code", "/auth/phone/verify-code", "/auth/passkey/register/begin", "/auth/passkey/register/complete", "/auth/passkey/login/begin", "/auth/passkey/login/complete", "/auth/logout", "/health", "/api/vk/callback", "/csp-report"}
 CSRF_EXEMPT_PREFIXES = ("/api/directions/photo/",)
 SENSITIVE_PATH_PREFIXES = ("/schedule", "/api/bookings", "/api/payments", "/mailings", "/news")
 CSRF_COOKIE_NAME = "csrf_token"
