@@ -96,6 +96,26 @@ def _normalize_initial_staff_role(value: str) -> str:
     return _INITIAL_STAFF_ROLE_ALIASES.get(normalized, "")
 
 
+def _normalize_initial_staff_phone(value: str | None) -> str | None:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if not digits:
+        return None
+    if raw.startswith("+"):
+        normalized = f"+{digits}"
+    elif len(digits) == 11 and digits.startswith("8"):
+        normalized = f"+7{digits[1:]}"
+    elif len(digits) == 10:
+        normalized = f"+7{digits}"
+    else:
+        normalized = f"+{digits}"
+    if len(normalized) < 8:
+        return None
+    return normalized
+
+
 def _resolve_initial_staff_config_path(value: str) -> Path | None:
     raw = (value or "").strip()
     if not raw:
@@ -124,15 +144,26 @@ def _load_initial_staff_assignments(path_value: str) -> list[dict]:
 
     result: list[dict] = []
     seen_telegram_ids: set[int] = set()
+    seen_phones: set[str] = set()
     for index, item in enumerate(items, start=1):
         if not isinstance(item, dict):
             raise RuntimeError(f"Initial staff item #{index} must be an object")
 
-        telegram_id = _parse_int(str(item.get("telegram_id", "")).strip(), None)
-        if telegram_id is None or telegram_id <= 0:
+        telegram_id_raw = str(item.get("telegram_id", "")).strip()
+        telegram_id = _parse_int(telegram_id_raw, None)
+        if telegram_id_raw and (telegram_id is None or telegram_id <= 0):
             raise RuntimeError(f"Initial staff item #{index} must contain a positive telegram_id")
         if telegram_id in seen_telegram_ids:
             raise RuntimeError(f"Duplicate telegram_id in initial staff config: {telegram_id}")
+
+        phone_raw = str(item.get("phone", "")).strip()
+        phone = _normalize_initial_staff_phone(phone_raw)
+        if phone_raw and not phone:
+            raise RuntimeError(f"Initial staff item #{index} must contain a valid phone number")
+        if phone in seen_phones:
+            raise RuntimeError(f"Duplicate phone in initial staff config: {phone}")
+        if telegram_id is None and phone is None:
+            raise RuntimeError(f"Initial staff item #{index} must contain telegram_id or phone")
 
         position = _normalize_initial_staff_role(str(item.get("position", "")))
         if not position:
@@ -140,9 +171,13 @@ def _load_initial_staff_assignments(path_value: str) -> list[dict]:
                 f"Initial staff item #{index} has unsupported position: {item.get('position')!r}"
             )
 
-        seen_telegram_ids.add(telegram_id)
+        if telegram_id is not None:
+            seen_telegram_ids.add(telegram_id)
+        if phone is not None:
+            seen_phones.add(phone)
         result.append({
             "telegram_id": telegram_id,
+            "phone": phone,
             "position": position,
             "name": str(item.get("name") or "").strip(),
             "status": str(item.get("status") or "active").strip() or "active",
@@ -211,12 +246,12 @@ INITIAL_STAFF_ASSIGNMENTS = _load_initial_staff_assignments(INITIAL_STAFF_CONFIG
 _INITIAL_STAFF_OWNER_IDS = [
     item["telegram_id"]
     for item in INITIAL_STAFF_ASSIGNMENTS
-    if item.get("position") == "владелец"
+    if item.get("telegram_id") and item.get("position") == "владелец"
 ]
 _INITIAL_STAFF_TECH_ADMIN_IDS = [
     item["telegram_id"]
     for item in INITIAL_STAFF_ASSIGNMENTS
-    if item.get("position") == "тех. админ"
+    if item.get("telegram_id") and item.get("position") == "тех. админ"
 ]
 
 OWNER_IDS = list(_INITIAL_STAFF_OWNER_IDS)

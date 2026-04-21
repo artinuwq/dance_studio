@@ -20,6 +20,7 @@ from dance_studio.core.abonement_pricing import (
     quote_group_booking,
 )
 from dance_studio.core.abonement_activation import activate_group_abonement_from_booking
+from dance_studio.core.booking_payment_messages import build_booking_payment_subject_text
 from dance_studio.core.booking_utils import build_booking_keyboard_data, format_booking_message
 from dance_studio.core.personal_discounts import (
     DiscountConsumptionConflictError,
@@ -755,14 +756,14 @@ def _notify_booking_admins(booking: BookingRequest, user: User) -> None:
         )
 
 def _compute_group_booking_payment_amount(db, booking: BookingRequest) -> int | None:
-    if booking.object_type != "group":
-        return None
     if booking.requested_amount is not None:
         try:
             amount = int(booking.requested_amount)
         except (TypeError, ValueError):
             return None
         return amount if amount >= 0 else None
+    if booking.object_type != "group":
+        return None
 
     if not booking.group_id:
         return None
@@ -783,6 +784,8 @@ def _build_booking_payment_request_message(db, booking: BookingRequest) -> str:
     bank = str(profile.get("recipient_bank") or "—").strip() or "—"
     number = str(profile.get("recipient_number") or "—").strip() or "—"
     full_name = str(profile.get("recipient_full_name") or "—").strip() or "—"
+    payment_subject = build_booking_payment_subject_text(db, booking)
+    payment_subject_block = f"{payment_subject}\n\n" if payment_subject else ""
 
     amount = _compute_group_booking_payment_amount(db, booking)
     amount_text = f"{amount:,} ₽".replace(",", " ") if amount else "уточните у администратора"
@@ -807,6 +810,7 @@ def _build_booking_payment_request_message(db, booking: BookingRequest) -> str:
     return (
         "Здравствуйте!\n"
         f"Это администрация {PROJECT_NAME_FULL} Studio.\n\n"
+        f"{payment_subject_block}"
         "Реквизиты для оплаты:\n"
         f"• Банк получателя: {bank}\n"
         f"• Номер: {number}\n"

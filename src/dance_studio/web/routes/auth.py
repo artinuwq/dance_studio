@@ -27,6 +27,7 @@ from dance_studio.auth.services.rate_limit import RateLimitExceededError, hit_ra
 from dance_studio.core.config import ENV, SESSION_TTL_DAYS, TG_INIT_DATA_MAX_AGE_SECONDS
 from dance_studio.core.tg_replay import store_used_init_data
 from dance_studio.core.time import utcnow
+from dance_studio.db import sync_bootstrap_staff_assignment_for_user
 from dance_studio.db.models import AuthIdentity, NotificationChannel, SessionRecord, User
 from dance_studio.web.services.auth_session import (
     _clear_csrf_cookie,
@@ -271,6 +272,7 @@ def auth_telegram():
             channel.is_verified = True
             channel.is_primary = True
 
+        sync_bootstrap_staff_assignment_for_user(db, user_id=user.id)
         response = _auth_success_response(db, user=user, provider="telegram", link_mode=link_mode)
         log_auth_event(db, event_type=("telegram_link" if link_mode else "telegram_login"), provider="telegram", user_id=user.id)
         db.commit()
@@ -317,6 +319,7 @@ def auth_vk():
         channel.is_primary = False
 
         link_mode = bool(link_mode_requested and current_session_user_id and int(current_session_user_id) == int(user.id))
+        sync_bootstrap_staff_assignment_for_user(db, user_id=user.id)
         response = _auth_success_response(db, user=user, provider="vk", link_mode=link_mode)
         log_auth_event(db, event_type=("vk_link" if link_mode else "vk_login"), provider="vk", user_id=user.id)
         db.commit()
@@ -356,6 +359,8 @@ def auth_vk_phone():
     try:
         response_payload = {"ok": True, "phone": normalize_phone_e164(phone)}
         response_payload.update(_merge_payload_from_result(merge_result))
+        login_user_id = int((merge_result or {}).get("primary_user_id") or user.id)
+        sync_bootstrap_staff_assignment_for_user(db, user_id=login_user_id)
         db.commit()
         return response_payload
     except Exception:
@@ -496,6 +501,7 @@ def verify_phone_code():
         login_user_id = int((merge_result or {}).get("primary_user_id") or user.id)
         login_user = db.query(User).filter(User.id == login_user_id).first() or user
         link_mode = current_user_id is not None
+        sync_bootstrap_staff_assignment_for_user(db, user_id=login_user.id)
         response = _auth_success_response(
             db,
             user=login_user,

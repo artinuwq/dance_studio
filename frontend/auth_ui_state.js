@@ -39,13 +39,20 @@
     return 'Сначала подтвердите номер телефона в профиле, затем отправляйте заявку.';
   }
 
+  function isPhoneVerified(authUser) {
+    return Boolean(authUser && (authUser.phone_verified || (authUser.identities && authUser.identities.phone && authUser.identities.phone.verified)));
+  }
+
   function shouldShowVerificationBanner(authUser) {
     if (!authUser) return false;
-    const phoneVerified = Boolean(authUser.phone_verified || (authUser.identities && authUser.identities.phone && authUser.identities.phone.verified));
-    return !phoneVerified;
+    return !isPhoneVerified(authUser);
   }
 
   function getVerificationBannerTitle(state) {
+    const currentUser = state && state.currentUser ? state.currentUser : null;
+    if (currentUser && !isPhoneVerified(currentUser)) {
+      return 'Подтвердите аккаунт';
+    }
     if (state && state.vkPermissionRequired) {
       return 'Включите сообщения VK';
     }
@@ -56,6 +63,10 @@
   }
 
   function getVerificationBannerText(state) {
+    const currentUser = state && state.currentUser ? state.currentUser : null;
+    if (currentUser && !isPhoneVerified(currentUser)) {
+      return 'Подтвердите номер телефона, чтобы оформлять записи и безопасно объединять способы входа.';
+    }
     if (state && state.vkPermissionRequired) {
       return 'Сообщество VK сейчас не может писать вам в личные сообщения. Откройте приложение через VK Mini App и снова разрешите сообщения от сообщества.';
     }
@@ -65,10 +76,33 @@
     if (state && state.verifiedPhoneConflict) {
       return 'По подтверждённому номеру найден конфликт. Выберите другой способ входа или напишите в поддержку.';
     }
-    if (state && state.currentUser && !state.currentUser.phone_verified) {
-      return 'Подтвердите номер телефона, чтобы оформлять записи и безопасно объединять способы входа.';
-    }
     return 'Объединяйте входы через Telegram, VK и сайт, быстрее восстанавливайте доступ и включайте быстрый вход.';
+  }
+
+  function getVerificationBannerActions(state) {
+    const currentUser = state && state.currentUser ? state.currentUser : null;
+    if (currentUser && !isPhoneVerified(currentUser)) {
+      return {
+        primaryLabel: 'Подтвердить номер',
+        primaryAction: 'verify_phone',
+        secondaryLabel: '',
+        secondaryAction: null,
+      };
+    }
+    if (state && state.vkPermissionRequired) {
+      return {
+        primaryLabel: 'Разрешить писать сообществу',
+        primaryAction: 'verify_vk_messages',
+        secondaryLabel: 'Позже',
+        secondaryAction: 'skip_vk_messages',
+      };
+    }
+    return {
+      primaryLabel: '',
+      primaryAction: null,
+      secondaryLabel: '',
+      secondaryAction: null,
+    };
   }
 
   function getIdentityRows(authUser) {
@@ -134,9 +168,11 @@
     normalizeBootstrapUser,
     requiresVerifiedPhoneForBooking,
     getPhoneVerificationRequiredMessage,
+    isPhoneVerified,
     shouldShowVerificationBanner,
     getVerificationBannerTitle,
     getVerificationBannerText,
+    getVerificationBannerActions,
     getIdentityRows,
     hasCurrentUser,
     getAuthStatusText,

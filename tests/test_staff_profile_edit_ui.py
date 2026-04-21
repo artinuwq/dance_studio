@@ -29,3 +29,13 @@ def test_staff_profile_edit_supports_role_update_for_manage_staff():
     assert "function updateStaffProfileTeachesToggle()" in source
     assert "const canEditPosition = ['владелец', 'старший админ', 'тех. админ']" in source
     assert "payload.position = position;" in source
+
+
+def test_personnel_ui_uses_trainer_role_label_and_teaches_badges():
+    source = FRONTEND.read_text(encoding="utf-8")
+
+    assert 'value="учитель">👩‍🏫 Тренер</option>' in source
+    assert "function getStaffRoleLabel(role)" in source
+    assert "if (normalized === 'учитель') return 'Тренер';" in source
+    assert "function getStaffTeachesLabel(teaches)" in source
+    assert "return teaches ? '👩‍🏫 Преподает' : '👩‍🏫 Не преподает';" in source

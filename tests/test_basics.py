@@ -10,7 +10,8 @@ from sqlalchemy.pool import StaticPool
 import dance_studio.core.config as config_module
 import dance_studio.core.settings as settings_module
 import dance_studio.db as db_module
-from dance_studio.db.models import Base, Staff, User
+from dance_studio.core.time import utcnow
+from dance_studio.db.models import Base, Staff, User, UserPhone
 from dance_studio.web.constants import ALLOWED_DIRECTION_TYPES, MAX_UPLOAD_MB
 
 
@@ -43,6 +44,7 @@ def test_initial_staff_settings_can_load_json_config_and_derive_legacy_ids():
                         {"telegram_id": 222222222, "position": "владелец"},
                         {"telegram_id": 333333333, "position": "старший админ"},
                         {"telegram_id": 444444444, "position": "администратор"},
+                        {"phone": "8 (999) 000-11-22", "position": "администратор", "name": "Phone Admin"},
                     ]
                 },
                 ensure_ascii=False,
@@ -62,7 +64,10 @@ def test_initial_staff_settings_can_load_json_config_and_derive_legacy_ids():
             "владелец",
             "старший админ",
             "администратор",
+            "администратор",
         ]
+        assert reloaded_settings.INITIAL_STAFF_ASSIGNMENTS[-1]["phone"] == "+79990001122"
+        assert reloaded_settings.INITIAL_STAFF_ASSIGNMENTS[-1]["telegram_id"] is None
         assert reloaded_settings.OWNER_IDS == [222222222]
         assert reloaded_settings.TECH_ADMIN_ID == 111111111
     finally:
@@ -135,5 +140,58 @@ def test_bootstrap_data_creates_initial_staff_from_assignments_and_is_idempotent
         assert admin.user is not None
         assert admin.user.telegram_id == 444444444
         assert admin.name == "Администратор"
+
+
+def test_bootstrap_data_links_phone_based_assignment_after_verified_phone_appears(monkeypatch):
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    assignments = [
+        {"phone": "+7 (999) 555-44-33", "position": "администратор", "name": "Phone Bootstrap", "status": "active"},
+    ]
+
+    monkeypatch.setattr(db_module, "Session", session_factory)
+    monkeypatch.setattr(db_module, "_runtime_config", lambda: (assignments, False))
+
+    db_module.bootstrap_data()
+
+    with session_factory() as db:
+        staff = db.query(Staff).first()
+        assert staff is not None
+        assert staff.user_id is None
+        assert staff.telegram_id is None
+        assert staff.phone == "+79995554433"
+        assert staff.name == "Phone Bootstrap"
+
+        user = User(name="Phone Linked User", telegram_id=555444333)
+        db.add(user)
+        db.commit()
+        db.add(
+            UserPhone(
+                user_id=user.id,
+                phone_e164="+79995554433",
+                verified_at=utcnow(),
+                source="telegram",
+                is_primary=True,
+            )
+        )
+        db.commit()
+
+    db_module.bootstrap_data()
+
+    with session_factory() as db:
+        staff = db.query(Staff).first()
+        linked_user = db.query(User).filter(User.name == "Phone Linked User").first()
+        assert staff is not None
+        assert linked_user is not None
+        assert staff.user_id == linked_user.id
+        assert staff.telegram_id == 555444333
+        assert staff.phone == "+79995554433"
+        assert staff.position == "администратор"
 
 

@@ -54,6 +54,44 @@ test('vk permission banner explains that community messages must be allowed agai
   assert.match(state.getVerificationBannerText(bannerState), /сообщения от сообщества/);
 });
 
+test('verification banner actions switch from phone confirmation to vk permission step', () => {
+  const phonePendingUser = state.normalizeBootstrapUser({
+    id: 5,
+    phone_verified: false,
+    identities: {
+      phone: { linked: false, verified: false },
+      vk: { linked: true },
+    },
+  });
+  assert.deepEqual(
+    state.getVerificationBannerActions({ currentUser: phonePendingUser, vkPermissionRequired: true }),
+    {
+      primaryLabel: 'Подтвердить номер',
+      primaryAction: 'verify_phone',
+      secondaryLabel: '',
+      secondaryAction: null,
+    },
+  );
+
+  const vkPendingUser = state.normalizeBootstrapUser({
+    id: 6,
+    phone_verified: true,
+    identities: {
+      phone: { linked: true, verified: true },
+      vk: { linked: true },
+    },
+  });
+  assert.deepEqual(
+    state.getVerificationBannerActions({ currentUser: vkPendingUser, vkPermissionRequired: true }),
+    {
+      primaryLabel: 'Разрешить писать сообществу',
+      primaryAction: 'verify_vk_messages',
+      secondaryLabel: 'Позже',
+      secondaryAction: 'skip_vk_messages',
+    },
+  );
+});
+
 test('normalizes auth responses and refresh policy for link/login/passkey actions', () => {
   assert.deepEqual(
     state.normalizeAuthResponse({ error: 'verified_phone_conflict', fallback_auth_methods: ['telegram'], action: 'contact_support', message: 'Conflict' }, 'vk'),

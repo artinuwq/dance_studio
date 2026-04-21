@@ -61,6 +61,7 @@ from dance_studio.core.system_settings_service import (
 from dance_studio.db import ensure_staff_user_link, normalize_staff_user_links
 from dance_studio.db.models import (
     Attendance,
+    AttendanceIntention,
     AuthIdentity,
     BookingRequest,
     Direction,
@@ -103,6 +104,11 @@ from dance_studio.web.services.api_errors import (
 )
 from dance_studio.web.services.upload_validation import validate_image_upload
 from dance_studio.web.services.access import _get_current_staff, get_current_user_from_request, require_permission
+from dance_studio.web.services.attendance import (
+    _attendance_intention_lock_info,
+    _can_user_set_absence_for_schedule,
+    _serialize_attendance_intention_with_lock,
+)
 from dance_studio.web.services.admin import (
     _append_merge_note,
     _collect_busy_intervals,
@@ -1151,18 +1157,6 @@ def schedule_public():
                 )
             )
 
-        # Если пользователь связан с сотрудником (преподаватель) — добавляем его группы
-        staff = None
-        if getattr(user, "id", None):
-            staff = db.query(Staff).filter_by(user_id=user.id).first()
-        if staff:
-            taught_group_ids = [gid for (gid,) in db.query(Group.id).filter(Group.teacher_id == staff.id).all()]
-            staff_group_parts = [Schedule.teacher_id == staff.id]
-            if taught_group_ids:
-                staff_group_parts.append(Schedule.group_id.in_(taught_group_ids))
-                staff_group_parts.append(Schedule.object_id.in_(taught_group_ids))
-            mine_conditions.append((Schedule.object_type == "group") & or_(*staff_group_parts))
-
         if mine_conditions:
             query = query.filter(or_(*mine_conditions))
         else:
@@ -1237,6 +1231,20 @@ def schedule_public():
     users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
     users_by_id = {int(entry.id): entry for entry in users if entry and entry.id}
 
+    intentions_by_schedule: dict[int, AttendanceIntention] = {}
+    if user and items:
+        schedule_ids = [int(s.id) for s in items if s and s.id]
+        if schedule_ids:
+            intention_rows = (
+                db.query(AttendanceIntention)
+                .filter(
+                    AttendanceIntention.user_id == user.id,
+                    AttendanceIntention.schedule_id.in_(schedule_ids),
+                )
+                .all()
+            )
+            intentions_by_schedule = {int(row.schedule_id): row for row in intention_rows if row and row.schedule_id}
+
     result = []
     for s in items:
         time_from = s.time_from or s.start_time
@@ -1291,6 +1299,16 @@ def schedule_public():
             )
         else:
             entry["title"] = s.title
+
+        if user:
+            can_set_absence = _can_user_set_absence_for_schedule(db, user, s)
+            entry["attendance_intention_allowed"] = bool(can_set_absence)
+            if can_set_absence:
+                lock_info = _attendance_intention_lock_info(s)
+                entry["attendance_intention"] = _serialize_attendance_intention_with_lock(
+                    intentions_by_schedule.get(int(s.id)),
+                    lock_info,
+                )
 
         result.append(entry)
 
@@ -2331,9 +2349,24 @@ def register_user():
 
     db = g.db
     data = request.json or {}
+    raw_initial_abonements = data.get("initial_abonements")
+    initial_abonements: list[dict] = []
 
     if not data.get("name"):
         return {"error": "name is required"}, 400
+
+    if raw_initial_abonements not in (None, "", []):
+        abonement_perm_error = require_permission("verify_certificate")
+        if abonement_perm_error:
+            return abonement_perm_error
+        if not isinstance(raw_initial_abonements, list):
+            return {"error": "initial_abonements must be a list"}, 400
+        if len(raw_initial_abonements) > 3:
+            return {"error": "Можно добавить максимум 3 абонемента при создании клиента"}, 400
+        for index, item in enumerate(raw_initial_abonements):
+            if not isinstance(item, dict):
+                return {"error": f"initial_abonements[{index}] must be an object"}, 400
+            initial_abonements.append(item)
 
     telegram_id_raw = data.get("telegram_id")
     telegram_id = None
@@ -2359,9 +2392,57 @@ def register_user():
         staff_notes=data.get("staff_notes")
     )
     db.add(user)
-    db.commit()
 
-    return _serialize_user_payload(user), 201
+    created_initial_abonement_results = []
+    try:
+        db.flush()
+        staff = _get_current_staff(db) if initial_abonements else None
+        for index, abonement_payload in enumerate(initial_abonements):
+            creation_result, error_response = _create_client_abonements_for_user(
+                db,
+                user=user,
+                payload=abonement_payload,
+                staff=staff,
+            )
+            if error_response is not None:
+                error_payload, status_code = error_response
+                error_message = str(error_payload.get("error") or "").strip()
+                if error_message:
+                    error_payload = dict(error_payload)
+                    error_payload["error"] = f"initial_abonements[{index}]: {error_message}"
+                db.rollback()
+                return error_payload, status_code
+            created_initial_abonement_results.append(creation_result)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+    response_payload = _serialize_user_payload(user)
+    if created_initial_abonement_results:
+        response_payload["initial_abonements"] = []
+        for creation_result in created_initial_abonement_results:
+            group_access_notified = False
+            group_access_notify_error = None
+            if creation_result["target_status"] == ABONEMENT_STATUS_ACTIVE:
+                group_access_notified, group_access_notify_error = _notify_abonement_group_access_links(
+                    db, creation_result["primary_abonement"]
+                )
+            response_payload["initial_abonements"].append(
+                {
+                    "abonement": _serialize_client_abonement_for_admin(db, creation_result["primary_abonement"]),
+                    "issued_abonements": [
+                        _serialize_client_abonement_for_admin(db, row)
+                        for row in creation_result["created_abonements"]
+                    ],
+                    "bundle_group_ids": creation_result["bundle_group_ids"],
+                    "bundle_size": creation_result["bundle_size"],
+                    "group_access_notified": group_access_notified,
+                    "group_access_notify_error": group_access_notify_error,
+                }
+            )
+
+    return response_payload, 201
 
 
 @bp.route("/users/self", methods=["POST"])
@@ -5436,45 +5517,40 @@ def admin_get_client_abonements(user_id: int):
     )
 
 
-@bp.route("/api/admin/clients/<int:user_id>/abonements", methods=["POST"])
-def admin_create_client_abonement(user_id: int):
-    perm_error = require_permission("verify_certificate")
-    if perm_error:
-        return perm_error
-
-    db = g.db
-    user = db.query(User).filter_by(id=user_id).first()
-    if not user:
-        return {"error": "Клиент не найден"}, 404
-
-    payload = request.json or {}
+def _create_client_abonements_for_user(
+    db,
+    *,
+    user: User,
+    payload: dict,
+    staff: Staff | None = None,
+) -> tuple[dict | None, tuple[dict, int] | None]:
     try:
         group_id = int(payload.get("group_id"))
     except (TypeError, ValueError):
-        return {"error": "group_id должен быть целым числом"}, 400
+        return None, ({"error": "group_id должен быть целым числом"}, 400)
     if group_id <= 0:
-        return {"error": "group_id должен быть больше 0"}, 400
+        return None, ({"error": "group_id должен быть больше 0"}, 400)
 
     abonement_type = str(payload.get("abonement_type") or "multi").strip().lower()
     if abonement_type not in {"single", "multi", "trial"}:
-        return {"error": "abonement_type должен быть single, multi или trial"}, 400
+        return None, ({"error": "abonement_type должен быть single, multi или trial"}, 400)
 
     target_status = str(payload.get("status") or ABONEMENT_STATUS_ACTIVE).strip().lower()
     if target_status not in {ABONEMENT_STATUS_ACTIVE, ABONEMENT_STATUS_PENDING_PAYMENT}:
-        return {"error": "status должен быть active или pending_payment"}, 400
+        return None, ({"error": "status должен быть active или pending_payment"}, 400)
 
     raw_bundle_group_ids = payload.get("bundle_group_ids")
     bundle_group_ids: list[int] = []
     if raw_bundle_group_ids not in (None, "", []):
         if not isinstance(raw_bundle_group_ids, list):
-            return {"error": "bundle_group_ids должен быть массивом целых group_id"}, 400
+            return None, ({"error": "bundle_group_ids должен быть массивом целых group_id"}, 400)
         for raw_value in raw_bundle_group_ids:
             try:
                 parsed_group_id = int(raw_value)
             except (TypeError, ValueError):
-                return {"error": "bundle_group_ids должен быть массивом целых group_id"}, 400
+                return None, ({"error": "bundle_group_ids должен быть массивом целых group_id"}, 400)
             if parsed_group_id <= 0:
-                return {"error": "bundle_group_ids должен содержать только положительные значения"}, 400
+                return None, ({"error": "bundle_group_ids должен содержать только положительные значения"}, 400)
             if parsed_group_id not in bundle_group_ids:
                 bundle_group_ids.append(parsed_group_id)
 
@@ -5483,16 +5559,16 @@ def admin_create_client_abonement(user_id: int):
     if not bundle_group_ids:
         bundle_group_ids = [group_id]
     if len(bundle_group_ids) > 3:
-        return {"error": "Можно указать максимум 3 группы в мульти-абонементе"}, 400
+        return None, ({"error": "Можно указать максимум 3 группы в мульти-абонементе"}, 400)
 
     if abonement_type in {"single", "trial"} and len(bundle_group_ids) > 1:
-        return {"error": "Для single/trial можно указать только одну группу"}, 400
+        return None, ({"error": "Для single/trial можно указать только одну группу"}, 400)
 
     groups = db.query(Group).filter(Group.id.in_(bundle_group_ids)).all()
     groups_by_id = {int(row.id): row for row in groups if row and row.id}
     missing_group_ids = [gid for gid in bundle_group_ids if gid not in groups_by_id]
     if missing_group_ids:
-        return {"error": f"Группы не найдены: {', '.join(str(v) for v in missing_group_ids)}"}, 404
+        return None, ({"error": f"Группы не найдены: {', '.join(str(v) for v in missing_group_ids)}"}, 404)
 
     primary_group = groups_by_id[group_id]
     lessons_per_week = int(primary_group.lessons_per_week) if primary_group.lessons_per_week else 0
@@ -5507,26 +5583,29 @@ def admin_create_client_abonement(user_id: int):
         }
         base_direction_type = direction_type_by_id.get(int(primary_group.direction_id or 0), "")
         if not base_direction_type:
-            return {"error": "Для основной группы не найдено направление"}, 400
+            return None, ({"error": "Для основной группы не найдено направление"}, 400)
 
         lessons_per_week_values = []
         for bundle_group_id in bundle_group_ids:
             bundle_group = groups_by_id[bundle_group_id]
             current_lessons_per_week = int(bundle_group.lessons_per_week or 0)
             if current_lessons_per_week <= 0:
-                return {"error": "Для группы не настроено количество занятий в неделю"}, 400
+                return None, ({"error": "Для группы не настроено количество занятий в неделю"}, 400)
             lessons_per_week_values.append(current_lessons_per_week)
             current_direction_type = direction_type_by_id.get(int(bundle_group.direction_id or 0), "")
             if current_direction_type != base_direction_type:
-                return {"error": "Все группы в мульти-абонементе должны быть одного типа направления"}, 400
+                return None, ({"error": "Все группы в мульти-абонементе должны быть одного типа направления"}, 400)
         unique_lessons_per_week = set(lessons_per_week_values)
         if len(unique_lessons_per_week) > 1:
-            return {
-                "error": (
-                    "В комбо-абонементе все группы должны иметь одинаковое количество занятий в неделю "
-                    "(и одинаковый месячный пакет: 4/8/12)."
-                )
-            }, 400
+            return None, (
+                {
+                    "error": (
+                        "В комбо-абонементе все группы должны иметь одинаковое количество занятий в неделю "
+                        "(и одинаковый месячный пакет: 4/8/12)."
+                    )
+                },
+                400,
+            )
         lessons_per_week = lessons_per_week_values[0] if lessons_per_week_values else 0
 
     weeks_raw = payload.get("weeks")
@@ -5539,35 +5618,35 @@ def admin_create_client_abonement(user_id: int):
         try:
             weeks = int(weeks_raw)
         except (TypeError, ValueError):
-            return {"error": "weeks должен быть целым числом"}, 400
+            return None, ({"error": "weeks должен быть целым числом"}, 400)
         if weeks <= 0:
-            return {"error": "weeks должен быть больше 0"}, 400
+            return None, ({"error": "weeks должен быть больше 0"}, 400)
 
     if lessons_raw not in (None, ""):
         try:
             lessons = int(lessons_raw)
         except (TypeError, ValueError):
-            return {"error": "lessons должен быть целым числом"}, 400
+            return None, ({"error": "lessons должен быть целым числом"}, 400)
         if lessons <= 0:
-            return {"error": "lessons должен быть больше 0"}, 400
+            return None, ({"error": "lessons должен быть больше 0"}, 400)
 
     if abonement_type == "multi":
         if lessons_per_week <= 0:
-            return {"error": "Для группы не настроено количество занятий в неделю"}, 400
+            return None, ({"error": "Для группы не настроено количество занятий в неделю"}, 400)
 
         if weeks is None and lessons is None:
             weeks = 4
             lessons = weeks * lessons_per_week
         elif weeks is None and lessons is not None:
             if lessons % lessons_per_week != 0:
-                return {"error": f"lessons должен быть кратен {lessons_per_week}"}, 400
+                return None, ({"error": f"lessons должен быть кратен {lessons_per_week}"}, 400)
             weeks = lessons // lessons_per_week
         elif lessons is None and weeks is not None:
             lessons = weeks * lessons_per_week
         else:
             expected_lessons = weeks * lessons_per_week
             if lessons != expected_lessons:
-                return {"error": f"Несоответствие: при {weeks} нед. должно быть {expected_lessons} занятий"}, 400
+                return None, ({"error": f"Несоответствие: при {weeks} нед. должно быть {expected_lessons} занятий"}, 400)
     else:
         weeks = weeks if weeks is not None else 1
         lessons = lessons if lessons is not None else 1
@@ -5578,10 +5657,9 @@ def admin_create_client_abonement(user_id: int):
         try:
             valid_from = datetime.strptime(valid_from_raw, "%Y-%m-%d")
         except ValueError:
-            return {"error": "valid_from должен быть в формате YYYY-MM-DD"}, 400
+            return None, ({"error": "valid_from должен быть в формате YYYY-MM-DD"}, 400)
     valid_to = valid_from + timedelta(days=weeks * 7)
 
-    staff = _get_current_staff(db)
     note = (payload.get("note") or "").strip()
 
     if price_total_raw in (None, ""):
@@ -5590,9 +5668,9 @@ def admin_create_client_abonement(user_id: int):
         try:
             price_total_rub = int(price_total_raw)
         except (TypeError, ValueError):
-            return {"error": "price_total_rub Ð´Ð¾Ð»Ð¶ÐµÐ½ Ð±Ñ‹Ñ‚ÑŒ Ñ†ÐµÐ»Ñ‹Ð¼ Ñ‡Ð¸ÑÐ»Ð¾Ð¼"}, 400
+            return None, ({"error": "price_total_rub должен быть целым числом"}, 400)
         if price_total_rub < 0:
-            return {"error": "price_total_rub Ð´Ð¾Ð»Ð¶ÐµÐ½ Ð±Ñ‹Ñ‚ÑŒ Ð±Ð¾Ð»ÑŒÑˆÐµ Ð¸Ð»Ð¸ Ñ€Ð°Ð²ÐµÐ½ 0"}, 400
+            return None, ({"error": "price_total_rub должен быть больше или равен 0"}, 400)
 
     if abonement_type in {"single", "trial"}:
         bundle_group_ids = [group_id]
@@ -5657,22 +5735,55 @@ def admin_create_client_abonement(user_id: int):
             )
         )
 
+    return {
+        "primary_abonement": created_abonements[0],
+        "created_abonements": created_abonements,
+        "bundle_group_ids": bundle_group_ids,
+        "bundle_size": bundle_size,
+        "target_status": target_status,
+    }, None
+
+
+@bp.route("/api/admin/clients/<int:user_id>/abonements", methods=["POST"])
+def admin_create_client_abonement(user_id: int):
+    perm_error = require_permission("verify_certificate")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    user = db.query(User).filter_by(id=user_id).first()
+    if not user:
+        return {"error": "Клиент не найден"}, 404
+
+    creation_result, error_response = _create_client_abonements_for_user(
+        db,
+        user=user,
+        payload=request.json or {},
+        staff=_get_current_staff(db),
+    )
+    if error_response is not None:
+        return error_response
+
     db.commit()
 
-    primary_abonement = created_abonements[0]
     group_access_notified = False
     group_access_notify_error = None
-    if target_status == ABONEMENT_STATUS_ACTIVE:
-        group_access_notified, group_access_notify_error = _notify_abonement_group_access_links(db, primary_abonement)
+    if creation_result["target_status"] == ABONEMENT_STATUS_ACTIVE:
+        group_access_notified, group_access_notify_error = _notify_abonement_group_access_links(
+            db, creation_result["primary_abonement"]
+        )
 
     return (
         jsonify(
             {
                 "ok": True,
-                "abonement": _serialize_client_abonement_for_admin(db, primary_abonement),
-                "issued_abonements": [_serialize_client_abonement_for_admin(db, row) for row in created_abonements],
-                "bundle_group_ids": bundle_group_ids,
-                "bundle_size": bundle_size,
+                "abonement": _serialize_client_abonement_for_admin(db, creation_result["primary_abonement"]),
+                "issued_abonements": [
+                    _serialize_client_abonement_for_admin(db, row)
+                    for row in creation_result["created_abonements"]
+                ],
+                "bundle_group_ids": creation_result["bundle_group_ids"],
+                "bundle_size": creation_result["bundle_size"],
                 "group_access_notified": group_access_notified,
                 "group_access_notify_error": group_access_notify_error,
             }

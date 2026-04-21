@@ -77,6 +77,7 @@ from dance_studio.core.abonement_notifications import (
     is_one_left_group_abonement_notice_due,
     resolve_group_ids_for_booking,
 )
+from dance_studio.core.booking_payment_messages import build_booking_payment_subject_text
 from dance_studio.core.notification_dispatch import (
     notification_dispatch_exists,
     record_notification_dispatch,
@@ -3522,12 +3523,15 @@ def _build_payment_request_message(db, booking: BookingRequest) -> str:
     bank = (str(profile.get("recipient_bank") or "—")).strip() or "—"
     number = (str(profile.get("recipient_number") or "—")).strip() or "—"
     full_name = (str(profile.get("recipient_full_name") or "—")).strip() or "—"
+    payment_subject = build_booking_payment_subject_text(db, booking)
+    payment_subject_block = f"{payment_subject}\n\n" if payment_subject else ""
     amount = _compute_booking_payment_amount(db, booking)
     amount_text = f"{amount:,} ₽".replace(",", " ") if amount else "уточните у администратора"
 
     return (
         "Здравствуйте!\n"
         f"Это администрация {PROJECT_NAME_FULL} Studio.\n\n"
+        f"{payment_subject_block}"
         "Реквизиты для оплаты:\n"
         f"• Банк получателя: {bank}\n"
         f"• Номер: {number}\n"

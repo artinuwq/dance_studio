@@ -199,7 +199,11 @@ body.tg-mobile .header-back {
 
 .home-welcome-card {
   text-align: center;
-  margin-top: -30px;
+  margin-top: -10px;
+}
+
+.home-welcome-card > h3 {
+  margin: 0 0 14px 0;
 }
 
 .home-news-card {
@@ -212,7 +216,7 @@ body.tg-mobile .header-back {
 
 .home-status-card {
   display: none;
-  margin-top: 12px;
+  margin-top: 0;
   padding-top: 12px;
   border-top: 1px solid var(--border);
   text-align: left;
@@ -313,6 +317,7 @@ body.tg-mobile .header-back {
 }
 
 .home-logo-standalone {
+  margin-top: -10px;
   margin-bottom: 6px;
 }
 
@@ -485,6 +490,46 @@ body.tg-mobile .header-back {
 
 .settings-phone-status.pending {
   color: var(--hint);
+}
+
+.home-screen-install-card {
+  display: none;
+}
+
+.home-screen-install-card.show {
+  display: block;
+}
+
+.home-screen-install-title {
+  margin: 0 0 8px 0;
+  font-weight: 700;
+}
+
+.home-screen-install-text {
+  margin: 0;
+  color: var(--hint);
+}
+
+.home-screen-install-status {
+  margin: 10px 0 0 0;
+  min-height: 18px;
+  color: var(--hint);
+}
+
+.home-screen-install-status.ok {
+  color: #34d399;
+}
+
+.home-screen-install-status.warn {
+  color: #fca5a5;
+}
+
+.home-screen-install-status.pending {
+  color: #fbbf24;
+}
+
+.home-screen-install-dismiss {
+  border-color: rgba(255, 255, 255, 0.14) !important;
 }
 
 .auth-methods-list {
@@ -1264,6 +1309,57 @@ body.tg-mobile .header-back {
   font-weight: 700;
 }
 
+.info-about-page {
+  padding-top: calc(56px + var(--safe-top));
+}
+
+.info-about-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.info-about-page .card {
+  margin-bottom: 0;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.info-about-page .card h4 {
+  margin: 0 0 8px;
+}
+
+.info-about-page .card p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.info-about-page .studio-map-embed {
+  border-radius: 10px;
+}
+
+.info-about-page .contact-btn {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+}
+
+.info-about-page .contact-btn:last-child {
+  margin-bottom: 0;
+}
+
+.info-about-page .contact-btn-content {
+  gap: 10px;
+}
+
+.info-about-page .contact-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+}
+
+.info-about-page .contact-label {
+  margin-bottom: 1px;
+}
+
 .section-title-row {
   display: flex;
   justify-content: space-between;
@@ -1528,6 +1624,10 @@ body.tg-mobile .header-back {
   background: linear-gradient(135deg, #f58529 0%, #feda77 25%, #dd2a7b 55%, #8134af 78%, #515bd4 100%);
 }
 
+.contact-icon--phone {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+}
+
 .contact-label {
   font-size: 12px;
   color: var(--hint);
@@ -1625,6 +1725,52 @@ textarea.form-input {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+#info-rent .rental-fieldset,
+#info-rent .form-group,
+#info-rent .rental-occupancy-panel {
+  padding: 12px;
+  border-radius: 16px;
+  background: #1a1a1a;
+  border: 1px solid #2c2c2c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+#info-rent .rental-fieldset,
+#info-rent .form-group {
+  margin-bottom: 0;
+}
+
+#info-rent .rental-slot-strip,
+#info-rent .rental-slot-grid {
+  background: #181818;
+  border-color: #2f2f2f;
+}
+
+#info-rent .booking-window-chip,
+#info-rent .rental-slot-card,
+#info-rent .rental-occupancy-item,
+#info-rent .form-input {
+  background: #202020;
+  border-color: #343434;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+}
+
+#info-rent .booking-window-chip:hover,
+#info-rent .rental-slot-card:hover {
+  background: #262626;
+  border-color: #474747;
+}
+
+#info-rent .booking-window-chip.active,
+#info-rent .rental-slot-card.active {
+  background: #252525;
+}
+
+#info-rent .rental-date-hint,
+#info-rent .rental-occupancy-debug {
+  color: #a6a6a6;
 }
 
 .rental-booking-message {
@@ -1987,6 +2133,16 @@ textarea.form-input {
 }
 
 .fullscreen-modal-icon-btn.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.fullscreen-modal-back-btn {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+body.vk-app #client-create-modal .fullscreen-modal-close-btn {
   visibility: hidden;
   pointer-events: none;
 }
@@ -4696,6 +4852,14 @@ textarea.form-input {
   display: none;
 }
 
+.studio-info-capsule {
+  z-index: 2201;
+}
+
+.studio-info-capsule.hidden {
+  display: none;
+}
+
 .personal-schedule-refresh-capsule {
   z-index: 2201;
   pointer-events: auto;
@@ -5148,6 +5312,83 @@ textarea.form-input {
   color: inherit;
 }
 
+.group-booking-combo-benefit {
+  margin-top: 12px;
+  border: 1px solid rgba(254, 88, 21, 0.34);
+  background:
+    radial-gradient(circle at top right, rgba(254, 144, 92, 0.18), transparent 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(254, 88, 21, 0.08));
+  border-radius: 14px;
+  padding: 12px;
+  box-shadow: 0 12px 28px rgba(98, 35, 8, 0.18);
+}
+
+.group-booking-combo-benefit-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff2e8;
+}
+
+.group-booking-combo-benefit-tag {
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffd7c2;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.group-booking-combo-benefit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.group-booking-combo-benefit-item {
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.group-booking-combo-benefit-label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--hint);
+  font-size: 11px;
+}
+
+.group-booking-combo-benefit-value {
+  display: block;
+  color: #fff6ef;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.group-booking-combo-benefit-item.is-accent {
+  background: rgba(254, 88, 21, 0.16);
+  border: 1px solid rgba(254, 167, 120, 0.22);
+}
+
+.group-booking-combo-benefit-item.is-accent .group-booking-combo-benefit-value {
+  color: #ffd7ba;
+}
+
+.group-booking-combo-benefit-note {
+  margin-top: 10px;
+  color: #ffdcca;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .group-booking-option-item {
   position: relative;
   display: flex;
@@ -5535,8 +5776,8 @@ textarea.form-input {
 </div>
 </div>
 <!-- ====== ИНФОРМАЦИЯ О СТУДИИ ====== -->
-<div class="page" id="info-about">
-<h3>Информация о студии</h3>
+<div class="page info-about-page" id="info-about">
+<div class="info-about-stack">
 <div class="card">
 <h4>⏰ Время работы</h4>
 <p>Ежедневно: 09:00 - 22:00</p>
@@ -5549,6 +5790,34 @@ textarea.form-input {
 </div>
 <div class="card">
 <h4>📞 Контактная информация</h4>
+<div class="contact-btn" onclick="openExternalLink('tel:+79998074403')">
+<div class="contact-btn-content">
+<span aria-hidden="true" class="contact-icon contact-icon--phone">
+<svg fill="none" viewBox="0 0 24 24">
+<path d="M6.6 10.8a15.2 15.2 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.58.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.4 21 3 13.6 3 4a1 1 0 0 1 1-1h3.49a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .57 3.58 1 1 0 0 1-.24 1z" fill="currentColor"></path>
+</svg>
+</span>
+<div>
+<div class="contact-label">Шеба спорт академия</div>
+<div class="contact-value">+7 999 807 4403</div>
+</div>
+</div>
+<span class="contact-action">Позвонить</span>
+</div>
+<div class="contact-btn" onclick="openExternalLink('tel:+79104090027')">
+<div class="contact-btn-content">
+<span aria-hidden="true" class="contact-icon contact-icon--phone">
+<svg fill="none" viewBox="0 0 24 24">
+<path d="M6.6 10.8a15.2 15.2 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24 11.4 11.4 0 0 0 3.58.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1C10.4 21 3 13.6 3 4a1 1 0 0 1 1-1h3.49a1 1 0 0 1 1 1 11.4 11.4 0 0 0 .57 3.58 1 1 0 0 1-.24 1z" fill="currentColor"></path>
+</svg>
+</span>
+<div>
+<div class="contact-label">Lissa DNC</div>
+<div class="contact-value">+7 910 409 0027</div>
+</div>
+</div>
+<span class="contact-action">Позвонить</span>
+</div>
 <div class="contact-btn" onclick="openTelegram('@ShebaSport_LissaDNC')">
 <div class="contact-btn-content">
 <span aria-hidden="true" class="contact-icon contact-icon--telegram">
@@ -5605,6 +5874,7 @@ textarea.form-input {
 </div>
 </div>
 <span class="contact-action">Открыть</span>
+</div>
 </div>
 </div>
 </div>
@@ -6401,19 +6671,78 @@ textarea.form-input {
 <div class="schedule-detail-overlay" id="client-create-overlay" onclick="closeCreateClientModal()"></div>
 <div class="schedule-detail-modal modal-fullscreen" id="client-create-modal">
 <div class="fullscreen-modal-topbar">
-<div aria-hidden="true" class="fullscreen-modal-icon-btn is-hidden"></div>
+<button aria-label="Назад" class="fullscreen-modal-icon-btn fullscreen-modal-back-btn" id="client-create-local-back" onclick="closeCreateClientModal()" type="button">&#8592;</button>
 <div class="fullscreen-modal-title-wrap"><div class="fullscreen-modal-pill">Создать клиента</div></div>
-<button class="fullscreen-modal-icon-btn" onclick="closeCreateClientModal()" aria-label="Закрыть">&times;</button>
-</div>
-<div class="form-group">
-<label>Цена абонемента (RUB)</label>
-<input class="form-input" id="client-abonement-issue-price-total" type="number" min="0" step="1" value="400" placeholder="Общая цена за весь пакет"/>
-<div class="small" style="margin-top:6px; color:var(--hint);">Для мульти-абонемента указывается общая сумма за все группы.</div>
+<button aria-label="Закрыть" class="fullscreen-modal-icon-btn fullscreen-modal-close-btn" onclick="closeCreateClientModal()" type="button">&times;</button>
 </div>
 <div class="form-group">
 <label>Имя *</label>
 <input class="form-input" id="client-create-name" placeholder="Имя клиента" type="text"/>
 </div>
+<div class="form-group">
+<label>Номер телефона</label>
+<input class="form-input" id="client-create-phone" placeholder="+7..." type="text"/>
+</div>
+<div class="form-group">
+<label>Заметка персонала</label>
+<textarea class="form-input" id="client-create-staff-notes" rows="2"></textarea>
+</div>
+<div class="card" style="margin:0 0 16px; padding:14px;">
+<div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+<div>
+<div style="font-weight:700;">Абонементы при создании</div>
+<div class="small" style="margin-top:4px; color:var(--hint);">Можно добавить до 3 абонементов сразу в карточке клиента.</div>
+</div>
+<button class="save-btn" id="client-create-abonement-open-btn" onclick="openClientCreateAbonementEditor()" style="width:auto; margin:0; padding:10px 14px;" type="button">+ Добавить абонемент</button>
+</div>
+<div id="client-create-abonement-list" style="display:grid; gap:10px; margin-top:12px;"></div>
+<div class="card" id="client-create-abonement-editor" style="display:none; margin:12px 0 0; padding:12px; background:rgba(255,255,255,0.02);">
+<div style="font-weight:700; margin-bottom:10px;" id="client-create-abonement-editor-title">Новый абонемент</div>
+<div class="form-group">
+<label>Тип абонемента</label>
+<select class="form-input" id="client-create-abonement-type" onchange="onClientCreateAbonementTypeChange()">
+<option value="multi">Мульти</option>
+<option value="single">Разовое</option>
+<option value="trial">Пробное</option>
+</select>
+</div>
+<div class="form-group">
+<label>Группа</label>
+<select class="form-input" id="client-create-abonement-group"></select>
+</div>
+<div class="form-group">
+<label>Статус</label>
+<select class="form-input" id="client-create-abonement-status">
+<option value="active">Активен</option>
+<option value="pending_payment">Ожидает оплату</option>
+</select>
+</div>
+<div class="form-group">
+<label>Недели</label>
+<input class="form-input" id="client-create-abonement-weeks" min="1" step="1" type="number" value="4"/>
+</div>
+<div class="form-group">
+<label>Занятия</label>
+<input class="form-input" id="client-create-abonement-lessons" min="1" step="1" placeholder="Авторасчет, если оставить пустым" type="number"/>
+</div>
+<div class="form-group">
+<label>Цена абонемента (RUB)</label>
+<input class="form-input" id="client-create-abonement-price-total" min="0" step="1" type="number" value="400" placeholder="Общая цена за пакет"/>
+<div class="small" style="margin-top:6px; color:var(--hint);">Если оставить значение по умолчанию, будет использовано 400 RUB.</div>
+</div>
+<div class="form-group">
+<label>Комментарий к абонементу</label>
+<textarea class="form-input" id="client-create-abonement-note" rows="2" placeholder="Необязательно"></textarea>
+</div>
+<div style="display:flex; gap:8px; flex-wrap:wrap;">
+<button class="save-btn" id="client-create-abonement-save-btn" onclick="saveClientCreateAbonementDraft()" style="flex:1; margin:0;" type="button">Добавить</button>
+<button class="save-btn" onclick="cancelClientCreateAbonementEdit()" style="flex:1; margin:0; background:#555;" type="button">Отмена</button>
+</div>
+<div class="small" id="client-create-abonement-section-status" style="margin-top:8px; color:var(--hint);"></div>
+</div>
+</div>
+<div class="card" style="margin:0 0 16px; padding:14px;">
+<div style="font-weight:700; margin-bottom:10px;">Дополнительно</div>
 <div class="form-group">
 <label>Telegram ID</label>
 <input class="form-input" id="client-create-telegram-id" placeholder="Необязательно" type="number"/>
@@ -6423,20 +6752,13 @@ textarea.form-input {
 <input class="form-input" id="client-create-username" placeholder="Без @" type="text"/>
 </div>
 <div class="form-group">
-<label>Телефон</label>
-<input class="form-input" id="client-create-phone" placeholder="+7..." type="text"/>
-</div>
-<div class="form-group">
 <label>Email</label>
 <input class="form-input" id="client-create-email" placeholder="mail@example.com" type="email"/>
 </div>
-<div class="form-group">
+<div class="form-group" style="margin-bottom:0;">
 <label>Пожелания клиента</label>
 <textarea class="form-input" id="client-create-user-notes" rows="2"></textarea>
 </div>
-<div class="form-group">
-<label>Заметки персонала</label>
-<textarea class="form-input" id="client-create-staff-notes" rows="2"></textarea>
 </div>
 <button class="save-btn" onclick="submitCreateClient()" style="width:100%; margin:0;">Создать</button>
 <div class="small" id="client-create-status" style="margin-top:8px; color:var(--hint);"></div>
@@ -6562,6 +6884,11 @@ textarea.form-input {
 <div class="form-group">
 <label>Занятия</label>
 <input class="form-input" id="client-abonement-issue-lessons" type="number" min="1" step="1" placeholder="Авторасчет, если оставить пустым"/>
+</div>
+<div class="form-group">
+<label>Цена абонемента (RUB)</label>
+<input class="form-input" id="client-abonement-issue-price-total" type="number" min="0" step="1" value="400" placeholder="Общая цена за весь пакет"/>
+<div class="small" style="margin-top:6px; color:var(--hint);">Для мульти-абонемента указывается общая сумма за все группы.</div>
 </div>
 <div class="form-group">
 <label>Комментарий</label>
@@ -6690,10 +7017,19 @@ textarea.form-input {
 <div class="card account-banner" id="account-verification-banner">
 <div class="account-banner-title" id="account-verification-banner-title">Подтвердите аккаунт</div>
 <p class="small" id="account-verification-banner-text">Объединяйте входы через Telegram, VK и сайт, быстрее восстанавливайте доступ и включайте быстрый вход.</p>
-<div style="display:grid; gap:8px; margin-top:10px;">
-<button class="save-btn" onclick="showPage('profile-info')">Подтвердить номер</button>
-<button class="save-btn" onclick="showPage('profile-settings')">Подключить ещё один способ входа</button>
+<div id="account-verification-banner-actions" style="display:grid; gap:8px; margin-top:10px;">
+<button class="save-btn" id="account-verification-banner-primary-btn" onclick="handleAccountVerificationBannerPrimaryAction()" type="button">Подтвердить номер</button>
+<button class="save-btn" id="account-verification-banner-secondary-btn" onclick="handleAccountVerificationBannerSecondaryAction()" style="display:none;" type="button">Позже</button>
 </div>
+</div>
+<div class="card home-screen-install-card" data-home-screen-install-card>
+<div class="home-screen-install-title" data-home-screen-install-title>Добавьте приложение на главный экран</div>
+<p class="small home-screen-install-text" data-home-screen-install-text>Запускайте студию как отдельное приложение и открывайте расписание в один тап.</p>
+<div class="settings-phone-actions">
+<button class="save-btn settings-compact-btn" data-home-screen-install-btn onclick="requestAddToHomeScreen()" type="button">Добавить на главный экран</button>
+<button class="save-btn settings-compact-btn home-screen-install-dismiss" onclick="dismissHomeScreenInstallPrompt()" type="button">Позже</button>
+</div>
+<p class="small home-screen-install-status" data-home-screen-install-status></p>
 </div>
 <div class="menu-item" onclick="showPage('profile-info')">📋 Личная информация</div>
 <div class="menu-item" onclick="showPage('profile-abonements')">🎟️ Абонементы</div>
@@ -6726,6 +7062,15 @@ textarea.form-input {
 <h4>Информация об аккаунте</h4>
 <p class="small"><strong>Статус:</strong> <span id="profile-status">—</span></p>
 <p class="small"><strong>Дата регистрации:</strong> <span id="profile-registered">—</span></p>
+</div>
+<div class="card home-screen-install-card" data-home-screen-install-card>
+<div class="home-screen-install-title" data-home-screen-install-title>Добавьте приложение на главный экран</div>
+<p class="small home-screen-install-text" data-home-screen-install-text>Запускайте студию как отдельное приложение и открывайте расписание в один тап.</p>
+<div class="settings-phone-actions">
+<button class="save-btn settings-compact-btn" data-home-screen-install-btn onclick="requestAddToHomeScreen()" type="button">Добавить на главный экран</button>
+<button class="save-btn settings-compact-btn home-screen-install-dismiss" onclick="dismissHomeScreenInstallPrompt()" type="button">Позже</button>
+</div>
+<p class="small home-screen-install-status" data-home-screen-install-status></p>
 </div>
 </div>
 <div class="page" data-title="🎟️ Абонементы" id="profile-abonements">
@@ -6763,6 +7108,16 @@ textarea.form-input {
 <button class="save-btn settings-compact-btn" id="notifications-priority-save-btn" onclick="saveNotificationPrioritySettings()" disabled>Сохранить порядок</button>
 </div>
 <p class="small" id="notifications-priority-status" style="margin-top:8px; color:var(--hint);"></p>
+</div>
+
+<div class="settings-auth-block home-screen-install-card" data-home-screen-install-card>
+<div class="home-screen-install-title" data-home-screen-install-title>Добавьте приложение на главный экран</div>
+<p class="small home-screen-install-text" data-home-screen-install-text>Запускайте студию как отдельное приложение и открывайте расписание в один тап.</p>
+<div class="settings-phone-actions">
+<button class="save-btn settings-compact-btn" data-home-screen-install-btn onclick="requestAddToHomeScreen()" type="button">Добавить на главный экран</button>
+<button class="save-btn settings-compact-btn home-screen-install-dismiss" onclick="dismissHomeScreenInstallPrompt()" type="button">Позже</button>
+</div>
+<p class="small home-screen-install-status" data-home-screen-install-status></p>
 </div>
 
 </div>
@@ -6852,7 +7207,7 @@ textarea.form-input {
 <label>Должность *</label>
 <select class="form-input" id="staff-add-position" onchange="updateStaffTeachesToggle()">
 <option value="">Выберите должность</option>
-<option value="учитель">👩‍🏫 Учитель</option>
+<option value="учитель">👩‍🏫 Тренер</option>
 <option value="администратор">📋 Администратор</option>
 <option value="старший админ">🛡️ Старший админ</option>
 </select>
@@ -6863,7 +7218,7 @@ textarea.form-input {
 <label>👩‍🏫 Преподает</label>
 <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text);">
 <input id="staff-add-teaches" type="checkbox"/>
-<span>Преподаватель</span>
+<span>Преподает</span>
 </label>
 </div>
 <div class="form-group">
@@ -7061,7 +7416,7 @@ textarea.form-input {
 <div class="form-group" id="staff-profile-position-group" style="display: none;">
 <label>Роль</label>
 <select class="form-input" id="staff-profile-position" onchange="updateStaffProfileTeachesToggle()">
-<option value="учитель">👩‍🏫 Учитель</option>
+<option value="учитель">👩‍🏫 Тренер</option>
 <option value="администратор">📋 Администратор</option>
 <option value="старший админ">🛡️ Старший админ</option>
 <option value="модератор">🧩 Модератор</option>
@@ -7078,10 +7433,10 @@ textarea.form-input {
 <textarea class="form-input" id="staff-profile-bio" placeholder="Коротко о себе..." style="min-height: 80px;"></textarea>
 </div>
 <div class="form-group" id="staff-profile-teaches-group" style="display: none;">
-<label>👩‍🏫 Преподаёт</label>
+<label>👩‍🏫 Преподает</label>
 <label style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text);">
 <input id="staff-profile-teaches" type="checkbox"/>
-<span>Преподаватель</span>
+<span>Преподает</span>
 </label>
 </div>
 <input id="staff-profile-photo-input" type="file" accept="image/*" style="display: none;" onchange="uploadStaffPhotoFromGallery()"/>
@@ -7224,7 +7579,6 @@ textarea.form-input {
     <div class="teacher-profile-photo" id="teacher-profile-photo"></div>
     <div style="display:flex; justify-content:space-between; align-items:flex-start;">
       <h3 id="teacher-profile-name">Преподаватель</h3>
-      <button class="header-back" style="padding: 4px 10px; font-size: 18px;" onclick="goBack()">Назад</button>
     </div>
     <p class="small" id="teacher-profile-specialization"></p>
     <p class="teacher-detail-label">Биография</p>
@@ -7420,6 +7774,7 @@ textarea.form-input {
 </div>
 <div id="group-booking-capsule" class="action-title-popup group-booking-capsule hidden"></div>
 <div id="group-schedule-capsule" class="action-title-popup group-schedule-capsule hidden"></div>
+<div id="studio-info-capsule" class="action-title-popup studio-info-capsule hidden">Информация о студии</div>
 <div id="public-schedule-refresh-capsule" class="action-title-popup personal-schedule-refresh-capsule hidden" onclick="handlePublicScheduleRefreshCapsuleClick()"></div>
 <div id="personal-schedule-refresh-capsule" class="action-title-popup personal-schedule-refresh-capsule hidden" onclick="handlePersonalScheduleRefreshCapsuleClick()"></div>
 <div id="group-booking-overlay" class="group-booking-overlay">
@@ -7445,7 +7800,7 @@ textarea.form-input {
 
         <div class="group-booking-quote">
           <div class="group-booking-meta">До скидки: <span id="group-booking-quote-amount-before">—</span></div>
-          <div class="group-booking-meta">Скидка: <span id="group-booking-quote-discount">—</span></div>
+          <div class="group-booking-meta">Персональная скидка: <span id="group-booking-quote-discount">—</span></div>
           <div class="group-booking-meta group-booking-amount-line">Итого: <span id="group-booking-quote-amount" class="group-booking-amount-value">—</span></div>
           <div class="group-booking-meta">Всего занятий: <span id="group-booking-quote-total-lessons">—</span></div>
           <div class="group-booking-meta">Следующее занятие: <span id="group-booking-next-session">—</span></div>
@@ -7453,6 +7808,7 @@ textarea.form-input {
           <div class="group-booking-meta">Тип направления: <span id="group-booking-direction-type">—</span></div>
           <div class="group-booking-price-preview" id="group-booking-quote-status">Выберите вариант абонемента</div>
         </div>
+        <div id="group-booking-combo-benefit" class="group-booking-combo-benefit" hidden></div>
 
         <div id="group-booking-picker" class="group-booking-picker hidden" onclick="closeGroupBookingPicker()">
           <div class="group-booking-picker-dialog" onclick="event.stopPropagation()">
@@ -7464,9 +7820,9 @@ textarea.form-input {
           </div>
         </div>
 
+        <div id="group-booking-combo-hint" class="group-booking-meta"></div>
         <label>Комментарий</label>
         <textarea id="group-booking-note" rows="4" placeholder="Например, важные детали для администратора"></textarea>
-        <div id="group-booking-combo-hint" class="group-booking-meta"></div>
         <div class="group-booking-footer">
           <button id="group-booking-submit" class="save-btn" type="button" onclick="submitGroupBookingForm()">Оформить</button>
         </div>
@@ -8112,6 +8468,11 @@ function hasTelegramBackButton() {
   return Boolean(getTelegramBackButton());
 }
 
+function shouldShowLocalModalBackFallback() {
+  if (hasTelegramBackButton()) return false;
+  return !document.body.classList.contains('vk-app');
+}
+
 function bindTelegramBackButton() {
   const backButton = getTelegramBackButton();
   if (!backButton || typeof backButton.onClick !== 'function') {
@@ -8313,11 +8674,9 @@ function showPage(id) {
   }
   
   // Загружаем расписание для вкладки "Расписание"
+  syncPageActionCapsules(id);
   if (id === 'schedule') {
-    showPublicScheduleRefreshCapsule();
     loadPublicSchedule();
-  } else {
-    hidePublicScheduleRefreshCapsule();
   }
 
   // Личное расписание (для преподавателя)
@@ -8328,6 +8687,12 @@ function showPage(id) {
     loadPersonalSchedule();
   } else {
     hidePersonalScheduleRefreshCapsule();
+  }
+
+  if (id === 'info-about') {
+    showStudioInfoCapsule();
+  } else {
+    hideStudioInfoCapsule();
   }
 
   if (id === 'home') {
@@ -9815,15 +10180,9 @@ function updateDurationDisplay() {
 
 function setModalBackHandler(handler) {
   activeModalBackHandler = typeof handler === 'function' ? handler : null;
-  const backButton = getTelegramBackButton();
-  if (!backButton) return;
-  bindTelegramBackButton();
-  if (activeModalBackHandler) {
-    backButton.show();
-    return;
-  }
-  const isRoot = ROOT_PAGES.includes(currentPageId);
-  syncTelegramBackButton(!isRoot);
+  const shouldShowBack = Boolean(activeModalBackHandler) || !ROOT_PAGES.includes(currentPageId);
+  setHeaderBackVisible(shouldShowBack);
+  syncTelegramBackButton(shouldShowBack);
 }
 
 function tryHandleModalBack() {
@@ -10502,6 +10861,11 @@ function resetGroupBookingQuoteView() {
     const node = document.getElementById(id);
     if (node) node.textContent = value;
   });
+  const comboBenefitNode = document.getElementById('group-booking-combo-benefit');
+  if (comboBenefitNode) {
+    comboBenefitNode.innerHTML = '';
+    comboBenefitNode.hidden = true;
+  }
 }
 
 function setGroupBookingQuoteStatus(text, isError = false) {
@@ -10600,6 +10964,46 @@ function hideGroupScheduleCapsule() {
   if (!capsule) return;
   capsule.classList.remove('show');
   capsule.classList.add('hidden');
+}
+
+function showStudioInfoCapsule() {
+  const capsule = document.getElementById('studio-info-capsule');
+  if (!capsule) return;
+  capsule.textContent = 'Информация о студии';
+  const wasHidden = capsule.classList.contains('hidden');
+  capsule.classList.remove('hidden');
+  if (wasHidden) {
+    requestAnimationFrame(() => capsule.classList.add('show'));
+  } else {
+    capsule.classList.add('show');
+  }
+}
+
+function hideStudioInfoCapsule() {
+  const capsule = document.getElementById('studio-info-capsule');
+  if (!capsule) return;
+  capsule.classList.remove('show');
+  capsule.classList.add('hidden');
+}
+
+function syncPageActionCapsules(pageId) {
+  if (pageId === 'schedule') {
+    showPublicScheduleRefreshCapsule();
+  } else {
+    hidePublicScheduleRefreshCapsule();
+  }
+
+  if (pageId === 'personal-schedule') {
+    showPersonalScheduleRefreshCapsule();
+  } else {
+    hidePersonalScheduleRefreshCapsule();
+  }
+
+  if (pageId === 'info-about') {
+    showStudioInfoCapsule();
+  } else {
+    hideStudioInfoCapsule();
+  }
 }
 
 function syncGroupScheduleCapsule() {
@@ -11053,11 +11457,82 @@ function applyGroupBookingQuote(quote) {
     ? 'Требуется оплата'
     : 'Без оплаты';
   if (quote.mode === 'combo') {
-    statusLabel = 'Мульти-абонемент с общей скидкой';
+    statusLabel = 'Комбо-абонемент для нескольких групп';
   } else if (quote.mode === 'independent' && Number(quote.bundle_size) > 1) {
     statusLabel = 'Будут оформлены независимые абонементы';
   }
   setGroupBookingQuoteStatus(statusLabel, false);
+  renderGroupBookingComboBenefit();
+}
+
+function getGroupBookingComboBenefitSnapshot() {
+  const selectedGroupIds = getSelectedGroupIds();
+  if (selectedGroupIds.length < 2) return null;
+  if (!groupBookingState.comboQuote || groupBookingState.quote?.mode !== 'combo') return null;
+
+  const independentQuote = buildIndependentAggregateQuote();
+  if (!independentQuote) return null;
+
+  const separateBase = Number(independentQuote.amount_before_discount);
+  const comboBase = Number(groupBookingState.comboQuote.amount_before_discount);
+  if (!Number.isFinite(separateBase) || !Number.isFinite(comboBase)) return null;
+
+  return {
+    currency: groupBookingState.comboQuote.currency || independentQuote.currency || 'RUB',
+    separateBase,
+    comboBase,
+    benefitAmount: Math.max(0, separateBase - comboBase),
+    bundleSize: Number(groupBookingState.comboQuote.bundle_size) || selectedGroupIds.length,
+  };
+}
+
+function renderGroupBookingComboBenefit() {
+  const node = document.getElementById('group-booking-combo-benefit');
+  if (!node) return;
+
+  const snapshot = getGroupBookingComboBenefitSnapshot();
+  if (!snapshot) {
+    node.innerHTML = '';
+    node.hidden = true;
+    return;
+  }
+
+  const separateText = formatBookingAmount(snapshot.separateBase, snapshot.currency);
+  const comboText = formatBookingAmount(snapshot.comboBase, snapshot.currency);
+  const benefitText = formatBookingAmount(snapshot.benefitAmount, snapshot.currency);
+  const bundleText = snapshot.bundleSize === 2
+    ? 'для 2 групп'
+    : snapshot.bundleSize === 3
+      ? 'для 3 групп'
+      : 'для нескольких групп';
+  const summaryText = snapshot.benefitAmount > 0
+    ? `Комбо выгоднее покупки по отдельности на ${benefitText}.`
+    : 'Цена комбо совпадает с покупкой по отдельности.';
+
+  node.innerHTML = `
+    <div class="group-booking-combo-benefit-title">
+      <span>Выгода комбо ${escapeHtml(bundleText)}</span>
+      <span class="group-booking-combo-benefit-tag">отдельно от скидки</span>
+    </div>
+    <div class="group-booking-combo-benefit-grid">
+      <div class="group-booking-combo-benefit-item">
+        <span class="group-booking-combo-benefit-label">По отдельности</span>
+        <strong class="group-booking-combo-benefit-value">${escapeHtml(separateText)}</strong>
+      </div>
+      <div class="group-booking-combo-benefit-item">
+        <span class="group-booking-combo-benefit-label">Комбо</span>
+        <strong class="group-booking-combo-benefit-value">${escapeHtml(comboText)}</strong>
+      </div>
+      <div class="group-booking-combo-benefit-item is-accent">
+        <span class="group-booking-combo-benefit-label">Выгода</span>
+        <strong class="group-booking-combo-benefit-value">${escapeHtml(benefitText)}</strong>
+      </div>
+    </div>
+    <div class="group-booking-combo-benefit-note">
+      ${escapeHtml(summaryText)} Персональная скидка считается отдельно.
+    </div>
+  `;
+  node.hidden = false;
 }
 
 function renderGroupBookingComboHint() {
@@ -11085,7 +11560,7 @@ function renderGroupBookingComboHint() {
         <span class="group-booking-combo-hint-icon" aria-hidden="true">✅</span>
         <span>Мульти-абонемент активирован</span>
       </div>
-      <div class="group-booking-combo-hint-body">Скидка применена.</div>
+      <div class="group-booking-combo-hint-body">Будет оформлен единый комбо-пакет для выбранных групп.</div>
     `;
     node.classList.remove('group-booking-combo-hint-warning');
     node.classList.add('group-booking-combo-hint-success');
@@ -15603,16 +16078,7 @@ function goBack() {
     if (index >= 0) document.querySelectorAll('.nav-btn')[index].classList.add('active');
     
     applyHeaderForPage(previousPageId);
-    if (previousPageId === 'schedule') {
-      showPublicScheduleRefreshCapsule();
-    } else {
-      hidePublicScheduleRefreshCapsule();
-    }
-    if (previousPageId === 'personal-schedule') {
-      showPersonalScheduleRefreshCapsule();
-    } else {
-      hidePersonalScheduleRefreshCapsule();
-    }
+    syncPageActionCapsules(previousPageId);
   } else {
     // Если стек пуст, идем домой
     showPage('home');
@@ -15642,6 +16108,26 @@ function getStaffRoleRank(role) {
     return -1;
   }
   return STAFF_ROLE_RANKS[normalized];
+}
+
+function getStaffRoleLabel(role) {
+  const normalized = normalizeStaffRole(role);
+  if (normalized === 'учитель') return 'Тренер';
+  if (normalized === 'тех. админ') return 'Тех. админ';
+  if (normalized === 'старший админ') return 'Старший админ';
+  if (normalized === 'администратор') return 'Администратор';
+  if (normalized === 'модератор') return 'Модератор';
+  if (normalized === 'владелец') return 'Владелец';
+
+  const safeRole = String(role || '').trim();
+  if (!safeRole) {
+    return 'Без роли';
+  }
+  return safeRole.charAt(0).toUpperCase() + safeRole.slice(1);
+}
+
+function getStaffTeachesLabel(teaches) {
+  return teaches ? '👩‍🏫 Преподает' : '👩‍🏫 Не преподает';
 }
 
 function canCurrentStaffEditStaffTarget(targetRole) {
@@ -15891,12 +16377,12 @@ function displayStaffList(staffList) {
     const initials = getStaffInitials(s.name);
     const avatarBg = getStaffAvatarColor(s.name);
     const safeName = escapeHtml(String(s.name || 'Без имени'));
-    const safeRole = escapeHtml(String(s.position || 'Без роли'));
+    const safeRole = escapeHtml(getStaffRoleLabel(s.position));
     const username = s.username ? `@${s.username}` : '—';
     const safeUsername = escapeHtml(username);
     const teaches = (s.teaches === true || s.teaches === 1 || s.teaches === '1');
     const teachesClass = teaches ? 'is-true' : 'is-false';
-    const teachesLabel = '👩‍🏫 Учитель';
+    const teachesLabel = getStaffTeachesLabel(teaches);
     const safePhotoUrl = photoUrl ? escapeHtml(photoUrl) : '';
     const safeStaffId = Number.isFinite(Number(s.id)) ? Number(s.id) : 0;
     return `
@@ -16297,7 +16783,7 @@ function openStaffDetail(id, name, position, specialization, bio, staffMeta = nu
   applyStaffDetailActionAccess(staffMeta || { position });
 
   document.getElementById('staff-detail-name').innerText = name;
-  document.getElementById('staff-detail-position').innerText = position;
+  document.getElementById('staff-detail-position').innerText = getStaffRoleLabel(position);
   document.getElementById('staff-detail-specialization').innerText = specialization || '—';
   document.getElementById('staff-detail-bio').innerText = bio || '—';
   
@@ -17909,14 +18395,62 @@ let homeStatusState = {
 };
 
 function findPublicScheduleItemById(scheduleId) {
-  const items = Array.isArray(window.publicScheduleItems) ? window.publicScheduleItems : [];
-  return items.find(i => i.id === scheduleId);
+  const normalizedId = Number(scheduleId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return null;
+  for (const items of _getPublicScheduleCollections()) {
+    const matchedItem = items.find(i => Number(i?.id) === normalizedId);
+    if (matchedItem) return matchedItem;
+  }
+  if (Number(homeStatusState?.schedule?.id) === normalizedId) {
+    return homeStatusState.schedule;
+  }
+  return null;
+}
+
+function _getPublicScheduleCollections() {
+  const collections = [];
+  const pushCollection = (items) => {
+    if (Array.isArray(items) && !collections.includes(items)) {
+      collections.push(items);
+    }
+  };
+
+  pushCollection(window.publicScheduleItems);
+
+  const cache = window.publicScheduleCache || {};
+  pushCollection(cache.mine);
+  pushCollection(cache.all);
+
+  return collections;
+}
+
+function syncAttendanceIntentionState(scheduleId, attendanceIntention) {
+  const normalizedId = Number(scheduleId);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return null;
+
+  let matchedItem = null;
+  _getPublicScheduleCollections().forEach((items) => {
+    items.forEach((item) => {
+      if (Number(item?.id) !== normalizedId) return;
+      item.attendance_intention = attendanceIntention;
+      item.attendance_intention_allowed = true;
+      if (!matchedItem) matchedItem = item;
+    });
+  });
+
+  if (Number(homeStatusState?.schedule?.id) === normalizedId) {
+    homeStatusState.schedule.attendance_intention = attendanceIntention;
+    homeStatusState.schedule.attendance_intention_allowed = true;
+    if (!matchedItem) matchedItem = homeStatusState.schedule;
+  }
+
+  return matchedItem;
 }
 
 function refreshPublicScheduleDetailIfOpen(scheduleId) {
   const detailPage = document.getElementById('public-schedule-detail');
   if (!detailPage || !detailPage.classList.contains('active')) return;
-  if (window.currentPublicScheduleDetailId !== scheduleId) return;
+  if (Number(window.currentPublicScheduleDetailId) !== Number(scheduleId)) return;
   openPublicScheduleDetail(scheduleId);
 }
 
@@ -17945,10 +18479,9 @@ async function handleAttendanceIntentionClick(scheduleId, willMiss, event) {
     if (!response.ok) {
       throw new Error(data.error || 'Не удалось сохранить');
     }
-    item.attendance_intention = data;
-    item.attendance_intention_allowed = true;
-    if (homeStatusState?.schedule?.id === scheduleId) {
-      updateHomeStatusCard(item);
+    const syncedItem = syncAttendanceIntentionState(scheduleId, data) || item;
+    if (Number(homeStatusState?.schedule?.id) === Number(scheduleId)) {
+      updateHomeStatusCard(syncedItem);
     }
     if (document.getElementById('schedule')?.classList.contains('active')) {
       renderPublicScheduleList();
@@ -18633,6 +19166,7 @@ function updateStaffNavigation() {
 const user = tg?.initDataUnsafe?.user;
 const AUTH_HINTS_STORAGE_KEY = 'auth_state_snapshot_v2';
 const VK_LAUNCH_PAYLOAD_STORAGE_KEY = 'vk_launch_payload_v1';
+const VK_PERMISSION_BANNER_SKIP_STORAGE_KEY = 'vk_permission_banner_skip_v1';
 const NOTIFICATION_PRIORITY_EVENT_TYPE = '*';
 const NOTIFICATION_PRIORITY_CHANNEL_TYPES = ['telegram', 'vk'];
 let currentAuthState = {
@@ -18657,6 +19191,22 @@ let notificationPriorityState = {
   error: null,
   vkPermissionRequired: false,
 };
+let homeScreenInstallState = {
+  signature: '',
+  checked: false,
+  loading: false,
+  eligible: false,
+  supported: false,
+  installed: false,
+  status: 'unknown',
+  source: '',
+  dismissed: false,
+  pending: false,
+  message: '',
+  error: null,
+};
+let homeScreenInstallRefreshPromise = null;
+let accountVerificationBannerBusy = false;
 let currentUserData = null;
 let isStaff = false;
 let profileLoadedPromise = null;
@@ -18720,6 +19270,33 @@ function persistAuthSnapshot() {
   } catch (_) {}
 }
 
+function _vkPermissionBannerSkipStorageKey(authUser = currentAuthState?.currentUser) {
+  const userId = String(authUser?.id ?? '').trim();
+  return userId ? `${VK_PERMISSION_BANNER_SKIP_STORAGE_KEY}:${userId}` : '';
+}
+
+function _isVkPermissionBannerSkipped(authUser = currentAuthState?.currentUser) {
+  const storageKey = _vkPermissionBannerSkipStorageKey(authUser);
+  if (!storageKey) return false;
+  try {
+    return localStorage.getItem(storageKey) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function _setVkPermissionBannerSkipped(skipped, authUser = currentAuthState?.currentUser) {
+  const storageKey = _vkPermissionBannerSkipStorageKey(authUser);
+  if (!storageKey) return;
+  try {
+    if (skipped) {
+      localStorage.setItem(storageKey, '1');
+    } else {
+      localStorage.removeItem(storageKey);
+    }
+  } catch (_) {}
+}
+
 function normalizeBootstrapUser(bootstrapUser, profileData = null) {
   return window.AuthUiState.normalizeBootstrapUser(bootstrapUser, profileData);
 }
@@ -18737,6 +19314,7 @@ function setAuthState(patch = {}) {
   currentAuthState = nextState;
   persistAuthSnapshot();
   renderAuthStateUI();
+  refreshHomeScreenInstallState();
 
   const isAuthenticated = Boolean(nextState?.isAuthenticated);
   if (!wasAuthenticated && isAuthenticated) {
@@ -19779,10 +20357,369 @@ function showGuestLoginInfo() {
   showNotification('В мини-приложении вход выполняется автоматически.');
 }
 
+function _homeScreenInstallDismissStorageKey() {
+  const userId = getCurrentUserId();
+  return userId ? `dance_studio.home_screen_install.dismissed.${userId}` : '';
+}
+
+function _isHomeScreenInstallPromptDismissed() {
+  const storageKey = _homeScreenInstallDismissStorageKey();
+  if (!storageKey) return false;
+  try {
+    return localStorage.getItem(storageKey) === '1';
+  } catch (_) {
+    return false;
+  }
+}
+
+function _setHomeScreenInstallPromptDismissed(dismissed) {
+  const storageKey = _homeScreenInstallDismissStorageKey();
+  if (!storageKey) return;
+  try {
+    if (dismissed) {
+      localStorage.setItem(storageKey, '1');
+    } else {
+      localStorage.removeItem(storageKey);
+    }
+  } catch (_) {}
+}
+
+function _isHomeScreenInstallEligible(authUser = currentAuthState?.currentUser) {
+  if (!authUser) return false;
+  const hasAccount = Boolean(String(authUser?.id ?? '').trim());
+  const phoneVerified = window.AuthUiState.isPhoneVerified(authUser);
+  return hasAccount && phoneVerified;
+}
+
+function _getHomeScreenInstallSignature(authUser = currentAuthState?.currentUser) {
+  const userId = String(authUser?.id ?? '').trim();
+  const phoneVerified = window.AuthUiState.isPhoneVerified(authUser);
+  return `${userId}|${phoneVerified ? '1' : '0'}`;
+}
+
+function _getHomeScreenInstallCopy() {
+  if (homeScreenInstallState.source === 'telegram') {
+    return {
+      title: 'Добавьте мини-приложение на главный экран',
+      text: 'Открывайте студию как отдельное приложение и запускайте расписание в один тап.',
+      button: 'Добавить на главный экран',
+    };
+  }
+  if (homeScreenInstallState.source === 'vk') {
+    return {
+      title: 'Добавьте мини-приложение VK на главный экран',
+      text: 'Открывайте студию прямо с главного экрана и заходите в расписание без лишних переходов.',
+      button: 'Добавить на главный экран',
+    };
+  }
+  return {
+    title: 'Установите приложение на главный экран',
+    text: 'Запускайте студию как отдельное приложение без лишних переходов.',
+    button: 'Добавить на главный экран',
+  };
+}
+
+function _formatHomeScreenInstallError(errorCode) {
+  const normalized = String(errorCode || '').trim().toLowerCase();
+  if (!normalized) return 'Не удалось открыть установку приложения.';
+  if (normalized === 'home_screen_not_supported' || normalized === 'tg_home_screen_unsupported') {
+    return 'Добавление на главный экран недоступно на этом устройстве.';
+  }
+  if (normalized === 'vk_home_screen_unsupported') {
+    return 'Добавление на главный экран недоступно в этом клиенте VK.';
+  }
+  if (normalized === 'pwa_prompt_unavailable') {
+    return 'Системное окно установки сейчас недоступно.';
+  }
+  if (normalized === 'user_cancelled' || normalized === 'dismissed' || normalized === 'missed') {
+    return 'Добавление отменено. Можно попробовать позже.';
+  }
+  return `Не удалось добавить приложение: ${normalized}`;
+}
+
+function renderHomeScreenInstallPrompt() {
+  const cards = Array.from(document.querySelectorAll('[data-home-screen-install-card]'));
+  if (!cards.length) return;
+
+  const copy = _getHomeScreenInstallCopy();
+  const shouldShow = Boolean(
+    homeScreenInstallState.eligible
+    && homeScreenInstallState.supported
+    && !homeScreenInstallState.installed
+    && !homeScreenInstallState.dismissed
+  );
+  const statusText = homeScreenInstallState.error
+    || homeScreenInstallState.message
+    || '';
+  const statusClass = homeScreenInstallState.error
+    ? 'warn'
+    : homeScreenInstallState.pending
+      ? 'pending'
+      : homeScreenInstallState.message
+        ? 'ok'
+        : '';
+
+  cards.forEach((card) => {
+    card.classList.toggle('show', shouldShow);
+    const titleEl = card.querySelector('[data-home-screen-install-title]');
+    const textEl = card.querySelector('[data-home-screen-install-text]');
+    const buttonEl = card.querySelector('[data-home-screen-install-btn]');
+    const statusEl = card.querySelector('[data-home-screen-install-status]');
+
+    if (titleEl) titleEl.textContent = copy.title;
+    if (textEl) textEl.textContent = copy.text;
+    if (buttonEl) {
+      buttonEl.textContent = copy.button;
+      buttonEl.disabled = Boolean(homeScreenInstallState.pending || homeScreenInstallState.loading);
+    }
+    if (statusEl) {
+      statusEl.textContent = statusText;
+      statusEl.classList.remove('ok', 'warn', 'pending');
+      if (statusClass) {
+        statusEl.classList.add(statusClass);
+      }
+    }
+  });
+}
+
+function focusHomeScreenInstallPrompt() {
+  const activePage = document.querySelector('.page.active');
+  const targetCard = activePage?.querySelector('[data-home-screen-install-card].show')
+    || document.querySelector('[data-home-screen-install-card].show');
+  if (!targetCard) return;
+  try {
+    targetCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (_) {
+    targetCard.scrollIntoView();
+  }
+}
+
+async function refreshHomeScreenInstallState(options = {}) {
+  const force = Boolean(options?.force);
+  const resetDismiss = Boolean(options?.resetDismiss);
+  const authUser = currentAuthState?.currentUser || null;
+  const signature = _getHomeScreenInstallSignature(authUser);
+  const eligible = _isHomeScreenInstallEligible(authUser);
+
+  if (!eligible) {
+    homeScreenInstallState = {
+      signature,
+      checked: true,
+      loading: false,
+      eligible: false,
+      supported: false,
+      installed: false,
+      status: 'unknown',
+      source: '',
+      dismissed: false,
+      pending: false,
+      message: '',
+      error: null,
+    };
+    renderHomeScreenInstallPrompt();
+    return homeScreenInstallState;
+  }
+
+  if (!force && homeScreenInstallState.checked && homeScreenInstallState.signature === signature) {
+    renderHomeScreenInstallPrompt();
+    return homeScreenInstallState;
+  }
+
+  if (homeScreenInstallRefreshPromise && !force) {
+    return homeScreenInstallRefreshPromise;
+  }
+
+  if (resetDismiss) {
+    _setHomeScreenInstallPromptDismissed(false);
+  }
+
+  homeScreenInstallState = {
+    ...homeScreenInstallState,
+    signature,
+    eligible: true,
+    loading: true,
+    error: null,
+    dismissed: resetDismiss ? false : _isHomeScreenInstallPromptDismissed(),
+  };
+  renderHomeScreenInstallPrompt();
+
+  homeScreenInstallRefreshPromise = (async () => {
+    try {
+      const installState = typeof window.platformAdapter?.getHomeScreenInstallState === 'function'
+        ? await window.platformAdapter.getHomeScreenInstallState()
+        : null;
+      const installed = Boolean(installState?.installed);
+      if (installed) {
+        _setHomeScreenInstallPromptDismissed(false);
+      }
+      homeScreenInstallState = {
+        ...homeScreenInstallState,
+        checked: true,
+        loading: false,
+        eligible: true,
+        supported: Boolean(installState?.supported),
+        installed,
+        status: String(installState?.status || 'unknown'),
+        source: String(installState?.source || ''),
+        dismissed: installed ? false : (resetDismiss ? false : _isHomeScreenInstallPromptDismissed()),
+        message: installed ? 'Приложение уже добавлено на главный экран.' : '',
+        error: null,
+      };
+    } catch (error) {
+      homeScreenInstallState = {
+        ...homeScreenInstallState,
+        checked: true,
+        loading: false,
+        supported: false,
+        installed: false,
+        status: 'unknown',
+        source: '',
+        message: '',
+        error: _formatHomeScreenInstallError(error?.message || error),
+      };
+    } finally {
+      renderHomeScreenInstallPrompt();
+      homeScreenInstallRefreshPromise = null;
+    }
+    return homeScreenInstallState;
+  })();
+
+  return homeScreenInstallRefreshPromise;
+}
+
+function dismissHomeScreenInstallPrompt() {
+  _setHomeScreenInstallPromptDismissed(true);
+  homeScreenInstallState = {
+    ...homeScreenInstallState,
+    dismissed: true,
+    pending: false,
+    message: '',
+    error: null,
+  };
+  renderHomeScreenInstallPrompt();
+}
+
+async function requestAddToHomeScreen() {
+  if (homeScreenInstallState.pending || homeScreenInstallState.loading) return;
+  homeScreenInstallState = {
+    ...homeScreenInstallState,
+    pending: true,
+    error: null,
+    message: 'Подтвердите добавление на устройстве.',
+  };
+  renderHomeScreenInstallPrompt();
+
+  try {
+    const result = typeof window.platformAdapter?.addToHomeScreen === 'function'
+      ? await window.platformAdapter.addToHomeScreen()
+      : null;
+    if (result?.installed) {
+      _setHomeScreenInstallPromptDismissed(false);
+      homeScreenInstallState = {
+        ...homeScreenInstallState,
+        pending: false,
+        installed: true,
+        dismissed: false,
+        message: 'Готово! Приложение добавлено на главный экран.',
+        error: null,
+      };
+      renderHomeScreenInstallPrompt();
+      await refreshHomeScreenInstallState({ force: true });
+      return;
+    }
+    if (result?.cancelled) {
+      homeScreenInstallState = {
+        ...homeScreenInstallState,
+        pending: false,
+        message: '',
+        error: _formatHomeScreenInstallError(result?.status || 'user_cancelled'),
+      };
+      renderHomeScreenInstallPrompt();
+      return;
+    }
+    homeScreenInstallState = {
+      ...homeScreenInstallState,
+      pending: false,
+      message: result?.prompted ? 'Подтвердите добавление на устройстве.' : '',
+      error: result?.ok === false ? _formatHomeScreenInstallError(result?.status || 'home_screen_not_supported') : null,
+    };
+  } catch (error) {
+    homeScreenInstallState = {
+      ...homeScreenInstallState,
+      pending: false,
+      message: '',
+      error: _formatHomeScreenInstallError(error?.message || error),
+    };
+  }
+
+  renderHomeScreenInstallPrompt();
+  setTimeout(() => {
+    refreshHomeScreenInstallState({ force: true });
+  }, 1200);
+}
+
+window.addEventListener('dance-home-screen-install-state-changed', () => {
+  refreshHomeScreenInstallState({ force: true });
+});
+
+function _getAccountVerificationBannerActions() {
+  return window.AuthUiState.getVerificationBannerActions(currentAuthState);
+}
+
+function _shouldShowAccountVerificationBanner(authUser = currentAuthState?.currentUser) {
+  const hasAccount = Boolean(String(authUser?.id ?? '').trim());
+  if (!hasAccount) return false;
+  const actions = _getAccountVerificationBannerActions();
+  if (!actions?.primaryAction) return false;
+  if (actions.primaryAction === 'verify_vk_messages') {
+    return !_isVkPermissionBannerSkipped(authUser);
+  }
+  return true;
+}
+
+async function handleAccountVerificationBannerPrimaryAction() {
+  const actions = _getAccountVerificationBannerActions();
+  if (!actions?.primaryAction) return;
+
+  if (actions.primaryAction === 'verify_phone') {
+    showPage('profile-info');
+    return;
+  }
+
+  if (actions.primaryAction !== 'verify_vk_messages' || accountVerificationBannerBusy) {
+    return;
+  }
+
+  accountVerificationBannerBusy = true;
+  renderAuthStateUI();
+  try {
+    await loadNotificationPrioritySettings(true);
+    await requestVkNotificationPermissionFromSettings();
+    if (!currentAuthState?.vkPermissionRequired) {
+      _setVkPermissionBannerSkipped(false);
+      await refreshHomeScreenInstallState({ force: true, resetDismiss: true });
+    }
+  } finally {
+    accountVerificationBannerBusy = false;
+    renderAuthStateUI();
+  }
+}
+
+async function handleAccountVerificationBannerSecondaryAction() {
+  const actions = _getAccountVerificationBannerActions();
+  if (actions?.secondaryAction !== 'skip_vk_messages') return;
+  _setVkPermissionBannerSkipped(true);
+  renderAuthStateUI();
+  await refreshHomeScreenInstallState({ force: true, resetDismiss: true });
+  focusHomeScreenInstallPrompt();
+}
+
 function renderAuthStateUI() {
   const banner = document.getElementById('account-verification-banner');
   const bannerTitle = document.getElementById('account-verification-banner-title');
   const bannerText = document.getElementById('account-verification-banner-text');
+  const bannerPrimaryBtn = document.getElementById('account-verification-banner-primary-btn');
+  const bannerSecondaryBtn = document.getElementById('account-verification-banner-secondary-btn');
   const authUser = currentAuthState.currentUser;
   const hasAccount = Boolean(String(authUser?.id ?? '').trim());
 
@@ -19794,19 +20731,35 @@ function renderAuthStateUI() {
   }
   _renderNotificationPrioritySettings();
 
-  const shouldShowBanner = Boolean(currentAuthState?.vkPermissionRequired) || window.AuthUiState.shouldShowVerificationBanner(authUser);
+  if (!currentAuthState?.vkPermissionRequired) {
+    _setVkPermissionBannerSkipped(false, authUser);
+  }
+
+  const bannerActions = _getAccountVerificationBannerActions();
+  const shouldShowBanner = _shouldShowAccountVerificationBanner(authUser);
   if (banner && bannerText && hasAccount) {
     banner.style.display = shouldShowBanner ? '' : 'none';
     if (bannerTitle) {
       bannerTitle.textContent = window.AuthUiState.getVerificationBannerTitle(currentAuthState);
     }
     bannerText.textContent = window.AuthUiState.getVerificationBannerText(currentAuthState);
+    if (bannerPrimaryBtn) {
+      bannerPrimaryBtn.textContent = bannerActions?.primaryLabel || '';
+      bannerPrimaryBtn.style.display = bannerActions?.primaryLabel ? '' : 'none';
+      bannerPrimaryBtn.disabled = Boolean(accountVerificationBannerBusy || notificationPriorityState.requestingVkPermission);
+    }
+    if (bannerSecondaryBtn) {
+      bannerSecondaryBtn.textContent = bannerActions?.secondaryLabel || '';
+      bannerSecondaryBtn.style.display = bannerActions?.secondaryLabel ? '' : 'none';
+      bannerSecondaryBtn.disabled = Boolean(accountVerificationBannerBusy || notificationPriorityState.requestingVkPermission);
+    }
   } else if (banner) {
     banner.style.display = 'none';
   }
 
   _renderSettingsPhoneBlock(authUser);
   _renderAuthMethods(authUser);
+  renderHomeScreenInstallPrompt();
 }
 
 function applyAuthResponse(payload, provider = null) {
@@ -20598,6 +21551,7 @@ async function requestPhoneFromTelegram() {
       if (userId) {
         try {
           await loadProfileData();
+          await refreshHomeScreenInstallState({ force: true, resetDismiss: true });
           const phoneValue = document.getElementById('profile-input-phone')?.value?.trim();
           setProfilePhoneRequestStatus(phoneValue ? 'Готово! Номер в профиле обновлен' : 'Номер отправлен. Обновим профиль, как только Telegram передаст контакт.');
         } catch (_) {
@@ -20732,6 +21686,7 @@ async function requestPhoneFromVK() {
 
     setProfilePhoneRequestStatus(payload?.merge_notice || 'Номер сохранен, обновляем профиль...');
     await loadProfileData();
+    await refreshHomeScreenInstallState({ force: true, resetDismiss: true });
     const phoneValue = document.getElementById('profile-input-phone')?.value?.trim();
 
     if (payload?.merge_notice) {
@@ -22007,7 +22962,7 @@ function openAdminBookingRequestModal(bookingId) {
 
   overlayEl.classList.add('show');
   modalEl.classList.add('show');
-  _setAdminBookingRequestBackFallbackVisible(!hasTelegramBackButton());
+  _setAdminBookingRequestBackFallbackVisible(shouldShowLocalModalBackFallback());
   setModalBackHandler(closeAdminBookingRequestModal);
 }
 
@@ -22121,6 +23076,10 @@ let clientIssueCompatibleGroups = [];
 let clientIssueExtraGroupIds = [];
 let clientIssueGroupPickerOpen = false;
 let clientAbonementOpenPanel = null;
+let clientCreateAbonementGroups = [];
+let clientCreateInitialAbonements = [];
+let clientCreateAbonementEditorOpen = false;
+let clientCreateAbonementEditIndex = null;
 let clientAttendanceMonth = null;
 let clientAttendanceEntries = [];
 let clientAttendanceSelectedDate = null;
@@ -22235,6 +23194,321 @@ function setClientCreateStatus(message, isError = false) {
   statusEl.style.color = isError ? '#ff6b6b' : 'var(--hint)';
 }
 
+function _setClientCreateAbonementSectionStatus(message, isError = false) {
+  const statusEl = document.getElementById('client-create-abonement-section-status');
+  if (!statusEl) return;
+  statusEl.textContent = message || '';
+  statusEl.style.color = isError ? '#ff6b6b' : 'var(--hint)';
+}
+
+function _setClientCreateAbonementOpenButtonState() {
+  const openBtn = document.getElementById('client-create-abonement-open-btn');
+  if (!openBtn) return;
+  const canAddMore = clientCreateInitialAbonements.length < 3;
+  openBtn.disabled = !canAddMore;
+  openBtn.textContent = canAddMore ? '+ Добавить абонемент' : 'Лимит 3 абонемента';
+}
+
+function _renderClientCreateAbonementGroupSelect(selectedGroupId = null) {
+  const selectEl = document.getElementById('client-create-abonement-group');
+  if (!selectEl) return;
+  if (!Array.isArray(clientCreateAbonementGroups) || !clientCreateAbonementGroups.length) {
+    selectEl.innerHTML = '<option value="">Нет доступных групп</option>';
+    selectEl.disabled = true;
+    return;
+  }
+
+  selectEl.disabled = false;
+  selectEl.innerHTML = clientCreateAbonementGroups.map((item) => {
+    const direction = item.direction_title || 'Направление';
+    const groupName = item.name || `Группа #${item.id}`;
+    const lessons = item.lessons_per_week ? `${item.lessons_per_week} в неделю` : 'уроки/нед. не заданы';
+    return `<option value="${Number(item.id)}">${escapeHtml(direction)} • ${escapeHtml(groupName)} (${escapeHtml(lessons)})</option>`;
+  }).join('');
+
+  const targetId = Number.parseInt(selectedGroupId, 10);
+  const hasTarget = Number.isFinite(targetId) && clientCreateAbonementGroups.some((item) => Number(item.id) === targetId);
+  selectEl.value = String(hasTarget ? targetId : Number(clientCreateAbonementGroups[0].id));
+}
+
+async function loadClientCreateAbonementGroups() {
+  try {
+    const response = await fetch('/api/admin/groups/abonements', {
+      headers: getAuthHeaders(),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось загрузить группы');
+    }
+    clientCreateAbonementGroups = Array.isArray(data.items) ? data.items : [];
+    _renderClientCreateAbonementGroupSelect();
+    if (!clientCreateAbonementGroups.length) {
+      _setClientCreateAbonementSectionStatus('Доступных групп не найдено', true);
+    } else {
+      _setClientCreateAbonementSectionStatus('');
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки групп для создания клиента:', error);
+    clientCreateAbonementGroups = [];
+    _renderClientCreateAbonementGroupSelect();
+    _setClientCreateAbonementSectionStatus(error.message || 'Ошибка сети', true);
+  }
+}
+
+function onClientCreateAbonementTypeChange() {
+  const typeEl = document.getElementById('client-create-abonement-type');
+  const weeksEl = document.getElementById('client-create-abonement-weeks');
+  const lessonsEl = document.getElementById('client-create-abonement-lessons');
+  const type = String(typeEl?.value || 'multi').trim().toLowerCase();
+  const isMulti = type === 'multi';
+
+  if (weeksEl && !weeksEl.value) {
+    weeksEl.value = isMulti ? '4' : '1';
+  }
+  if (lessonsEl) {
+    if (isMulti) {
+      if (lessonsEl.value === '1') lessonsEl.value = '';
+      lessonsEl.placeholder = 'Авторасчет, если оставить пустым';
+    } else {
+      if (!lessonsEl.value) lessonsEl.value = '1';
+      lessonsEl.placeholder = 'По умолчанию 1';
+    }
+  }
+}
+
+function _resetClientCreateAbonementEditor() {
+  const typeEl = document.getElementById('client-create-abonement-type');
+  const statusEl = document.getElementById('client-create-abonement-status');
+  const weeksEl = document.getElementById('client-create-abonement-weeks');
+  const lessonsEl = document.getElementById('client-create-abonement-lessons');
+  const priceEl = document.getElementById('client-create-abonement-price-total');
+  const noteEl = document.getElementById('client-create-abonement-note');
+  const titleEl = document.getElementById('client-create-abonement-editor-title');
+  const saveBtn = document.getElementById('client-create-abonement-save-btn');
+
+  if (typeEl) typeEl.value = 'multi';
+  if (statusEl) statusEl.value = 'active';
+  if (weeksEl) weeksEl.value = '4';
+  if (lessonsEl) lessonsEl.value = '';
+  if (priceEl) priceEl.value = '400';
+  if (noteEl) noteEl.value = '';
+  if (titleEl) titleEl.textContent = 'Новый абонемент';
+  if (saveBtn) saveBtn.textContent = 'Добавить';
+  _renderClientCreateAbonementGroupSelect();
+  onClientCreateAbonementTypeChange();
+  _setClientCreateAbonementSectionStatus('');
+}
+
+function openClientCreateAbonementEditor(editIndexRaw = null) {
+  const editorEl = document.getElementById('client-create-abonement-editor');
+  const titleEl = document.getElementById('client-create-abonement-editor-title');
+  const saveBtn = document.getElementById('client-create-abonement-save-btn');
+  const typeEl = document.getElementById('client-create-abonement-type');
+  const statusEl = document.getElementById('client-create-abonement-status');
+  const weeksEl = document.getElementById('client-create-abonement-weeks');
+  const lessonsEl = document.getElementById('client-create-abonement-lessons');
+  const priceEl = document.getElementById('client-create-abonement-price-total');
+  const noteEl = document.getElementById('client-create-abonement-note');
+  if (!editorEl || !titleEl || !saveBtn || !typeEl || !statusEl || !weeksEl || !lessonsEl || !priceEl || !noteEl) {
+    return;
+  }
+  if (!clientCreateAbonementGroups.length) {
+    _setClientCreateAbonementSectionStatus('Сначала дождитесь загрузки групп', true);
+    return;
+  }
+
+  const editIndex = Number.parseInt(editIndexRaw, 10);
+  const isEditing = Number.isFinite(editIndex) && editIndex >= 0 && editIndex < clientCreateInitialAbonements.length;
+  clientCreateAbonementEditorOpen = true;
+  clientCreateAbonementEditIndex = isEditing ? editIndex : null;
+  editorEl.style.display = 'block';
+
+  if (!isEditing) {
+    _resetClientCreateAbonementEditor();
+    return;
+  }
+
+  const item = clientCreateInitialAbonements[editIndex];
+  titleEl.textContent = `Абонемент ${editIndex + 1}`;
+  saveBtn.textContent = 'Сохранить';
+  typeEl.value = item.abonement_type || 'multi';
+  statusEl.value = item.status || 'active';
+  weeksEl.value = item.weeks ? String(item.weeks) : '';
+  lessonsEl.value = item.lessons ? String(item.lessons) : '';
+  priceEl.value = item.price_total_rub != null ? String(item.price_total_rub) : '400';
+  noteEl.value = item.note || '';
+  _renderClientCreateAbonementGroupSelect(item.group_id);
+  onClientCreateAbonementTypeChange();
+  _setClientCreateAbonementSectionStatus('');
+}
+
+function cancelClientCreateAbonementEdit() {
+  const editorEl = document.getElementById('client-create-abonement-editor');
+  if (editorEl) editorEl.style.display = 'none';
+  clientCreateAbonementEditorOpen = false;
+  clientCreateAbonementEditIndex = null;
+  _setClientCreateAbonementSectionStatus('');
+  _setClientCreateAbonementOpenButtonState();
+}
+
+function _resolveClientCreateAbonementTypeLabel(typeRaw) {
+  const type = String(typeRaw || '').trim().toLowerCase();
+  if (type === 'single') return 'Разовое';
+  if (type === 'trial') return 'Пробное';
+  return 'Мульти';
+}
+
+function _resolveClientCreateAbonementStatusLabel(statusRaw) {
+  const status = String(statusRaw || '').trim().toLowerCase();
+  if (status === 'pending_payment') return 'Ожидает оплату';
+  return 'Активен';
+}
+
+function _formatClientCreateAbonementSummary(item, index) {
+  const parts = [
+    `${item.direction_title || 'Направление'} • ${item.group_name || `Группа #${item.group_id}`}`,
+    _resolveClientCreateAbonementTypeLabel(item.abonement_type),
+    _resolveClientCreateAbonementStatusLabel(item.status),
+  ];
+  if (item.weeks) parts.push(`${item.weeks} нед.`);
+  if (item.lessons) parts.push(`${item.lessons} занятий`);
+  if (item.price_total_rub != null) parts.push(`${item.price_total_rub} RUB`);
+  return `
+    <div class="card" style="margin:0; padding:12px;">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px;">
+        <div style="min-width:0;">
+          <div style="font-weight:700;">Абонемент ${index + 1}</div>
+          <div class="small" style="margin-top:4px; color:var(--hint);">${escapeHtml(parts.join(' • '))}</div>
+          ${item.note ? `<div class="small" style="margin-top:6px; color:var(--hint);">Комментарий: ${escapeHtml(item.note)}</div>` : ''}
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end;">
+          <button class="save-btn" onclick="openClientCreateAbonementEditor(${index})" style="width:auto; margin:0; padding:8px 12px;" type="button">Изменить</button>
+          <button class="save-btn" onclick="removeClientCreateAbonement(${index})" style="width:auto; margin:0; padding:8px 12px; background:#555;" type="button">Удалить</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function _renderClientCreateInitialAbonements() {
+  const listEl = document.getElementById('client-create-abonement-list');
+  if (!listEl) return;
+  if (!clientCreateInitialAbonements.length) {
+    listEl.innerHTML = '<div class="small" style="color:var(--hint);">Пока без абонементов. Можно создать клиента только с карточкой или сразу добавить до 3 пакетов.</div>';
+  } else {
+    listEl.innerHTML = clientCreateInitialAbonements.map((item, index) => _formatClientCreateAbonementSummary(item, index)).join('');
+  }
+  _setClientCreateAbonementOpenButtonState();
+}
+
+function removeClientCreateAbonement(indexRaw) {
+  const index = Number.parseInt(indexRaw, 10);
+  if (!Number.isFinite(index) || index < 0 || index >= clientCreateInitialAbonements.length) return;
+  clientCreateInitialAbonements.splice(index, 1);
+  if (clientCreateAbonementEditIndex === index) {
+    cancelClientCreateAbonementEdit();
+  } else if (clientCreateAbonementEditIndex !== null && clientCreateAbonementEditIndex > index) {
+    clientCreateAbonementEditIndex -= 1;
+  }
+  _renderClientCreateInitialAbonements();
+}
+
+function saveClientCreateAbonementDraft() {
+  const typeEl = document.getElementById('client-create-abonement-type');
+  const groupEl = document.getElementById('client-create-abonement-group');
+  const statusEl = document.getElementById('client-create-abonement-status');
+  const weeksEl = document.getElementById('client-create-abonement-weeks');
+  const lessonsEl = document.getElementById('client-create-abonement-lessons');
+  const priceEl = document.getElementById('client-create-abonement-price-total');
+  const noteEl = document.getElementById('client-create-abonement-note');
+  if (!typeEl || !groupEl || !statusEl || !weeksEl || !lessonsEl || !priceEl || !noteEl) return;
+
+  const groupId = Number.parseInt(groupEl.value || '', 10);
+  if (!Number.isFinite(groupId) || groupId <= 0) {
+    _setClientCreateAbonementSectionStatus('Выберите группу', true);
+    return;
+  }
+
+  const groupItem = clientCreateAbonementGroups.find((item) => Number(item.id) === groupId) || null;
+  if (!groupItem) {
+    _setClientCreateAbonementSectionStatus('Выбранная группа недоступна', true);
+    return;
+  }
+
+  const type = String(typeEl.value || 'multi').trim().toLowerCase();
+  const status = String(statusEl.value || 'active').trim().toLowerCase();
+  const weeksRaw = (weeksEl.value || '').trim();
+  const lessonsRaw = (lessonsEl.value || '').trim();
+  const note = (noteEl.value || '').trim();
+  const priceRaw = (priceEl.value || '').trim();
+  let weeks = null;
+  let lessons = null;
+
+  if (weeksRaw) {
+    weeks = Number.parseInt(weeksRaw, 10);
+    if (!Number.isFinite(weeks) || weeks <= 0) {
+      _setClientCreateAbonementSectionStatus('Недели должны быть целым числом больше 0', true);
+      return;
+    }
+  }
+
+  if (lessonsRaw) {
+    lessons = Number.parseInt(lessonsRaw, 10);
+    if (!Number.isFinite(lessons) || lessons <= 0) {
+      _setClientCreateAbonementSectionStatus('Занятия должны быть целым числом больше 0', true);
+      return;
+    }
+  }
+
+  if (type !== 'multi') {
+    weeks = weeks || 1;
+    lessons = lessons || 1;
+  } else if (!weeks && !lessons) {
+    weeks = 4;
+  }
+
+  let priceTotalRub = 400;
+  if (priceRaw) {
+    priceTotalRub = Number.parseInt(priceRaw, 10);
+    if (!Number.isFinite(priceTotalRub) || priceTotalRub < 0) {
+      _setClientCreateAbonementSectionStatus('Цена должна быть целым числом больше или равным 0', true);
+      return;
+    }
+  }
+
+  const item = {
+    group_id: groupId,
+    group_name: groupItem.name || `Группа #${groupId}`,
+    direction_title: groupItem.direction_title || 'Направление',
+    abonement_type: type || 'multi',
+    status: status || 'active',
+    weeks,
+    lessons,
+    price_total_rub: priceTotalRub,
+    note: note || null,
+  };
+
+  if (clientCreateAbonementEditIndex !== null) {
+    clientCreateInitialAbonements[clientCreateAbonementEditIndex] = item;
+  } else {
+    if (clientCreateInitialAbonements.length >= 3) {
+      _setClientCreateAbonementSectionStatus('Можно добавить максимум 3 абонемента', true);
+      return;
+    }
+    clientCreateInitialAbonements.push(item);
+  }
+
+  _renderClientCreateInitialAbonements();
+  cancelClientCreateAbonementEdit();
+}
+
+function _setCreateClientBackFallbackVisible(isVisible) {
+  const backBtn = document.getElementById('client-create-local-back');
+  if (!backBtn) return;
+  backBtn.style.visibility = isVisible ? 'visible' : 'hidden';
+  backBtn.style.pointerEvents = isVisible ? 'auto' : 'none';
+}
+
 function openCreateClientModal() {
   const overlayEl = document.getElementById('client-create-overlay');
   const modalEl = document.getElementById('client-create-modal');
@@ -22253,9 +23527,20 @@ function openCreateClientModal() {
     const el = document.getElementById(fieldId);
     if (el) el.value = '';
   });
+  clientCreateInitialAbonements = [];
+  clientCreateAbonementEditorOpen = false;
+  clientCreateAbonementEditIndex = null;
+  clientCreateAbonementGroups = [];
+  _renderClientCreateInitialAbonements();
+  _resetClientCreateAbonementEditor();
+  cancelClientCreateAbonementEdit();
   setClientCreateStatus('');
+  _setClientCreateAbonementSectionStatus('Загрузка групп...');
   overlayEl.classList.add('show');
   modalEl.classList.add('show');
+  _setCreateClientBackFallbackVisible(shouldShowLocalModalBackFallback());
+  setModalBackHandler(closeCreateClientModal);
+  void loadClientCreateAbonementGroups();
 }
 
 function closeCreateClientModal() {
@@ -22263,6 +23548,8 @@ function closeCreateClientModal() {
   const modalEl = document.getElementById('client-create-modal');
   if (overlayEl) overlayEl.classList.remove('show');
   if (modalEl) modalEl.classList.remove('show');
+  cancelClientCreateAbonementEdit();
+  setModalBackHandler(null);
 }
 
 async function submitCreateClient() {
@@ -22276,6 +23563,11 @@ async function submitCreateClient() {
 
   if (!name) {
     setClientCreateStatus('Введите имя клиента', true);
+    return;
+  }
+
+  if (clientCreateAbonementEditorOpen) {
+    setClientCreateStatus('Сохраните или отмените редактирование абонемента', true);
     return;
   }
 
@@ -22296,6 +23588,18 @@ async function submitCreateClient() {
       return;
     }
     payload.telegram_id = parsedTelegramId;
+  }
+
+  if (clientCreateInitialAbonements.length) {
+    payload.initial_abonements = clientCreateInitialAbonements.map((item) => ({
+      group_id: item.group_id,
+      abonement_type: item.abonement_type,
+      status: item.status,
+      weeks: item.weeks,
+      lessons: item.lessons,
+      price_total_rub: item.price_total_rub,
+      note: item.note,
+    }));
   }
 
   try {
@@ -22319,7 +23623,12 @@ async function submitCreateClient() {
     }
 
     closeCreateClientModal();
-    showNotification('Клиент создан');
+    const createdAbonementsCount = Array.isArray(data?.initial_abonements) ? data.initial_abonements.length : 0;
+    if (createdAbonementsCount > 0) {
+      showNotification(`Клиент создан, добавлено абонементов: ${createdAbonementsCount}`);
+    } else {
+      showNotification('Клиент создан');
+    }
     await loadAllClients();
   } catch (error) {
     console.error('Ошибка при создании клиента:', error);
@@ -22850,7 +24159,7 @@ async function displayStaffInfo(userData) {
       document.getElementById('staff-panel-name').textContent = staff.name;
       
       // Обновляем должность
-      const positionText = staff.position.charAt(0).toUpperCase() + staff.position.slice(1);
+      const positionText = getStaffRoleLabel(staff.position);
       document.getElementById('staff-panel-position').textContent = positionText;
       
       // Обновляем фото
@@ -23070,7 +24379,7 @@ async function saveStaffProfile() {
     }
     if (Number(currentDetailStaffId) === Number(staffId)) {
       document.getElementById('staff-detail-name').innerText = data.name || '—';
-      document.getElementById('staff-detail-position').innerText = data.position || '—';
+      document.getElementById('staff-detail-position').innerText = getStaffRoleLabel(data.position);
       document.getElementById('staff-detail-specialization').innerText = data.specialization || '—';
       document.getElementById('staff-detail-bio').innerText = data.bio || '—';
       updateStaffDetailAvatar(data.photo_path, data.telegram_id);
@@ -23636,7 +24945,7 @@ function viewClientDetails(userId) {
   nameEl.textContent = client.name || 'Без имени';
   usernameEl.textContent = _clientDetailUsernameText(client);
   metaEl.textContent = metaParts.join(' • ') || '—';
-  _setClientDetailBackFallbackVisible(!hasTelegramBackButton());
+  _setClientDetailBackFallbackVisible(shouldShowLocalModalBackFallback());
   syncClientDetailSocialButtons(client);
 
   overlayEl.classList.add('show');
@@ -24525,12 +25834,14 @@ async function openClientAbonementActionsScreen() {
 
   const issueWeeksEl = document.getElementById('client-abonement-issue-weeks');
   const issueLessonsEl = document.getElementById('client-abonement-issue-lessons');
+  const issuePriceEl = document.getElementById('client-abonement-issue-price-total');
   const issueNoteEl = document.getElementById('client-abonement-issue-note');
   const manageNoteEl = document.getElementById('client-abonement-manage-note');
   const manageAdjustDeltaEl = document.getElementById('client-abonement-manage-adjust-delta');
   const issueTypeEl = document.getElementById('client-abonement-issue-type');
   if (issueWeeksEl) issueWeeksEl.value = '4';
   if (issueLessonsEl) issueLessonsEl.value = '';
+  if (issuePriceEl) issuePriceEl.value = '400';
   if (issueNoteEl) issueNoteEl.value = '';
   if (manageNoteEl) manageNoteEl.value = '';
   if (manageAdjustDeltaEl) manageAdjustDeltaEl.value = '';
@@ -27730,6 +29041,355 @@ window.platformAdapter = (function () {
   function isPWA() {
     return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
   }
+  let deferredInstallPrompt = null;
+  function _emitHomeScreenInstallStateChanged() {
+    try {
+      window.dispatchEvent(new Event('dance-home-screen-install-state-changed'));
+    } catch (_) {}
+  }
+  function _getBrowserHomeScreenInstallState() {
+    return {
+      supported: Boolean(deferredInstallPrompt),
+      installed: false,
+      status: deferredInstallPrompt ? 'prompt_available' : 'unsupported',
+      source: deferredInstallPrompt ? 'browser' : '',
+    };
+  }
+  async function _promptBrowserAddToHomeScreen() {
+    if (!deferredInstallPrompt) {
+      throw new Error('pwa_prompt_unavailable');
+    }
+
+    const promptEvent = deferredInstallPrompt;
+    deferredInstallPrompt = null;
+    _emitHomeScreenInstallStateChanged();
+    await promptEvent.prompt();
+    const choice = await promptEvent.userChoice.catch(() => null);
+    if (choice?.outcome !== 'accepted') {
+      return {
+        ok: false,
+        prompted: true,
+        cancelled: true,
+        installed: false,
+        status: 'dismissed',
+        source: 'browser',
+      };
+    }
+
+    return {
+      ok: true,
+      prompted: true,
+      installed: isPWA(),
+      status: isPWA() ? 'added' : 'accepted',
+      source: 'browser',
+    };
+  }
+  async function _vkBridgeSupportsMethod(method) {
+    if (!window.vkBridge) {
+      return false;
+    }
+    try {
+      if (typeof window.vkBridge.supportsAsync === 'function') {
+        return await window.vkBridge.supportsAsync(method);
+      }
+    } catch (_) {}
+    try {
+      if (typeof window.vkBridge.supports === 'function') {
+        return window.vkBridge.supports(method) === true;
+      }
+    } catch (_) {}
+    return false;
+  }
+  function _readBooleanLike(value) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'number') return value !== 0;
+    const normalized = String(value ?? '').trim().toLowerCase();
+    if (!normalized) return null;
+    if (['1', 'true', 'yes', 'added', 'available', 'supported'].includes(normalized)) {
+      return true;
+    }
+    if (['0', 'false', 'no', 'not_added', 'unsupported', 'unavailable'].includes(normalized)) {
+      return false;
+    }
+    return null;
+  }
+  function _pickBooleanLike(payload, keys) {
+    if (!payload || typeof payload !== 'object') return null;
+    for (const key of keys) {
+      const value = _readBooleanLike(payload[key]);
+      if (value !== null) {
+        return value;
+      }
+    }
+    return null;
+  }
+  function _normalizeVkHomeScreenInfo(payload, addSupported = false) {
+    const installed = _pickBooleanLike(payload, [
+      'is_added_to_home_screen',
+      'is_added',
+      'added_to_home_screen',
+      'added',
+      'isAddedToHomeScreen',
+    ]);
+    const supportedFlag = _pickBooleanLike(payload, [
+      'can_add_to_home_screen',
+      'can_add',
+      'is_supported',
+      'supported',
+      'is_available',
+      'isAvailable',
+    ]);
+    const supported = supportedFlag === null
+      ? Boolean(addSupported || installed)
+      : supportedFlag;
+    return {
+      supported,
+      installed: installed === true,
+      status: installed === true ? 'added' : (supported ? 'available' : 'unsupported'),
+      source: 'vk',
+    };
+  }
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    _emitHomeScreenInstallStateChanged();
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    _emitHomeScreenInstallStateChanged();
+  });
+  async function getHomeScreenInstallState() {
+    if (isPWA()) {
+      return {
+        supported: true,
+        installed: true,
+        status: 'added',
+        source: 'standalone',
+      };
+    }
+
+    const platform = getPlatform();
+    if (platform === 'telegram') {
+      const webApp = getTelegramWebApp();
+      if (!webApp || typeof webApp.checkHomeScreenStatus !== 'function') {
+        return {
+          supported: false,
+          installed: false,
+          status: 'unsupported',
+          source: 'telegram',
+        };
+      }
+      try {
+        const status = await new Promise((resolve, reject) => {
+          let settled = false;
+          const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            resolve('unknown');
+          }, 1500);
+          try {
+            webApp.checkHomeScreenStatus((value) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timer);
+              resolve(String(value || 'unknown').trim().toLowerCase());
+            });
+          } catch (error) {
+            clearTimeout(timer);
+            reject(error);
+          }
+        });
+        return {
+          supported: status !== 'unsupported',
+          installed: status === 'added',
+          status,
+          source: 'telegram',
+        };
+      } catch (_) {
+        return {
+          supported: false,
+          installed: false,
+          status: 'unsupported',
+          source: 'telegram',
+        };
+      }
+    }
+
+    if (platform === 'vk') {
+      const infoSupported = await _vkBridgeSupportsMethod('VKWebAppAddToHomeScreenInfo');
+      const addSupported = await _vkBridgeSupportsMethod('VKWebAppAddToHomeScreen');
+      let vkInstallState = null;
+
+      if (infoSupported) {
+        try {
+          const info = await _sendVkBridgeWithTimeout('VKWebAppAddToHomeScreenInfo', undefined, 1800);
+          vkInstallState = _normalizeVkHomeScreenInfo(info, addSupported);
+        } catch (_) {
+          vkInstallState = null;
+        }
+      } else if (addSupported) {
+        vkInstallState = {
+          supported: true,
+          installed: false,
+          status: 'available',
+          source: 'vk',
+        };
+      }
+
+      if (vkInstallState && (vkInstallState.installed || vkInstallState.supported || !deferredInstallPrompt)) {
+        return vkInstallState;
+      }
+      if ((infoSupported || addSupported) && !deferredInstallPrompt) {
+        return vkInstallState || {
+          supported: false,
+          installed: false,
+          status: 'unsupported',
+          source: 'vk',
+        };
+      }
+    }
+
+    return _getBrowserHomeScreenInstallState();
+  }
+  async function addToHomeScreen() {
+    if (isPWA()) {
+      return {
+        ok: true,
+        prompted: false,
+        installed: true,
+        status: 'added',
+        source: 'standalone',
+      };
+    }
+
+    const platform = getPlatform();
+    if (platform === 'telegram') {
+      const webApp = getTelegramWebApp();
+      if (!webApp || typeof webApp.addToHomeScreen !== 'function') {
+        throw new Error('tg_home_screen_unsupported');
+      }
+      return await new Promise((resolve, reject) => {
+        let settled = false;
+        let timer = null;
+        const cleanup = () => {
+          if (timer) clearTimeout(timer);
+          try { webApp.offEvent?.('homeScreenAdded', onAdded); } catch (_) {}
+          try { webApp.offEvent?.('homeScreenChecked', onChecked); } catch (_) {}
+        };
+        const finish = (payload) => {
+          if (settled) return;
+          settled = true;
+          cleanup();
+          _emitHomeScreenInstallStateChanged();
+          resolve(payload);
+        };
+        const onAdded = () => {
+          finish({
+            ok: true,
+            prompted: true,
+            installed: true,
+            status: 'added',
+            source: 'telegram',
+          });
+        };
+        const onChecked = (payload) => {
+          const status = String(payload?.status || 'unknown').trim().toLowerCase();
+          if (status === 'added') {
+            finish({
+              ok: true,
+              prompted: true,
+              installed: true,
+              status,
+              source: 'telegram',
+            });
+            return;
+          }
+          if (status === 'unsupported') {
+            finish({
+              ok: false,
+              prompted: false,
+              installed: false,
+              status,
+              source: 'telegram',
+            });
+            return;
+          }
+          if (status === 'missed') {
+            finish({
+              ok: false,
+              prompted: true,
+              cancelled: true,
+              installed: false,
+              status,
+              source: 'telegram',
+            });
+          }
+        };
+        try {
+          webApp.onEvent?.('homeScreenAdded', onAdded);
+          webApp.onEvent?.('homeScreenChecked', onChecked);
+          webApp.addToHomeScreen();
+          timer = setTimeout(async () => {
+            if (settled) return;
+            const status = await getHomeScreenInstallState().catch(() => ({
+              supported: true,
+              installed: false,
+              status: 'unknown',
+            }));
+            finish({
+              ok: Boolean(status?.supported),
+              prompted: true,
+              installed: Boolean(status?.installed),
+              status: String(status?.status || 'unknown'),
+              source: 'telegram',
+            });
+          }, 3200);
+        } catch (error) {
+          cleanup();
+          reject(error);
+        }
+      });
+    }
+
+    if (platform === 'vk') {
+      const addSupported = await _vkBridgeSupportsMethod('VKWebAppAddToHomeScreen');
+      if (addSupported) {
+        await _sendVkBridgeWithTimeout('VKWebAppAddToHomeScreen', undefined, 4000);
+        const installState = await getHomeScreenInstallState().catch(() => null);
+        if (installState?.source === 'vk' && installState.installed) {
+          return {
+            ok: true,
+            prompted: true,
+            installed: true,
+            status: String(installState?.status || 'added'),
+            source: 'vk',
+          };
+        }
+        if (installState?.source === 'vk' && installState.supported) {
+          return {
+            ok: false,
+            prompted: true,
+            cancelled: true,
+            installed: false,
+            status: String(installState?.status || 'dismissed'),
+            source: 'vk',
+          };
+        }
+        return {
+          ok: true,
+          prompted: true,
+          installed: false,
+          status: 'accepted',
+          source: 'vk',
+        };
+      }
+      if (!deferredInstallPrompt) {
+        throw new Error('vk_home_screen_unsupported');
+      }
+    }
+
+    return await _promptBrowserAddToHomeScreen();
+  }
   async function initPlatform() {
     if (hasVkContext()) {
       resolvedPlatform = 'vk';
@@ -27879,6 +29539,8 @@ window.platformAdapter = (function () {
     authenticateVk,
     requestVkAllowMessagesFromGroup,
     isPWA,
+    getHomeScreenInstallState,
+    addToHomeScreen,
     initPlatform,
     authBootstrap,
     sendHaptic,
@@ -27948,26 +29610,3 @@ window.platformAdapter = (function () {
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

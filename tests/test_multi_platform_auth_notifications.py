@@ -27,7 +27,7 @@ import dance_studio.web.middleware.auth as auth_middleware
 from dance_studio.auth.services.account_merge import AccountMergeService
 from dance_studio.auth.services.common import ensure_user_phone, get_or_create_identity
 from dance_studio.core.permissions import ROLES
-from dance_studio.db.models import AuthIdentity, Base, NotificationChannel, PasskeyChallenge, PasskeyCredential, SessionRecord, Staff, User, UserMergeEvent, UserPhone
+from dance_studio.db.models import AuthIdentity, Base, Direction, Group, NotificationChannel, PasskeyChallenge, PasskeyCredential, SessionRecord, Staff, User, UserMergeEvent, UserPhone
 from dance_studio.web.app import create_app
 from dance_studio.web.services.auth_session import _sid_hash
 from dance_studio.web.services import bookings as booking_services
@@ -259,6 +259,46 @@ def test_verified_phone_links_new_vk_identity_to_existing_user(app, session_fact
     )
     assert resp.status_code == 200
     assert resp.get_json()["user_id"] == user.id
+
+
+def test_vk_phone_update_assigns_bootstrap_staff_role_by_verified_phone(app, session_factory, monkeypatch):
+    monkeypatch.setattr("dance_studio.auth.providers.vk.APP_SECRET_KEY", "test-secret")
+    monkeypatch.setattr(
+        db_module,
+        "_runtime_config",
+        lambda: (
+            [
+                {
+                    "phone": "+7 (999) 222-33-44",
+                    "position": "администратор",
+                    "name": "VK Phone Admin",
+                    "status": "active",
+                }
+            ],
+            False,
+        ),
+    )
+    db = session_factory()
+    user = User(name="VK Pending Staff", telegram_id=70011)
+    db.add(user)
+    db.commit()
+
+    client = app.test_client()
+    _login_by_session(client, db, user.id, telegram_id=user.telegram_id)
+
+    response = client.post("/auth/vk/phone", json={"phone": "8 (999) 222-33-44"})
+    assert response.status_code == 200
+
+    db.expire_all()
+    staff = db.query(Staff).filter(Staff.user_id == user.id).first()
+    phone_row = db.query(UserPhone).filter(UserPhone.user_id == user.id, UserPhone.phone_e164 == "+79992223344").first()
+    assert phone_row is not None
+    assert phone_row.verified_at is not None
+    assert staff is not None
+    assert staff.position == "администратор"
+    assert staff.phone == "+79992223344"
+    assert staff.telegram_id == user.telegram_id
+    assert staff.name == "VK Phone Admin"
 
 
 def test_auth_vk_phone_merges_into_existing_verified_phone_without_duplicate_rows(app, session_factory):
@@ -759,6 +799,107 @@ def test_booking_payment_message_contains_vk_mini_app_link(monkeypatch):
     assert "https://vk.com/app12345#context=booking_payment&booking_id=65" in message
     assert "group_id=14" in message
     assert "group_start_date=2026-04-01" in message
+
+
+def test_booking_payment_message_lists_bundle_groups_before_payment_details(session_factory, monkeypatch):
+    monkeypatch.setattr(booking_services, "VK_MINI_APP_APP_ID", "")
+    monkeypatch.setattr(
+        booking_services,
+        "_resolve_payment_profile_payload_for_booking",
+        lambda db, booking: {
+            "recipient_bank": "Т-Банк",
+            "recipient_number": "2200123412341234",
+            "recipient_full_name": "Тестовый Получатель",
+        },
+    )
+    monkeypatch.setattr(booking_services, "_compute_group_booking_payment_amount", lambda db, booking: 7200)
+
+    db = session_factory()
+    teacher = Staff(name="Teacher", position="учитель", status="active")
+    direction = Direction(title="Contemporary", direction_type="dance", status="active")
+    db.add_all([teacher, direction])
+    db.flush()
+
+    groups = [
+        Group(
+            direction_id=direction.direction_id,
+            teacher_id=teacher.id,
+            name="Группа один",
+            description="Main group",
+            age_group="18+",
+            max_students=12,
+            duration_minutes=60,
+        ),
+        Group(
+            direction_id=direction.direction_id,
+            teacher_id=teacher.id,
+            name="Группа два",
+            description="Weekend group",
+            age_group="18+",
+            max_students=12,
+            duration_minutes=60,
+        ),
+        Group(
+            direction_id=direction.direction_id,
+            teacher_id=teacher.id,
+            name="Группа три",
+            description="Morning group",
+            age_group="18+",
+            max_students=12,
+            duration_minutes=60,
+        ),
+    ]
+    db.add_all(groups)
+    db.flush()
+
+    booking = type(
+        "BookingStub",
+        (),
+        {
+            "id": 77,
+            "object_type": "group",
+            "group_id": groups[0].id,
+            "bundle_group_ids_json": json.dumps([groups[0].id, groups[1].id, groups[2].id]),
+            "group_start_date": None,
+            "requested_amount": 7200,
+        },
+    )()
+
+    message = booking_services._build_booking_payment_request_message(db, booking)
+    assert "Абонемент:\n• Группа один\n• Группа два\n• Группа три\n\nРеквизиты для оплаты:" in message
+    assert message.index("Абонемент:") < message.index("Реквизиты для оплаты:")
+
+
+def test_booking_payment_message_describes_rental_before_payment_details(monkeypatch):
+    monkeypatch.setattr(booking_services, "VK_MINI_APP_APP_ID", "")
+    monkeypatch.setattr(
+        booking_services,
+        "_resolve_payment_profile_payload_for_booking",
+        lambda db, booking: {
+            "recipient_bank": "Т-Банк",
+            "recipient_number": "2200123412341234",
+            "recipient_full_name": "Тестовый Получатель",
+        },
+    )
+
+    booking = type(
+        "BookingStub",
+        (),
+        {
+            "id": 91,
+            "object_type": "rental",
+            "date": datetime(2026, 4, 19).date(),
+            "time_from": datetime(2026, 4, 19, 19, 0).time(),
+            "time_to": datetime(2026, 4, 19, 20, 30).time(),
+            "requested_amount": 3750,
+            "group_id": None,
+            "group_start_date": None,
+        },
+    )()
+
+    message = booking_services._build_booking_payment_request_message(None, booking)
+    assert "Аренда:\n• Дата: 19.04.2026\n• Время: 19:00-20:30\n\nРеквизиты для оплаты:" in message
+    assert "• Сумма к оплате: 3 750 ₽" in message
 
 
 def test_account_merge_preview_and_confirm(app, session_factory):

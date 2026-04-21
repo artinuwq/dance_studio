@@ -28,7 +28,12 @@ def test_frontend_renders_new_auth_states_and_identity_management_ui():
     assert "manual_merge_required" in helper_source
     assert "verified_phone_conflict" in helper_source
     assert "vkPermissionRequired" in source
+    assert "handleAccountVerificationBannerPrimaryAction()" in source
+    assert "handleAccountVerificationBannerSecondaryAction()" in source
+    assert "Подключить ещё один способ входа" not in source
+    assert "Позже" in source
     assert "getVerificationBannerTitle" in helper_source
+    assert "getVerificationBannerActions" in helper_source
     assert "Способы входа" in source
     assert "Подтвердите аккаунт" in source
     assert "actionLabel: 'Подключить'" in source

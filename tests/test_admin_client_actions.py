@@ -17,7 +17,19 @@ os.environ.setdefault("DATABASE_URL", "sqlite://")
 import dance_studio.db as db_module
 import dance_studio.web.middleware.auth as auth_middleware
 from dance_studio.core.permissions import ROLES
-from dance_studio.db.models import AuthIdentity, Base, PasskeyCredential, SessionRecord, Staff, User, UserPhone
+from dance_studio.db.models import (
+    AuthIdentity,
+    Base,
+    Direction,
+    Group,
+    GroupAbonement,
+    GroupAbonementActionLog,
+    PasskeyCredential,
+    SessionRecord,
+    Staff,
+    User,
+    UserPhone,
+)
 from dance_studio.web.app import create_app
 from dance_studio.web.services.auth_session import _sid_hash
 
@@ -27,6 +39,21 @@ def _pick_role_with(permission: str) -> str:
         if permission in spec.get("permissions", []):
             return role
     return next(iter(ROLES))
+
+
+def _pick_role_with_all(*permissions: str) -> str:
+    required = set(permissions)
+    best_role = None
+    best_score = -1
+    for role, spec in ROLES.items():
+        available = set(spec.get("permissions", []))
+        if required.issubset(available):
+            return role
+        score = len(required.intersection(available))
+        if score > best_score:
+            best_role = role
+            best_score = score
+    return best_role or next(iter(ROLES))
 
 
 @pytest.fixture(scope="module")
@@ -323,6 +350,142 @@ def test_admin_manual_merge_respects_explicit_target_direction(app, session_fact
     assert source_after.is_archived is True
     assert source_after.merged_to_user_id == target.id
     assert target_after.telegram_id == 720202
+
+    db.close()
+
+
+def test_register_user_can_create_initial_abonements(app, session_factory):
+    db = session_factory()
+    admin_user = User(name="Create Client Admin", telegram_id=730001)
+    db.add(admin_user)
+    db.commit()
+
+    admin_staff = Staff(
+        name="Create Client Staff",
+        telegram_id=admin_user.telegram_id,
+        user_id=admin_user.id,
+        position=_pick_role_with_all("view_all_users", "verify_certificate"),
+        status="active",
+    )
+    db.add(admin_staff)
+    db.commit()
+
+    direction = Direction(title="Contemporary", direction_type="dance", base_price=2400, status="active")
+    db.add(direction)
+    db.commit()
+
+    group_a = Group(
+        direction_id=direction.direction_id,
+        teacher_id=admin_staff.id,
+        name="Evening A",
+        description="Main group",
+        age_group="18+",
+        max_students=12,
+        duration_minutes=60,
+        lessons_per_week=2,
+    )
+    group_b = Group(
+        direction_id=direction.direction_id,
+        teacher_id=admin_staff.id,
+        name="Weekend B",
+        description="Weekend group",
+        age_group="18+",
+        max_students=12,
+        duration_minutes=60,
+        lessons_per_week=1,
+    )
+    db.add_all([group_a, group_b])
+    db.commit()
+
+    client = app.test_client()
+    _login_by_session(client, db, admin_user.id, telegram_id=admin_user.telegram_id)
+
+    response = client.post(
+        "/users",
+        json={
+            "name": "Client With Packs",
+            "phone": "+79990000071",
+            "staff_notes": "Prefers evening groups",
+            "initial_abonements": [
+                {
+                    "group_id": group_a.id,
+                    "abonement_type": "multi",
+                    "status": "active",
+                    "weeks": 4,
+                    "price_total_rub": 2400,
+                    "note": "First pack",
+                },
+                {
+                    "group_id": group_b.id,
+                    "abonement_type": "single",
+                    "status": "pending_payment",
+                    "lessons": 1,
+                    "price_total_rub": 700,
+                    "note": "Second pack",
+                },
+            ],
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.get_json()
+    assert payload["name"] == "Client With Packs"
+    assert len(payload["initial_abonements"]) == 2
+    assert payload["initial_abonements"][0]["bundle_size"] == 1
+    assert payload["initial_abonements"][1]["issued_abonements"][0]["status"] == "pending_payment"
+
+    db.expire_all()
+    created_user = db.query(User).filter(User.name == "Client With Packs").first()
+    assert created_user is not None
+    abonements = (
+        db.query(GroupAbonement)
+        .filter(GroupAbonement.user_id == created_user.id)
+        .order_by(GroupAbonement.id.asc())
+        .all()
+    )
+    assert len(abonements) == 2
+    assert abonements[0].group_id == group_a.id
+    assert abonements[0].status == "active"
+    assert abonements[1].group_id == group_b.id
+    assert abonements[1].status == "pending_payment"
+    assert db.query(GroupAbonementActionLog).join(GroupAbonement, GroupAbonement.id == GroupAbonementActionLog.abonement_id).filter(
+        GroupAbonement.user_id == created_user.id
+    ).count() == 2
+
+    db.close()
+
+
+def test_register_user_rejects_more_than_three_initial_abonements(app, session_factory):
+    db = session_factory()
+    admin_user = User(name="Create Client Limit Admin", telegram_id=730101)
+    db.add(admin_user)
+    db.commit()
+
+    db.add(
+        Staff(
+            name="Create Client Limit Staff",
+            telegram_id=admin_user.telegram_id,
+            user_id=admin_user.id,
+            position=_pick_role_with_all("view_all_users", "verify_certificate"),
+            status="active",
+        )
+    )
+    db.commit()
+
+    client = app.test_client()
+    _login_by_session(client, db, admin_user.id, telegram_id=admin_user.telegram_id)
+
+    response = client.post(
+        "/users",
+        json={
+            "name": "Too Many Packs",
+            "initial_abonements": [{}, {}, {}, {}],
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Можно добавить максимум 3 абонемента при создании клиента"
+    assert db.query(User).filter(User.name == "Too Many Packs").count() == 0
 
     db.close()
 
