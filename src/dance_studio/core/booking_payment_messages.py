@@ -43,16 +43,18 @@ def _resolve_group_names(db, booking: BookingRequest) -> list[str]:
         return [group_name] if group_name else []
 
     groups_by_id: dict[int, object] = {}
+
     group = getattr(booking, "group", None)
     try:
         group_id = int(getattr(group, "id", 0) or 0)
     except (TypeError, ValueError):
         group_id = 0
+
     if group_id > 0:
         groups_by_id[group_id] = group
 
     if db is not None:
-        missing_ids = [group_id for group_id in group_ids if group_id not in groups_by_id]
+        missing_ids = [gid for gid in group_ids if gid not in groups_by_id]
         if missing_ids:
             rows = db.query(Group).filter(Group.id.in_(missing_ids)).all()
             for row in rows:
@@ -85,6 +87,7 @@ def build_booking_payment_subject_text(db, booking: BookingRequest) -> str:
             lines.append(f"• {_LABEL_DATE}: {_format_date(booking.date)}")
         time_from = getattr(booking, "time_from", None)
         time_to = getattr(booking, "time_to", None)
+
         if time_from and time_to:
             lines.append(f"• {_LABEL_TIME}: {_format_time(time_from)}-{_format_time(time_to)}")
         elif time_from:
@@ -99,6 +102,7 @@ def build_booking_payment_subject_text(db, booking: BookingRequest) -> str:
             lines.append(f"• {_LABEL_DATE}: {_format_date(booking.date)}")
         time_from = getattr(booking, "time_from", None)
         time_to = getattr(booking, "time_to", None)
+
         if time_from and time_to:
             lines.append(f"• {_LABEL_TIME}: {_format_time(time_from)}-{_format_time(time_to)}")
         elif time_from:
