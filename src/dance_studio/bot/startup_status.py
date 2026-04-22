@@ -50,40 +50,40 @@ def describe_userbot_status(
     resolved_session_path = USERBOT_SESSION_PATH if session_path is None else session_path
 
     if not resolved_api_id or not resolved_api_hash:
-        return _status_line("User-bot", "Ð Ð…Ð Âµ Ð Ð…Ð Â°Ð¡ÐƒÐ¡â€šÐ¡Ð‚Ð Ñ•Ð ÂµÐ Ð…", "Ð Ð…Ð ÂµÐ¡â€š TELEGRAM_API_ID/TELEGRAM_API_HASH")
+        return _status_line("User-bot", "Не настроен", "Нет TELEGRAM_API_ID/TELEGRAM_API_HASH")
 
     session_file = Path(str(resolved_session_path or "").strip())
     if not str(session_file):
-        return _status_line("User-bot", "Ð Ð…Ð Âµ Ð Ñ–Ð Ñ•Ð¡â€šÐ Ñ•Ð Ð†", "Ð Ñ—Ð¡Ñ“Ð¡â€šÐ¡ÐŠ Ð Ò‘Ð Ñ• session Ð Ð…Ð Âµ Ð Â·Ð Â°Ð Ò‘Ð Â°Ð Ð…")
+        return _status_line("User-bot", "Не готов", "Путь до session не задан")
 
     if not session_file.exists():
-        return _status_line("User-bot", "Ð Ð…Ð¡Ñ“Ð Â¶Ð ÂµÐ Ð… Ð Â»Ð Ñ•Ð Ñ–Ð Ñ‘Ð Ð…", f"Ð Ð…Ð ÂµÐ¡â€š Ð¡â€žÐ Â°Ð â„–Ð Â»Ð Â° {_mask_path_name(str(session_file))}")
+        return _status_line("User-bot", "Нужен логин", f"Нет файла {_mask_path_name(str(session_file))}")
 
     if session_file.is_dir():
-        return _status_line("User-bot", "Ð Ñ•Ð¡â‚¬Ð Ñ‘Ð Â±Ð Ñ”Ð Â°", f"{_mask_path_name(str(session_file))} Ð¡ÐŒÐ¡â€šÐ Ñ• Ð Ò‘Ð Ñ‘Ð¡Ð‚Ð ÂµÐ Ñ”Ð¡â€šÐ Ñ•Ð¡Ð‚Ð Ñ‘Ð¡Ð")
+        return _status_line("User-bot", "Ошибка", f"{_mask_path_name(str(session_file))} это директория")
 
     if session_file.stat().st_size <= 0:
-        return _status_line("User-bot", "Ð Ð…Ð¡Ñ“Ð Â¶Ð ÂµÐ Ð… Ð Â»Ð Ñ•Ð Ñ–Ð Ñ‘Ð Ð…", f"Ð Ñ—Ð¡Ñ“Ð¡ÐƒÐ¡â€šÐ Ñ•Ð â„– {_mask_path_name(str(session_file))}")
+        return _status_line("User-bot", "Нужен логин", f"Пустой {_mask_path_name(str(session_file))}")
 
-    return _status_line("User-bot", "Ð Ñ–Ð Ñ•Ð¡â€šÐ Ñ•Ð Ð†", f"session={_mask_path_name(str(session_file))}")
+    return _status_line("User-bot", "Готов", f"session={_mask_path_name(str(session_file))}")
 
 
 def _normalize_userbot_probe_error(exc: Exception) -> str:
     message = str(exc or "").strip().lower()
     if not message:
-        return "Ð Ð…Ð ÂµÐ Ñ‘Ð Â·Ð Ð†Ð ÂµÐ¡ÐƒÐ¡â€šÐ Ð…Ð Â°Ð¡Ð Ð Ñ•Ð¡â‚¬Ð Ñ‘Ð Â±Ð Ñ”Ð Â°"
+        return "Неизвестная ошибка"
     if "api_id_invalid" in message:
-        return "Ð Ð…Ð ÂµÐ Ð†Ð ÂµÐ¡Ð‚Ð Ð…Ð¡â€¹Ð â„– TELEGRAM_API_ID"
+        return "Неверный TELEGRAM_API_ID"
     if "api_id" in message and "invalid" in message:
-        return "Ð Ð…Ð ÂµÐ Ð†Ð ÂµÐ¡Ð‚Ð Ð…Ð¡â€¹Ð â„– TELEGRAM_API_ID"
+        return "Неверный TELEGRAM_API_ID"
     if "api_hash_invalid" in message:
-        return "Ð Ð…Ð ÂµÐ Ð†Ð ÂµÐ¡Ð‚Ð Ð…Ð¡â€¹Ð â„– TELEGRAM_API_HASH"
+        return "Неверный TELEGRAM_API_HASH"
     if "auth key" in message and ("unregistered" in message or "duplicated" in message):
-        return "Ð¡ÐƒÐ ÂµÐ¡ÐƒÐ¡ÐƒÐ Ñ‘Ð¡Ð Ð¡ÐƒÐ Â±Ð¡Ð‚Ð Ñ•Ð¡â‚¬Ð ÂµÐ Ð…Ð Â°"
+        return "Сессия сброшена"
     if "session revoked" in message or "session password needed" in message:
-        return "Ð¡ÐƒÐ ÂµÐ¡ÐƒÐ¡ÐƒÐ Ñ‘Ð¡Ð Ð Ð…Ð ÂµÐ Ò‘Ð ÂµÐ â„–Ð¡ÐƒÐ¡â€šÐ Ð†Ð Ñ‘Ð¡â€šÐ ÂµÐ Â»Ð¡ÐŠÐ Ð…Ð Â°"
+        return "Сессия недействительна"
     if "phone code" in message or "sign in" in message:
-        return "Ð Ð…Ð¡Ñ“Ð Â¶Ð ÂµÐ Ð… Ð Â»Ð Ñ•Ð Ñ–Ð Ñ‘Ð Ð…"
+        return "Нужен логин"
     return message
 
 
@@ -103,7 +103,7 @@ async def describe_userbot_runtime_status(
         api_hash=resolved_api_hash,
         session_path=resolved_session_path,
     )
-    if "Ð Ð…Ð Âµ Ð Ð…Ð Â°Ð¡ÐƒÐ¡â€šÐ¡Ð‚Ð Ñ•Ð ÂµÐ Ð…" in base_status or "Ð Ð…Ð¡Ñ“Ð Â¶Ð ÂµÐ Ð… Ð Â»Ð Ñ•Ð Ñ–Ð Ñ‘Ð Ð…" in base_status or "Ð Ñ•Ð¡â‚¬Ð Ñ‘Ð Â±Ð Ñ”Ð Â°" in base_status:
+    if "Не настроен" in base_status or "Нужен логин" in base_status or "Ошибка" in base_status:
         return base_status
 
     client: TelegramClient | None = None
@@ -125,14 +125,14 @@ async def describe_userbot_runtime_status(
                 await asyncio.wait_for(client.connect(), timeout=timeout_seconds)
                 authorized = await asyncio.wait_for(client.is_user_authorized(), timeout=timeout_seconds)
                 if not authorized:
-                    return _status_line("User-bot", "Ð¡ÐƒÐ ÂµÐ¡ÐƒÐ¡ÐƒÐ Ñ‘Ð¡Ð Ð Ð…Ð Âµ Ð Â°Ð Ð†Ð¡â€šÐ Ñ•Ð¡Ð‚Ð Ñ‘Ð Â·Ð Ñ•Ð Ð†Ð Â°Ð Ð…Ð Â°", f"session={_mask_path_name(resolved_session_path)}")
+                    return _status_line("User-bot", "Сессия не авторизована", f"session={_mask_path_name(resolved_session_path)}")
 
                 me = await asyncio.wait_for(client.get_me(), timeout=timeout_seconds)
                 if not me:
-                    return _status_line("User-bot", "Ð Ñ•Ð¡â‚¬Ð Ñ‘Ð Â±Ð Ñ”Ð Â°", "Telegram Ð Ð…Ð Âµ Ð Ð†Ð ÂµÐ¡Ð‚Ð Ð…Ð¡Ñ“Ð Â» Ð Ñ—Ð¡Ð‚Ð Ñ•Ð¡â€žÐ Ñ‘Ð Â»Ð¡ÐŠ")
+                    return _status_line("User-bot", "Ошибка", "Telegram не вернул профиль")
 
                 identity = f"@{me.username}" if getattr(me, "username", None) else f"id={getattr(me, 'id', '?')}"
-                return _status_line("User-bot", "Ð Ñ—Ð Ñ•Ð Ò‘Ð Ñ”Ð Â»Ð¡Ð‹Ð¡â€¡Ð ÂµÐ Ð…", identity)
+                return _status_line("User-bot", "Подключен", identity)
             except Exception as exc:
                 last_error = exc
                 try:
@@ -144,9 +144,9 @@ async def describe_userbot_runtime_status(
             raise last_error
         raise RuntimeError("userbot_probe_connect_failed")
     except asyncio.TimeoutError:
-        return _status_line("User-bot", "Ð¡â€šÐ Â°Ð â„–Ð Ñ˜Ð Â°Ð¡Ñ“Ð¡â€š", "Telegram Ð Ð…Ð Âµ Ð Ñ•Ð¡â€šÐ Ð†Ð ÂµÐ¡â€šÐ Ñ‘Ð Â» Ð Ð†Ð Ñ•Ð Ð†Ð¡Ð‚Ð ÂµÐ Ñ˜Ð¡Ð")
+        return _status_line("User-bot", "Таймаут", "Telegram не ответил вовремя")
     except Exception as exc:
-        return _status_line("User-bot", "Ð Ñ•Ð¡â‚¬Ð Ñ‘Ð Â±Ð Ñ”Ð Â°", _normalize_userbot_probe_error(exc))
+        return _status_line("User-bot", "Ошибка", _normalize_userbot_probe_error(exc))
     finally:
         if client is not None:
             try:
@@ -174,14 +174,14 @@ def describe_vk_mini_app_status(
         missing.append("secret_key")
 
     if len(missing) == 3:
-        return _status_line("VK Mini App", "Ð Ð…Ð Âµ Ð Ð…Ð Â°Ð¡ÐƒÐ¡â€šÐ¡Ð‚Ð Ñ•Ð ÂµÐ Ð…")
+        return _status_line("VK Mini App", "Не настроен")
     if missing:
         details = []
         if resolved_app_id:
             details.append(f"app_id={resolved_app_id}")
-        details.append(f"Ð Ð…Ð ÂµÐ¡â€š: {', '.join(missing)}")
-        return _status_line("VK Mini App", "Ð¡â€¡Ð Â°Ð¡ÐƒÐ¡â€šÐ Ñ‘Ð¡â€¡Ð Ð…Ð Ñ• Ð Ð…Ð Â°Ð¡ÐƒÐ¡â€šÐ¡Ð‚Ð Ñ•Ð ÂµÐ Ð…", "; ".join(details))
-    return _status_line("VK Mini App", "Ð Ñ–Ð Ñ•Ð¡â€šÐ Ñ•Ð Ð†", f"app_id={resolved_app_id}")
+        details.append(f"Нет: {', '.join(missing)}")
+        return _status_line("VK Mini App", "Частично настроен", "; ".join(details))
+    return _status_line("VK Mini App", "Готов", f"app_id={resolved_app_id}")
 
 
 def describe_vk_community_status(
@@ -198,20 +198,20 @@ def describe_vk_community_status(
     token_configured = bool(resolved_access_token)
 
     if group_id and token_configured:
-        return _status_line("VK Ð¡ÐƒÐ Ñ•Ð Ñ•Ð Â±Ð¡â€°Ð ÂµÐ¡ÐƒÐ¡â€šÐ Ð†Ð Ñ•", "Ð Ñ–Ð Ñ•Ð¡â€šÐ Ñ•Ð Ð†Ð Ñ•", f"group_id={group_id}, token=ok")
+        return _status_line("VK сообщество", "Готово", f"group_id={group_id}, token=ok")
     if not group_id and not token_configured:
-        return _status_line("VK Ð¡ÐƒÐ Ñ•Ð Ñ•Ð Â±Ð¡â€°Ð ÂµÐ¡ÐƒÐ¡â€šÐ Ð†Ð Ñ•", "Ð Ð…Ð Âµ Ð Ð…Ð Â°Ð¡ÐƒÐ¡â€šÐ¡Ð‚Ð Ñ•Ð ÂµÐ Ð…Ð Ñ•")
+        return _status_line("VK сообщество", "Не настроено")
     if not group_id:
-        return _status_line("VK Ð¡ÐƒÐ Ñ•Ð Ñ•Ð Â±Ð¡â€°Ð ÂµÐ¡ÐƒÐ¡â€šÐ Ð†Ð Ñ•", "Ð Ñ•Ð¡â‚¬Ð Ñ‘Ð Â±Ð Ñ”Ð Â°", "Ð Ð…Ð ÂµÐ¡â€š Ð Ñ”Ð Ñ•Ð¡Ð‚Ð¡Ð‚Ð ÂµÐ Ñ”Ð¡â€šÐ Ð…Ð Ñ•Ð Ñ–Ð Ñ• VK_COMMUNITY_ID")
-    return _status_line("VK Ð¡ÐƒÐ Ñ•Ð Ñ•Ð Â±Ð¡â€°Ð ÂµÐ¡ÐƒÐ¡â€šÐ Ð†Ð Ñ•", "Ð¡â€¡Ð Â°Ð¡ÐƒÐ¡â€šÐ Ñ‘Ð¡â€¡Ð Ð…Ð Ñ• Ð Ð…Ð Â°Ð¡ÐƒÐ¡â€šÐ¡Ð‚Ð Ñ•Ð ÂµÐ Ð…Ð Ñ•", f"group_id={group_id}, Ð Ð…Ð ÂµÐ¡â€š access token")
+        return _status_line("VK сообщество", "Ошибка", "Нет корректного VK_COMMUNITY_ID")
+    return _status_line("VK сообщество", "Частично настроено", f"group_id={group_id}, нет access token")
 
 
 def describe_tech_status_target(*, chat_id: int | None, topic_id: int | None) -> str:
     if chat_id and topic_id:
-        return _status_line("Ð ÑžÐ ÂµÐ¡â€¦-Ð¡ÐƒÐ¡â€šÐ Â°Ð¡â€šÐ¡Ñ“Ð¡Ðƒ", "Ð Ñ–Ð Ñ•Ð¡â€šÐ Ñ•Ð Ð†", f"chat_id={chat_id}, topic_id={topic_id}")
+        return _status_line("Тех-статус", "Готов", f"chat_id={chat_id}, topic_id={topic_id}")
     if chat_id:
-        return _status_line("Ð ÑžÐ ÂµÐ¡â€¦-Ð¡ÐƒÐ¡â€šÐ Â°Ð¡â€šÐ¡Ñ“Ð¡Ðƒ", "Ð¡â€¡Ð Â°Ð¡ÐƒÐ¡â€šÐ Ñ‘Ð¡â€¡Ð Ð…Ð Ñ• Ð Ð…Ð Â°Ð¡ÐƒÐ¡â€šÐ¡Ð‚Ð Ñ•Ð ÂµÐ Ð…", f"chat_id={chat_id}, Ð Ð…Ð ÂµÐ¡â€š topic_id")
-    return _status_line("Ð ÑžÐ ÂµÐ¡â€¦-Ð¡ÐƒÐ¡â€šÐ Â°Ð¡â€šÐ¡Ñ“Ð¡Ðƒ", "Ð Ð…Ð Âµ Ð Ð…Ð Â°Ð¡ÐƒÐ¡â€šÐ¡Ð‚Ð Ñ•Ð ÂµÐ Ð…")
+        return _status_line("Тех-статус", "Частично настроен", f"chat_id={chat_id}, нет topic_id")
+    return _status_line("Тех-статус", "Не настроен")
 
 
 def build_startup_status_text(
@@ -226,9 +226,9 @@ def build_startup_status_text(
     normalized_username = str(bot_username or "").strip().lstrip("@")
 
     lines = [
-        "Ð²Ñšâ€¦ Ð Ñ›Ð Â±Ð¡â€°Ð Ñ‘Ð â„– Ð¡ÐƒÐ¡â€šÐ Â°Ð¡â€šÐ¡Ñ“Ð¡Ðƒ Ð¡ÐƒÐ Ñ‘Ð¡ÐƒÐ¡â€šÐ ÂµÐ Ñ˜Ð¡â€¹",
-        f"Ð â€”Ð Â°Ð Ñ—Ð¡Ñ“Ð¡ÐƒÐ Ñ”: {launched_at.strftime('%d.%m.%Y %H:%M:%S')}",
-        _status_line("Telegram bot", "Ð Ñ–Ð Ñ•Ð¡â€šÐ Ñ•Ð Ð†", f"@{normalized_username}" if normalized_username else "username Ð Ð…Ð Âµ Ð Ñ—Ð Ñ•Ð Â»Ð¡Ñ“Ð¡â€¡Ð ÂµÐ Ð…"),
+        "🚀 Общий статус системы",
+        f"Запуск: {launched_at.strftime('%d.%m.%Y %H:%M:%S')}",
+        _status_line("Telegram bot", "Готов", f"@{normalized_username}" if normalized_username else "username не получен"),
         describe_tech_status_target(chat_id=tech_chat_id, topic_id=tech_status_topic_id),
         str(userbot_status_line or describe_userbot_status()),
         describe_vk_mini_app_status(),

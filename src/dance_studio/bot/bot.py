@@ -113,6 +113,7 @@ from dance_studio.bot.telegram_userbot import (
     complete_login_code,
     complete_login_password,
     request_login_code,
+    send_private_message_sync,
 )
 from dance_studio.core.notification_service_async import send_user_notification_async
 from dance_studio.notifications.providers.vk import VkNotificationProvider, edit_vk_message
@@ -3576,14 +3577,19 @@ async def _send_payment_message_from_admin_account(user: User | None, booking: B
     finally:
         local_db.close()
     try:
-        sent_ok = await send_user_notification_async(
-            bot=bot,
-            user_id=telegram_id,
-            text=payment_text,
-            context_note=f"Payment details for booking #{booking.id}",
+        delivery_result = await asyncio.to_thread(
+            send_private_message_sync,
+            {
+                "id": telegram_id,
+                "username": user.username if user else booking.user_username,
+                "phone": user.phone if user else None,
+                "name": user.name if user else booking.user_name,
+            },
+            payment_text,
         )
+        sent_ok = bool((delivery_result or {}).get("ok"))
         if not sent_ok:
-            raise RuntimeError("notification service returned failed")
+            raise RuntimeError(str((delivery_result or {}).get("error") or "userbot delivery failed"))
     except Exception as exc:
         reason = str(exc).strip() or "неизвестная ошибка"
         if isinstance(exc, asyncio.TimeoutError):

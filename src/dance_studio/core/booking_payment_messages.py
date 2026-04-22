@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 from dance_studio.core.abonement_pricing import parse_booking_bundle_group_ids
