@@ -7,7 +7,7 @@ from dance_studio.core.time import utcnow
 
 import requests
 from flask import Blueprint, current_app, g, jsonify, make_response, request, send_from_directory
-from sqlalchemy import and_, or_
+from sqlalchemy import String, and_, cast, func, or_
 from sqlalchemy.exc import IntegrityError
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import secure_filename
@@ -2584,7 +2584,10 @@ def list_all_users():
     db = g.db
     users = (
         db.query(User)
-        .filter(User.is_archived.is_(False))
+        .filter(
+            User.is_archived.is_(False),
+            User.merged_to_user_id.is_(None),
+        )
         .order_by(User.registered_at.desc())
         .all()
     )
@@ -2634,6 +2637,58 @@ def list_all_users():
             "vk_user_id": provider_identity_map.get(u.id, {}).get("vk", {}).get("id"),
             "vk_username": provider_identity_map.get(u.id, {}).get("vk", {}).get("username"),
         } for u in users
+    ])
+
+
+@bp.route("/users/search", methods=["GET"])
+def users_search():
+    perm_error = require_permission("manage_schedule")
+    if perm_error:
+        return perm_error
+
+    db = g.db
+    q = str(request.args.get("q") or "").strip()
+    limit_raw = request.args.get("limit")
+    try:
+        limit = int(limit_raw) if limit_raw is not None else 100
+    except (TypeError, ValueError):
+        limit = 100
+    limit = max(1, min(limit, 500))
+
+    query = db.query(User).filter(
+        User.is_archived.is_(False),
+        User.merged_to_user_id.is_(None),
+    )
+
+    if q:
+        normalized = q.lower()
+        username_query = normalized.lstrip("@")
+        phone_query = "".join(ch for ch in q if ch.isdigit() or ch == "+")
+        like_pattern = f"%{normalized}%"
+        username_like = f"%{username_query}%"
+        conditions = [
+            func.lower(func.coalesce(User.name, "")).like(like_pattern),
+            cast(User.id, String).like(f"%{q}%"),
+            cast(func.coalesce(User.telegram_id, 0), String).like(f"%{q}%"),
+        ]
+        if username_query:
+            conditions.append(func.lower(func.coalesce(User.username, "")).like(username_like))
+        if phone_query:
+            conditions.append(func.coalesce(User.phone, "").like(f"%{phone_query}%"))
+            conditions.append(func.coalesce(User.primary_phone, "").like(f"%{phone_query}%"))
+        query = query.filter(or_(*conditions))
+
+    rows = query.order_by(User.registered_at.desc(), User.id.desc()).limit(limit).all()
+    return jsonify([
+        {
+            "id": int(u.id),
+            "name": str(u.name or "").strip() or f"Пользователь #{u.id}",
+            "telegram_id": int(u.telegram_id) if u.telegram_id else None,
+            "username": str(u.username or "").strip() or None,
+            "phone": str((u.primary_phone or u.phone) or "").strip() or None,
+            "status": str(u.status or "").strip() or None,
+        }
+        for u in rows
     ])
 
 
@@ -3956,7 +4011,14 @@ def search_staff():
         by_username = request.args.get('by_username', 'false').lower() == 'true'
         
         # щем среди пользователей (Users), а не среди персонала (Staff)
-        users = db.query(User).all()
+        users = (
+            db.query(User)
+            .filter(
+                User.is_archived.is_(False),
+                User.merged_to_user_id.is_(None),
+            )
+            .all()
+        )
         result = []
         
         # Если нет поискового запроса, возвращаем всех пользователей
@@ -3992,8 +4054,12 @@ def search_staff():
                             })
                 else:
                     # Поиск по имени или telegram_id (при обычном вводе)
-                    if (u.name.lower().startswith(search_query) or 
-                        (u.telegram_id and str(u.telegram_id).startswith(search_query))):
+                    user_name = str(u.name or "").strip().lower()
+                    if (
+                        (user_name and user_name.startswith(search_query))
+                        or str(u.id).startswith(search_query)
+                        or (u.telegram_id and str(u.telegram_id).startswith(search_query))
+                    ):
                         result.append({
                             "id": u.id,
                             "name": u.name,
