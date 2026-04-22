@@ -6846,7 +6846,7 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
 <div class="form-group">
 <label>Тип абонемента</label>
 <select class="form-input" id="client-abonement-issue-type" onchange="onClientIssueTypeChange()">
-<option value="multi">Мульти (до 3 групп)</option>
+<option value="multi">Мульти (до 4 групп)</option>
 <option value="single">Разовое</option>
 <option value="trial">Пробное</option>
 </select>
@@ -6856,7 +6856,7 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
 <select class="form-input" id="client-abonement-issue-group-main" onchange="onClientIssueMainGroupChange()"></select>
 </div>
 <div class="form-group" id="client-abonement-issue-multi-groups-wrap">
-<label>Дополнительные группы (максимум 2)</label>
+<label>Дополнительные группы (максимум 3)</label>
 <div class="small" id="client-abonement-issue-extra-hint" style="color:var(--hint); margin-top:4px;">Загрузка...</div>
 <div class="client-abonement-extra-groups" id="client-abonement-issue-extra-groups"></div>
 <button class="save-btn client-abonement-add-btn" id="client-abonement-issue-extra-add-btn" type="button" onclick="openClientIssueGroupPicker()">+ Добавить группу</button>
@@ -7792,7 +7792,7 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
         <div id="group-booking-options-list" class="group-booking-options-list"></div>
         <div id="group-booking-options-hint" class="group-booking-meta">Загрузка доступных вариантов...</div>
         <div class="group-booking-directions-block">
-          <div class="group-booking-directions-title">Выбранные группы (максимум 3)</div>
+          <div class="group-booking-directions-title">Выбранные группы (максимум 4)</div>
           <div id="group-booking-main-direction" class="group-booking-main-direction"></div>
           <div id="group-booking-extra-slots" class="group-booking-extra-slots"></div>
           <div id="group-booking-directions-hint" class="group-booking-meta"></div>
@@ -11126,7 +11126,11 @@ function getMainGroupLessonsPerWeek() {
 }
 
 const GROUP_BOOKING_MULTI_BUCKETS = [4, 8, 12, 16];
-const GROUP_BOOKING_MULTI_BUNDLE_BUCKETS = [4, 8, 12];
+const GROUP_BOOKING_MULTI_BUNDLE_BUCKETS_BY_SIZE = {
+  2: [4, 8, 12],
+  3: [4, 8, 12],
+  4: [4, 8],
+};
 const GROUP_BOOKING_OPTION_ORDER = ['trial', 'single', 'multi_4', 'multi_8', 'multi_12', 'multi_16'];
 const GROUP_BOOKING_COMBO_LOCK_MESSAGE = 'Вы выбрали независимые абонементы, а не мульти-абонемент. Чтобы сработала скидка мульти-абонемента, во всех выбранных группах должно быть одинаковое кол-во занятий.';
 
@@ -11180,13 +11184,13 @@ function getSelectedExtraGroupIds() {
     seen.add(parsed);
     result.push(parsed);
   });
-  return result.slice(0, 2);
+  return result.slice(0, 3);
 }
 
 function getSelectedGroupIds() {
   const mainId = normalizeGroupBookingGroupId(activeGroupBookingId || groupBookingState.mainGroup?.id);
   if (!mainId) return [];
-  return [mainId, ...getSelectedExtraGroupIds()].slice(0, 3);
+  return [mainId, ...getSelectedExtraGroupIds()].slice(0, 4);
 }
 
 function getAvailableGroupBookingCompatibleGroups() {
@@ -11314,7 +11318,8 @@ function isGroupBookingComboEligible() {
   }
 
   const multiLessonsPerGroup = Number(uniqueBuckets[0]);
-  if (!GROUP_BOOKING_MULTI_BUNDLE_BUCKETS.includes(multiLessonsPerGroup)) {
+  const allowedBuckets = GROUP_BOOKING_MULTI_BUNDLE_BUCKETS_BY_SIZE[bundleGroupIds.length] || [];
+  if (!allowedBuckets.includes(multiLessonsPerGroup)) {
     return { eligible: false, reason: 'unsupported_bucket', bundleGroupIds, multiLessonsPerGroup: null };
   }
 
@@ -11504,6 +11509,8 @@ function renderGroupBookingComboBenefit() {
     ? 'для 2 групп'
     : snapshot.bundleSize === 3
       ? 'для 3 групп'
+      : snapshot.bundleSize === 4
+        ? 'для 4 групп'
       : 'для нескольких групп';
   const summaryText = snapshot.benefitAmount > 0
     ? `Комбо выгоднее покупки по отдельности на ${benefitText}.`
@@ -11590,7 +11597,7 @@ function renderGroupBookingOptions() {
   const freeGroupsCount = getAvailableGroupBookingCompatibleGroups().length;
   const selectedCount = selectedGroupIds.length;
   const nextSlotIndex = Math.max(0, selectedCount - 1);
-  const canAddGroup = selectedCount < 3 && freeGroupsCount > 0 && nextSlotIndex <= 1;
+  const canAddGroup = selectedCount < 4 && freeGroupsCount > 0 && nextSlotIndex <= 2;
 
   const cardsHtml = selectedGroupIds.map((groupId, index) => {
     const group = getGroupBookingGroupById(groupId);
@@ -11737,12 +11744,12 @@ function renderGroupBookingDirections() {
 
   if (!(groupBookingState.compatibleGroups || []).length) {
     hintNode.textContent = 'Нет групп для добавления.';
-  } else if (selectedCount >= 3) {
-    hintNode.textContent = 'Выбрано максимум 3 группы.';
+  } else if (selectedCount >= 4) {
+    hintNode.textContent = 'Выбрано максимум 4 группы.';
   } else if (freeGroupsCount <= 0) {
     hintNode.textContent = 'Нет доступных групп для добавления.';
   } else {
-    const left = 3 - selectedCount;
+    const left = 4 - selectedCount;
     hintNode.textContent = `Можно добавить ещё ${left}.`;
   }
 
@@ -11752,10 +11759,10 @@ function renderGroupBookingDirections() {
 
 function openGroupBookingDirectionPicker(slotIndex) {
   const normalized = Number.parseInt(slotIndex, 10);
-  if (!Number.isFinite(normalized) || normalized < 0 || normalized > 1) return;
+  if (!Number.isFinite(normalized) || normalized < 0 || normalized > 2) return;
   if (!groupBookingState.mainGroup) return;
   if (normalized > getSelectedExtraGroupIds().length) return;
-  if (getSelectedGroupIds().length >= 3) return;
+  if (getSelectedGroupIds().length >= 4) return;
   groupBookingState.activePickerSlot = normalized;
   renderGroupBookingPicker();
 }
@@ -11786,7 +11793,7 @@ async function selectGroupBookingExtraDirection(groupId) {
   let extras = getSelectedExtraGroupIds();
   if (slot > extras.length) return;
   extras[slot] = parsedGroupId;
-  extras = extras.filter(Boolean).filter((item, index, arr) => arr.indexOf(item) === index).slice(0, 2);
+  extras = extras.filter(Boolean).filter((item, index, arr) => arr.indexOf(item) === index).slice(0, 3);
   groupBookingState.extraGroupIds = extras;
   groupBookingState.activePickerSlot = null;
 
@@ -11801,7 +11808,7 @@ async function removeGroupBookingExtraDirection(slotIndex) {
   const extras = getSelectedExtraGroupIds();
   if (normalized >= extras.length) return;
   extras.splice(normalized, 1);
-  groupBookingState.extraGroupIds = extras.slice(0, 2);
+  groupBookingState.extraGroupIds = extras.slice(0, 3);
 
   if (groupBookingState.activePickerSlot !== null && groupBookingState.activePickerSlot > groupBookingState.extraGroupIds.length) {
     groupBookingState.activePickerSlot = null;
@@ -11820,10 +11827,10 @@ async function fetchGroupBookingQuote(groupId, option, bundleGroupIdsOverride = 
     ? bundleGroupIdsOverride
       .map(item => normalizeGroupBookingGroupId(item))
       .filter(Boolean)
-      .slice(0, 3)
+      .slice(0, 4)
     : [normalizedGroupId];
   if (!bundleGroupIds.includes(normalizedGroupId)) {
-    bundleGroupIds = [normalizedGroupId, ...bundleGroupIds].slice(0, 3);
+    bundleGroupIds = [normalizedGroupId, ...bundleGroupIds].slice(0, 4);
   }
 
   const multiLessonsPerGroup = getOptionMultiLessonsPerGroup(option);
@@ -12070,7 +12077,7 @@ async function loadGroupBookingCompatibleGroups() {
   }
 
   const validGroupIds = new Set((groupBookingState.compatibleGroups || []).map(item => Number(item.id)));
-  groupBookingState.extraGroupIds = getSelectedExtraGroupIds().filter(id => validGroupIds.has(Number(id))).slice(0, 2);
+  groupBookingState.extraGroupIds = getSelectedExtraGroupIds().filter(id => validGroupIds.has(Number(id))).slice(0, 3);
   if (groupBookingState.activePickerSlot !== null && groupBookingState.activePickerSlot > groupBookingState.extraGroupIds.length) {
     groupBookingState.activePickerSlot = null;
   }
@@ -19191,6 +19198,7 @@ let notificationPriorityState = {
   error: null,
   vkPermissionRequired: false,
 };
+let notificationPriorityAutosaveTimer = null;
 let homeScreenInstallState = {
   signature: '',
   checked: false,
@@ -20031,6 +20039,18 @@ function moveNotificationPriorityChannel(channelType, direction = 0) {
   order.splice(nextIndex, 0, item);
   notificationPriorityState.order = order;
   _renderNotificationPrioritySettings();
+  queueNotificationPriorityAutosave();
+}
+
+function queueNotificationPriorityAutosave() {
+  if (notificationPriorityAutosaveTimer) {
+    clearTimeout(notificationPriorityAutosaveTimer);
+  }
+  notificationPriorityAutosaveTimer = setTimeout(() => {
+    if (!_notificationOrdersEqual(notificationPriorityState.order, notificationPriorityState.savedOrder)) {
+      saveNotificationPrioritySettings();
+    }
+  }, 900);
 }
 
 async function saveNotificationPrioritySettings() {
@@ -21325,6 +21345,7 @@ renderAuthStateUI();
 /* ====== ЗАГРУЗКА ДАННЫХ ПРОФИЛЯ ====== */
 async function loadProfileData(bootstrapPayloadHint = null) {
   try {
+    initProfileAutosave();
     await ensureTelegramAuthSession();
     const bootstrapPayload = _isBootstrapContextPayload(bootstrapPayloadHint)
       ? bootstrapPayloadHint
@@ -21428,9 +21449,37 @@ async function loadProfileData(bootstrapPayloadHint = null) {
 }
 
 /* ====== СОХРАНЕНИЕ ИЗМЕНЕНИЙ ПРОФИЛЯ ====== */
-async function saveProfileChanges() {
+let profileAutosaveInitialized = false;
+let profileAutosaveTimer = null;
+
+function initProfileAutosave() {
+  if (profileAutosaveInitialized) return;
+  const watchedIds = ['profile-input-name', 'profile-input-birth-date', 'profile-input-user-notes'];
+  let attached = false;
+  watchedIds.forEach((id) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    attached = true;
+    input.addEventListener('input', () => queueProfileAutosave());
+    input.addEventListener('change', () => queueProfileAutosave());
+  });
+  profileAutosaveInitialized = attached;
+}
+
+function queueProfileAutosave() {
+  if (profileAutosaveTimer) {
+    clearTimeout(profileAutosaveTimer);
+  }
+  profileAutosaveTimer = setTimeout(() => {
+    saveProfileChanges({ silent: true, autosave: true });
+  }, 1200);
+}
+
+async function saveProfileChanges(options = {}) {
+  const silent = Boolean(options?.silent);
+  const autosave = Boolean(options?.autosave);
   if (!currentUserData) {
-    showNotification('? Данные профиля не загружены');
+    if (!silent) showNotification('? Данные профиля не загружены');
     return;
   }
   
@@ -21443,14 +21492,25 @@ async function saveProfileChanges() {
   if (userNotesInput) {
     updatedData.user_notes = userNotesInput.value.trim() || null;
   }
+
+  const currentName = String(currentUserData?.name || '').trim();
+  const currentBirthDate = currentUserData?.birth_date || null;
+  const currentUserNotes = (currentUserData?.user_notes || null);
+  if (updatedData.name === currentName
+      && updatedData.birth_date === currentBirthDate
+      && updatedData.user_notes === currentUserNotes) {
+    return;
+  }
   
   // Проверяем, что имя и телефон не пустые
   if (!updatedData.name) {
-    showNotification('⚠️ Введите имя');
+    if (!silent) showNotification('⚠️ Введите имя');
     return;
   }
   try {
-    console.log('Отправляем данные:', updatedData);
+    if (!autosave) {
+      console.log('Отправляем данные:', updatedData);
+    }
     
     const response = await authFetch('/users/me', {
       method: 'PUT',
@@ -21464,7 +21524,9 @@ async function saveProfileChanges() {
       const newData = await response.json();
       currentUserData = newData;
       
-      console.log('? Профиль сохранен:', newData);
+      if (!autosave) {
+        console.log('? Профиль сохранен:', newData);
+      }
       
       // Обновляем отображение имени
       currentUserData = { ...currentUserData, ...newData };
@@ -21475,15 +21537,17 @@ async function saveProfileChanges() {
         });
       }
       
-      showNotification('? Профиль успешно обновлен!');
+      if (!silent) {
+        showNotification('? Профиль успешно обновлен!');
+      }
     } else {
       const error = await response.json();
       console.error('Ошибка сервера:', error);
-      showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
+      if (!silent) showNotification('? Ошибка: ' + (error.error || 'неизвестная ошибка'));
     }
   } catch (error) {
     console.error('Ошибка при сохранении профиля:', error);
-    showNotification('? Ошибка при сохранении профиля');
+    if (!silent) showNotification('? Ошибка при сохранении профиля');
   }
 }
 
@@ -21931,20 +21995,26 @@ async function loadProfileBookingRequests(options = {}) {
 
 const ABONEMENT_PRICE_DIRECTIONS = ['dance', 'sport'];
 const ABONEMENT_PRICE_SINGLE_LESSONS = [4, 8, 12, 16];
-const ABONEMENT_PRICE_BUNDLE_LESSONS = [4, 8, 12];
-const ABONEMENT_PRICE_BUNDLES = [2, 3];
+const ABONEMENT_PRICE_BUNDLE_LESSONS_BY_BUNDLE = {
+  2: [4, 8, 12],
+  3: [4, 8, 12],
+  4: [4, 8],
+};
+const ABONEMENT_PRICE_BUNDLES = [2, 3, 4];
 const ABONEMENT_PRICE_DEFAULT_MULTI_SINGLE = {
-  dance: { 4: 3600, 8: 7200, 12: 10800, 16: 14400 },
+  dance: { 4: 3000, 8: 6000, 12: 9000, 16: 12000 },
   sport: { 4: 3600, 8: 7200, 12: 10800, 16: 14400 },
 };
 const ABONEMENT_PRICE_DEFAULT_MULTI_BUNDLE = {
   dance: {
-    2: { 4: 6400, 8: 12800, 12: 19200 },
-    3: { 4: 8400, 8: 16800, 12: 25200 },
+    2: { 4: 5600, 8: 11200, 12: 16800 },
+    3: { 4: 7800, 8: 15600, 12: 23400 },
+    4: { 4: 9600, 8: 19200 },
   },
   sport: {
     2: { 4: 6400, 8: 12800, 12: 19200 },
     3: { 4: 8400, 8: 16800, 12: 25200 },
+    4: { 4: 11200, 8: 22400 },
   },
 };
 
@@ -21986,11 +22056,14 @@ function _normalizeMultiBundleMatrix(rawValue) {
     const sourceDirection = (raw[direction] && typeof raw[direction] === 'object') ? raw[direction] : {};
     result[direction] = {};
     for (const bundle of ABONEMENT_PRICE_BUNDLES) {
+      const allowedLessons = Array.isArray(ABONEMENT_PRICE_BUNDLE_LESSONS_BY_BUNDLE[bundle])
+        ? ABONEMENT_PRICE_BUNDLE_LESSONS_BY_BUNDLE[bundle]
+        : [];
       const sourceBundle = (sourceDirection[String(bundle)] && typeof sourceDirection[String(bundle)] === 'object')
         ? sourceDirection[String(bundle)]
         : {};
       result[direction][String(bundle)] = {};
-      for (const lessons of ABONEMENT_PRICE_BUNDLE_LESSONS) {
+      for (const lessons of allowedLessons) {
         const fallback = ABONEMENT_PRICE_DEFAULT_MULTI_BUNDLE?.[direction]?.[bundle]?.[lessons] ?? 0;
         result[direction][String(bundle)][String(lessons)] = _asNonNegativeInt(sourceBundle[String(lessons)], fallback);
       }
@@ -22026,11 +22099,11 @@ function _renderMultiBundleMatrix(matrix) {
   return ABONEMENT_PRICE_DIRECTIONS.map((direction) => `
     <div style="margin-bottom: 12px;">
       <div style="font-weight:700; margin-bottom: 8px;">${directionTitles[direction] || direction}</div>
-      ${_buildLessonsHeaderRow(ABONEMENT_PRICE_BUNDLE_LESSONS)}
       ${ABONEMENT_PRICE_BUNDLES.map((bundle) => `
-        <div style="display:grid; grid-template-columns: 130px repeat(${ABONEMENT_PRICE_BUNDLE_LESSONS.length}, minmax(80px, 1fr)); gap:8px; align-items:center; margin-bottom:8px;">
+        ${_buildLessonsHeaderRow(ABONEMENT_PRICE_BUNDLE_LESSONS_BY_BUNDLE[bundle] || [])}
+        <div style="display:grid; grid-template-columns: 130px repeat(${(ABONEMENT_PRICE_BUNDLE_LESSONS_BY_BUNDLE[bundle] || []).length}, minmax(80px, 1fr)); gap:8px; align-items:center; margin-bottom:8px;">
           <div class="small">${bundle} группы</div>
-          ${ABONEMENT_PRICE_BUNDLE_LESSONS.map((lessons) => `
+          ${(ABONEMENT_PRICE_BUNDLE_LESSONS_BY_BUNDLE[bundle] || []).map((lessons) => `
             <input class="form-input" id="work-price-mb-${direction}-${bundle}-${lessons}" type="number" min="0" step="1" value="${escapeHtml(String(matrix[direction][String(bundle)][String(lessons)]))}" />
           `).join('')}
         </div>
@@ -22108,7 +22181,12 @@ async function loadWorkSettingsPrices() {
     }
 
     const settingsMap = _systemSettingsToMap(payload && payload.items);
-    const singleVisitPrice = _asNonNegativeInt(settingsMap['abonements.single_visit_price_rub'], 1200);
+    const singleVisitPriceLegacy = _asNonNegativeInt(settingsMap['abonements.single_visit_price_rub'], 1200);
+    const singleVisitByDirectionRaw = settingsMap['abonements.single_visit_prices_json'];
+    const singleVisitByDirection = {
+      dance: _asNonNegativeInt(singleVisitByDirectionRaw?.dance, 800),
+      sport: _asNonNegativeInt(singleVisitByDirectionRaw?.sport, 1000),
+    };
     const trialPrice = _asNonNegativeInt(settingsMap['abonements.trial_price_rub'], 0);
     const teacherPercent = Math.min(100, _asNonNegativeInt(settingsMap['teachers.payout_percent'], 40));
     const multiSingleMatrix = _normalizeMultiSingleMatrix(settingsMap['abonements.multi_single_prices_json']);
@@ -22119,8 +22197,12 @@ async function loadWorkSettingsPrices() {
         <h4 style="margin:0 0 10px;">Базовые цены</h4>
         <div class="work-price-row">
           <div class="work-price-input-wrap">
-            <label class="label">Разовое занятие (RUB)</label>
-            <input class="form-input" id="work-price-single-visit" type="number" min="0" step="1" value="${escapeHtml(String(singleVisitPrice))}" />
+            <label class="label">Разовое (танцы, RUB)</label>
+            <input class="form-input" id="work-price-single-visit-dance" type="number" min="0" step="1" value="${escapeHtml(String(singleVisitByDirection.dance))}" />
+          </div>
+          <div class="work-price-input-wrap">
+            <label class="label">Разовое (спорт, RUB)</label>
+            <input class="form-input" id="work-price-single-visit-sport" type="number" min="0" step="1" value="${escapeHtml(String(singleVisitByDirection.sport))}" />
           </div>
           <div class="work-price-input-wrap">
             <label class="label">Пробное занятие (RUB)</label>
@@ -22131,6 +22213,7 @@ async function loadWorkSettingsPrices() {
             <input class="form-input" id="work-price-teacher-percent" type="number" min="0" max="100" step="1" value="${escapeHtml(String(teacherPercent))}" />
           </div>
         </div>
+        <p class="small" style="margin:8px 0 0; color: var(--hint);">Старое общее поле разового занятия оставлено как fallback: ${escapeHtml(String(singleVisitPriceLegacy))} RUB.</p>
       </div>
 
       <div class="card" style="margin-bottom: 10px;">
@@ -22143,8 +22226,8 @@ async function loadWorkSettingsPrices() {
       </div>
 
       <div class="card" style="margin-bottom: 10px;">
-        <h4 style="margin:0 0 8px;">Мульти (2 и 3 группы)</h4>
-        <p class="small" style="margin:0 0 10px; color: var(--hint);">Цены для двойного и тройного абонемента.</p>
+        <h4 style="margin:0 0 8px;">Мульти (2, 3 и 4 группы)</h4>
+        <p class="small" style="margin:0 0 10px; color: var(--hint);">Цены для двойного, тройного и четверного абонемента.</p>
         <div style="overflow-x:auto;">
           ${_renderMultiBundleMatrix(multiBundleMatrix)}
         </div>
@@ -22164,7 +22247,8 @@ async function loadWorkSettingsPrices() {
 
 async function saveWorkSettingsPrices() {
   try {
-    const singleVisitPrice = _readPriceInput('work-price-single-visit', 'Разовое занятие');
+    const singleVisitDance = _readPriceInput('work-price-single-visit-dance', 'Разовое занятие (танцы)');
+    const singleVisitSport = _readPriceInput('work-price-single-visit-sport', 'Разовое занятие (спорт)');
     const trialPrice = _readPriceInput('work-price-trial', 'Пробное занятие');
 
     const teacherPercent = _readPercentInput('work-price-teacher-percent', 'Процент преподавателя');
@@ -22184,7 +22268,7 @@ async function saveWorkSettingsPrices() {
       multiBundlePayload[direction] = {};
       for (const bundle of ABONEMENT_PRICE_BUNDLES) {
         multiBundlePayload[direction][String(bundle)] = {};
-        for (const lessons of ABONEMENT_PRICE_BUNDLE_LESSONS) {
+        for (const lessons of (ABONEMENT_PRICE_BUNDLE_LESSONS_BY_BUNDLE[bundle] || [])) {
           multiBundlePayload[direction][String(bundle)][String(lessons)] = _readPriceInput(
             `work-price-mb-${direction}-${bundle}-${lessons}`,
             `Мульти ${bundle} группы (${direction}/${lessons})`
@@ -22195,7 +22279,11 @@ async function saveWorkSettingsPrices() {
 
     setWorkSettingsPricesStatus('Сохранение...');
 
-    await _updateAdminSystemSetting('abonements.single_visit_price_rub', singleVisitPrice);
+    await _updateAdminSystemSetting('abonements.single_visit_prices_json', {
+      dance: singleVisitDance,
+      sport: singleVisitSport,
+    });
+    await _updateAdminSystemSetting('abonements.single_visit_price_rub', Math.max(singleVisitDance, singleVisitSport));
     await _updateAdminSystemSetting('abonements.trial_price_rub', trialPrice);
     await _updateAdminSystemSetting('abonements.multi_single_prices_json', multiSinglePayload);
     await _updateAdminSystemSetting('abonements.multi_bundle_prices_json', multiBundlePayload);
@@ -25396,7 +25484,7 @@ function _getClientIssueBundleGroupIds() {
   if (!mainGroupId) return [];
   if (!_isClientIssueMulti()) return [mainGroupId];
   const merged = [mainGroupId, ...clientIssueExtraGroupIds];
-  return Array.from(new Set(merged)).filter((id) => Number.isFinite(Number(id)) && Number(id) > 0).slice(0, 3);
+  return Array.from(new Set(merged)).filter((id) => Number.isFinite(Number(id)) && Number(id) > 0).slice(0, 4);
 }
 
 function onClientIssueTypeChange() {
@@ -25557,7 +25645,7 @@ function _renderClientIssueGroupPicker() {
   }
 
   const available = _getClientIssueAvailableGroups();
-  if (!available.length || clientIssueExtraGroupIds.length >= 2) {
+  if (!available.length || clientIssueExtraGroupIds.length >= 3) {
     pickerEl.classList.add('hidden');
     listEl.innerHTML = '';
     clientIssueGroupPickerOpen = false;
@@ -25601,7 +25689,7 @@ function openClientIssueGroupPicker() {
   if (!_isClientIssueMulti()) return;
   _ensureClientIssueGroupPickerRoot();
   const available = _getClientIssueAvailableGroups();
-  if (clientIssueExtraGroupIds.length >= 2 || !available.length) {
+  if (clientIssueExtraGroupIds.length >= 3 || !available.length) {
     return;
   }
   clientIssueGroupPickerOpen = true;
@@ -25612,7 +25700,7 @@ function selectClientIssueExtraGroup(groupIdRaw) {
   const groupId = Number.parseInt(groupIdRaw, 10);
   if (!Number.isFinite(groupId) || groupId <= 0) return;
   if (!_isClientIssueMulti()) return;
-  if (clientIssueExtraGroupIds.length >= 2) return;
+  if (clientIssueExtraGroupIds.length >= 3) return;
   if (clientIssueExtraGroupIds.includes(groupId)) return;
   const groupItem = clientIssueCompatibleGroups.find((item) => Number(item.id) === groupId) || null;
   if (!_isClientIssueGroupCompatibleByLessons(groupItem)) {
@@ -25674,18 +25762,18 @@ function _renderClientIssueExtraGroups() {
 
   const available = _getClientIssueAvailableGroups();
   const compatibleAvailable = available.filter((item) => _isClientIssueGroupCompatibleByLessons(item));
-  const canAdd = clientIssueExtraGroupIds.length < 2 && available.length > 0;
+  const canAdd = clientIssueExtraGroupIds.length < 3 && available.length > 0;
   addBtn.disabled = !canAdd;
   if (available.length > 0) {
     if (!compatibleAvailable.length) {
-      hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3 • Доступны только группы с таким же количеством занятий`;
+      hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/4 • Доступны только группы с таким же количеством занятий`;
     } else if (compatibleAvailable.length < available.length) {
-      hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3 • Можно выбрать только группы с таким же количеством занятий`;
+      hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/4 • Можно выбрать только группы с таким же количеством занятий`;
     } else {
-      hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3`;
+      hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/4`;
     }
   } else {
-    hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/3 • Больше совместимых групп нет`;
+    hintEl.textContent = `Всего групп в абонементе: ${1 + clientIssueExtraGroupIds.length}/4 • Больше совместимых групп нет`;
   }
 
   if (!canAdd) {
@@ -25741,7 +25829,7 @@ async function loadClientIssueCompatibleGroups() {
       .map((item) => ({ ...item, id: Number.parseInt(item.id, 10) }))
       .filter((item) => Number.isFinite(item.id) && item.id > 0);
     const allowedIds = new Set(clientIssueCompatibleGroups.map((item) => Number(item.id)));
-    clientIssueExtraGroupIds = clientIssueExtraGroupIds.filter((id) => allowedIds.has(Number(id))).slice(0, 2);
+    clientIssueExtraGroupIds = clientIssueExtraGroupIds.filter((id) => allowedIds.has(Number(id))).slice(0, 3);
     _renderClientIssueExtraGroups();
   } catch (error) {
     console.error('Ошибка загрузки совместимых групп для выдачи абонемента:', error);
@@ -27187,6 +27275,7 @@ document.head.appendChild(style);
 document.addEventListener('DOMContentLoaded', () => {
   loadNews();
   loadHomeStatusCard();
+  initProfileAutosave();
 });
 
 // ======================== СИСТЕМА РАССЫЛОК ========================

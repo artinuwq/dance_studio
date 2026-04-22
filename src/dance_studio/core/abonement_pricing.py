@@ -20,7 +20,7 @@ ALLOWED_ABONEMENT_TYPES = {
 }
 ALLOWED_DIRECTION_TYPES = {"dance", "sport"}
 ALLOWED_MULTI_SINGLE_LESSON_BUCKETS = {4, 8, 12, 16}
-ALLOWED_MULTI_BUNDLE_LESSON_BUCKETS = {4, 8, 12}
+ALLOWED_MULTI_BUNDLE_LESSON_BUCKETS = {2: {4, 8, 12}, 3: {4, 8, 12}, 4: {4, 8}}
 INACTIVE_GROUP_SCHEDULE_STATUSES = {
     "cancelled",
     "deleted",
@@ -40,10 +40,12 @@ DEFAULT_MULTI_BUNDLE_PRICES = {
     "dance": {
         "2": {"4": 6400, "8": 12800, "12": 19200},
         "3": {"4": 8400, "8": 16800, "12": 25200},
+        "4": {"4": 9600, "8": 19200},
     },
     "sport": {
         "2": {"4": 6400, "8": 12800, "12": 19200},
         "3": {"4": 8400, "8": 16800, "12": 25200},
+        "4": {"4": 11200, "8": 22400},
     },
 }
 
@@ -267,15 +269,20 @@ def _resolve_multi_lessons_per_group(
         raise AbonementPricingError("lessons_per_week must be > 0 for multi abonement.")
 
     max_lessons_per_group = min(val * 4 for val in normalized_lessons_per_week)
+    allowed_bundle_buckets = ALLOWED_MULTI_BUNDLE_LESSON_BUCKETS.get(bundle_size, set())
     if requested_lessons_per_group is None:
         if bundle_size > 1:
-            return min(max_lessons_per_group, max(ALLOWED_MULTI_BUNDLE_LESSON_BUCKETS))
+            if not allowed_bundle_buckets:
+                raise AbonementPricingError(f"Unsupported bundle size: {bundle_size}.")
+            return min(max_lessons_per_group, max(allowed_bundle_buckets))
         return max_lessons_per_group
     if requested_lessons_per_group > max_lessons_per_group:
         raise AbonementPricingError(
             f"multi_lessons_per_group cannot exceed {max_lessons_per_group} for selected groups."
         )
-    if bundle_size > 1 and requested_lessons_per_group not in ALLOWED_MULTI_BUNDLE_LESSON_BUCKETS:
+    if bundle_size > 1 and requested_lessons_per_group not in allowed_bundle_buckets:
+        if bundle_size == 4:
+            raise AbonementPricingError("For 4 groups, multi_lessons_per_group must be one of: 4, 8.")
         raise AbonementPricingError("For 2 or 3 groups, multi_lessons_per_group must be one of: 4, 8, 12.")
     return requested_lessons_per_group
 
@@ -307,8 +314,8 @@ def quote_group_booking(
             raise AbonementPricingError("Single and trial abonements can contain exactly one group.")
         lessons_per_group = 1
     else:
-        if bundle_size < 1 or bundle_size > 3:
-            raise AbonementPricingError("Multi abonement supports only 1, 2, or 3 groups.")
+        if bundle_size < 1 or bundle_size > 4:
+            raise AbonementPricingError("Multi abonement supports only 1, 2, 3, or 4 groups.")
         lessons_per_group = _resolve_multi_lessons_per_group(
             bundle_payloads,
             bundle_size=bundle_size,
@@ -320,7 +327,10 @@ def quote_group_booking(
             raise AbonementPricingError("Trial abonement is already used for this direction type.")
 
     if normalized_type == ABONEMENT_TYPE_SINGLE:
-        amount = int(get_setting_value(db, "abonements.single_visit_price_rub"))
+        single_matrix = get_setting_value(db, "abonements.single_visit_prices_json")
+        amount = _get_json_price(single_matrix, direction_type)
+        if amount is None:
+            amount = int(get_setting_value(db, "abonements.single_visit_price_rub"))
     elif normalized_type == ABONEMENT_TYPE_TRIAL:
         amount = int(get_setting_value(db, "abonements.trial_price_rub"))
     else:

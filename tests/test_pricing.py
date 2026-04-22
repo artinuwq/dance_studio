@@ -59,6 +59,14 @@ def test_resolve_multi_lessons_per_group_for_bundle_caps_and_validates():
         _resolve_multi_lessons_per_group(payloads, bundle_size=2, requested_lessons_per_group=16)
 
 
+def test_resolve_multi_lessons_per_group_for_four_group_bundle_allows_only_4_or_8():
+    payloads = [{"lessons_per_week": 4}] * 4
+    assert _resolve_multi_lessons_per_group(payloads, bundle_size=4, requested_lessons_per_group=None) == 8
+    assert _resolve_multi_lessons_per_group(payloads, bundle_size=4, requested_lessons_per_group=8) == 8
+    with pytest.raises(AbonementPricingError, match="For 4 groups"):
+        _resolve_multi_lessons_per_group(payloads, bundle_size=4, requested_lessons_per_group=12)
+
+
 def test_resolve_multi_lessons_per_group_for_bundle_allows_different_lessons_per_week():
     payloads = [{"lessons_per_week": 3}, {"lessons_per_week": 4}]
     assert _resolve_multi_lessons_per_group(payloads, bundle_size=2, requested_lessons_per_group=12) == 12
@@ -82,12 +90,14 @@ def test_multi_single_amount_fallback_uses_default_studio_matrix(monkeypatch):
 def test_bundle_default_matrix_contains_expected_tariffs():
     from dance_studio.core.abonement_pricing import DEFAULT_MULTI_BUNDLE_PRICES
 
-    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["2"]["4"] == 6400
-    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["2"]["8"] == 12800
-    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["2"]["12"] == 19200
-    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["3"]["4"] == 8400
-    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["3"]["8"] == 16800
-    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["3"]["12"] == 25200
+    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["2"]["4"] == 5600
+    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["2"]["8"] == 11200
+    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["2"]["12"] == 16800
+    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["3"]["4"] == 7800
+    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["3"]["8"] == 15600
+    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["3"]["12"] == 23400
+    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["4"]["4"] == 9600
+    assert DEFAULT_MULTI_BUNDLE_PRICES["dance"]["4"]["8"] == 19200
 
 
 def test_serialize_group_booking_quote_contains_discount_snapshot_fields():

@@ -174,6 +174,13 @@ SETTING_SPECS: dict[str, SettingSpec] = {
         min_value=0,
         max_value=1_000_000,
     ),
+    "abonements.single_visit_prices_json": SettingSpec(
+        key="abonements.single_visit_prices_json",
+        value_type="json",
+        default={"dance": 800, "sport": 1000},
+        description="Single-visit abonement prices by direction_type (dance/sport).",
+        is_public=False,
+    ),
     "abonements.trial_price_rub": SettingSpec(
         key="abonements.trial_price_rub",
         value_type="int",
@@ -187,7 +194,7 @@ SETTING_SPECS: dict[str, SettingSpec] = {
         key="abonements.multi_single_prices_json",
         value_type="json",
         default={
-            "dance": {"4": 3600, "8": 7200, "12": 10800, "16": 14400},
+            "dance": {"4": 3000, "8": 6000, "12": 9000, "16": 12000},
             "sport": {"4": 3600, "8": 7200, "12": 10800, "16": 14400},
         },
         description="Multi abonement prices for single group by direction_type and lessons bucket (4/8/12/16).",
@@ -198,15 +205,17 @@ SETTING_SPECS: dict[str, SettingSpec] = {
         value_type="json",
         default={
             "dance": {
-                "2": {"4": 6400, "8": 12800, "12": 19200},
-                "3": {"4": 8400, "8": 16800, "12": 25200},
+                "2": {"4": 5600, "8": 11200, "12": 16800},
+                "3": {"4": 7800, "8": 15600, "12": 23400},
+                "4": {"4": 9600, "8": 19200},
             },
             "sport": {
                 "2": {"4": 6400, "8": 12800, "12": 19200},
                 "3": {"4": 8400, "8": 16800, "12": 25200},
+                "4": {"4": 11200, "8": 22400},
             },
         },
-        description="Multi abonement prices for 2/3-group bundles by direction_type and lessons bucket (4/8/12).",
+        description="Multi abonement prices for 2/3/4-group bundles by direction_type and lessons bucket.",
         is_public=False,
     ),
     "teachers.payout_percent": SettingSpec(
