@@ -40,6 +40,7 @@ from dance_studio.core.statuses import (
     set_booking_status,
 )
 from dance_studio.core.notification_service import send_user_notification_sync
+from dance_studio.bot.telegram_userbot import send_private_message_sync
 from dance_studio.core.config import PROJECT_NAME_FULL, VK_MINI_APP_APP_ID
 from dance_studio.core.system_settings_service import get_setting_value
 from dance_studio.core.telegram_http import telegram_api_post
@@ -865,13 +866,11 @@ def _send_booking_payment_details_via_userbot(db, booking: BookingRequest, user:
     }
 
     try:
-        sent_ok = send_user_notification_sync(
-            user_id=target_user_id,
-            text=payment_text,
-            context_note=f"Реквизиты оплаты по заявке #{booking.id}",
-        )
+        delivery_result = send_private_message_sync(user_target, payment_text) or {}
+        sent_ok = bool(delivery_result.get("ok"))
         if not sent_ok:
-            raise RuntimeError("notification service returned failed")
+            error_reason = str(delivery_result.get("error") or "userbot delivery failed").strip()
+            raise RuntimeError(error_reason)
     except Exception as exc:
         current_app.logger.exception(
             "booking %s: failed to deliver payment details via selected channel",

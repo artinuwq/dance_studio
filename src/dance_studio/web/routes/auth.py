@@ -46,8 +46,8 @@ from dance_studio.web.services.auth_session import (
 bp = Blueprint("auth_routes", __name__)
 TELEGRAM_REPLAY_IDEMPOTENT_WINDOW_SECONDS = 15
 
-MERGE_CONFLICT_NOTICE = "ÐœÑ‹ Ð½Ð°ÑˆÐ»Ð¸ Ð½ÐµÑÐºÐ¾Ð»ÑŒÐºÐ¾ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚Ð¾Ð² Ñ ÑÑ‚Ð¸Ð¼ Ð½Ð¾Ð¼ÐµÑ€Ð¾Ð¼. ÐÐ°Ð¿Ð¸ÑˆÐ¸Ñ‚Ðµ Ð² Ð¿Ð¾Ð´Ð´ÐµÑ€Ð¶ÐºÑƒ, Ñ‡Ñ‚Ð¾Ð±Ñ‹ Ð¾Ð±ÑŠÐµÐ´Ð¸Ð½Ð¸Ñ‚ÑŒ Ð¸Ñ…."
-MANUAL_MERGE_NOTICE = "ÐœÑ‹ Ð½Ð°ÑˆÐ»Ð¸ Ð´Ð°Ð½Ð½Ñ‹Ðµ, ÐºÐ¾Ñ‚Ð¾Ñ€Ñ‹Ðµ Ñ‚Ñ€ÐµÐ±ÑƒÑŽÑ‚ Ñ€ÑƒÑ‡Ð½Ð¾Ð¹ Ð¿Ñ€Ð¾Ð²ÐµÑ€ÐºÐ¸ Ð¿ÐµÑ€ÐµÐ´ Ð¾Ð±ÑŠÐµÐ´Ð¸Ð½ÐµÐ½Ð¸ÐµÐ¼ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚Ð¾Ð². ÐÐ°Ð¿Ð¸ÑˆÐ¸Ñ‚Ðµ Ð² Ð¿Ð¾Ð´Ð´ÐµÑ€Ð¶ÐºÑƒ."
+MERGE_CONFLICT_NOTICE = "Мы нашли несколько аккаунтов с этим номером. Напишите в поддержку, чтобы объединить их."
+MANUAL_MERGE_NOTICE = "Мы нашли данные, которые требуют ручной проверки перед объединением аккаунтов. Напишите в поддержку."
 
 
 def _as_bool(value) -> bool:
@@ -81,7 +81,7 @@ def _auth_error_response(error: str, status: int, **extra):
 
 def _handle_auth_provider_error(error: Exception):
     if isinstance(error, RateLimitExceededError):
-        return _auth_error_response("rate_limited", 429, message="Ð¡Ð»Ð¸ÑˆÐºÐ¾Ð¼ Ð¼Ð½Ð¾Ð³Ð¾ Ð¿Ð¾Ð¿Ñ‹Ñ‚Ð¾Ðº. ÐŸÐ¾Ð¿Ñ€Ð¾Ð±ÑƒÐ¹Ñ‚Ðµ Ð¿Ð¾Ð·Ð¶Ðµ.")
+        return _auth_error_response("rate_limited", 429, message="Слишком много попыток. Попробуйте позже.")
     if isinstance(error, VerifiedPhoneConflictError):
         return _auth_error_response(
             "verified_phone_conflict",
@@ -103,7 +103,7 @@ def _handle_auth_provider_error(error: Exception):
         return _auth_error_response(
             "identity_already_linked",
             409,
-            message="Ð­Ñ‚Ð¾Ñ‚ ÑÐ¿Ð¾ÑÐ¾Ð± Ð²Ñ…Ð¾Ð´Ð° ÑƒÐ¶Ðµ Ð¿Ñ€Ð¸Ð²ÑÐ·Ð°Ð½ Ðº Ð´Ñ€ÑƒÐ³Ð¾Ð¼Ñƒ Ð°ÐºÐºÐ°ÑƒÐ½Ñ‚Ñƒ.",
+            message="Этот способ входа уже привязан к другому аккаунту.",
             action="switch_account",
             fallback_auth_methods=DEFAULT_FALLBACK_AUTH_METHODS,
         )
@@ -187,8 +187,6 @@ def _merge_payload_from_result(merge_result: dict | None) -> dict:
     merge_status = merge_result.get("status")
     payload: dict = {}
     if merge_status == "merged":
-        payload["merge_notice"] = "Аккаунты объединены. Проверьте, что все данные на месте."
-        payload["merge_notice"] = "ÐÐºÐºÐ°ÑƒÐ½Ñ‚Ñ‹ Ð¾Ð±ÑŠÐµÐ´Ð¸Ð½ÐµÐ½Ñ‹. ÐŸÑ€Ð¾Ð²ÐµÑ€ÑŒÑ‚Ðµ, Ñ‡Ñ‚Ð¾ Ð²ÑÐµ Ð´Ð°Ð½Ð½Ñ‹Ðµ Ð½Ð° Ð¼ÐµÑÑ‚Ðµ."
         payload["merge_notice"] = "Аккаунты объединены. Проверьте, что все данные на месте."
     elif merge_status == "conflict":
         payload["merge_notice"] = MERGE_CONFLICT_NOTICE
@@ -646,7 +644,7 @@ def auth_logout():
         except Exception:
             db.rollback()
             current_app.logger.exception("Failed to logout session")
-            return {"error": "ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ Ð·Ð°Ð²ÐµÑ€ÑˆÐ¸Ñ‚ÑŒ ÑÐµÑÑÐ¸ÑŽ"}, 500
+            return {"error": "Не удалось завершить сессию"}, 500
 
     response = jsonify({"ok": True})
     _clear_sid_cookie(response)
