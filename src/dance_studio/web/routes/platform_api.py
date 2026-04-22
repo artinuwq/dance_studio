@@ -891,8 +891,8 @@ def test_send_notification():
         g.db,
         user_id=user_id,
         event_type=str(payload.get("event_type") or "news_published"),
-        title=str(payload.get("title") or "Ð¢ÐµÑÑ‚"),
-        body=str(payload.get("body") or "Ð¢ÐµÑÑ‚Ð¾Ð²Ð¾Ðµ ÑƒÐ²ÐµÐ´Ð¾Ð¼Ð»ÐµÐ½Ð¸Ðµ"),
+        title=str(payload.get("title") or "Тест"),
+        body=str(payload.get("body") or "Тестовое уведомление"),
         payload=payload.get("payload") or {},
     )
     g.db.commit()
