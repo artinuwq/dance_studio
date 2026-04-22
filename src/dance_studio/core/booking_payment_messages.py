@@ -1,24 +1,37 @@
+# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 from dance_studio.core.abonement_pricing import parse_booking_bundle_group_ids
 from dance_studio.db.models import BookingRequest, Group
 
+_EM_DASH = "\u2014"
+_GROUP_FALLBACK_PREFIX = "\u0413\u0440\u0443\u043f\u043f\u0430"  # Группа
+_GROUP_SUBJECT = "\u0410\u0431\u043e\u043d\u0435\u043c\u0435\u043d\u0442:"  # Абонемент:
+_RENTAL_SUBJECT = "\u0410\u0440\u0435\u043d\u0434\u0430:"  # Аренда:
+_INDIVIDUAL_SUBJECT = (
+    "\u0418\u043d\u0434\u0438\u0432\u0438\u0434\u0443\u0430\u043b\u044c\u043d\u043e\u0435 \u0437\u0430\u043d\u044f\u0442\u0438\u0435:"
+)  # Индивидуальное занятие:
+_LABEL_DATE = "\u0414\u0430\u0442\u0430"  # Дата
+_LABEL_TIME = "\u0412\u0440\u0435\u043c\u044f"  # Время
+_LABEL_TIME_FROM = "\u0412\u0440\u0435\u043c\u044f \u0441"  # Время с
+_LABEL_TIME_TO = "\u0412\u0440\u0435\u043c\u044f \u0434\u043e"  # Время до
+
 
 def _format_date(value) -> str:
     if not value:
-        return "—"
+        return _EM_DASH
     if isinstance(value, str):
         normalized = value.strip()
-        return normalized or "—"
+        return normalized or _EM_DASH
     return value.strftime("%d.%m.%Y")
 
 
 def _format_time(value) -> str:
     if not value:
-        return "—"
+        return _EM_DASH
     if isinstance(value, str):
         normalized = value.strip()
-        return normalized or "—"
+        return normalized or _EM_DASH
     return value.strftime("%H:%M")
 
 
@@ -54,7 +67,7 @@ def _resolve_group_names(db, booking: BookingRequest) -> list[str]:
     for group_id in group_ids:
         row = groups_by_id.get(group_id)
         group_name = str(getattr(row, "name", "") or "").strip()
-        group_names.append(group_name or f"Группа #{group_id}")
+        group_names.append(group_name or f"{_GROUP_FALLBACK_PREFIX} #{group_id}")
     return group_names
 
 
@@ -62,36 +75,36 @@ def build_booking_payment_subject_text(db, booking: BookingRequest) -> str:
     object_type = str(getattr(booking, "object_type", "") or "").strip().lower()
 
     if object_type == "group":
-        lines = ["Абонемент:"]
+        lines = [_GROUP_SUBJECT]
         lines.extend(f"• {group_name}" for group_name in _resolve_group_names(db, booking))
         return "\n".join(lines)
 
     if object_type == "rental":
-        lines = ["Аренда:"]
+        lines = [_RENTAL_SUBJECT]
         if getattr(booking, "date", None):
-            lines.append(f"• Дата: {_format_date(booking.date)}")
+            lines.append(f"• {_LABEL_DATE}: {_format_date(booking.date)}")
         time_from = getattr(booking, "time_from", None)
         time_to = getattr(booking, "time_to", None)
         if time_from and time_to:
-            lines.append(f"• Время: {_format_time(time_from)}-{_format_time(time_to)}")
+            lines.append(f"• {_LABEL_TIME}: {_format_time(time_from)}-{_format_time(time_to)}")
         elif time_from:
-            lines.append(f"• Время с: {_format_time(time_from)}")
+            lines.append(f"• {_LABEL_TIME_FROM}: {_format_time(time_from)}")
         elif time_to:
-            lines.append(f"• Время до: {_format_time(time_to)}")
+            lines.append(f"• {_LABEL_TIME_TO}: {_format_time(time_to)}")
         return "\n".join(lines)
 
     if object_type == "individual":
-        lines = ["Индивидуальное занятие:"]
+        lines = [_INDIVIDUAL_SUBJECT]
         if getattr(booking, "date", None):
-            lines.append(f"• Дата: {_format_date(booking.date)}")
+            lines.append(f"• {_LABEL_DATE}: {_format_date(booking.date)}")
         time_from = getattr(booking, "time_from", None)
         time_to = getattr(booking, "time_to", None)
         if time_from and time_to:
-            lines.append(f"• Время: {_format_time(time_from)}-{_format_time(time_to)}")
+            lines.append(f"• {_LABEL_TIME}: {_format_time(time_from)}-{_format_time(time_to)}")
         elif time_from:
-            lines.append(f"• Время с: {_format_time(time_from)}")
+            lines.append(f"• {_LABEL_TIME_FROM}: {_format_time(time_from)}")
         elif time_to:
-            lines.append(f"• Время до: {_format_time(time_to)}")
+            lines.append(f"• {_LABEL_TIME_TO}: {_format_time(time_to)}")
         return "\n".join(lines)
 
     return ""
