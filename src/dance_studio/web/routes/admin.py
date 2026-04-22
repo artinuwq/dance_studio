@@ -4580,19 +4580,12 @@ def create_direction_upload_session():
     db = g.db
     data = request.json or {}
     
-    telegram_user_id = getattr(g, "telegram_id", None)
-    if not telegram_user_id:
-        return {"error": "Требуется авторизация"}, 401
-
-    try:
-        telegram_user_id = int(telegram_user_id)
-    except (TypeError, ValueError):
-        return {"error": "Неверный telegram_id"}, 400
-
-    resolved_user_id = resolve_user_id_by_telegram(db, telegram_user_id)
-    admin = None
-    if resolved_user_id:
-        admin = db.query(Staff).filter_by(user_id=resolved_user_id).first()
+    resolved_user_id = getattr(g, "user_id", None)
+    if not resolved_user_id:
+        telegram_user_id = getattr(g, "telegram_id", None)
+        if telegram_user_id:
+            resolved_user_id = resolve_user_id_by_telegram(db, telegram_user_id)
+    admin = db.query(Staff).filter_by(user_id=resolved_user_id).first() if resolved_user_id else None
     if not admin or admin.position not in ["администратор", "старший админ", "владелец", "тех. админ"]:
         return {"error": "У вас нет прав администратора"}, 403
     
@@ -4600,25 +4593,37 @@ def create_direction_upload_session():
     description = _sanitize_direction_description(data.get("description"))
     if not title:
         return {"error": "title обязателен"}, 400
-    if not description:
-        return {"error": "description обязателен"}, 400
-    if not data.get("base_price"):
-        return {"error": "base_price обязателен"}, 400
 
     direction_type = (data.get("direction_type") or "dance").lower()
     if direction_type not in ALLOWED_DIRECTION_TYPES:
         return {"error": "direction_type должен быть 'dance' или 'sport'"}, 400
+
+    base_price = data.get("base_price")
+    if base_price in ("", None):
+        base_price = None
+    else:
+        try:
+            base_price = int(base_price)
+        except (TypeError, ValueError):
+            return {"error": "base_price должен быть целым числом"}, 400
+        if base_price < 0:
+            return {"error": "base_price должен быть >= 0"}, 400
     
     # Создаем сессию
     session_token = str(uuid.uuid4())
     
+    try:
+        telegram_user_id = int(getattr(g, "telegram_id", 0) or 0) or None
+    except (TypeError, ValueError):
+        telegram_user_id = None
+
     session = DirectionUploadSession(
         admin_id=admin.id,
         telegram_user_id=telegram_user_id,
         title=title,
         direction_type=direction_type,
-        description=description,
-        base_price=data["base_price"],
+        description=description or None,
+        base_price=base_price,
         session_token=session_token,
         status="waiting_for_photo"
     )
@@ -4792,10 +4797,50 @@ def delete_direction(direction_id):
     if not direction:
         return {"error": "Направление не найдено"}, 404
     
+    hard_delete = str(request.args.get("hard") or "").strip().lower() in {"1", "true", "yes"}
+    if hard_delete:
+        if str(direction.status or "").strip().lower() == "active":
+            return {"error": "Сначала архивируйте направление"}, 400
+        groups_count = db.query(Group).filter_by(direction_id=direction_id).count()
+        if groups_count > 0:
+            return {"error": "Нельзя удалить направление из архива: есть связанные группы"}, 400
+        db.delete(direction)
+        db.commit()
+        return {"message": "Направление удалено навсегда"}
+
     direction.status = "inactive"
     db.commit()
-    
-    return {"message": "Направление удалено"}
+    return {"message": "Направление архивировано"}
+
+
+@bp.route("/api/directions/<int:direction_id>/photo", methods=["POST"])
+def upload_direction_photo_for_direction(direction_id: int):
+    perm_error = require_permission("create_direction")
+    if perm_error:
+        return perm_error
+    db = g.db
+    direction = db.query(Direction).filter_by(direction_id=direction_id).first()
+    if not direction:
+        return {"error": "Направление не найдено"}, 404
+    if "photo" not in request.files:
+        return {"error": "Файл не загружен"}, 400
+    file = request.files["photo"]
+    if not file or not file.filename:
+        return {"error": "Файл не выбран"}, 400
+    try:
+        max_bytes = DIRECTION_PHOTO_MAX_MB * 1024 * 1024
+        file_data, detected_ext = validate_image_upload(file, max_bytes=max_bytes)
+    except ValueError as exc:
+        return {"error": safe_client_error_message(exc)}, 400
+
+    direction_media_dir = MEDIA_ROOT / "directions" / f"direction_{direction_id}"
+    os.makedirs(direction_media_dir, exist_ok=True)
+    filename = secure_filename(f"photo_{direction_id}{detected_ext}")
+    filepath = direction_media_dir / filename
+    filepath.write_bytes(file_data)
+    direction.image_path = os.path.relpath(filepath, PROJECT_ROOT)
+    db.commit()
+    return {"ok": True, "image_path": _build_image_url(direction.image_path)}
 
 
 @bp.route("/api/directions/photo/<token>", methods=["POST"])

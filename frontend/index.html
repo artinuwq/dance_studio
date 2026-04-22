@@ -7275,7 +7275,7 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
 <label class="label" style="font-weight: 600;">Название направления *</label>
 <input class="form-input" id="direction-title" placeholder="Например: Балет, Хип-хоп, Современный танец" style="margin-bottom: 14px;" type="text"/>
 <!-- Описание -->
-<label class="label" style="font-weight: 600;">Описание *</label>
+<label class="label" style="font-weight: 600;">Описание</label>
 <textarea class="form-input" id="direction-description" placeholder="Опишите направление..." style="margin-bottom: 14px; min-height: 100px; resize: vertical;"></textarea>
 <!-- Тип -->
 <label class="label" style="font-weight: 600;">Тип направления *</label>
@@ -7283,9 +7283,6 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
   <option value="dance">💃 Танцевальное</option>
   <option value="sport">🏅 Спортивное</option>
 </select>
-<!-- Цена -->
-<label class="label" style="font-weight: 600;">Базовая цена (₽) *</label>
-<input class="form-input" id="direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
 </div>
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid #4CAF50;">
 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px; padding-bottom: 12px; border-bottom: 2px solid var(--border);">
@@ -7302,12 +7299,8 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
 <button class="save-btn" id="direction-upload-gallery-btn" onclick="startDirectionGalleryUpload()" style="width: 100%; margin-bottom: 8px; background: var(--accent);">
       🖼️ Загрузить фото из галереи
     </button>
-<!-- Альтернатива: загрузка через бота -->
-<button class="save-btn" id="direction-upload-btn" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: #111;">
-      📱 Загрузить фото через бот
-    </button>
 <p style="font-size: 12px; color: var(--hint); margin: 0; line-height: 1.5;">
-      💡 Фото можно загрузить из галереи или через бота, но это необязательно — направление можно создать и без фото.
+      💡 Фото можно загрузить из галереи, но это необязательно — направление можно создать и без фото.
     </p>
 </div>
 <button class="save-btn" id="direction-create-btn" onclick="createDirection()" style="width: 100%; margin-bottom: 8px; background: #4CAF50;">
@@ -7354,7 +7347,7 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
 <label class="label" style="font-weight: 600;">Название направления *</label>
 <input class="form-input direction-editable" id="edit-direction-title" placeholder="Например: Балет, Хип-хоп, Современный танец" style="margin-bottom: 14px;" type="text"/>
 <!-- Описание -->
-<label class="label" style="font-weight: 600;">Описание *</label>
+<label class="label" style="font-weight: 600;">Описание</label>
 <textarea class="form-input direction-editable" id="edit-direction-description" placeholder="Опишите направление..." style="margin-bottom: 14px; min-height: 100px; resize: vertical;"></textarea>
 <!-- Тип -->
 <label class="label" style="font-weight: 600;">Тип направления *</label>
@@ -7362,9 +7355,6 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
   <option value="dance">💃 Танцевальное</option>
   <option value="sport">🏅 Спортивное</option>
 </select>
-<!-- Цена -->
-<label class="label" style="font-weight: 600;">Базовая цена (₽) *</label>
-<input class="form-input direction-editable" id="edit-direction-price" placeholder="Например: 5000" style="margin-bottom: 14px;" type="number"/>
 <!-- Статус -->
 <label class="label" style="font-weight: 600;">Статус</label>
 <select class="form-input direction-editable" id="edit-direction-status" style="margin-bottom: 14px;">
@@ -7382,8 +7372,9 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
 <div id="edit-direction-photo-preview" style="width: 100%; height: 150px; background: #1f1f1f; border-radius: 8px; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; color: var(--hint); overflow: hidden;">
       📸 Фото не загружено
     </div>
-<button class="save-btn direction-editable" onclick="generateDirectionUploadToken()" style="width: 100%; margin-bottom: 8px; background: var(--accent);">
-      📱 Загрузить новое фото через бот
+<input id="edit-direction-photo-file" type="file" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="uploadEditDirectionPhotoFromGallery(event)">
+<button class="save-btn direction-editable" onclick="triggerEditDirectionPhotoUpload()" style="width: 100%; margin-bottom: 8px; background: var(--accent);">
+      🖼️ Загрузить новое фото с сайта
     </button>
 </div>
 <!-- КНОПКИ ДЕЙСТВИЯ -->
@@ -7479,12 +7470,12 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
 </div>
 </div>
 <!-- ====== СОЗДАНИЕ ГРУППЫ ====== -->
-<div class="page" data-title="? Создать группу" id="direction-group-create">
+<div class="page" data-title="➕ Создать группу" id="direction-group-create">
 
 <div class="card" style="margin-bottom: 16px; border-left: 4px solid #fe5815;">
 <div class="form-group">
 <label>Название группы *</label>
-<input class="form-input" id="edit-direction-group-name" placeholder="Например: Дети 10-12, Хип?хоп Beginners" type="text"/>
+<input class="form-input" id="edit-direction-group-name" placeholder="Например: Дети 10-12, Хип-хоп Beginners" type="text"/>
 </div>
 <div class="form-group">
 <label>Преподаватель *</label>
@@ -7514,10 +7505,10 @@ body.vk-app #client-create-modal .fullscreen-modal-close-btn {
 <textarea class="form-input" id="edit-direction-group-desc" placeholder="Коротко о группе..." style="min-height: 80px;"></textarea>
 </div>
 <button class="save-btn" onclick="createDirectionGroup()" style="width: 100%; margin-bottom: 8px; background: #fe5815;">
-      ? Создать группу
+      ✅ Создать группу
     </button>
 <button class="save-btn" onclick="goBack()" style="width: 100%; background: #777;">
-      ? Отменить
+      ❌ Отменить
     </button>
 <div id="edit-direction-group-msg" style="margin: 12px 0 0 0; padding: 10px; border-radius: 8px; display: none;"></div>
 </div>
@@ -9550,9 +9541,8 @@ function loadInfoDirections(directionType = null) {
         const imageHtml = d.image_path
           ? `<img src="${safeImagePath}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin-bottom: 10px;">`
           : '';
-        const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
         const groupsCount = typeof d.groups_count === 'number' ? `👥 ${d.groups_count} групп` : '';
-        const metaLine = [price, groupsCount].filter(Boolean).join(' • ');
+        const metaLine = [groupsCount].filter(Boolean).join(' • ');
         return `
           <div class="card" style="cursor: pointer;" ${openAction}>
             ${imageHtml}
@@ -10661,11 +10651,10 @@ function openDirectionDetail(directionId) {
     fetch(`/api/directions/${directionId}/groups`).then(res => res.ok ? res.json() : [])
   ])
     .then(([d, groups]) => {
-      const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
       const status = d.status === 'active' ? '✅ Активно' : '⏸️ Неактивно';
       const type = (d.direction_type || 'dance').toLowerCase();
       const typeLabel = type === 'sport' ? '🏅 Спортивное' : '💃 Танцевальное';
-      const metaLine = [typeLabel, status, price].filter(Boolean).join(' • ');
+      const metaLine = [typeLabel, status].filter(Boolean).join(' • ');
       const photoBlock = d.image_path
         ? `<div class="direction-detail-photo"><img src="${d.image_path}" alt="Направление"></div>`
         : '';
@@ -13358,7 +13347,6 @@ function loadGroupScheduleDetails(groupId) {
     })
     .then(group => {
       const directionTitle = group.direction_title || '—';
-      const directionPrice = group.direction_base_price || null;
       const teacherName = group.teacher_name || '—';
 
       const rows = [
@@ -13373,7 +13361,6 @@ function loadGroupScheduleDetails(groupId) {
       if (group.lessons_per_week) {
         rows.push(renderScheduleDetailArrowRow('📆', 'Занятий в неделю', group.lessons_per_week));
       }
-      rows.push(renderScheduleDetailArrowRow('💰', 'Цена', directionPrice ? `${directionPrice} ₽` : '—'));
       extra.innerHTML = rows.join('');
     })
     .catch(() => {
@@ -15809,7 +15796,6 @@ function updateGroupFormDefaults() {
           preview.innerHTML += `<div class="schedule-detail-row">👩‍🏫 <strong>Учитель:</strong> ${group.teacher_name}</div>`;
         }
         preview.innerHTML += `<div class="schedule-detail-row">🎯 <strong>Направление:</strong> —</div>`;
-        preview.innerHTML += `<div class="schedule-detail-row">💰 <strong>Цена:</strong> —</div>`;
       }
 
       if (group.lessons_per_week && dateStr) {
@@ -15821,9 +15807,8 @@ function updateGroupFormDefaults() {
 
       if (preview) {
         const rows = preview.querySelectorAll('.schedule-detail-row');
-        if (rows.length >= 2) {
-          rows[rows.length - 2].innerHTML = `🎯 <strong>Направление:</strong> ${group.direction_title || '—'}`;
-          rows[rows.length - 1].innerHTML = `💰 <strong>Цена:</strong> ${group.direction_base_price ? group.direction_base_price + ' ₽' : '—'}`;
+        if (rows.length >= 1) {
+          rows[rows.length - 1].innerHTML = `🎯 <strong>Направление:</strong> ${group.direction_title || '—'}`;
         }
       }
       updateGroupLiveResult();
@@ -27678,7 +27663,6 @@ async function createDirectionUploadSessionFromForm() {
   // Получаем данные из формы
   const title = document.getElementById('direction-title').value.trim();
   const description = document.getElementById('direction-description').value.trim();
-  const price = document.getElementById('direction-price').value.trim();
   const directionType = document.getElementById('direction-type').value;
   
   // Проверяем обязательные поля
@@ -27686,16 +27670,8 @@ async function createDirectionUploadSessionFromForm() {
     showDirectionError('Введите название направления');
     return;
   }
-  if (!description) {
-    showDirectionError('Введите описание направления');
-    return;
-  }
   if (!directionType) {
     showDirectionError('Выберите тип направления');
-    return;
-  }
-  if (!price || isNaN(price) || parseInt(price) <= 0) {
-    showDirectionError('Введите корректную цену');
     return;
   }
   
@@ -27714,7 +27690,7 @@ async function createDirectionUploadSessionFromForm() {
         title: title,
         direction_type: directionType,
         description: description,
-        base_price: parseInt(price, 10)
+        base_price: null
       })
     });
     
@@ -27963,7 +27939,6 @@ async function createDirection() {
 function resetDirectionForm() {
   document.getElementById('direction-title').value = '';
   document.getElementById('direction-description').value = '';
-  document.getElementById('direction-price').value = '';
   document.getElementById('direction-type').value = 'dance';
   document.getElementById('direction-photo-status').innerHTML = 
     '<p style="margin: 0; color: var(--hint); font-size: 14px;">📷 Фотография не загружена (необязательно)</p>';
@@ -28067,7 +28042,6 @@ function renderDirections(directions) {
         
         <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
           <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${typeBadge}</span>
-          <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">💰 ${direction.base_price} ₽</span>
           <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: ${statusColor};">${statusText}</span>
           ${popularBadge ? `<span style="background: var(--accent-soft); color: var(--accent); padding: 4px 8px; border-radius: 4px; font-size: 12px;">${popularBadge}</span>` : ''}
         </div>
@@ -28078,7 +28052,7 @@ function renderDirections(directions) {
         
         <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center; justify-content: space-between;">
           <button class="save-btn" style="flex: 0 0 calc(100% - 48px); height: 40px; padding: 8px; font-size: 12px; background: var(--accent); border-radius: 8px;" onclick="editDirection(${direction.direction_id})">✏️ Редактировать</button>
-          <button class="save-btn" style="width: 40px; height: 40px; padding: 0; font-size: 18px; background: #fe5815; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" onclick="archiveDirection(${direction.direction_id})">🗑️</button>
+          <button class="save-btn" style="width: 40px; height: 40px; padding: 0; font-size: 18px; background: #fe5815; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" onclick="${currentDirectionTab === 'archived' ? `deleteArchivedDirection(${direction.direction_id})` : `archiveDirection(${direction.direction_id})`}">🗑️</button>
         </div>
       </div>
     `;
@@ -28159,14 +28133,15 @@ function editDirection(directionId) {
       // Заполняем форму данными
       document.getElementById('edit-direction-title').value = direction.title || '';
       document.getElementById('edit-direction-description').value = direction.description || '';
-      document.getElementById('edit-direction-price').value = direction.base_price || '';
       document.getElementById('edit-direction-type').value = direction.direction_type || 'dance';
       document.getElementById('edit-direction-status').value = direction.status || 'active';
       
       // Показываем фотографию если она есть
+      const photoDiv = document.getElementById('edit-direction-photo-preview');
       if (direction.image_path) {
-        const photoDiv = document.getElementById('edit-direction-photo-preview');
         photoDiv.innerHTML = `<img src="${direction.image_path}" style="width: 100%; height: 100%; object-fit: cover;">`;
+      } else if (photoDiv) {
+        photoDiv.textContent = '📸 Фото не загружено';
       }
       
       // Загружаем группы
@@ -28634,12 +28609,11 @@ function saveDirectionChanges() {
   
   const title = document.getElementById('edit-direction-title').value.trim();
   const description = document.getElementById('edit-direction-description').value.trim();
-  const price = document.getElementById('edit-direction-price').value;
   const directionType = document.getElementById('edit-direction-type').value || 'dance';
   const status = document.getElementById('edit-direction-status').value;
   
-  if (!title || !description || !price || !directionType) {
-    alert('? Пожалуйста, заполните все поля');
+  if (!title || !directionType) {
+    alert('? Пожалуйста, заполните обязательные поля');
     return;
   }
   
@@ -28648,8 +28622,7 @@ function saveDirectionChanges() {
     headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       title,
-      description,
-      base_price: parseFloat(price),
+      description: description || null,
       direction_type: directionType,
       status
     })
@@ -28661,6 +28634,55 @@ function saveDirectionChanges() {
       loadDirections();
     })
     .catch(err => alert('? Ошибка: ' + err.message));
+}
+
+function triggerEditDirectionPhotoUpload() {
+  if (window.directionEditLocked) {
+    alert('🔒 Сначала разблокируйте редактирование.');
+    return;
+  }
+  const input = document.getElementById('edit-direction-photo-file');
+  if (!input) {
+    alert('❌ Поле загрузки фото не найдено');
+    return;
+  }
+  input.value = '';
+  input.click();
+}
+
+async function uploadEditDirectionPhotoFromGallery(event) {
+  const directionId = Number(window.currentEditDirectionId || 0);
+  if (!directionId) {
+    alert('❌ Сначала откройте направление для редактирования');
+    return;
+  }
+  const file = event?.target?.files?.[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('photo', file, file.name || 'photo');
+
+  try {
+    const response = await authFetch(`/api/directions/${directionId}/photo`, {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || 'Не удалось загрузить фото');
+    }
+    const preview = document.getElementById('edit-direction-photo-preview');
+    if (preview) {
+      const imagePath = data.image_path || '';
+      preview.innerHTML = imagePath
+        ? `<img src="${toSafeUrl(imagePath)}" style="width: 100%; height: 100%; object-fit: cover;">`
+        : '📸 Фото не загружено';
+    }
+    showNotification('✅ Фото направления обновлено');
+    loadDirections();
+  } catch (error) {
+    alert('❌ Ошибка: ' + (error.message || 'Не удалось загрузить фото'));
+  }
 }
 
 function loadInfoDirections(directionType = null) {
@@ -28693,9 +28715,8 @@ function loadInfoDirections(directionType = null) {
         const imageHtml = d.image_path
           ? `<img src="${safeImagePath}" style="width: 100%; height: 140px; object-fit: cover; border-radius: 10px; margin-bottom: 10px;">`
           : '';
-        const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
         const groupsCount = typeof d.groups_count === 'number' ? `👥 ${d.groups_count} групп` : '';
-        const metaLine = [price, groupsCount].filter(Boolean).join(' • ');
+        const metaLine = [groupsCount].filter(Boolean).join(' • ');
         return `
           <div class="card" style="cursor: pointer;" ${openAction}>
             ${imageHtml}
@@ -28726,11 +28747,10 @@ function openDirectionDetail(directionId) {
       const safeTitle = toSafeText(d.title, 'Направление');
       const safeDescription = toSafeText(d.description, 'Описание отсутствует');
       const safeImagePath = toSafeUrl(d.image_path);
-      const price = d.base_price ? `💰 ${d.base_price} ₽` : '';
       const status = d.status === 'active' ? '✅ Активно' : '⏸️ Неактивно';
       const type = (d.direction_type || 'dance').toLowerCase();
       const typeLabel = type === 'sport' ? '🏅 Спортивное' : '💃 Танцевальное';
-      const metaLine = [typeLabel, status, price].filter(Boolean).join(' • ');
+      const metaLine = [typeLabel, status].filter(Boolean).join(' • ');
       const photoBlock = d.image_path
         ? `<div class="direction-detail-photo"><img src="${safeImagePath}" alt="Направление"></div>`
         : '';
@@ -28866,7 +28886,6 @@ function renderDirections(directions) {
     const safeTitle = toSafeText(direction.title, 'Направление');
     const safeDescription = toSafeText(direction.description, 'Нет описания');
     const safeImagePath = toSafeUrl(direction.image_path);
-    const safePrice = toSafeText(direction.base_price ? `${direction.base_price} ₽` : '—');
     const statusColor = direction.status === 'active' ? '#4CAF50' : '#fe5815';
     const statusText = direction.status === 'active' ? '✅ Активное' : '⏸️ Неактивное';
     const popularBadge = direction.is_popular ? '⭐ Популярное' : '';
@@ -28884,7 +28903,6 @@ function renderDirections(directions) {
 
         <div style="display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
           <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">${typeBadge}</span>
-          <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px;">💰 ${safePrice}</span>
           <span style="background: #1f1f1f; padding: 4px 8px; border-radius: 4px; font-size: 12px; color: ${statusColor};">${statusText}</span>
           ${popularBadge ? `<span style="background: var(--accent-soft); color: var(--accent); padding: 4px 8px; border-radius: 4px; font-size: 12px;">${popularBadge}</span>` : ''}
         </div>
@@ -28895,7 +28913,7 @@ function renderDirections(directions) {
 
         <div style="display: flex; gap: 8px; margin-top: 8px; align-items: center; justify-content: space-between;">
           <button class="save-btn" style="flex: 0 0 calc(100% - 48px); height: 40px; padding: 8px; font-size: 12px; background: var(--accent); border-radius: 8px;" onclick="editDirection(${directionId})">✏️ Редактировать</button>
-          <button class="save-btn" style="width: 40px; height: 40px; padding: 0; font-size: 18px; background: #fe5815; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" onclick="archiveDirection(${directionId})">🗑️</button>
+          <button class="save-btn" style="width: 40px; height: 40px; padding: 0; font-size: 18px; background: #fe5815; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;" onclick="${currentDirectionTab === 'archived' ? `deleteArchivedDirection(${directionId})` : `archiveDirection(${directionId})`}">🗑️</button>
         </div>
       </div>
     `;
@@ -28969,6 +28987,18 @@ function archiveDirection(directionId) {
       })
       .catch(err => alert('? Ошибка: ' + err.message));
   }
+}
+
+function deleteArchivedDirection(directionId) {
+  if (!confirm('Удалить направление из архива навсегда? Это действие необратимо.')) return;
+  fetch(`/api/directions/${directionId}?hard=1`, { method: 'DELETE', headers: getAuthHeaders() })
+    .then(async (r) => {
+      const payload = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(payload.error || 'Не удалось удалить направление');
+      alert('✅ Направление удалено');
+      loadDirections();
+    })
+    .catch((err) => alert('❌ Ошибка: ' + err.message));
 }
 
 
